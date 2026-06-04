@@ -1,0 +1,810 @@
+package com.ballade.hwaran.ui.viewmodels
+
+import android.app.Application
+import android.content.Intent
+import android.net.Uri
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.ballade.hwaran.data.local.AppDatabase
+import com.ballade.hwaran.data.local.MangaEntity
+import com.ballade.hwaran.data.repository.LibraryRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
+
+import androidx.documentfile.provider.DocumentFile
+import com.ballade.hwaran.data.local.ChapterEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+class LibraryViewModel(application: Application) : AndroidViewModel(application) {
+    private val database = AppDatabase.getDatabase(application)
+    private val repository = LibraryRepository(application, database)
+
+    private val _isNsfwFilter = MutableStateFlow(false)
+    val isNsfwFilter: StateFlow<Boolean> = _isNsfwFilter
+
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading
+
+    val libraryState: StateFlow<List<MangaEntity>> = database.libraryDao().getAllManga()
+        .combine(_isNsfwFilter) { allManga, isNsfw ->
+            _isLoading.value = false
+            if (isNsfw) {
+                allManga.filter { it.isNsfw }
+            } else {
+                allManga.filter { !it.isNsfw }
+            }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val favoritedUris: StateFlow<Set<String>> = database.libraryDao().getAllManga()
+        .map { list -> list.find { it.title.equals("Favorites", ignoreCase = true) && it.contentType == 3 } }
+        .flatMapLatest { favManga ->
+            if (favManga == null) kotlinx.coroutines.flow.flowOf(emptySet())
+            else database.libraryDao().getChaptersForManga(favManga.id)
+                .map { chapters -> chapters.map { it.folderUri }.toSet() }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val allMangaState: StateFlow<List<MangaEntity>> = database.libraryDao().getAllManga()
+        .combine(MutableStateFlow(Unit)) { allManga, _ ->
+            _isLoading.value = false
+            allManga
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    fun getScreenNamesForMode(mediaMode: Int): kotlinx.coroutines.flow.Flow<List<String>> {
+        return database.libraryDao().getDistinctWorkspacesForContentType(mediaMode)
+    }
+
+    private val _isImporting = MutableStateFlow(false)
+    val isImporting: StateFlow<Boolean> = _isImporting
+
+    private val _isMegaImporting = MutableStateFlow(false)
+    val isMegaImporting: StateFlow<Boolean> = _isMegaImporting
+
+    val isImportingGlobal: StateFlow<Boolean> = combine(_isImporting, _isMegaImporting) { a, b -> a || b }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    private val _importProgress = MutableStateFlow(0)
+    val importProgress: StateFlow<Int> = _importProgress
+
+    private val _megaImportProgress = MutableStateFlow(0f)
+    val megaImportProgress: StateFlow<Float> = _megaImportProgress
+
+    data class MegaImportSummary(
+        val total: Int,
+        val imported: Int,
+        val skipped: Int,
+        val skippedFolders: List<String>,
+        val isCancelled: Boolean = false
+    )
+
+    private val _megaImportSummary = MutableStateFlow<MegaImportSummary?>(null)
+    val megaImportSummary: StateFlow<MegaImportSummary?> = _megaImportSummary
+
+    private val _isCancelRequested = MutableStateFlow(false)
+    val isCancelRequested: StateFlow<Boolean> = _isCancelRequested
+
+    private var importJob: kotlinx.coroutines.Job? = null
+
+    fun toggleFilter(isNsfw: Boolean) {
+        _isNsfwFilter.value = isNsfw
+    }
+
+    private val _isCancelArmed = MutableStateFlow(false)
+    val isCancelArmed: StateFlow<Boolean> = _isCancelArmed
+
+    fun armCancel() {
+        _isCancelArmed.value = true
+    }
+
+    fun cancelImport() {
+        _isCancelRequested.value = true
+        _isCancelArmed.value = false
+    }
+
+    fun clearMegaImportSummary() {
+        _megaImportSummary.value = null
+    }
+
+    fun megaImportFolder(
+        parentUri: Uri,
+        boxPurposeOverride: String? = null,
+        workspace: String? = null,
+        isNsfwOverride: Boolean? = null,
+        storageModeOverride: Int? = null
+    ) {
+        if (isImportingGlobal.value) return
+        _isMegaImporting.value = true
+        _isCancelRequested.value = false
+        _isCancelArmed.value = false
+
+        importJob?.cancel()
+        importJob = viewModelScope.launch {
+            _megaImportProgress.value = 0f
+            _megaImportSummary.value = null
+
+            val globalSettings = com.ballade.hwaran.data.local.GlobalSettings(getApplication())
+            val mediaMode = globalSettings.mediaModeFlow.first()
+            val isLocalMode = (storageModeOverride ?: globalSettings.storageModeFlow.first()) == 0
+            val videoLayoutMode = globalSettings.videoLayoutModeFlow.first()
+            val boxPurpose = boxPurposeOverride ?: if (videoLayoutMode == 1) "channel" else "series"
+
+            try {
+                if (mediaMode == 1) { // Book Mode
+                    val parentDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(getApplication(), parentUri)
+                    if (parentDoc != null) {
+                        val mode = com.ballade.hwaran.data.book.BookImportUtils.detectImportMode(parentDoc)
+                        if (mode == "SINGLE") {
+                            _isMegaImporting.value = false
+                            importFolder(
+                                uri = parentUri,
+                                boxPurposeOverride = boxPurposeOverride,
+                                workspace = workspace,
+                                isNsfwOverride = isNsfwOverride,
+                                storageModeOverride = storageModeOverride
+                            )
+                            return@launch
+                        } else {
+                            val bookRepository = com.ballade.hwaran.data.book.BookImportRepository(database.libraryDao())
+                            val bookSummary = if (isLocalMode) {
+                                com.ballade.hwaran.data.book.BookLocalMegaImport.execute(
+                                    context = getApplication(),
+                                    repository = bookRepository,
+                                    parentUri = parentUri,
+                                    workspace = workspace,
+                                    isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                                    boxPurpose = boxPurpose,
+                                    isCancelled = { _isCancelRequested.value },
+                                    onProgress = { progress -> _megaImportProgress.value = progress }
+                                )
+                            } else {
+                                com.ballade.hwaran.data.book.BookExternalMegaImport.execute(
+                                    context = getApplication(),
+                                    repository = bookRepository,
+                                    parentUri = parentUri,
+                                    workspace = workspace,
+                                    isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                                    boxPurpose = boxPurpose,
+                                    isCancelled = { _isCancelRequested.value },
+                                    onProgress = { progress -> _megaImportProgress.value = progress }
+                                )
+                            }
+                            _megaImportSummary.value = MegaImportSummary(
+                                total = bookSummary.total,
+                                imported = bookSummary.imported,
+                                skipped = bookSummary.skipped,
+                                skippedFolders = bookSummary.skippedFolders,
+                                isCancelled = bookSummary.isCancelled
+                            )
+                        }
+                    }
+                } else if (mediaMode == 0) {
+                    val toonRepository = com.ballade.hwaran.data.toon.ToonImportRepository(database.libraryDao())
+                    val toonSummary = if (isLocalMode) {
+                        com.ballade.hwaran.data.toon.ToonLocalMegaImport.execute(
+                            context = getApplication(),
+                            repository = toonRepository,
+                            parentUri = parentUri,
+                            workspace = workspace,
+                            isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                            boxPurpose = boxPurpose,
+                            isCancelled = { _isCancelRequested.value },
+                            onProgress = { progress -> _megaImportProgress.value = progress }
+                        )
+                    } else {
+                        com.ballade.hwaran.data.toon.ToonExternalMegaImport.execute(
+                            context = getApplication(),
+                            repository = toonRepository,
+                            parentUri = parentUri,
+                            workspace = workspace,
+                            isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                            boxPurpose = boxPurpose,
+                            isCancelled = { _isCancelRequested.value },
+                            onProgress = { progress -> _megaImportProgress.value = progress }
+                        )
+                    }
+                    _megaImportSummary.value = MegaImportSummary(
+                        total = toonSummary.total,
+                        imported = toonSummary.imported,
+                        skipped = toonSummary.skipped,
+                        skippedFolders = toonSummary.skippedFolders,
+                        isCancelled = toonSummary.isCancelled
+                    )
+                } else if (mediaMode == 2) {
+                    // Video Mega Import — isolated pipeline
+                    val videoRepository = com.ballade.hwaran.data.video.VideoImportRepository(database.libraryDao())
+                    val videoSummary = if (isLocalMode) {
+                        com.ballade.hwaran.data.video.VideoLocalMegaImport.execute(
+                            context = getApplication(),
+                            repository = videoRepository,
+                            parentUri = parentUri,
+                            workspace = workspace,
+                            isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                            boxPurpose = boxPurpose,
+                            isCancelled = { _isCancelRequested.value },
+                            onProgress = { progress -> _megaImportProgress.value = progress }
+                        )
+                    } else {
+                        com.ballade.hwaran.data.video.VideoExternalMegaImport.execute(
+                            context = getApplication(),
+                            repository = videoRepository,
+                            parentUri = parentUri,
+                            workspace = workspace,
+                            isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                            boxPurpose = boxPurpose,
+                            isCancelled = { _isCancelRequested.value },
+                            onProgress = { progress -> _megaImportProgress.value = progress }
+                        )
+                    }
+                    _megaImportSummary.value = MegaImportSummary(
+                        total = videoSummary.total,
+                        imported = videoSummary.imported,
+                        skipped = videoSummary.skipped,
+                        skippedFolders = videoSummary.skippedFolders,
+                        isCancelled = videoSummary.isCancelled
+                    )
+                } else {
+
+                    // Legacy path for Book/Video
+                    var totalCount = 0
+                    var importedCount = 0
+                    var skippedCount = 0
+                    val skippedFolders = mutableListOf<String>()
+                    var isCancelled = false
+
+                    try {
+                        val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                        getApplication<Application>().contentResolver.takePersistableUriPermission(parentUri, takeFlags)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+
+                    withContext(Dispatchers.IO) {
+                        val parentDoc = DocumentFile.fromTreeUri(getApplication(), parentUri)
+                        val allChildren = parentDoc?.listFiles() ?: emptyArray()
+                        val candidates = allChildren.filter {
+                            it.isDirectory && !(it.name?.startsWith(".") == true)
+                        }.sortedBy { it.name?.lowercase() ?: "" }
+                        totalCount = candidates.size
+
+                        if (totalCount == 0) {
+                            _megaImportSummary.value = MegaImportSummary(0, 0, 0, emptyList(), false)
+                            return@withContext
+                        }
+
+                        for (index in candidates.indices) {
+                            if (!isActive || _isCancelRequested.value) {
+                                isCancelled = true
+                                break
+                            }
+
+                            val child = candidates[index]
+                            
+                            val expectedPath = if (isLocalMode) {
+                                val vaultBase = java.io.File(getApplication<Application>().filesDir, "manga_vault")
+                                java.io.File(vaultBase, child.name ?: "").absolutePath
+                            } else {
+                                child.uri.toString()
+                            }
+                            
+                            val existing = database.libraryDao().getRootMangaByUri(expectedPath)
+                            if (existing != null) {
+                                skippedCount++
+                                skippedFolders.add("${child.name ?: "Unknown Folder"}: Already imported")
+                                _megaImportProgress.value = (index + 1).toFloat() / totalCount
+                                continue
+                            }
+
+                            val (isValid, reason) = com.ballade.hwaran.data.toon.ToonImportUtils.isToonFolderValid(child)
+                            if (isValid) {
+                                try {
+                                    val importedId = repository.scanImportedFolder(
+                                        rootUri = child.uri,
+                                        isLocalMode = isLocalMode,
+                                        isFile = false,
+                                        isNsfwInput = isNsfwOverride ?: _isNsfwFilter.value,
+                                        boxPurposeInput = boxPurpose,
+                                        workspace = workspace,
+                                        documentFileOverride = child,
+                                        isCancelled = { _isCancelRequested.value }
+                                    )
+                                    if (importedId != null) {
+                                        importedCount++
+                                    } else {
+                                        skippedCount++
+                                        skippedFolders.add("${child.name ?: "Unknown Folder"}: Scan failed")
+                                    }
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                    skippedCount++
+                                    skippedFolders.add("${child.name ?: "Unknown Folder"}: ${e.message ?: "Unknown error"}")
+                                }
+                            } else {
+                                skippedCount++
+                                skippedFolders.add("${child.name ?: "Unknown Folder"}: ${reason ?: "Invalid structure"}")
+                            }
+
+                            _megaImportProgress.value = (index + 1).toFloat() / totalCount
+                        }
+                    }
+                    _megaImportSummary.value = MegaImportSummary(
+                        total = totalCount,
+                        imported = importedCount,
+                        skipped = skippedCount,
+                        skippedFolders = skippedFolders,
+                        isCancelled = isCancelled || _isCancelRequested.value
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isMegaImporting.value = false
+                _megaImportProgress.value = 0f
+                _isCancelRequested.value = false
+                _isCancelArmed.value = false
+            }
+        }
+    }
+
+    fun importFolder(uri: Uri, isFile: Boolean = false, boxPurposeOverride: String? = null, workspace: String? = null, isNsfwOverride: Boolean? = null, storageModeOverride: Int? = null, onImported: (Long) -> Unit = {}) {
+        if (isImportingGlobal.value) return
+        _isImporting.value = true
+        _isCancelRequested.value = false
+        _isCancelArmed.value = false
+
+        importJob?.cancel()
+        importJob = viewModelScope.launch {
+            var importedId: Long? = null
+            try {
+                val globalSettings = com.ballade.hwaran.data.local.GlobalSettings(getApplication())
+                val isLocalMode = (storageModeOverride ?: globalSettings.storageModeFlow.first()) == 0
+                val mediaMode = globalSettings.mediaModeFlow.first()
+                val videoLayoutMode = globalSettings.videoLayoutModeFlow.first()
+                val boxPurpose = boxPurposeOverride ?: if (videoLayoutMode == 1) "channel" else "series"
+
+                val expectedPath = withContext(Dispatchers.IO) {
+                    if (isLocalMode) {
+                        val folderDoc = if (isFile) DocumentFile.fromSingleUri(getApplication(), uri) else DocumentFile.fromTreeUri(getApplication(), uri)
+                        val folderName = folderDoc?.name ?: "Unknown"
+                        val finalFolderName = if (isFile) folderName.substringBeforeLast(".") else folderName
+                        val vaultBase = java.io.File(getApplication<Application>().filesDir, "manga_vault")
+                        java.io.File(vaultBase, finalFolderName).absolutePath
+                    } else {
+                        uri.toString()
+                    }
+                }
+
+                val existing = database.libraryDao().getRootMangaByUri(expectedPath)
+                if (existing != null) {
+                    android.widget.Toast.makeText(
+                        getApplication(),
+                        "${existing.title} is already imported",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    return@launch
+                }
+
+                try {
+                    val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    getApplication<Application>().contentResolver.takePersistableUriPermission(uri, takeFlags)
+                } catch (e: SecurityException) {
+                    e.printStackTrace()
+                }
+
+                if (mediaMode == 0 && !isFile) {
+                    val toonRepository = com.ballade.hwaran.data.toon.ToonImportRepository(database.libraryDao())
+                    if (isLocalMode) {
+                        importedId = com.ballade.hwaran.data.toon.ToonLocalSingleImport.execute(
+                            context = getApplication(),
+                            repository = toonRepository,
+                            uri = uri,
+                            workspace = workspace,
+                            isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                            boxPurpose = boxPurpose,
+                            isCancelled = { _isCancelRequested.value },
+                            onProgress = { progress -> _importProgress.value = progress }
+                        )
+                    } else {
+                        importedId = com.ballade.hwaran.data.toon.ToonExternalSingleImport.execute(
+                            context = getApplication(),
+                            repository = toonRepository,
+                            uri = uri,
+                            workspace = workspace,
+                            isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                            boxPurpose = boxPurpose,
+                            isCancelled = { _isCancelRequested.value },
+                            onProgress = { progress -> _importProgress.value = progress }
+                        )
+                    }
+                } else if (mediaMode == 1) {
+                    val bookRepository = com.ballade.hwaran.data.book.BookImportRepository(database.libraryDao())
+                    if (isFile) {
+                        // Single-file URI from OpenDocument picker — must use fromSingleUri,
+                        // NOT fromTreeUri (which always returns null for file URIs).
+                        val pdfDoc = androidx.documentfile.provider.DocumentFile.fromSingleUri(getApplication(), uri)
+                        if (pdfDoc != null) {
+                            if (isLocalMode) {
+                                importedId = com.ballade.hwaran.data.book.BookLocalSingleImport.executeSinglePdf(
+                                    context = getApplication(),
+                                    repository = bookRepository,
+                                    pdfDoc = pdfDoc,
+                                    workspace = workspace,
+                                    isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                                    boxPurpose = boxPurpose,
+                                    importMode = "Single Import",
+                                    isCancelled = { _isCancelRequested.value }
+                                )
+                            } else {
+                                importedId = com.ballade.hwaran.data.book.BookExternalSingleImport.executeSinglePdf(
+                                    context = getApplication(),
+                                    repository = bookRepository,
+                                    pdfDoc = pdfDoc,
+                                    workspace = workspace,
+                                    isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                                    boxPurpose = boxPurpose,
+                                    importMode = "Single Import",
+                                    isCancelled = { _isCancelRequested.value }
+                                )
+                            }
+                        }
+                    } else if (isLocalMode) {
+                        importedId = com.ballade.hwaran.data.book.BookLocalSingleImport.execute(
+                            context = getApplication(),
+                            repository = bookRepository,
+                            uri = uri,
+                            workspace = workspace,
+                            isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                            boxPurpose = boxPurpose,
+                            isCancelled = { _isCancelRequested.value },
+                            onProgress = { progress -> _importProgress.value = progress }
+                        )
+                    } else {
+                        importedId = com.ballade.hwaran.data.book.BookExternalSingleImport.execute(
+                            context = getApplication(),
+                            repository = bookRepository,
+                            uri = uri,
+                            workspace = workspace,
+                            isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                            boxPurpose = boxPurpose,
+                            isCancelled = { _isCancelRequested.value },
+                            onProgress = { progress -> _importProgress.value = progress }
+                        )
+                    }
+                } else {
+                    importedId = repository.scanImportedFolder(
+                        rootUri = uri,
+                        isLocalMode = isLocalMode,
+                        isFile = isFile,
+                        isNsfwInput = isNsfwOverride ?: _isNsfwFilter.value,
+                        boxPurposeInput = boxPurpose,
+                        workspace = workspace,
+                        isCancelled = { _isCancelRequested.value }
+                    ) { progress ->
+                        _importProgress.value = progress
+                    }
+                }
+                
+                importedId?.let { onImported(it) }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isImporting.value = false
+                _importProgress.value = 0
+                _isCancelRequested.value = false
+                _isCancelArmed.value = false
+            }
+        }
+    }
+
+    fun updateMangaLockState(manga: MangaEntity, isLocked: Boolean) {
+        viewModelScope.launch {
+            database.libraryDao().insertManga(manga.copy(isLocked = isLocked))
+        }
+    }
+
+    fun updateMangaMetadata(mangaId: Long, title: String, artist: String, coverPath: String) {
+        viewModelScope.launch {
+            val manga = database.libraryDao().getMangaById(mangaId)
+            if (manga != null) {
+                // Fix: Persist URI permission for the new cover image if it's a content URI
+                if (coverPath.startsWith("content://")) {
+                    try {
+                        val uri = Uri.parse(coverPath)
+                        val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        getApplication<Application>().contentResolver.takePersistableUriPermission(uri, takeFlags)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                
+                database.libraryDao().insertManga(manga.copy(
+                    title = title,
+                    description = artist,
+                    coverPath = coverPath
+                ))
+            }
+        }
+    }
+
+    fun updateMangaGenre(mangaId: Long, genre: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val manga = database.libraryDao().getMangaById(mangaId)
+            if (manga != null) {
+                database.libraryDao().insertManga(manga.copy(genre = genre))
+            }
+        }
+    }
+
+    fun updateChapterGenre(chapterId: Long, genre: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val chapter = database.libraryDao().getChapterById(chapterId)
+            if (chapter != null) {
+                database.libraryDao().insertChapter(chapter.copy(genre = genre))
+            }
+        }
+    }
+
+    fun updateTracker(mangaId: Long, title: String? = null, page: Int? = null) {
+        viewModelScope.launch {
+            val manga = database.libraryDao().getMangaById(mangaId)
+            if (manga != null) {
+                database.libraryDao().insertManga(manga.copy(
+                    lastReadTitle = title ?: manga.lastReadTitle,
+                    lastReadPage = page ?: manga.lastReadPage
+                ))
+            }
+        }
+    }
+
+    fun deletePlaylist(mangaId: Long) {
+        viewModelScope.launch {
+            val manga = database.libraryDao().getMangaById(mangaId)
+            if (manga != null) {
+                com.ballade.hwaran.data.local.HistoryTracker.logEvent("DELETE", manga.title, "Playlist")
+                // Delete associated chapters first
+                database.libraryDao().deleteChaptersByMangaId(mangaId)
+                // Delete the playlist itself
+                database.libraryDao().deleteManga(manga)
+            }
+        }
+    }
+
+    fun createPlaylist(title: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val newPlaylist = MangaEntity(
+                title = title,
+                description = "Custom Playlist",
+                thoughts = "No thoughts added.",
+                coverPath = "",
+                isNsfw = false,
+                parentUri = "custom_playlist_${System.currentTimeMillis()}",
+                lastModified = System.currentTimeMillis(),
+                contentType = 3
+            )
+            database.libraryDao().insertManga(newPlaylist)
+        }
+    }
+
+    fun addSongToPlaylist(playlistId: Long, song: ChapterEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val existingChapters = database.libraryDao().getChaptersForMangaList(playlistId)
+            val duplicate = existingChapters.find { it.folderUri == song.folderUri }
+            if (duplicate == null) {
+                val newSong = song.copy(id = 0, mangaId = playlistId)
+                database.libraryDao().insertChapter(newSong)
+            }
+        }
+    }
+
+    fun toggleFavorite(song: ChapterEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // Find "Favorites" playlist
+            var favPlaylist = database.libraryDao().getAllMangaList().find { 
+                it.title.equals("Favorites", ignoreCase = true) && it.contentType == 3 
+            }
+            
+            // Create it if it doesn't exist
+            if (favPlaylist == null) {
+                val newFav = MangaEntity(
+                    title = "Favorites",
+                    description = "Your favorite tracks",
+                    thoughts = "No thoughts added.",
+                    coverPath = "android.resource://com.ballade.hwaran/drawable/fav",
+                    isNsfw = false,
+                    parentUri = "favorites_${System.currentTimeMillis()}",
+                    lastModified = System.currentTimeMillis(),
+                    contentType = 3
+                )
+                val newId = database.libraryDao().insertManga(newFav)
+                favPlaylist = database.libraryDao().getMangaById(newId)
+            }
+            
+            // Toggle song in the favorites playlist
+            if (favPlaylist != null) {
+                val existingChapters = database.libraryDao().getChaptersForMangaList(favPlaylist.id)
+                val duplicate = existingChapters.find { it.folderUri == song.folderUri }
+                if (duplicate != null) {
+                    database.libraryDao().deleteChapter(duplicate)
+                } else {
+                    val newSong = song.copy(id = 0, mangaId = favPlaylist.id)
+                    database.libraryDao().insertChapter(newSong)
+                }
+            }
+        }
+    }
+
+    fun deleteChapterOnlyFromDb(chapterId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val chapter = database.libraryDao().getChapterById(chapterId)
+            if (chapter != null) {
+                com.ballade.hwaran.data.local.HistoryTracker.logEvent("DELETE", chapter.title, "Chapter (DB only)")
+                database.libraryDao().deleteChapter(chapter)
+            }
+        }
+    }
+
+    fun deleteSelectedChapters(chapterIds: List<Long>) {
+        if (chapterIds.isEmpty()) return
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                chapterIds.forEach { id ->
+                    val chapter = database.libraryDao().getChapterById(id)
+                    if (chapter != null) {
+                        com.ballade.hwaran.data.local.HistoryTracker.logEvent("DELETE", chapter.title, "Chapter (Physical)")
+                        try {
+                            if (chapter.folderUri.startsWith("content://")) {
+                                val uri = Uri.parse(chapter.folderUri)
+                                // Try SAF DocumentFile delete first
+                                val deleted = DocumentFile.fromSingleUri(getApplication(), uri)?.delete()
+                                    ?: DocumentFile.fromTreeUri(getApplication(), uri)?.delete()
+                                // Fallback: ContentResolver delete (works for media store URIs like music files)
+                                if (deleted != true) {
+                                    try {
+                                        getApplication<Application>().contentResolver.delete(uri, null, null)
+                                    } catch (se: SecurityException) {
+                                        se.printStackTrace()
+                                    }
+                                }
+                            } else {
+                                val path = chapter.folderUri
+                                val file = java.io.File(path)
+                                when {
+                                    // Directory (toon chapter or local-mode song folder)
+                                    file.isDirectory -> file.deleteRecursively()
+                                    // Direct file path
+                                    file.isFile -> file.delete()
+                                    // Might be a parent folder containing the actual file
+                                    else -> {
+                                        val parent = file.parentFile
+                                        if (parent != null && parent.exists()) parent.deleteRecursively()
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                        database.libraryDao().deleteChapter(chapter)
+                    }
+                }
+            }
+        }
+    }
+
+    fun deleteWorkspace(mediaMode: Int, workspaceName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val globalSettings = com.ballade.hwaran.data.local.GlobalSettings(getApplication())
+            globalSettings.removeWorkspace(mediaMode, workspaceName)
+
+            val items = database.libraryDao().getAllMangaList().filter { 
+                it.contentType == mediaMode && it.workspace == workspaceName && it.parentMangaId == null 
+            }
+            items.forEach { m ->
+                com.ballade.hwaran.data.local.HistoryTracker.logEvent("DELETE", m.title, "Workspace Item")
+                // Root items deletion logic (physical + DB)
+                if (!m.parentUri.startsWith("content://")) {
+                    val folder = java.io.File(m.parentUri)
+                    if (folder.exists()) {
+                        folder.deleteRecursively()
+                    }
+                }
+                
+                // DB cleanup
+                database.libraryDao().deleteChaptersByMangaId(m.id)
+                val children = database.libraryDao().getChildrenForMangaList(m.id)
+                children.forEach { child ->
+                    database.libraryDao().deleteChaptersByMangaId(child.id)
+                }
+                database.libraryDao().deleteChildrenByParentId(m.id)
+                database.libraryDao().deleteManga(m)
+            }
+        }
+    }
+    fun importMusicFolder(uri: Uri, workspace: String?) {
+        if (isImportingGlobal.value) return
+        
+        importJob?.cancel()
+        importJob = viewModelScope.launch {
+            _isCancelRequested.value = false
+            _isCancelArmed.value = false
+            _isImporting.value = true
+            _importProgress.value = 0
+            
+            try {
+                try {
+                    val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    getApplication<Application>().contentResolver.takePersistableUriPermission(uri, takeFlags)
+                } catch (e: SecurityException) {
+                    e.printStackTrace()
+                }
+
+                val parentDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(getApplication(), uri)
+                if (parentDoc != null) {
+                    val structure = com.ballade.hwaran.data.music.MusicImportUtils.detectStructure(parentDoc)
+                    val repository = com.ballade.hwaran.data.music.MusicImportRepository(database.libraryDao())
+
+                    if (structure == "SINGLE") {
+                        val albumId = com.ballade.hwaran.data.music.MusicExternalSingleImport.execute(
+                            context = getApplication(),
+                            repository = repository,
+                            folderDoc = parentDoc,
+                            workspace = workspace,
+                            isCancelled = { _isCancelRequested.value },
+                            onProgress = { progress -> _importProgress.value = progress }
+                        )
+                        if (albumId != null) {
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(getApplication(), "Imported ${parentDoc.name ?: "1 album"}", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(getApplication(), "Failed or skipped import", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    } else {
+                        val summary = com.ballade.hwaran.data.music.MusicExternalMegaImport.execute(
+                            context = getApplication(),
+                            repository = repository,
+                            parentDoc = parentDoc,
+                            workspace = workspace,
+                            isCancelled = { _isCancelRequested.value },
+                            onProgress = { progress -> _importProgress.value = (progress * 100).toInt() }
+                        )
+                        withContext(Dispatchers.Main) {
+                            android.widget.Toast.makeText(
+                                getApplication(),
+                                "Imported ${summary.imported} • Skipped ${summary.skipped}",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(getApplication(), "Import error: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            } finally {
+                _isImporting.value = false
+                _importProgress.value = 0
+                _isCancelRequested.value = false
+                _isCancelArmed.value = false
+            }
+        }
+    }
+}

@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JellyBall Music Player - Master Conductor</title>
+    <style>
+        :root { --bg-color: transparent; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: transparent !important; display: flex; flex-direction: column; justify-content: center; align-items: center; overflow: hidden; font-family: -apple-system, sans-serif; user-select: none; }
+        .stage { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: transparent !important; }
+        #shadow { position: absolute; bottom: 25%; width: 80px; height: 12px; background: radial-gradient(ellipse at center, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 75%); border-radius: 50%; z-index: 1; transform-origin: center center; will-change: transform, opacity; }
+        #body-wrapper { position: relative; width: 100px; height: 100px; transform-origin: center bottom; z-index: 5; display: flex; justify-content: center; will-change: transform; }
+        .orb { position: absolute; width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle at 35% 35%, rgba(140, 140, 140, 0.45) 0%, rgba(40, 40, 40, 0.7) 50%, rgba(10, 10, 10, 0.9) 100%); box-shadow: inset 4px 4px 12px rgba(255, 255, 255, 0.2), inset -6px -6px 15px rgba(0, 0, 0, 0.5); overflow: hidden; border: 1px solid rgba(255,255,255,0.1); transition: all 0.8s ease; will-change: transform, box-shadow, border; }
+        .internal-smoke { position: absolute; width: 100%; height: 100%; top: 0; left: 0; border-radius: 50%; opacity: 0.4; background: radial-gradient(circle at center, rgba(255,255,255,0.2) 0%, transparent 70%); animation: swirl 15s linear infinite; pointer-events: none; }
+        @keyframes swirl { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        #face-mover { position: absolute; top: 50%; left: 50%; width: 70px; height: 50px; transform: translate(-50%, -50%); z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; will-change: transform; }
+        .eyes-row { display: flex; justify-content: space-between; width: 35px; z-index: 2; transform-origin: center center; }
+        
+        .eye { 
+            position: relative; width: 7px; height: 17px; background: #fff; border-radius: 10px; box-shadow: 0 0 8px rgba(255,255,255,0.9), 0 0 3px #fff; transform-origin: center center; will-change: width, height, transform, border-radius;
+            transition: height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.4s ease, border-radius 0.4s ease, box-shadow 0.4s ease, opacity 0.4s ease;
+        }
+        .eye.blink { transform: scaleY(0) !important; transition: transform 0.1s !important; }
+
+        .face-state-focused .eye { height: 13px; width: 7px; border-radius: 7px 7px 4px 4px; transform: translateY(-1px); }
+        .face-state-joy .eye { height: 8px; width: 11px; border-radius: 10px 10px 3px 3px; transform: translateY(-3px); box-shadow: 0 0 10px #fff; }
+        .face-state-joy .blush-row { opacity: 0.8; transform: scale(1); }
+        .face-state-sorrow .eye { height: 8px; width: 11px; border-radius: 4px 4px 12px 12px; transform: translateY(6px) rotate(-15deg); background: #eef7ff; }
+        .face-state-sorrow #eye-r { transform: translateY(6px) rotate(15deg); }
+        .face-state-fierce .eye { height: 13px; width: 7px; border-radius: 7px 7px 4px 4px; transform: translateY(-1px); }
+        .face-state-depression .eye { height: 19px; width: 9px; border-radius: 5px; transform: translateY(-4px); box-shadow: 0 0 15px #fff; }
+        .face-state-peaceful .eye { height: 3px; width: 11px; border-radius: 5px; opacity: 0.6; transform: translateY(5px); }
+
+        .eye.sleep { height: 3px; width: 10px; background: #aaa; box-shadow: none; border-radius: 5px; transform: translateY(6px) rotate(-5deg); opacity: 0.7; }
+        #eye-r.sleep { transform: translateY(6px) rotate(5deg); }
+
+        .genre-sleep .eye { height: 3px; width: 10px; background: #aaa; box-shadow: none; border-radius: 5px; transform: translateY(6px) rotate(-5deg); opacity: 0.7; }
+        .genre-sleep #eye-r { transform: translateY(6px) rotate(5deg); }
+
+        .genre-pop .eye { height: 7px; width: 12px; border-radius: 12px 12px 2px 2px; transform: translateY(-2px); box-shadow: 0 0 8px #fff; }
+        .genre-rock .eye, .genre-phonk .eye { height: 13px; width: 7px; border-radius: 7px 7px 4px 4px; transform: translateY(-1px); }
+        .genre-folk .eye { height: 11px; width: 11px; border-radius: 50%; opacity: 0.9; background: #fffaee; box-shadow: 0 0 10px #ffcc88; }
+        .genre-jazz .orb { background: radial-gradient(circle at 35% 35%, rgba(180, 140, 80, 0.4) 0%, rgba(60, 40, 20, 0.6) 50%, rgba(20, 10, 0, 0.9) 100%); }
+        .genre-jazz .eye { height: 6px; width: 11px; border-radius: 3px 3px 8px 8px; opacity: 0.9; }
+        .genre-jazz #eye-l { transform: translateY(2px); }
+        .genre-jazz #eye-r { transform: translateY(5px) scaleY(0.6); }
+        .genre-ambient .orb { background: radial-gradient(circle at center, rgba(30, 50, 70, 0.5) 0%, rgba(10, 20, 30, 0.7) 50%, rgba(0, 0, 0, 0.9) 100%); }
+        .genre-ambient .eye { height: 4px; width: 13px; border-radius: 5px; opacity: 0.6; transform: translateY(5px); }
+        .genre-dreamcore .orb { background: radial-gradient(circle at 35% 35%, rgba(180, 100, 180, 0.45) 0%, rgba(60, 20, 60, 0.7) 50%, rgba(10, 5, 10, 0.9) 100%); }
+        .genre-dreamcore .eye { height: 14px; width: 14px; border-radius: 50%; background: #ffffff; box-shadow: 0 0 15px #ffffff; opacity: 0.9; }
+        .genre-emotional .orb { background: radial-gradient(circle at 35% 35%, rgba(40, 40, 60, 0.6) 0%, rgba(15, 15, 30, 0.8) 50%, rgba(5, 5, 15, 0.95) 100%); }
+        .genre-emotional .eye { height: 7px; width: 11px; background: #e0f0ff; border-radius: 4px 4px 10px 10px; transform: translateY(6px) rotate(-12deg); } 
+        .genre-emotional #eye-r { transform: translateY(6px) rotate(12deg); }
+
+        .blush-row { display: flex; justify-content: space-between; width: 58px; margin-top: 2px; opacity: 0; transform: scale(0.85); transition: opacity 1.5s ease, transform 1.5s ease; pointer-events: none; z-index: 1; }
+        .genre-pop .blush-row, .genre-folk .blush-row, .genre-jazz .blush-row, .face-state-joy .blush-row { opacity: 0.7; transform: scale(1); }
+        .blush-spot { position: relative; width: 26px; height: 13px; background: radial-gradient(ellipse at center, rgba(255, 100, 160, 0.4) 0%, rgba(255, 100, 160, 0) 75%); border-radius: 50%; }
+
+        .hands-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 15; pointer-events: none; will-change: transform; }
+        .hand { position: absolute; width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.4) 0%, rgba(80,80,80,0.6) 70%); box-shadow: inset 2px 2px 5px rgba(255,255,255,0.3), 0 0 8px rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); transform: translate(-50%, -50%) scale(0); opacity: 0; transition: opacity 1s ease; will-change: transform; }
+        .hand.visible { opacity: 1; }
+        #baton { position: absolute; bottom: 11px; left: 11px; width: 2px; height: 55px; background: linear-gradient(to top, #222 20%, #e0e0e0 25%, #fff 95%, #fff 100%); border-radius: 2px; transform-origin: bottom center; box-shadow: 0 -3px 8px rgba(255,255,255,0.8); opacity: 0; transition: opacity 0.5s ease; will-change: transform; }
+        .baton-glow { position: absolute; top: -4px; left: -1.5px; width: 5px; height: 5px; background: #fff; border-radius: 50%; box-shadow: 0 0 10px 3px rgba(255, 255, 255, 0.9), 0 0 20px rgba(100, 200, 255, 0.6); }
+
+        .genre-lyrics #baton { opacity: 0 !important; }
+        .mouth { position: relative; width: 8px; height: 2px; background: #fff; border-radius: 20px; margin-top: 4px; box-shadow: 0 0 6px rgba(255,255,255,0.8); opacity: 0; transition: opacity 0.5s ease, height 0.08s ease, width 0.08s ease, border-radius 0.08s ease; will-change: height, width, transform; }
+        .genre-lyrics .mouth { opacity: 0.9; }
+
+        #mic { position: absolute; bottom: 12px; left: 7px; width: 8px; height: 22px; background: #222; border-radius: 3px; transform-origin: bottom center; transform: rotate(-10deg); opacity: 0; transition: opacity 0.5s ease; will-change: transform; z-index: 20; }
+        .genre-lyrics #mic { opacity: 1; }
+        .mic-grill { position: absolute; top: -6px; left: -2px; width: 12px; height: 12px; background: radial-gradient(circle at 35% 35%, #fff 0%, #aaa 50%, #444 100%); border-radius: 50%; box-shadow: 0 0 6px rgba(255, 255, 255, 0.8), inset 1px 1px 3px rgba(255,255,255,0.6); border: 0.5px solid rgba(255,255,255,0.2); }
+        .mic-handle { position: absolute; bottom: 0; left: 1px; width: 6px; height: 16px; background: linear-gradient(to right, #444, #222); border-radius: 2px; }
+    </style>
+</head>
+<body>
+    <div class="stage">
+        <div id="shadow"></div>
+        <div id="body-wrapper" class="genre-sleep">
+            <div class="orb"><div class="internal-smoke"></div></div>
+            <div id="face-mover">
+                <div class="eyes-row">
+                    <div class="eye sleep" id="eye-l"></div>
+                    <div class="eye sleep" id="eye-r"></div>
+                </div>
+                <div id="mouth" class="mouth"></div>
+                <div class="blush-row" id="blush">
+                    <div class="blush-spot"></div>
+                    <div class="blush-spot"></div>
+                </div>
+            </div>
+        </div>
+        <div class="hands-container">
+            <div class="hand" id="hand-l"><div id="mic"><div class="mic-grill"></div><div class="mic-handle"></div></div></div>
+            <div class="hand" id="hand-r"><div id="baton"><div class="baton-glow"></div></div></div>
+        </div>
+    </div>
+
+    <script>
+        ////////////////////////////////////////////////////////////////////////////////
+        // JELLY CONDUCTOR WEBVIEW ASSET CONTEXT & DOCUMENTATION
+        //
+        // PURPOSE:
+        // This HTML/JS file displays the physics-based JellyBall conductor mascot,
+        // which animates in response to music playback states and genre selection.
+        // It renders custom visual assets (micro-blushes, eye styling, gradients,
+        // baton, and microphone) inside a transparent Android WebView.
+        //
+        // TRIGGERING FILE & LOCATION:
+        // - Triggered by: ConductorAnimation Composable
+        // - Path: app/src/main/java/com/ballade/hwaran/ui/screens/NowPlayingScreen.kt
+        // - Loaded via URL: "file:///android_asset/jelly_conductor.html"
+        //
+        // SYSTEM MUSIC GENRES (11 Genres Total):
+        // 1. Classical (evaluates to activeGenre: 'classic')
+        // 2. Pop
+        // 3. Rock
+        // 4. Jazz
+        // 5. Folk
+        // 6. Ambient
+        // 7. Phonk
+        // 8. Dreamcore
+        // 9. Emotional
+        // 10. Depression
+        // 11. Lyrics (shows dynamic microphone and singing mouth)
+        //
+        // ANDROID TO WEBVIEW INTERFACE:
+        // - window.setPlaybackState(isPlaying) -> Wakes up/sleeps the mascot.
+        // - window.setGenre(genre) -> Selects theme and styling.
+        //
+        // WAKE & SLEEP ANIMATIONS (Pause & Play):
+        // - transitionToWake() and triggerSleep() are the default untouched routines.
+        //
+        // WRITE YOUR CUSTOM CONDUCTING ANIMATIONS IN:
+        // - updateConduct(dt, tempo) (called continuously when playing/conducting)
+        ////////////////////////////////////////////////////////////////////////////////
+
+        const bodyWrapper = document.getElementById('body-wrapper');
+        const shadow = document.getElementById('shadow');
+        const face = document.getElementById('face-mover');
+        const eyeL = document.getElementById('eye-l');
+        const eyeR = document.getElementById('eye-r');
+        const handL = document.getElementById('hand-l');
+        const handR = document.getElementById('hand-r');
+        const baton = document.getElementById('baton');
+        const orb = document.querySelector('.orb');
+
+        const physics = {
+            bodyY: { current: 0, target: 0, vel: 0, spring: 0.08, friction: 0.75 },
+            scaleX: { current: 1, target: 1, vel: 0, spring: 0.1, friction: 0.7 },
+            scaleY: { current: 1, target: 1, vel: 0, spring: 0.1, friction: 0.7 },
+            rotate: { current: 0, target: 0, vel: 0, spring: 0.05, friction: 0.8 },
+            faceX: { current: 0, target: 0, vel: 0, spring: 0.08, friction: 0.8 }, 
+            faceY: { current: 0, target: 0, vel: 0, spring: 0.08, friction: 0.8 },
+            handLX: { current: -30, target: -30, vel: 0, spring: 0.1, friction: 0.7 },
+            handLY: { current: 25, target: 25, vel: 0, spring: 0.1, friction: 0.7 },
+            handRX: { current: 30, target: 30, vel: 0, spring: 0.1, friction: 0.7 },
+            handRY: { current: 25, target: 25, vel: 0, spring: 0.1, friction: 0.7 },
+            batonRot: { current: 0, target: 0, vel: 0, spring: 0.15, friction: 0.6 }
+        };
+
+        let appState = 'SLEEP'; 
+        let globalTime = Math.random() * 1000;
+        let lastFrameTime = performance.now();
+        let activeGenre = 'classic'; 
+        let wakeTimeouts = [];
+
+        window.onload = () => { 
+            loop(); 
+        };
+
+        window.setPlaybackState = function(isPlaying) {
+            if (isPlaying && appState === 'SLEEP') transitionToWake();
+            else if (!isPlaying && appState !== 'SLEEP') triggerSleep();
+        };
+
+        window.setGenre = function(genre) {
+            let g = (genre || 'classic').toLowerCase();
+            if (g === 'classical') g = 'classic';
+            let oldGenre = activeGenre;
+            activeGenre = g;
+            if (oldGenre !== activeGenre && (oldGenre === 'rock' || oldGenre === 'phonk' || activeGenre === 'rock' || activeGenre === 'phonk')) {
+                seqQueue = [];
+                if (appState === 'CONDUCT') nextSequence();
+            }
+            if(appState !== 'SLEEP') {
+                bodyWrapper.className = `genre-${g}`;
+                document.body.className = `genre-${g}`;
+            }
+        };
+
+        // ==========================================================
+        // DEFAULT UNTOUCHED SLEEP & WAKE ANIMATION ROUTINES
+        // ==========================================================
+        function triggerSleep() {
+            wakeTimeouts.forEach(clearTimeout);
+            wakeTimeouts = [];
+            appState = 'SLEEP';
+            bodyWrapper.className = 'genre-sleep';
+            document.body.className = 'genre-sleep';
+            baton.style.opacity = 0;
+            handL.classList.remove('visible');
+            handR.classList.remove('visible');
+            physics.bodyY.target = 0;
+            physics.faceY.target = 15;
+            physics.faceX.target = 0;
+            physics.scaleX.target = 1;
+            physics.scaleY.target = 1;
+            physics.rotate.target = 0;
+            physics.handLX.target = -30;
+            physics.handLY.target = 25;
+            physics.handRX.target = 30;
+            physics.handRY.target = 25;
+            physics.batonRot.target = 0;
+            orb.style.border = '';
+            orb.style.boxShadow = '';
+        }
+
+        function transitionToWake() {
+            appState = 'WAKE';
+            bodyWrapper.className = `genre-${activeGenre}`;
+            document.body.className = `genre-${activeGenre}`;
+            physics.faceY.target = -3;
+            
+            // Squash body on wakeup (sad eyes)
+            face.className = 'face-state-sorrow';
+            
+            wakeTimeouts.push(setTimeout(() => { 
+                if (appState !== 'WAKE') return;
+                eyeL.classList.remove('sleep'); eyeR.classList.remove('sleep');
+                physics.bodyY.target = -12; physics.scaleY.target = 1.1; physics.scaleX.target = 0.9; 
+            }, 600));
+            
+            wakeTimeouts.push(setTimeout(() => {
+                if (appState !== 'WAKE') return;
+                eyeL.classList.add('blink'); eyeR.classList.add('blink');
+                wakeTimeouts.push(setTimeout(() => { 
+                    if (appState !== 'WAKE') return;
+                    eyeL.classList.remove('blink'); eyeR.classList.remove('blink'); 
+                }, 150));
+            }, 1000));
+            
+            wakeTimeouts.push(setTimeout(() => {
+                if (appState !== 'WAKE') return;
+                physics.bodyY.target = 0;
+                handL.classList.add('visible'); handR.classList.add('visible');
+                physics.handLX.target = -35; physics.handLY.target = 15;
+                physics.handRX.target = 35; physics.handRY.target = 15;
+                wakeTimeouts.push(setTimeout(() => { 
+                    if (appState !== 'WAKE') return;
+                    baton.style.opacity = 1; appState = 'CONDUCT';
+                }, 400));
+            }, 1600));
+        }
+
+        // ==========================================================
+        // CLASSICAL CONDUCTING — 50 IMMERSIVE ANIMATION SEQUENCES
+        // Full-body, expressive, non-repeating, non-robotic
+        // ==========================================================
+
+        // --- Blinking system ---
+        let blinkTimer = 1.2 + Math.random() * 2.0;
+        let isBlinking = false;
+
+        function triggerBlink() {
+            if (!isBlinking && appState === 'CONDUCT') {
+                isBlinking = true;
+                eyeL.classList.add('blink'); eyeR.classList.add('blink');
+                setTimeout(() => { eyeL.classList.remove('blink'); eyeR.classList.remove('blink'); isBlinking = false; }, 120);
+            }
+        }
+
+        // --- Sequence engine ---
+        // Each sequence is a function(t) => void that drives physics targets
+        // t = local time within sequence (seconds, from 0)
+        // Sequences are blended over a crossfade window
+
+        let seqIndex = -1;
+        let seqTime = 0;
+        let seqDuration = 0;
+        let prevSeqIndex = -1;
+        const CROSS = 0.55; // crossfade seconds between sequences
+        let crossTimer = 0;
+        let inCross = false;
+
+        // Shuffled non-repeating queue
+        let seqQueue = [];
+        function buildQueue() {
+            let activeArray = sequences;
+            let arr = Array.from({length: activeArray.length}, (_, i) => i);
+            // Fisher-Yates shuffle
+            for (let i = arr.length - 1; i > 0; i--) {
+                let j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        // Face state helper
+        function setFaceState(state) {
+            face.className = 'face-state-' + state;
+        }
+
+        // Smooth sine helpers
+        const sin  = Math.sin;
+        const cos  = Math.cos;
+        const PI   = Math.PI;
+        const TAU  = Math.PI * 2;
+        const lerp = (a, b, t) => a + (b - a) * t;
+
+        // All 50 sequences — each returns an object with duration (s) and an update(t) fn
+        const sequences = [
+            { dur: 4.0, update(t) {
+                let micSway = Math.sin(t * 1.5) * 5;
+                physics.handLX.target = -15 + micSway;
+                physics.handLY.target = 5 + Math.cos(t * 1.5) * 3;
+                physics.handRX.target = 25 + Math.sin(t * 2) * 10;
+                physics.handRY.target = 15 + Math.cos(t * 2) * 10;
+                physics.bodyY.target = -5 + Math.sin(t * 3) * 4;
+                physics.rotate.target = micSway * 1.5;
+                physics.faceX.target = micSway;
+                physics.faceY.target = -2 + Math.cos(t * 1.5) * 2;
+                physics.batonRot.target = Math.sin(t * 2) * 15;
+                face.className = 'face-state-focused';
+            }},
+            { dur: 5.0, update(t) {
+                let passionate = Math.sin(t * 2) * 8;
+                physics.handLX.target = -12 + passionate;
+                physics.handLY.target = 2 + Math.cos(t * 2) * 5;
+                physics.handRX.target = 35 + Math.cos(t * 3) * 15;
+                physics.handRY.target = -5 + Math.sin(t * 3) * 15;
+                physics.bodyY.target = -8 + Math.sin(t * 4) * 6;
+                physics.rotate.target = passionate * 2;
+                physics.faceY.target = -4 + Math.cos(t * 2) * 3;
+                physics.batonRot.target = Math.cos(t * 3) * 20;
+                face.className = 'face-state-joy';
+            }}
+        ];
+
+        function nextSequence() {
+            if (seqQueue.length === 0) seqQueue = buildQueue();
+            prevSeqIndex = seqIndex;
+            seqIndex = seqQueue.pop();
+            seqTime = 0;
+            let activeArray = sequences;
+            seqDuration = activeArray[seqIndex].dur;
+            inCross = false;
+            crossTimer = 0;
+        }
+
+        // Start first sequence
+        nextSequence();
+
+        function updateConduct(dt, tempo) {
+            // Blink system
+            blinkTimer -= dt;
+            if (blinkTimer <= 0) {
+                triggerBlink();
+                blinkTimer = 1.5 + Math.random() * 2.5;
+            }
+
+            seqTime += dt * tempo;
+            crossTimer += dt;
+
+            // Detect end of sequence, begin crossfade
+            if (seqTime >= seqDuration) {
+                nextSequence();
+            }
+
+            // Run current sequence
+            let activeArray = sequences;
+            activeArray[seqIndex].update(seqTime);
+
+            // Continuous body squish to add jelly life
+            physics.scaleX.target = 1 + sin(globalTime * 3.2) * 0.025;
+            physics.scaleY.target = 1 - sin(globalTime * 3.2) * 0.025;
+        }
+
+        function applyPhysics() {
+            for (let key in physics) {
+                let p = physics[key];
+                let force = (p.target - p.current) * p.spring;
+                p.vel += force;
+                p.vel *= p.friction;
+                p.current += p.vel;
+            }
+            bodyWrapper.style.transform = `translateY(${physics.bodyY.current}px) scale(${physics.scaleX.current}, ${physics.scaleY.current}) rotate(${physics.rotate.current}deg)`;
+            shadow.style.transform = `scale(${physics.scaleX.current - (physics.bodyY.current * 0.01)})`;
+            shadow.style.opacity = 0.3 - (physics.bodyY.current * 0.005);
+            face.style.transform = `translate(calc(-50% + ${physics.faceX.current}px), calc(-50% + ${physics.faceY.current}px))`;
+            handL.style.transform = `translate(calc(-50% + 50vw + ${physics.handLX.current}px), calc(-50% + 50vh + ${physics.handLY.current}px))`;
+            handR.style.transform = `translate(calc(-50% + 50vw + ${physics.handRX.current}px), calc(-50% + 50vh + ${physics.handRY.current}px))`;
+            baton.style.transform = `rotate(${physics.batonRot.current}deg)`;
+        }
+
+        function loop() {
+            let now = performance.now();
+            let dt = Math.min((now - lastFrameTime) / 1000, 0.1);
+            lastFrameTime = now; 
+            
+            if (appState === 'SLEEP') {
+                let breath = Math.sin(globalTime * 2);
+                physics.scaleX.target = 1 + (breath * 0.02); 
+                physics.scaleY.target = 1 - (breath * 0.02);
+                physics.faceY.target = 15; 
+                physics.faceX.target = 0;
+                globalTime += dt;
+            } else {
+                let g = activeGenre;
+                let tempo = 1.0;
+                if (g === 'rock' || g === 'phonk') tempo = 1.8;
+                else if (g === 'pop' || g === 'lyrics') tempo = 1.4;
+                else if (g === 'jazz' || g === 'folk') tempo = 1.0;
+                else if (g === 'ambient' || g === 'depression' || g === 'emotional') tempo = 0.5;
+                
+                globalTime += dt * tempo;
+                
+                if (appState === 'CONDUCT') {
+                    updateConduct(dt, tempo);
+                }
+            }
+            applyPhysics();
+            requestAnimationFrame(loop);
+        }
+    </script>
+</body>
+</html>

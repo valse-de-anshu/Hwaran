@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wobbly Snake Animation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000000; /* Pure Black background */
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #snakeCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="snakeCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('snakeCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const snakeConfig = {
+            numSegments: 30,       // Reduced slightly for better mobile performance
+            segmentLength: 10,     // Adjusted for typical mobile screen density
+            headRadius: 8,         // Slightly smaller head for mobile
+            tailRadius: 2,         // Size of the tip of the tail
+            baseSpeed: 3,          // Base movement speed
+            turnSpeed: 0.08,       // Slightly faster turning for tight mobile screens
+            wanderRadius: 40,      // Radius for wandering behavior
+            wanderDistance: 80,    // Distance of wander circle from head
+            wanderJitter: 0.6,     // Randomness added to wander angle each frame
+            wobbleSpeed: 0.15,     // Speed of the tail wobble
+            wobbleAmplitude: 10,   // Amplitude of the tail wobble
+            colorHead: '#FFFFFF',  // Pure White
+            colorTail: '#FFFFFF'   // Pure White (opacity handled in rendering)
+        };
+
+        const segments = [];
+        let head = { x: canvas.width / 2, y: canvas.height / 2, angle: Math.random() * Math.PI * 2, wanderAngle: 0 };
+        let time = 0;
+
+        for (let i = 0; i < snakeConfig.numSegments; i++) {
+            segments.push({ x: head.x, y: head.y });
+        }
+
+        function distance(p1, p2) {
+            const dx = p1.x - p2.x;
+            const dy = p1.y - p2.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function getWanderTarget() {
+            // Update wander angle with some random jitter
+            head.wanderAngle += (Math.random() * 2 - 1) * snakeConfig.wanderJitter;
+
+            // Calculate the center of the wander circle ahead of the snake
+            const circleCenter = {
+                x: head.x + Math.cos(head.angle) * snakeConfig.wanderDistance,
+                y: head.y + Math.sin(head.angle) * snakeConfig.wanderDistance
+            };
+
+            // Calculate the target point on the wander circle
+            const target = {
+                x: circleCenter.x + Math.cos(head.wanderAngle) * snakeConfig.wanderRadius,
+                y: circleCenter.y + Math.sin(head.wanderAngle) * snakeConfig.wanderRadius
+            };
+
+            return target;
+        }
+
+        function applySelfAvoidance(targetAngle) {
+            let avoidAngle = 0;
+            let avoidWeight = 0;
+            const avoidRadius = snakeConfig.headRadius * 4; // Check ahead
+
+            // Look ahead position
+            const lookAheadX = head.x + Math.cos(head.angle) * avoidRadius;
+            const lookAheadY = head.y + Math.sin(head.angle) * avoidRadius;
+
+            // Check segments, skipping the first few near the head
+            for (let i = 5; i < segments.length; i++) {
+                const seg = segments[i];
+                const dist = distance({x: lookAheadX, y: lookAheadY}, seg);
+
+                if (dist < avoidRadius * 1.5) {
+                    // Calculate angle to avoid
+                    const dx = head.x - seg.x;
+                    const dy = head.y - seg.y;
+                    avoidAngle += Math.atan2(dy, dx);
+                    avoidWeight += (avoidRadius * 1.5 - dist); // Stronger avoidance when closer
+                }
+            }
+
+            if (avoidWeight > 0) {
+                avoidAngle /= (avoidWeight / 10); // Normalize somewhat
+                // Blend current target angle with avoidance angle
+                const blendFactor = Math.min(0.8, avoidWeight / 100);
+                return targetAngle * (1 - blendFactor) + avoidAngle * blendFactor;
+            }
+            return targetAngle;
+        }
+
+        function update() {
+            time += snakeConfig.wobbleSpeed;
+
+            // 1. Determine steering target (Wander)
+            const target = getWanderTarget();
+
+            // 2. Determine desired angle towards target
+            let desiredAngle = Math.atan2(target.y - head.y, target.x - head.x);
+
+            // 3. Self-Avoidance
+            desiredAngle = applySelfAvoidance(desiredAngle);
+
+            // 4. Boundary avoidance (Keep it on screen)
+            const margin = 30; // Reduced margin for smaller mobile screens
+            let boundAvoidX = 0, boundAvoidY = 0;
+            if (head.x < margin) boundAvoidX = 1;
+            else if (head.x > canvas.width - margin) boundAvoidX = -1;
+            if (head.y < margin) boundAvoidY = 1;
+            else if (head.y > canvas.height - margin) boundAvoidY = -1;
+            
+            if (boundAvoidX !== 0 || boundAvoidY !== 0) {
+                 const boundAngle = Math.atan2(boundAvoidY, boundAvoidX);
+                 desiredAngle = boundAngle; // Strong override to stay on screen
+            }
+
+            // 5. Smoothly steer towards desired angle
+            // Normalize angles to avoid spinning when crossing -PI/PI
+            const diff = Math.atan2(Math.sin(desiredAngle - head.angle), Math.cos(desiredAngle - head.angle));
+            head.angle += diff * snakeConfig.turnSpeed;
+
+            // 6. Move the head
+            head.x += Math.cos(head.angle) * snakeConfig.baseSpeed;
+            head.y += Math.sin(head.angle) * snakeConfig.baseSpeed;
+
+            // 7. Update head segment
+            segments[0].x = head.x;
+            segments[0].y = head.y;
+
+            // 8. Update body segments (Inverse Kinematics style constraint)
+            for (let i = 1; i < snakeConfig.numSegments; i++) {
+                const prev = segments[i - 1];
+                const current = segments[i];
+
+                const dx = prev.x - current.x;
+                const dy = prev.y - current.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                // Add wobble perpendicular to the movement direction
+                // Wobble effect increases towards the tail
+                const wobbleFactor = i / snakeConfig.numSegments;
+                const perpX = -dy / dist; // Perpendicular vector X
+                const perpY = dx / dist;  // Perpendicular vector Y
+                const wobble = Math.sin(time - i * 0.5) * snakeConfig.wobbleAmplitude * wobbleFactor;
+
+                // Move segment towards previous segment, maintaining distance
+                if (dist > snakeConfig.segmentLength) {
+                    current.x = prev.x - (dx / dist) * snakeConfig.segmentLength;
+                    current.y = prev.y - (dy / dist) * snakeConfig.segmentLength;
+                }
+                
+                // Apply visual wobble (doesn't permanently change underlying structure)
+                current.renderX = current.x + perpX * wobble;
+                current.renderY = current.y + perpY * wobble;
+            }
+            
+            // Handle first segment render position
+             segments[0].renderX = segments[0].x;
+             segments[0].renderY = segments[0].y;
+        }
+
+        function draw() {
+            // Clear canvas with a slight trail effect (Black background)
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.35)'; // Black with low alpha for smooth trail
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw body connecting segments smoothly
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            // Draw using bezier curves for a smoother body
+            for (let i = 1; i < snakeConfig.numSegments - 1; i++) {
+                const prev = segments[i - 1];
+                const curr = segments[i];
+                const next = segments[i + 1];
+
+                // Calculate radius tapering off towards the tail
+                const sizeRatio = 1 - (i / snakeConfig.numSegments);
+                const radius = snakeConfig.tailRadius + (snakeConfig.headRadius - snakeConfig.tailRadius) * sizeRatio;
+
+                ctx.beginPath();
+                ctx.moveTo(prev.renderX, prev.renderY);
+                // Control point is current point, ending at midpoint between current and next
+                const cpX = curr.renderX;
+                const cpY = curr.renderY;
+                const endX = (curr.renderX + next.renderX) / 2;
+                const endY = (curr.renderY + next.renderY) / 2;
+                
+                ctx.quadraticCurveTo(cpX, cpY, endX, endY);
+                
+                // Gradient coloring - Pure white with fading opacity
+                ctx.strokeStyle = `rgba(255, 255, 255, ${sizeRatio * 0.7 + 0.1})`; 
+                ctx.lineWidth = radius * 2;
+                ctx.stroke();
+            }
+
+            // Draw Head
+            ctx.beginPath();
+            ctx.arc(segments[0].x, segments[0].y, snakeConfig.headRadius * 1.2, 0, Math.PI * 2);
+            ctx.fillStyle = snakeConfig.colorHead;
+            ctx.fill();
+            
+            // Draw Eyes (Simple black dots for high contrast)
+            const eyeOffset = snakeConfig.headRadius * 0.5;
+            const eyeAngleOffset = Math.PI / 4;
+            const eyeSize = 2;
+            
+            ctx.fillStyle = '#000000'; // Black eyes
+            
+            // Left eye
+            ctx.beginPath();
+            ctx.arc(
+                segments[0].x + Math.cos(head.angle - eyeAngleOffset) * eyeOffset,
+                segments[0].y + Math.sin(head.angle - eyeAngleOffset) * eyeOffset,
+                eyeSize, 0, Math.PI * 2
+            );
+            ctx.fill();
+            
+            // Right eye
+            ctx.beginPath();
+            ctx.arc(
+                segments[0].x + Math.cos(head.angle + eyeAngleOffset) * eyeOffset,
+                segments[0].y + Math.sin(head.angle + eyeAngleOffset) * eyeOffset,
+                eyeSize, 0, Math.PI * 2
+            );
+            ctx.fill();
+        }
+
+        function animate() {
+            update();
+            draw();
+            requestAnimationFrame(animate);
+        }
+
+        window.onload = function() {
+            animate();
+        };
+    </script>
+</body>
+</html>

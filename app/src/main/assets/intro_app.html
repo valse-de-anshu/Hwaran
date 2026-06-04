@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hwaran - Introduction</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        :root {
+            --bg-black: #030303;
+            --bg-surface: #0a0a0a;
+            --text-main: #ffffff;
+            --text-muted: rgba(255, 255, 255, 0.4);
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            
+            /* Monochrome Premium Palette */
+            --c-white: #ffffff;
+            --c-silver: #a3a3a3;
+            --c-chrome: linear-gradient(135deg, #ffffff 0%, #737373 100%);
+            --c-glow: rgba(255, 255, 255, 0.15);
+            
+            /* Premium Easing */
+            --ease-snappy: cubic-bezier(0.77, 0, 0.175, 1);
+            --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overscroll-behavior: none;
+            touch-action: none;
+        }
+
+        /* Ambient Premium Glow */
+        .ambient-bg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90vw;
+            height: 90vw;
+            max-width: 700px;
+            max-height: 700px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 60%);
+            opacity: 1;
+            filter: blur(60px);
+            transition: opacity 1s var(--ease-smooth), transform 1s var(--ease-smooth);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Phone Frame */
+        .phone-frame {
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-black);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        /* Carousel Area */
+        .carousel-container {
+            flex: 1;
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .carousel-track {
+            display: flex;
+            width: 600%; /* 6 slides */
+            height: 100%;
+            transition: transform 0.8s var(--ease-snappy);
+        }
+
+        .slide {
+            width: 100%; /* 1/6 of track */
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0 30px 120px;
+            opacity: 0;
+            transform: scale(0.95) translateY(20px);
+            transition: all 0.8s var(--ease-snappy);
+        }
+
+        .slide.active {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+
+        /* Graphics Base */
+        .graphic-container {
+            width: 260px;
+            height: 260px;
+            margin-bottom: 50px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- Premium Monochrome Animations --- */
+        
+        /* 1. Intro (Premium Media Cloud) */
+        .intro-cloud {
+            position: relative;
+            width: 240px;
+            height: 240px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            animation: floatCloud 6s var(--ease-smooth) infinite alternate;
+        }
+
+        .cloud-item {
+            position: absolute;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.01));
+            border: 1px solid rgba(255,255,255,0.15);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.6), inset 0 2px 5px rgba(255,255,255,0.1);
+            overflow: hidden;
+        }
+
+        /* Center: Video */
+        .item-video {
+            width: 110px; height: 110px; z-index: 5;
+            background: linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.03));
+            border: 1px solid rgba(255,255,255,0.3);
+            animation: breatheVideo 5s var(--ease-smooth) infinite alternate;
+        }
+        .cloud-play {
+            width: 0; height: 0;
+            border-top: 14px solid transparent; border-bottom: 14px solid transparent;
+            border-left: 24px solid #fff; margin-left: 6px;
+            filter: drop-shadow(0 0 12px rgba(255,255,255,0.6));
+        }
+
+        /* Top Left: Music */
+        .item-music {
+            width: 86px; height: 86px; z-index: 4;
+            animation: breatheMusic 6s var(--ease-smooth) infinite alternate;
+        }
+        .cloud-music-bars { display: flex; gap: 4px; align-items: flex-end; height: 28px; }
+        .cm-bar { width: 6px; background: var(--c-chrome); border-radius: 3px; animation: premiumBounce 1s var(--ease-smooth) infinite alternate; transform-origin: bottom; }
+        .cm-bar:nth-child(1) { height: 60%; animation-delay: 0.1s;}
+        .cm-bar:nth-child(2) { height: 100%; animation-delay: 0.3s;}
+        .cm-bar:nth-child(3) { height: 50%; animation-delay: 0.0s;}
+        .cm-bar:nth-child(4) { height: 80%; animation-delay: 0.2s;}
+
+        /* Bottom Right: Philosophy */
+        .item-philosophy {
+            width: 86px; height: 86px; z-index: 4;
+            animation: breathePhilosophy 6s var(--ease-smooth) infinite alternate-reverse;
+        }
+        .cloud-philosophy-cards {
+            position: relative; width: 28px; height: 28px;
+        }
+        .cp-card {
+            position: absolute; width: 20px; height: 24px;
+            border: 1px solid rgba(255,255,255,0.8); border-radius: 3px;
+            background: rgba(255,255,255,0.1);
+        }
+        .cp-card:nth-child(1) { transform: rotate(-15deg) translate(-4px, 4px); animation: pulsePremium 3s infinite alternate 0.2s;}
+        .cp-card:nth-child(2) { transform: rotate(10deg) translate(4px, -2px); background: #fff; animation: pulsePremium 3s infinite alternate;}
+
+        /* Top Right: Toon */
+        .item-toon {
+            width: 74px; height: 74px; z-index: 3;
+            animation: breatheToon 7s var(--ease-smooth) infinite alternate;
+        }
+        .cloud-toon-scroll {
+            display: flex; flex-direction: column; gap: 6px; padding-top: 10px;
+            animation: scrollUpCloud 4s linear infinite;
+        }
+        .ct-panel { width: 32px; height: 20px; background: rgba(255,255,255,0.5); border-radius: 4px; flex-shrink: 0; }
+        @keyframes scrollUpCloud { 100% { transform: translateY(-52px); } }
+
+        /* Bottom Left: Book */
+        .item-book {
+            width: 74px; height: 74px; z-index: 3;
+            animation: breatheBook 7s var(--ease-smooth) infinite alternate-reverse;
+        }
+        .cloud-book-icon {
+            width: 28px; height: 36px; border: 2px solid rgba(255,255,255,0.6); border-radius: 3px 6px 6px 3px; position: relative; perspective: 200px;
+        }
+        .cb-page {
+            position: absolute; right: 0; top: 0; width: 50%; height: 100%; background: rgba(255,255,255,0.8); border-radius: 0 4px 4px 0;
+            transform-origin: left; animation: premiumPageTurn 3s var(--ease-smooth) infinite; border-left: 1px solid rgba(0,0,0,0.1);
+        }
+
+        /* Breathing Animations */
+        @keyframes floatCloud { 0% { transform: translateY(0px); } 100% { transform: translateY(-12px); } }
+        @keyframes breatheVideo { 0% { transform: scale(1); box-shadow: 0 20px 40px rgba(0,0,0,0.8), inset 0 2px 10px rgba(255,255,255,0.2); } 100% { transform: scale(1.05); box-shadow: 0 30px 50px rgba(0,0,0,1), inset 0 2px 15px rgba(255,255,255,0.4); } }
+        @keyframes breatheMusic { 0% { transform: translate(-50px, -45px) scale(1); } 100% { transform: translate(-60px, -55px) scale(1.05); } }
+        @keyframes breathePhilosophy { 0% { transform: translate(50px, 45px) scale(1); } 100% { transform: translate(60px, 55px) scale(1.05); } }
+        @keyframes breatheToon { 0% { transform: translate(60px, -30px) scale(1); } 100% { transform: translate(70px, -40px) scale(1.02); } }
+        @keyframes breatheBook { 0% { transform: translate(-60px, 30px) scale(1); } 100% { transform: translate(-70px, 40px) scale(1.02); } }
+
+        /* 2. Music (Silver Gradient Bars) */
+        .music-bars {
+            display: flex; gap: 6px; align-items: flex-end; height: 100px;
+            /* Suble reflection floor */
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding-bottom: 2px;
+        }
+        .m-bar {
+            width: 14px; 
+            background: var(--c-chrome);
+            border-radius: 4px 4px 0 0;
+            animation: premiumBounce 1.2s var(--ease-smooth) infinite alternate;
+            box-shadow: 0 -5px 15px rgba(255,255,255,0.1);
+            transform-origin: bottom;
+        }
+        .m-bar:nth-child(1) { height: 40%; animation-delay: 0.1s; }
+        .m-bar:nth-child(2) { height: 95%; animation-delay: 0.3s; }
+        .m-bar:nth-child(3) { height: 60%; animation-delay: 0.0s; }
+        .m-bar:nth-child(4) { height: 80%; animation-delay: 0.4s; }
+        .m-bar:nth-child(5) { height: 50%; animation-delay: 0.2s; }
+
+        /* 3. Toon (Masked Cinematic Scroll) */
+        .toon-scroll {
+            width: 120px; height: 220px;
+            border: 1px solid rgba(255,255,255,0.15); 
+            border-radius: 12px;
+            overflow: hidden; position: relative;
+            background-color: var(--bg-surface);
+            /* Premium Fade Mask at top and bottom */
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+        }
+        .toon-panels {
+            display: flex; flex-direction: column; gap: 12px;
+            padding: 10px;
+            animation: scrollUpPremium 6s linear infinite;
+        }
+        .toon-panel {
+            width: 100%; height: 150px; 
+            background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 6px; flex-shrink: 0;
+        }
+
+        /* 4. Book (3D Page Turn with Spine Shadow) */
+        .book-icon {
+            width: 140px; height: 190px;
+            background: linear-gradient(90deg, #111 0%, #222 5%, #050505 100%);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px 16px 16px 6px;
+            position: relative;
+            box-shadow: inset 4px 0 10px rgba(0,0,0,0.8), 20px 0 30px rgba(0,0,0,0.5);
+            perspective: 600px; /* For 3D turn */
+            display: flex; flex-direction: column; gap: 15px; padding: 25px 20px 25px 30px;
+        }
+        .b-line { height: 3px; background: rgba(255,255,255,0.2); border-radius: 2px; width: 100%; }
+        .b-line:nth-child(1) { height: 5px; background: var(--c-chrome); width: 60%; box-shadow: 0 0 8px rgba(255,255,255,0.2); }
+        .b-line:nth-child(2) { width: 85%; }
+        .b-line:nth-child(3) { width: 95%; }
+        .book-page {
+            position: absolute; top: 0; right: 0; width: calc(100% - 10px); height: 100%;
+            background: linear-gradient(90deg, #111 0%, #2a2a2a 100%);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            border-right: 1px solid rgba(255,255,255,0.1);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            border-radius: 0 16px 16px 0;
+            transform-origin: left;
+            transform-style: preserve-3d;
+            animation: premiumPageTurn 4s var(--ease-smooth) infinite;
+        }
+
+        /* 5. Video (Sleek Display with Recording Dot) */
+        .video-screen {
+            width: 220px; height: 130px;
+            border: 1px solid rgba(255,255,255,0.2); 
+            border-radius: 16px;
+            display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8), inset 0 0 20px rgba(255,255,255,0.02);
+            position: relative; overflow: hidden;
+            background: #000;
+        }
+        .rec-dot {
+            position: absolute; top: 12px; right: 16px;
+            width: 6px; height: 6px; background: #fff; border-radius: 50%;
+            animation: pulsePremium 2s var(--ease-smooth) infinite;
+        }
+        .video-play {
+            width: 0; height: 0;
+            border-top: 14px solid transparent; border-bottom: 14px solid transparent;
+            border-left: 22px solid #fff;
+            margin-left: 8px;
+            filter: drop-shadow(0 0 15px rgba(255,255,255,0.4));
+            transition: transform 0.3s ease;
+        }
+
+        /* Interactive Manifesto Deck */
+        .slide-manifesto {
+            padding: 0 20px 100px;
+            justify-content: center;
+        }
+
+        .manifesto-header {
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 30px;
+            background: var(--c-chrome);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -1px;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.5s ease 0.2s;
+        }
+
+        .slide.active .manifesto-header {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .manifesto-deck {
+            position: relative;
+            width: 100%;
+            height: 380px;
+            perspective: 1200px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+
+        .m-card {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: linear-gradient(145deg, rgba(30,30,30,0.8), rgba(15,15,15,0.9));
+            border: 1px solid rgba(255,255,255,0.1);
+            border-top: 1px solid rgba(255,255,255,0.2);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 24px;
+            padding: 35px 25px;
+            transition: all 0.6s var(--ease-snappy);
+            display: flex; flex-direction: column;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+            transform-origin: bottom center;
+            user-select: none;
+        }
+
+        /* Card States controlled by JS */
+        .card-front {
+            transform: translateZ(0) translateY(0) scale(1);
+            opacity: 1;
+            z-index: 4;
+        }
+        .card-mid {
+            transform: translateZ(-40px) translateY(20px) scale(0.95);
+            opacity: 0.6;
+            z-index: 3;
+        }
+        .card-back {
+            transform: translateZ(-80px) translateY(40px) scale(0.9);
+            opacity: 0.3;
+            z-index: 2;
+        }
+        .card-hidden {
+            /* Flips up and fades away like Tinder swipe */
+            transform: translateZ(50px) translateY(-120%) rotate(-10deg);
+            opacity: 0;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        .m-card-title {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--c-silver);
+            margin-bottom: 15px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .m-card-title::before {
+            content: ''; width: 20px; height: 2px; background: var(--c-white); display: block;
+        }
+
+        .m-card p {
+            font-size: 16px;
+            line-height: 1.6;
+            color: rgba(255,255,255,0.7);
+            margin-bottom: 15px;
+            max-width: 100%;
+            text-align: left;
+        }
+
+        .m-card strong {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .m-pill {
+            display: flex; align-items: center; gap: 10px;
+            background: rgba(255,255,255,0.05);
+            padding: 10px 14px; border-radius: 8px;
+            font-size: 13px; font-weight: 500; color: var(--c-silver);
+            margin-bottom: 8px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .tap-hint {
+            font-size: 13px;
+            color: rgba(255,255,255,0.3);
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            animation: pulsePremium 2s infinite;
+        }
+        .tap-hint svg { width: 14px; height: 14px; fill: currentColor; }
+
+
+        /* Premium Keyframes */
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes pulsePremium { 0%, 100% { opacity: 0.3; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
+        @keyframes premiumBounce { 0% { transform: scaleY(0.3); } 100% { transform: scaleY(1); } }
+        @keyframes scrollUpPremium { 100% { transform: translateY(-162px); } }
+        @keyframes premiumPageTurn { 
+            0%, 15% { transform: rotateY(0deg); opacity: 1; } 
+            45%, 55% { transform: rotateY(-160deg); opacity: 0; }
+            85%, 100% { transform: rotateY(0deg); opacity: 1; } 
+        }
+
+        /* Text Content */
+        .text-content {
+            text-align: center;
+            opacity: 0;
+            transform: translateY(15px);
+            transition: all 0.6s var(--ease-snappy);
+            transition-delay: 0.1s;
+        }
+
+        .slide.active .text-content {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        h2 {
+            font-size: 34px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            letter-spacing: -1px;
+            background: var(--c-chrome);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p {
+            font-size: 16px;
+            color: var(--text-muted);
+            line-height: 1.5;
+            max-width: 290px;
+            margin: 0 auto;
+            font-weight: 400;
+        }
+
+        /* Bottom Controls */
+        .controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 35px 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+            z-index: 20;
+            background: linear-gradient(to top, rgba(3,3,3,1) 10%, rgba(3,3,3,0) 100%);
+        }
+
+        /* Dots */
+        .pagination {
+            display: flex;
+            gap: 10px;
+        }
+
+        .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--border-subtle);
+            transition: all 0.4s var(--ease-snappy);
+            cursor: pointer;
+        }
+
+        .dot.active {
+            width: 24px;
+            background: var(--c-white);
+            box-shadow: 0 0 12px rgba(255,255,255,0.3);
+        }
+
+        /* Action Button */
+        .action-btn {
+            width: 100%;
+            height: 60px;
+            border-radius: 30px;
+            background: #fff;
+            color: #000;
+            font-size: 17px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s var(--ease-smooth);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(255,255,255,0.1);
+        }
+
+        .action-btn:active {
+            transform: scale(0.96);
+            box-shadow: 0 5px 15px rgba(255,255,255,0.05);
+        }
+
+        .action-btn::after {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 50%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0,0,0,0.1), transparent);
+            transform: skewX(-20deg);
+            transition: 0.5s;
+        }
+
+        .action-btn:hover::after {
+            left: 150%;
+        }
+        
+        .action-btn.btn-intro {
+            background: var(--bg-surface);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.15);
+            box-shadow: none;
+        }
+        .action-btn.btn-intro::after {
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Ambient Background Glow -->
+    <div class="ambient-bg" id="ambientBg"></div>
+
+    <div class="phone-frame">
+        
+        <div class="carousel-container">
+            <div class="carousel-track" id="track">
+                
+                <!-- Slide 0: Intro -->
+                <div class="slide active">
+                    <div class="graphic-container">
+                        <div class="intro-cloud">
+                            <!-- Video Center -->
+                            <div class="cloud-item item-video">
+                                <div class="cloud-play"></div>
+                            </div>
+                            <!-- Music -->
+                            <div class="cloud-item item-music">
+                                <div class="cloud-music-bars">
+                                    <div class="cm-bar"></div><div class="cm-bar"></div><div class="cm-bar"></div><div class="cm-bar"></div>
+                                </div>
+                            </div>
+                            <!-- Philosophy -->
+                            <div class="cloud-item item-philosophy">
+                                <div class="cloud-philosophy-cards">
+                                    <div class="cp-card"></div><div class="cp-card"></div>
+                                </div>
+                            </div>
+                            <!-- Toon -->
+                            <div class="cloud-item item-toon">
+                                <div class="cloud-toon-scroll">
+                                    <div class="ct-panel"></div><div class="ct-panel"></div><div class="ct-panel"></div><div class="ct-panel"></div>
+                                </div>
+                            </div>
+                            <!-- Book -->
+                            <div class="cloud-item item-book">
+                                <div class="cloud-book-icon">
+                                    <div class="cb-page"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-content">
+                        <h2>All in One.</h2>
+                        <p>Your entire digital universe, flawlessly crafted into a single experience.</p>
+                    </div>
+                </div>
+
+                <!-- Slide 1: Music -->
+                <div class="slide">
+                    <div class="graphic-container">
+                        <div class="music-bars">
+                            <div class="m-bar"></div><div class="m-bar"></div><div class="m-bar"></div><div class="m-bar"></div><div class="m-bar"></div>
+                        </div>
+                    </div>
+                    <div class="text-content">
+                        <h2>Music Player</h2>
+                        <p>A conductor waits to begin the performance. Don’t be late — import your music and enjoy the experience with your personal conductor.</p>
+                    </div>
+                </div>
+
+                <!-- Slide 2: Toon -->
+                <div class="slide">
+                    <div class="graphic-container">
+                        <div class="toon-scroll">
+                            <div class="toon-panels">
+                                <div class="toon-panel"></div><div class="toon-panel"></div><div class="toon-panel"></div><div class="toon-panel"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-content">
+                        <h2>Infinite Scroll</h2>
+                        <p>Uninterrupted, cinematic vertical reading engineered for Webtoons and Manga.</p>
+                    </div>
+                </div>
+
+                <!-- Slide 3: Book -->
+                <div class="slide">
+                    <div class="graphic-container">
+                        <div class="book-icon">
+                            <div class="b-line"></div><div class="b-line"></div><div class="b-line"></div>
+                            <div class="book-page"></div>
+                        </div>
+                    </div>
+                    <div class="text-content">
+                        <h2>Absolute Focus</h2>
+                        <p>A minimalist, distraction-free environment for deep reading and PDF annotation.</p>
+                    </div>
+                </div>
+
+                <!-- Slide 4: Video -->
+                <div class="slide">
+                    <div class="graphic-container">
+                        <div class="video-screen">
+                            <div class="rec-dot"></div>
+                            <div class="video-play"></div>
+                        </div>
+                    </div>
+                    <div class="text-content">
+                        <h2>Videos Hub</h2>
+                        <p>Your personal library, built your way. Organize, customize, and watch your content with complete freedom and full control.</p>
+                    </div>
+                </div>
+
+                <!-- Slide 5: Manifesto Interactive Deck -->
+                <div class="slide slide-manifesto">
+                    <h2 class="manifesto-header">The Philosophy</h2>
+                    
+                    <div class="manifesto-deck" id="manifestoDeck">
+                        
+                        <!-- Card 4 (Last) -->
+                        <div class="m-card">
+                            <div class="m-card-title">Support The Vision</div>
+                            <p>Support this independent project with a one-time lifetime plan.</p>
+                            <p>There are no subscriptions, no recurring payments, and no pressure. Just a return to owning your digital life instead of renting it.</p>
+                        </div>
+                        
+                        <!-- Card 3 -->
+                        <div class="m-card">
+                            <div class="m-card-title">The Rules</div>
+                            <div style="margin-top: 10px;">
+                                <div class="m-pill">✕ No unnecessary permissions</div>
+                                <div class="m-pill">✕ No hidden tracking</div>
+                                <div class="m-pill">✕ No forced cloud dependency</div>
+                                <div class="m-pill">✕ No algorithms deciding for you</div>
+                            </div>
+                        </div>
+
+                        <!-- Card 2 -->
+                        <div class="m-card">
+                            <div class="m-card-title">The Opposite</div>
+                            <p>I wanted a space where media feels personal again. This app exists for one reason:</p>
+                            <p>To help you transform messy libraries into a clean, fully personalized space. <strong>Designed to serve you — not monitor you.</strong></p>
+                        </div>
+
+                        <!-- Card 1 (Front) -->
+                        <div class="m-card">
+                            <div class="m-card-title">The Frustration</div>
+                            <p>This app was created from frustration.</p>
+                            <p>Modern media apps slowly turned personal libraries into controlled ecosystems — filled with distractions, subscriptions, tracking systems, and platforms deciding how you consume your own content.</p>
+                        </div>
+
+                    </div>
+                    
+                    <div class="tap-hint">
+                        <svg viewBox="0 0 24 24"><path d="M9 11.24V7.5a2.5 2.5 0 0 1 5 0v1.34l1.87-1.12a2.49 2.49 0 0 1 3.32 1.05l2.45 4.3c.77 1.34.42 3.12-.83 4.1-1.34 1.05-3.3 2.1-5.06 2.62-1.74.52-4.1.8-6.14.2-2.3-.67-4.13-2.1-5.18-4.2l-2.02-4.04a1.8 1.8 0 0 1 3.22-1.6l2.37 4.74V7.5a2.5 2.5 0 0 1 5 0v3.74Z"/></svg>
+                        Tap to flip card
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="pagination" id="pagination">
+                <div class="dot active" onclick="goToSlide(0)"></div>
+                <div class="dot" onclick="goToSlide(1)"></div>
+                <div class="dot" onclick="goToSlide(2)"></div>
+                <div class="dot" onclick="goToSlide(3)"></div>
+                <div class="dot" onclick="goToSlide(4)"></div>
+                <div class="dot" onclick="goToSlide(5)"></div>
+            </div>
+            <button class="action-btn btn-intro" id="nextBtn" onclick="handleNext()">Begin Journey</button>
+        </div>
+
+    </div>
+
+    <script>
+        const track = document.getElementById('track');
+        const slides = document.querySelectorAll('.slide');
+        const dots = document.querySelectorAll('.dot');
+        const nextBtn = document.getElementById('nextBtn');
+        const ambientBg = document.getElementById('ambientBg');
+
+        let currentSlide = 0;
+        const totalSlides = slides.length;
+
+        function updateUI() {
+            // Move Track
+            track.style.transform = `translateX(-${currentSlide * (100 / totalSlides)}%)`;
+
+            // Update Slides
+            slides.forEach((slide, index) => {
+                if (index === currentSlide) {
+                    slide.classList.add('active');
+                } else {
+                    slide.classList.remove('active');
+                }
+            });
+
+            // Update Dots
+            dots.forEach((dot, index) => {
+                if (index === currentSlide) {
+                    dot.classList.add('active');
+                } else {
+                    dot.classList.remove('active');
+                }
+            });
+
+            // Button and Ambient Glow Logic
+            if (currentSlide === 0) {
+                ambientBg.style.transform = 'translate(-50%, -50%) scale(1)';
+                ambientBg.style.opacity = '1';
+                nextBtn.className = 'action-btn btn-intro';
+                nextBtn.innerText = 'Begin Journey';
+            } else {
+                ambientBg.style.transform = `translate(-50%, -50%) scale(${1 + (currentSlide * 0.15)})`;
+                ambientBg.style.opacity = '0.5';
+                nextBtn.className = 'action-btn';
+                nextBtn.innerText = currentSlide === totalSlides - 1 ? 'Enter Hwaran' : 'Continue';
+            }
+
+            // Haptic feedback simulation
+            if (navigator.vibrate) navigator.vibrate(30);
+        }
+
+        function handleNext() {
+            if (currentSlide < totalSlides - 1) {
+                currentSlide++;
+                updateUI();
+            } else {
+                // Premium Final Transition
+                nextBtn.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    nextBtn.style.transform = 'scale(60)';
+                    nextBtn.style.opacity = '0';
+                    document.body.style.background = '#000';
+                    setTimeout(() => {
+                        if (window.Android && window.Android.completeIntro) {
+                            window.Android.completeIntro();
+                        } else {
+                            alert("Transitioning to Main App Dashboard...");
+                        }
+                    }, 100);
+                }, 80);
+            }
+        }
+
+        function goToSlide(index) {
+            currentSlide = index;
+            updateUI();
+        }
+
+        // --- Interactive Manifesto Deck Logic ---
+        const manifestoCards = Array.from(document.querySelectorAll('#manifestoDeck .m-card')).reverse();
+        let currentCardIndex = 0;
+
+        function updateDeckVisuals() {
+            manifestoCards.forEach((card, index) => {
+                card.className = 'm-card'; // Reset
+                let offset = (index - currentCardIndex + manifestoCards.length) % manifestoCards.length;
+                
+                if (offset === 0) {
+                    card.classList.add('card-front');
+                } else if (offset === 1) {
+                    card.classList.add('card-mid');
+                } else if (offset === 2) {
+                    card.classList.add('card-back');
+                } else {
+                    card.classList.add('card-hidden');
+                }
+            });
+        }
+        
+        // Initialize deck layout
+        updateDeckVisuals();
+
+        document.getElementById('manifestoDeck').addEventListener('click', () => {
+            currentCardIndex = (currentCardIndex + 1) % manifestoCards.length;
+            updateDeckVisuals();
+            if (navigator.vibrate) navigator.vibrate(20); // satisfying haptic tap
+        });
+
+
+        // --- Swipe support for mobile ---
+        let touchStartX = 0;
+        let touchEndX = 0;
+        
+        document.querySelector('.carousel-container').addEventListener('touchstart', e => {
+            touchStartX = e.changedTouches.screenX;
+        }, {passive: true});
+
+        document.querySelector('.carousel-container').addEventListener('touchend', e => {
+            touchEndX = e.changedTouches.screenX;
+            handleSwipe();
+        }, {passive: true});
+
+        function handleSwipe() {
+            const threshold = 40;
+            // Prevent swiping if clicking inside the deck (handled naturally by click)
+            if (Math.abs(touchStartX - touchEndX) < threshold) return; 
+
+            if (touchStartX - touchEndX > threshold) {
+                // Swipe Left -> Next
+                if (currentSlide < totalSlides - 1) {
+                    currentSlide++;
+                    updateUI();
+                }
+            }
+            if (touchEndX - touchStartX > threshold) {
+                // Swipe Right -> Prev
+                if (currentSlide > 0) {
+                    currentSlide--;
+                    updateUI();
+                }
+            }
+        }
+
+        // Initialize Carousel
+        updateUI();
+    </script>
+</body>
+</html>
