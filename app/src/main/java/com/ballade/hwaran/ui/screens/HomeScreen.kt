@@ -286,38 +286,44 @@ fun HomeScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             // Main Content
             Box(modifier = Modifier.fillMaxSize()) {
-                if (activeTab == 0) {
-                    LibraryContent(
-                        libraryViewModel = libraryViewModel,
-                        settingsViewModel = settingsViewModel,
-                        onNavigateToSettings = onNavigateToSettings,
-                        onNavigateToDescription = onNavigateToDescription,
-                        rotationAngle = rotationAngle,
-                        pillGradient = pillGradient,
-                        isLandscape = isLandscape,
-                        isCloverExpanded = isCloverExpanded,
-                        onCloverExpandedChange = { isCloverExpanded = it },
-                        isMediaMenuExpanded = isMediaMenuExpanded,
-                        onMediaMenuExpandedChange = { isMediaMenuExpanded = it },
-                        showNameDefaultDialog = showNameDefaultDialog,
-                        onShowNameDefaultDialogChange = { showNameDefaultDialog = it },
-                        showNewScreenDialog = showNewScreenDialog,
-                        onShowNewScreenDialogChange = { showNewScreenDialog = it },
-                        showDeleteSelectionDialog = showDeleteSelectionDialog,
-                        onShowDeleteSelectionDialogChange = { showDeleteSelectionDialog = it }
-                    )
-                } else {
-                    MusicScreen(
-                        libraryViewModel = libraryViewModel,
-                        settingsViewModel = settingsViewModel,
-                        musicViewModel = musicViewModel,
-                        onNavigateToPlaylistDetail = onNavigateToDescription,
-                        onImportMusic = {
-                            settingsViewModel.setStorageMode(1)
-                            folderPickerLauncher.launch(null)
-                        },
-                        pillGradient = pillGradient
-                    )
+                androidx.compose.animation.Crossfade(
+                    targetState = activeTab,
+                    animationSpec = tween(600),
+                    label = "tab_crossfade"
+                ) { tab ->
+                    if (tab == 0) {
+                        LibraryContent(
+                            libraryViewModel = libraryViewModel,
+                            settingsViewModel = settingsViewModel,
+                            onNavigateToSettings = onNavigateToSettings,
+                            onNavigateToDescription = onNavigateToDescription,
+                            rotationAngle = rotationAngle,
+                            pillGradient = pillGradient,
+                            isLandscape = isLandscape,
+                            isCloverExpanded = isCloverExpanded,
+                            onCloverExpandedChange = { isCloverExpanded = it },
+                            isMediaMenuExpanded = isMediaMenuExpanded,
+                            onMediaMenuExpandedChange = { isMediaMenuExpanded = it },
+                            showNameDefaultDialog = showNameDefaultDialog,
+                            onShowNameDefaultDialogChange = { showNameDefaultDialog = it },
+                            showNewScreenDialog = showNewScreenDialog,
+                            onShowNewScreenDialogChange = { showNewScreenDialog = it },
+                            showDeleteSelectionDialog = showDeleteSelectionDialog,
+                            onShowDeleteSelectionDialogChange = { showDeleteSelectionDialog = it }
+                        )
+                    } else {
+                        MusicScreen(
+                            libraryViewModel = libraryViewModel,
+                            settingsViewModel = settingsViewModel,
+                            musicViewModel = musicViewModel,
+                            onNavigateToPlaylistDetail = onNavigateToDescription,
+                            onImportMusic = {
+                                settingsViewModel.setStorageMode(1)
+                                folderPickerLauncher.launch(null)
+                            },
+                            pillGradient = pillGradient
+                        )
+                    }
                 }
             }
 
@@ -695,70 +701,76 @@ fun LibraryContent(
 
             val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
 
-            LazyVerticalGrid(
-                state = gridState,
-                columns = GridCells.Adaptive(if (isLandscape) 110.dp else 175.dp),
-                contentPadding = PaddingValues(
-                    top = if (isLandscape) 120.dp else 220.dp, 
-                    start = if (isLandscape) 16.dp else 16.dp, 
-                    end = 16.dp, 
-                    bottom = if (isLandscape) 180.dp else 180.dp
-                ),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                    .drawWithContent {
-                        drawContent()
-                        val height = size.height
-                        if (height > 0f) {
-                            val topFadePx = (if (isLandscape) 120.dp else 220.dp).toPx()
-                            val bottomFadePx = (if (isLandscape) 180.dp else 180.dp).toPx()
-                            val transitionPx = 30.dp.toPx()
-                            
-                            val topOpaqueFraction = (topFadePx / height).coerceIn(0f, 1f)
-                            val topTransparentFraction = ((topFadePx - transitionPx) / height).coerceIn(0f, 1f)
-                            val bottomOpaqueFraction = ((height - bottomFadePx) / height).coerceIn(0f, 1f)
-                            val bottomTransparentFraction = ((height - bottomFadePx + transitionPx) / height).coerceIn(0f, 1f)
-                            
-                            drawRect(
-                                brush = Brush.verticalGradient(
-                                    0f to Color.Transparent,
-                                    topTransparentFraction to Color.Transparent,
-                                    topOpaqueFraction to Color.Black,
-                                    bottomOpaqueFraction to Color.Black,
-                                    bottomTransparentFraction to Color.Transparent,
-                                    1f to Color.Transparent
-                                ),
-                                blendMode = BlendMode.DstIn
+            androidx.compose.animation.Crossfade(
+                targetState = Triple(mediaMode, videoLayoutMode, currentActiveScreen),
+                animationSpec = tween(600),
+                label = "library_mode_crossfade"
+            ) { _ ->
+                LazyVerticalGrid(
+                    state = gridState,
+                    columns = GridCells.Adaptive(if (isLandscape) 110.dp else 175.dp),
+                    contentPadding = PaddingValues(
+                        top = if (isLandscape) 120.dp else 220.dp, 
+                        start = if (isLandscape) 16.dp else 16.dp, 
+                        end = 16.dp, 
+                        bottom = if (isLandscape) 180.dp else 180.dp
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            val height = size.height
+                            if (height > 0f) {
+                                val topFadePx = (if (isLandscape) 120.dp else 220.dp).toPx()
+                                val bottomFadePx = (if (isLandscape) 180.dp else 180.dp).toPx()
+                                val transitionPx = 30.dp.toPx()
+                                
+                                val topOpaqueFraction = (topFadePx / height).coerceIn(0f, 1f)
+                                val topTransparentFraction = ((topFadePx - transitionPx) / height).coerceIn(0f, 1f)
+                                val bottomOpaqueFraction = ((height - bottomFadePx) / height).coerceIn(0f, 1f)
+                                val bottomTransparentFraction = ((height - bottomFadePx + transitionPx) / height).coerceIn(0f, 1f)
+                                
+                                drawRect(
+                                    brush = Brush.verticalGradient(
+                                        0f to Color.Transparent,
+                                        topTransparentFraction to Color.Transparent,
+                                        topOpaqueFraction to Color.Black,
+                                        bottomOpaqueFraction to Color.Black,
+                                        bottomTransparentFraction to Color.Transparent,
+                                        1f to Color.Transparent
+                                    ),
+                                    blendMode = BlendMode.DstIn
+                                )
+                            }
+                        }
+                ) {
+                    if (pageManga.isEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Spacer(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(3000.dp)
                             )
                         }
-                    }
-            ) {
-                if (pageManga.isEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Spacer(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(3000.dp)
-                        )
-                    }
-                } else {
-                    items(pageManga, key = { it.id }) { manga ->
-                        MangaCard(
-                            manga = manga,
-                            coverTransparency = coverTransparency,
-                            isLibraryLocked = isLibraryLocked,
-                            onClick = { 
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                if (isLibraryLocked && manga.isLocked) {
-                                    mangaToUnlock = manga
-                                } else {
-                                    onNavigateToDescription(manga.id) 
+                    } else {
+                        items(pageManga, key = { it.id }) { manga ->
+                            MangaCard(
+                                manga = manga,
+                                coverTransparency = coverTransparency,
+                                isLibraryLocked = isLibraryLocked,
+                                onClick = { 
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    if (isLibraryLocked && manga.isLocked) {
+                                        mangaToUnlock = manga
+                                    } else {
+                                        onNavigateToDescription(manga.id) 
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
@@ -1580,7 +1592,7 @@ fun LibraryContent(
                         enabled = selectedToDelete != null,
                         onClick = {
                             selectedToDelete?.let { 
-                                libraryViewModel.deleteWorkspace(mediaMode, it)
+                                libraryViewModel.deleteWorkspace(mediaMode, videoLayoutMode, it)
                                 if (currentActiveScreen == it) {
                                     settingsViewModel.setActiveScreen(mediaMode, null)
                                 }

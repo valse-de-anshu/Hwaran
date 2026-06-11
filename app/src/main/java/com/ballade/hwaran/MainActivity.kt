@@ -297,7 +297,9 @@ class MainActivity : ComponentActivity() {
                                         navController = navController,
                                         startDestination = startDestination,
                                         settingsViewModel = settingsViewModel,
-                                        musicViewModel = musicViewModel
+                                        musicViewModel = musicViewModel,
+                                        isOpenedExternally = false,
+                                        onExitExternalViewer = {}
                                     )
                                     
                                     // Handle external intents

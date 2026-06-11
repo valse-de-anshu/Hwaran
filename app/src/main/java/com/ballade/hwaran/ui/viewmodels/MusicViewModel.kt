@@ -40,6 +40,11 @@ import android.graphics.Color as AndroidColor
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "music_prefs")
 
 class MusicViewModel(application: Application) : AndroidViewModel(application) {
+    companion object {
+        var skipRestore = false
+        var isPopUpActive = false
+    }
+
     private val database = AppDatabase.getDatabase(application)
     private val context = application.applicationContext
     
@@ -511,6 +516,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 _currentChapter.value = updated
             }
         }
+    }
+
+    fun stopPlayback() {
+        exoPlayer.stop()
+        _isPlaying.value = false
+        savePlaybackState()
     }
 
     fun stopIfPlaylistDeleted(playlistId: Long) {

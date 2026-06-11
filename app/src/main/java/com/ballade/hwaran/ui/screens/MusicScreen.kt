@@ -544,6 +544,11 @@ fun MusicScreen(
                                         }
                                     } else Modifier
                                 )
+                                .then(
+                                    if (onboardingStep == "step_popup_add" || onboardingStep == "step_popup_edit" || onboardingStep == "step_popup_delete") {
+                                        Modifier.spotlightTarget("tour_music_slider_trigger", settingsViewModel)
+                                    } else Modifier
+                                )
                         ) {
                             Icon(
                                 if (isEditMode || isDeleteMode) Icons.Rounded.Close
@@ -829,29 +834,20 @@ fun PlaylistCircleItemForeground(
                         indication = null
                     ) { onPlaylistClick() }
             ) {
-                if (playlist.coverPath.isNotEmpty() && playlist.coverPath != "android.resource://android/drawable/ic_menu_gallery") {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(playlist.coverPath)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = playlist.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                val cover = if (playlist.coverPath.isEmpty() || playlist.coverPath == "android.resource://android/drawable/ic_menu_gallery") {
+                    "android.resource://com.ballade.hwaran/${com.ballade.hwaran.R.drawable.fall_back}"
                 } else {
-                    Box(
-                        modifier = Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.05f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Rounded.MusicNote, 
-                            contentDescription = null, 
-                            tint = Color.White.copy(alpha = 0.1f),
-                            modifier = Modifier.size(size * 0.3f)
-                        )
-                    }
+                    playlist.coverPath
                 }
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(cover)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = playlist.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
                 
                 if (isSelectedForDelete) {
                     Box(modifier = Modifier.fillMaxSize().background(Color(0xFFE57373).copy(alpha = 0.3f)))

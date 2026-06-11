@@ -103,36 +103,24 @@ fun AppNavGraph(
     navController: NavHostController = rememberNavController(),
     startDestination: String = Screen.Home.route,
     settingsViewModel: SettingsViewModel,
-    musicViewModel: MusicViewModel
+    musicViewModel: MusicViewModel,
+    isOpenedExternally: Boolean = false,
+    onExitExternalViewer: () -> Unit = {}
 ) {
     NavHost(
         navController = navController,
         startDestination = startDestination,
         enterTransition = {
-            slideIntoContainer(
-                towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                animationSpec = tween(500, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(500))
+            fadeIn(animationSpec = tween(600))
         },
         exitTransition = {
-            slideOutOfContainer(
-                towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                animationSpec = tween(500, easing = FastOutSlowInEasing),
-                targetOffset = { it / 4 }
-            ) + fadeOut(animationSpec = tween(500))
+            fadeOut(animationSpec = tween(600))
         },
         popEnterTransition = {
-            slideIntoContainer(
-                towards = AnimatedContentTransitionScope.SlideDirection.Right,
-                animationSpec = tween(500, easing = FastOutSlowInEasing),
-                initialOffset = { it / 4 }
-            ) + fadeIn(animationSpec = tween(500))
+            fadeIn(animationSpec = tween(600))
         },
         popExitTransition = {
-            slideOutOfContainer(
-                towards = AnimatedContentTransitionScope.SlideDirection.Right,
-                animationSpec = tween(500, easing = FastOutSlowInEasing)
-            ) + fadeOut(animationSpec = tween(500))
+            fadeOut(animationSpec = tween(600))
         }
     ) {
         composable(

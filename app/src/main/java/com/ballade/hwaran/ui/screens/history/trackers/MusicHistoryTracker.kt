@@ -1,0 +1,14 @@
+package com.ballade.hwaran.ui.screens.history.trackers
+
+import com.ballade.hwaran.data.local.HistoryEventEntity
+
+object MusicHistoryTracker {
+    fun calculateTotalPlaybacks(events: List<HistoryEventEntity>): Int {
+        return events.count { it.eventType == "LISTEN" }
+    }
+
+    fun getLatestPlayTimestamp(events: List<HistoryEventEntity>): Long? {
+        return events.filter { it.eventType == "LISTEN" }
+            .maxOfOrNull { it.timestamp }
+    }
+}
