@@ -234,8 +234,8 @@ class PopUpPlayerActivity : ComponentActivity() {
                                         musicViewModel.seekTo(sliderPosition)
                                     },
                                     isPlaying = isPlaying,
-                                    activeTrackColor = Color(0xFF7A6284),
-                                    thumbColor = Color.White,
+                                    activeTrackGradientColors = listOf(Color.White, Color(0xFF7A6284)),
+                                    thumbGradientColors = listOf(Color.White, Color(0xFF7A6284)),
                                     inactiveTrackColor = Color.White.copy(alpha = 0.15f),
                                     trackHeight = 4.dp,
                                     thumbRadius = 6.dp,

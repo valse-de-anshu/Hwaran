@@ -37,42 +37,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _activeTab = MutableStateFlow(0)
     val activeTab: StateFlow<Int> = _activeTab
 
-    // Hoisted Panel states for coordinated onboarding tours
-    private val _isWrapperExpanded = MutableStateFlow(false)
-    val isWrapperExpanded: StateFlow<Boolean> = _isWrapperExpanded
-
-    fun setWrapperExpanded(expanded: Boolean) {
-        _isWrapperExpanded.value = expanded
-    }
-
-    private val _showGalleryNavigator = MutableStateFlow(false)
-    val showGalleryNavigator: StateFlow<Boolean> = _showGalleryNavigator
-
-    fun setShowGalleryNavigator(show: Boolean) {
-        _showGalleryNavigator.value = show
-    }
-
-    private val _isMediaMenuExpanded = MutableStateFlow(false)
-    val isMediaMenuExpanded: StateFlow<Boolean> = _isMediaMenuExpanded
-
-    fun setMediaMenuExpanded(expanded: Boolean) {
-        _isMediaMenuExpanded.value = expanded
-    }
-
-    private val _isCloverExpanded = MutableStateFlow(false)
-    val isCloverExpanded: StateFlow<Boolean> = _isCloverExpanded
-
-    fun setCloverExpanded(expanded: Boolean) {
-        _isCloverExpanded.value = expanded
-    }
-
-    private val _showNowPlayingMenu = MutableStateFlow(false)
-    val showNowPlayingMenu: StateFlow<Boolean> = _showNowPlayingMenu
-
-    fun setShowNowPlayingMenu(show: Boolean) {
-        _showNowPlayingMenu.value = show
-    }
-
     // Onboarding Spotlight Targets (stored as Rect to be memory-safe and lightweight)
     val spotlightTargets = mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>()
 
@@ -135,44 +99,151 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     private suspend fun generateThumbnailFromRaw(context: Context, videoName: String, resId: Int) {
+        val tempFile = File(context.cacheDir, "thumb_gen_$videoName.mp4")
         try {
-            val retriever = MediaMetadataRetriever()
-            val uri = android.net.Uri.parse("android.resource://${context.packageName}/$resId")
-            retriever.setDataSource(context, uri)
-            val bitmap = retriever.getFrameAtTime(1000000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-            retriever.release()
-            
-            if (bitmap != null) {
-                withContext(Dispatchers.Main) {
-                    thumbnails[resId] = bitmap.asImageBitmap()
+            context.resources.openRawResource(resId).use { input ->
+                FileOutputStream(tempFile).use { output ->
+                    input.copyTo(output)
                 }
             }
+            val finalBitmap = createVideoThumbnail(tempFile)
+            if (finalBitmap != null) {
+                val scaled = Bitmap.createScaledBitmap(finalBitmap, 120, 180, true)
+                withContext(Dispatchers.Main) {
+                    thumbnails[resId] = scaled.asImageBitmap()
+                }
+                if (finalBitmap != scaled) finalBitmap.recycle()
+            }
         } catch (e: Exception) {
-            Log.e("SettingsViewModel", "Failed to generate thumbnail for $videoName", e)
+            Log.e("SettingsViewModel", "Thumbnail failed for raw $videoName", e)
+        } finally {
+            if (tempFile.exists()) tempFile.delete()
         }
     }
 
     private suspend fun generateThumbnailFromPath(context: Context, fileName: String, hashCode: Int) {
+        val file = File(context.filesDir, "custom_splash/$fileName")
+        if (!file.exists()) return
+        
         try {
-            val file = File(context.filesDir, fileName)
-            if (!file.exists()) return
-
-            val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                ThumbnailUtils.createVideoThumbnail(file, Size(320, 240), null)
-            } else {
-                ThumbnailUtils.createVideoThumbnail(file.absolutePath, MediaStore.Video.Thumbnails.MINI_KIND)
-            }
-            
-            if (bitmap != null) {
+            val finalBitmap = createVideoThumbnail(file)
+            if (finalBitmap != null) {
+                val scaled = Bitmap.createScaledBitmap(finalBitmap, 120, 180, true)
                 withContext(Dispatchers.Main) {
-                    thumbnails[hashCode] = bitmap.asImageBitmap()
+                    thumbnails[hashCode] = scaled.asImageBitmap()
                 }
+                if (finalBitmap != scaled) finalBitmap.recycle()
             }
         } catch (e: Exception) {
-            Log.e("SettingsViewModel", "Failed to generate thumbnail for $fileName", e)
+            Log.e("SettingsViewModel", "Thumbnail failed for path $fileName", e)
         }
     }
 
+    private fun createVideoThumbnail(file: File): Bitmap? {
+        val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                ThumbnailUtils.createVideoThumbnail(file, Size(300, 450), null)
+            } catch (e: Exception) {
+                null
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            ThumbnailUtils.createVideoThumbnail(file.absolutePath, MediaStore.Video.Thumbnails.MINI_KIND)
+        }
+
+        return bitmap ?: run {
+            val retriever = MediaMetadataRetriever()
+            var fis: FileInputStream? = null
+            try {
+                fis = FileInputStream(file)
+                retriever.setDataSource(fis.fd)
+                retriever.getFrameAtTime(1000000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    ?: retriever.getFrameAtTime(500000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    ?: retriever.getFrameAtTime(0)
+            } catch (e: Exception) {
+                null
+            } finally {
+                try { fis?.close() } catch (e: Exception) {}
+                try { retriever.release() } catch (e: Exception) {}
+            }
+        }
+    }
+
+    fun addCustomSplashVideo(context: Context, uri: android.net.Uri) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val customDir = File(context.filesDir, "custom_splash")
+                    if (!customDir.exists()) customDir.mkdirs()
+                    
+                    val fileName = "custom_${System.currentTimeMillis()}.mp4"
+                    val destinationFile = File(customDir, fileName)
+                    
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        FileOutputStream(destinationFile).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    
+                    globalSettings.addCustomSplashVideo(fileName)
+                    generateThumbnailFromPath(context, fileName, fileName.hashCode())
+                } catch (e: Exception) {
+                    Log.e("SettingsViewModel", "Failed to add custom splash", e)
+                }
+            }
+        }
+    }
+
+    fun removeCustomSplashVideo(context: Context, fileName: String) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val file = File(context.filesDir, "custom_splash/$fileName")
+                    if (file.exists()) file.delete()
+                    globalSettings.removeCustomSplashVideo(fileName)
+                    withContext(Dispatchers.Main) {
+                        thumbnails.remove(fileName.hashCode())
+                    }
+                } catch (e: Exception) {
+                    Log.e("SettingsViewModel", "Failed to remove custom splash", e)
+                }
+            }
+        }
+    }
+
+    val coverTransparency: StateFlow<Float> = globalSettings.coverTransparencyFlow
+        .stateIn(viewModelScope, SharingStarted.Lazily, 1.0f)
+
+    val animationSpeed: StateFlow<Float> = globalSettings.animationSpeedFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 1.0f)
+
+    val animationVisibility: StateFlow<Boolean> = globalSettings.animationVisibilityFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val animationType: StateFlow<Int> = globalSettings.animationTypeFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 1)
+
+    val sfwText: StateFlow<String> = globalSettings.sfwTextFlow
+        .stateIn(viewModelScope, SharingStarted.Lazily, "X")
+
+    val nsfwText: StateFlow<String> = globalSettings.nsfwTextFlow
+        .stateIn(viewModelScope, SharingStarted.Lazily, "Y")
+
+    val descriptionUiTransparency: StateFlow<Float> = globalSettings.descriptionUiTransparencyFlow
+        .stateIn(viewModelScope, SharingStarted.Lazily, 1.0f)
+
+    val homeUiTransparency: StateFlow<Float> = globalSettings.homeUiTransparencyFlow
+        .stateIn(viewModelScope, SharingStarted.Lazily, 1.0f)
+
+    val appTheme: StateFlow<Int> = globalSettings.appThemeFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 1)
+
+    val storageMode: StateFlow<Int> = globalSettings.storageModeFlow
+        .stateIn(viewModelScope, SharingStarted.Lazily, 0)
+
+    val mediaMode: StateFlow<Int> = globalSettings.mediaModeFlow
+        .stateIn(viewModelScope, SharingStarted.Lazily, 0)
+        
     val activeScreenToon: StateFlow<String?> = globalSettings.activeScreenToonFlow
         .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
@@ -191,49 +262,26 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val workspacesVideo: StateFlow<List<String>> = globalSettings.workspacesVideoFlow
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    fun setActiveScreen(mediaMode: Int, screenName: String?) {
-        viewModelScope.launch { globalSettings.setActiveScreen(mediaMode, screenName) }
-    }
-
     fun addWorkspace(mediaMode: Int, workspace: String) {
-        viewModelScope.launch { globalSettings.addWorkspace(mediaMode, workspace) }
+        viewModelScope.launch {
+            globalSettings.addWorkspace(mediaMode, workspace)
+        }
     }
 
-    val appTheme: StateFlow<Int> = globalSettings.appThemeFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, 1)
+    fun removeWorkspace(mediaMode: Int, workspace: String) {
+        viewModelScope.launch {
+            globalSettings.removeWorkspace(mediaMode, workspace)
+        }
+    }
 
-    val animationSpeed: StateFlow<Float> = globalSettings.animationSpeedFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, 1.0f)
-
-    val animationVisibility: StateFlow<Boolean> = globalSettings.animationVisibilityFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, true)
-
-    val animationType: StateFlow<Int> = globalSettings.animationTypeFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, 0)
-
-    val sfwText: StateFlow<String> = globalSettings.sfwTextFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, "X")
-
-    val nsfwText: StateFlow<String> = globalSettings.nsfwTextFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, "Y")
-
-    val coverTransparency: StateFlow<Float> = globalSettings.coverTransparencyFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, 1.0f)
-
-    val descriptionUiTransparency: StateFlow<Float> = globalSettings.descriptionUiTransparencyFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, 1.0f)
-
-    val homeUiTransparency: StateFlow<Float> = globalSettings.homeUiTransparencyFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, 1.0f)
-
-    val storageMode: StateFlow<Int> = globalSettings.storageModeFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, 0)
-
-    val mediaMode: StateFlow<Int> = globalSettings.mediaModeFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, 0)
-
+    fun setActiveScreen(mediaMode: Int, screenName: String?) {
+        viewModelScope.launch {
+            globalSettings.setActiveScreen(mediaMode, screenName)
+        }
+    }
+    
     val hasAskedDefaultApp: StateFlow<Boolean> = globalSettings.hasAskedDefaultAppFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, false)
+        .stateIn(viewModelScope, SharingStarted.Lazily, true)
 
     val videoLayoutMode: StateFlow<Int> = globalSettings.videoLayoutModeFlow
         .stateIn(viewModelScope, SharingStarted.Lazily, 0)
@@ -289,18 +337,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun seedDefaultWorkspace() {
-        viewModelScope.launch { globalSettings.seedDefaultWorkspace() }
-    }
-
     private val _isReady = MutableStateFlow(false)
     val isReady: StateFlow<Boolean> = _isReady
 
     init {
         viewModelScope.launch {
-            // Seed "I Love It" as the permanent default workspace on every start
-            try { globalSettings.seedDefaultWorkspace() } catch (e: Exception) { Log.e("SettingsViewModel", "Seed workspace failed", e) }
-
             // Read all three critical settings in one go (single DataStore read)
             try {
                 val theme = globalSettings.appThemeFlow.first()
@@ -442,6 +483,38 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setGlowColor(value: Long) {
+        viewModelScope.launch { globalSettings.setGlowColor(value) }
+    }
+
+    fun setFabStyle(value: Int) {
+        viewModelScope.launch { globalSettings.setFabStyle(value) }
+    }
+
+    fun setUsePillAsHighlight(value: Boolean) {
+        viewModelScope.launch { globalSettings.setUsePillAsHighlight(value) }
+    }
+
+    fun setMusicMode(value: Int) {
+        viewModelScope.launch { globalSettings.setMusicMode(value) }
+    }
+
+    fun setBatterySavingMode(value: Boolean) {
+        viewModelScope.launch { globalSettings.setBatterySavingMode(value) }
+    }
+
+    fun setStopTracking(value: Boolean) {
+        viewModelScope.launch { globalSettings.setStopTracking(value) }
+    }
+
+    fun setHasSeenIntro(value: Boolean) {
+        viewModelScope.launch { globalSettings.setHasSeenIntro(value) }
+    }
+
+    fun setActiveTab(value: Int) {
+        _activeTab.value = value
+    }
+}
+ {
         viewModelScope.launch { globalSettings.setGlowColor(value) }
     }
 

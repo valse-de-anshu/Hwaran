@@ -103,9 +103,7 @@ fun AppNavGraph(
     navController: NavHostController = rememberNavController(),
     startDestination: String = Screen.Home.route,
     settingsViewModel: SettingsViewModel,
-    musicViewModel: MusicViewModel,
-    isOpenedExternally: Boolean = false,
-    onExitExternalViewer: () -> Unit = {}
+    musicViewModel: MusicViewModel
 ) {
     NavHost(
         navController = navController,

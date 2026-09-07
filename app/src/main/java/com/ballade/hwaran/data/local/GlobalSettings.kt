@@ -106,34 +106,6 @@ class GlobalSettings(private val context: Context) {
         }
     }
 
-    suspend fun renameWorkspaceIfActive(mediaMode: Int, oldName: String, newName: String) {
-        context.dataStore.edit { preferences ->
-            val key = when (mediaMode) {
-                0 -> ACTIVE_SCREEN_TOON
-                1 -> ACTIVE_SCREEN_BOOK
-                2 -> ACTIVE_SCREEN_VIDEO
-                else -> return@edit
-            }
-            if (preferences[key] == oldName) {
-                preferences[key] = newName
-            }
-        }
-    }
-
-    suspend fun seedDefaultWorkspace() {
-        context.dataStore.edit { preferences ->
-            val modes = listOf(WORKSPACES_TOON, WORKSPACES_BOOK, WORKSPACES_VIDEO)
-            modes.forEach { key ->
-                val currentStr = preferences[key] ?: ""
-                val currentList = currentStr.split("|||").filter { it.isNotBlank() }.toMutableList()
-                if (!currentList.contains("I Love It")) {
-                    currentList.add(0, "I Love It")
-                    preferences[key] = currentList.joinToString("|||")
-                }
-            }
-        }
-    }
-
     val activeScreenToonFlow: Flow<String?> = context.dataStore.data.map { it[ACTIVE_SCREEN_TOON] }
     val activeScreenBookFlow: Flow<String?> = context.dataStore.data.map { it[ACTIVE_SCREEN_BOOK] }
     val activeScreenVideoFlow: Flow<String?> = context.dataStore.data.map { it[ACTIVE_SCREEN_VIDEO] }

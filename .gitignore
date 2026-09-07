@@ -13,3 +13,16 @@
 .externalNativeBuild
 .cxx
 local.properties
+.kotlin
+
+# Temporary & Scratch Files
+*.orig
+*.bak
+*.tmp
+*~
+*.log
+scratch/
+test_*.kt
+patch.kt
+update_*.py
+

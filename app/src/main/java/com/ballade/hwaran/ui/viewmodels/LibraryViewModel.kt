@@ -146,14 +146,6 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             val boxPurpose = boxPurposeOverride ?: if (videoLayoutMode == 1) "channel" else "series"
 
             try {
-                // Ensure persistent access to the root tree URI
-                val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                getApplication<Application>().contentResolver.takePersistableUriPermission(parentUri, takeFlags)
-            } catch (e: SecurityException) {
-                android.util.Log.e("LibraryViewModel", "Failed to take persistable URI permission for mega import: ${e.message}")
-            }
-
-            try {
                 if (mediaMode == 1) { // Book Mode
                     val parentDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(getApplication(), parentUri)
                     if (parentDoc != null) {
@@ -495,44 +487,16 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                         )
                     }
                 } else {
-                    // Video (mediaMode == 2) or any unhandled mode
-                    val isSeriesMode = (mediaMode == 2 && boxPurpose == "series" && !isFile)
-                    val isOrganized = isSeriesMode && withContext(Dispatchers.IO) {
-                        val doc = DocumentFile.fromTreeUri(getApplication(), uri)
-                        if (doc != null) {
-                            com.ballade.hwaran.data.video.SeriesStructureImporter.isOrganizedSeries(getApplication(), doc)
-                        } else false
-                    }
-
-                    if (isOrganized) {
-                        // Structured import: auto-create containers from subfolders
-                        importedId = withContext(Dispatchers.IO) {
-                            val rootDoc = DocumentFile.fromTreeUri(getApplication(), uri)!!
-                            com.ballade.hwaran.data.video.SeriesStructureImporter.execute(
-                                context = getApplication(),
-                                repository = com.ballade.hwaran.data.video.VideoImportRepository(database.libraryDao()),
-                                rootDoc = rootDoc,
-                                isLocalMode = isLocalMode,
-                                workspace = workspace,
-                                isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
-                                isCancelled = { _isCancelRequested.value },
-                                onProgress = { progress ->
-                                    _importProgress.value = progress
-                                }
-                            )
-                        }
-                    } else {
-                        importedId = repository.scanImportedFolder(
-                            rootUri = uri,
-                            isLocalMode = isLocalMode,
-                            isFile = isFile,
-                            isNsfwInput = isNsfwOverride ?: _isNsfwFilter.value,
-                            boxPurposeInput = boxPurpose,
-                            workspace = workspace,
-                            isCancelled = { _isCancelRequested.value }
-                        ) { progress ->
-                            _importProgress.value = progress
-                        }
+                    importedId = repository.scanImportedFolder(
+                        rootUri = uri,
+                        isLocalMode = isLocalMode,
+                        isFile = isFile,
+                        isNsfwInput = isNsfwOverride ?: _isNsfwFilter.value,
+                        boxPurposeInput = boxPurpose,
+                        workspace = workspace,
+                        isCancelled = { _isCancelRequested.value }
+                    ) { progress ->
+                        _importProgress.value = progress
                     }
                 }
                 
@@ -825,48 +789,6 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 _isCancelRequested.value = false
                 _isCancelArmed.value = false
             }
-        }
-    }
-
-    fun getAllDistinctWorkspaces(): kotlinx.coroutines.flow.Flow<List<String>> {
-        return database.libraryDao().getAllDistinctWorkspaces()
-    }
-
-    fun moveEntireWorkspace(mediaMode: Int, videoLayoutMode: Int, oldWorkspace: String, newWorkspace: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            database.libraryDao().updateEntireWorkspace(mediaMode, videoLayoutMode, oldWorkspace, newWorkspace)
-            com.ballade.hwaran.data.local.HistoryTracker.logEvent("IMPORT", "Moved Workspace", "$oldWorkspace -> $newWorkspace")
-            
-            // Also need to rename the workspace in GlobalSettings so UI knows about it if it's the active one
-            val globalSettings = com.ballade.hwaran.data.local.GlobalSettings(getApplication())
-            globalSettings.renameWorkspaceIfActive(mediaMode, oldWorkspace, newWorkspace)
-        }
-    }
-
-    fun moveItemsToDifferentWorkspace(rootIds: List<Long>, oldWorkspace: String, newWorkspace: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            for (rootId in rootIds) {
-                // This updates the root manga and all its children/seasons/episodes
-                database.libraryDao().updateWorkspaceForMangaTree(rootId, newWorkspace)
-            }
-            com.ballade.hwaran.data.local.HistoryTracker.logEvent("IMPORT", "Moved ${rootIds.size} items", "$oldWorkspace -> $newWorkspace")
-        }
-    }
-
-    fun renameWorkspace(mediaMode: Int, videoLayoutMode: Int, oldWorkspace: String, newWorkspace: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val cleanOld = oldWorkspace.trim()
-            val cleanNew = newWorkspace.trim()
-            if (cleanOld.isBlank() || cleanNew.isBlank() || cleanOld == "I Love It" || cleanNew == "I Love It") return@launch
-
-            database.libraryDao().updateEntireWorkspace(mediaMode, videoLayoutMode, cleanOld, cleanNew)
-
-            val globalSettings = com.ballade.hwaran.data.local.GlobalSettings(getApplication())
-            globalSettings.addWorkspace(mediaMode, cleanNew)
-            globalSettings.removeWorkspace(mediaMode, cleanOld)
-            globalSettings.renameWorkspaceIfActive(mediaMode, cleanOld, cleanNew)
-            
-            com.ballade.hwaran.data.local.HistoryTracker.logEvent("IMPORT", "Renamed Workspace", "$cleanOld -> $cleanNew")
         }
     }
 }

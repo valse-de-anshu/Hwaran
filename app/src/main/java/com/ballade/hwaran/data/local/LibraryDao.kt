@@ -45,18 +45,6 @@ interface LibraryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChapters(chapters: List<ChapterEntity>)
 
-    @Query("SELECT * FROM manga WHERE contentType = :mediaMode AND workspace = :workspaceName AND parentMangaId IS NULL AND (:videoLayoutMode = -1 OR :videoLayoutMode = (CASE WHEN :mediaMode = 2 THEN (CASE WHEN boxPurpose = 'channel' THEN 1 ELSE 0 END) ELSE -1 END))")
-    suspend fun getMangaListForMove(mediaMode: Int, videoLayoutMode: Int, workspaceName: String): List<MangaEntity>
-
-    @Query("UPDATE manga SET workspace = :newWorkspace WHERE id = :rootId OR parentMangaId = :rootId")
-    suspend fun updateWorkspaceForMangaTree(rootId: Long, newWorkspace: String)
-
-    @Query("SELECT DISTINCT workspace FROM manga WHERE workspace IS NOT NULL")
-    fun getAllDistinctWorkspaces(): Flow<List<String>>
-
-    @Query("UPDATE manga SET workspace = :newWorkspace WHERE contentType = :mediaMode AND workspace = :oldWorkspace AND (:videoLayoutMode = -1 OR :videoLayoutMode = (CASE WHEN :mediaMode = 2 THEN (CASE WHEN boxPurpose = 'channel' THEN 1 ELSE 0 END) ELSE -1 END))")
-    suspend fun updateEntireWorkspace(mediaMode: Int, videoLayoutMode: Int, oldWorkspace: String, newWorkspace: String)
-
     @Delete
     suspend fun deleteManga(manga: MangaEntity): Int
 
