@@ -10,7 +10,7 @@ import com.ballade.hwaran.ui.dialogs.HolographicCloverPanel
 import com.ballade.hwaran.ui.dialogs.PremiumGlassPanel
 import com.ballade.hwaran.ui.dialogs.PremiumSlider
 import com.ballade.hwaran.ui.dialogs.SidebarIcon
-import com.ballade.hwaran.ui.screens.music.MusicScreen
+import com.ballade.hwaran.frontend.home.music.MusicScreen
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.fadeIn

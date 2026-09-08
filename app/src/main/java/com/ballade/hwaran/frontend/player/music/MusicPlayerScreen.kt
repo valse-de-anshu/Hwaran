@@ -1,7 +1,7 @@
 package com.ballade.hwaran.frontend.player.music
 
 import androidx.compose.material.icons.rounded.MusicNote
-import com.ballade.hwaran.ui.screens.music.DeleteConfirmationDialog
+import com.ballade.hwaran.frontend.description.music.DeleteConfirmationDialog
 
 import android.content.Intent
 import android.net.Uri

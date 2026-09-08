@@ -1,4 +1,4 @@
-package com.ballade.hwaran.ui.screens.music
+package com.ballade.hwaran.frontend.home.music
 
 import android.net.Uri
 import androidx.compose.animation.animateColorAsState
@@ -71,6 +71,18 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+
+@Composable
+fun MusicHomeScreen(
+    libraryViewModel: LibraryViewModel = viewModel(),
+    settingsViewModel: SettingsViewModel = viewModel(),
+    musicViewModel: MusicViewModel = viewModel(),
+    onNavigateToPlaylistDetail: (Long) -> Unit,
+    onImportMusic: () -> Unit,
+    pillGradient: Brush
+) {
+    MusicScreen(libraryViewModel, settingsViewModel, musicViewModel, onNavigateToPlaylistDetail, onImportMusic, pillGradient)
+}
 
 @Composable
 fun MusicScreen(

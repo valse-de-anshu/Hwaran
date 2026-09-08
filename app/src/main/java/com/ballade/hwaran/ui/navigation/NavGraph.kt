@@ -25,7 +25,7 @@ import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ballade.hwaran.ui.viewmodels.LibraryViewModel
 import androidx.compose.ui.input.pointer.pointerInput
-import com.ballade.hwaran.ui.screens.music.PlaylistDetailScreen
+import com.ballade.hwaran.frontend.description.music.PlaylistDetailScreen
 import com.ballade.hwaran.ui.viewmodels.MusicViewModel
 import com.ballade.hwaran.ui.viewmodels.DescriptionViewModel
 import androidx.compose.runtime.LaunchedEffect

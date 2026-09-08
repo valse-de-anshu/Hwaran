@@ -1,4 +1,4 @@
-package com.ballade.hwaran.ui.screens.music
+package com.ballade.hwaran.frontend.description.music
 
 import androidx.compose.material.icons.rounded.MusicNote
 
@@ -48,6 +48,31 @@ import androidx.compose.animation.core.*
 import androidx.compose.animation.AnimatedVisibility
 import com.ballade.hwaran.ui.components.AnimatedEqualizer
 import com.ballade.hwaran.ui.dialogs.PlaylistSelectionDialog
+
+@Composable
+fun MusicDescriptionScreen(
+    mangaId: Long,
+    descriptionViewModel: DescriptionViewModel = viewModel(),
+    musicViewModel: MusicViewModel = viewModel(),
+    settingsViewModel: SettingsViewModel = viewModel(),
+    libraryViewModel: LibraryViewModel = viewModel(),
+    onNavigateBack: () -> Unit,
+    onNavigateToNowPlaying: () -> Unit,
+    onNavigateToEditPlaylist: (Long) -> Unit,
+    onNavigateToEditSong: (Long) -> Unit
+) {
+    PlaylistDetailScreen(
+        mangaId,
+        descriptionViewModel,
+        musicViewModel,
+        settingsViewModel,
+        libraryViewModel,
+        onNavigateBack,
+        onNavigateToNowPlaying,
+        onNavigateToEditPlaylist,
+        onNavigateToEditSong
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
