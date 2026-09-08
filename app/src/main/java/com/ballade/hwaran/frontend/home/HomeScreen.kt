@@ -1,6 +1,6 @@
 package com.ballade.hwaran.frontend.home
 
-import com.ballade.hwaran.ui.screens.MediaConfigHelpDialog
+import com.ballade.hwaran.frontend.settings.MediaConfigHelpDialog
 import android.net.Uri
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures

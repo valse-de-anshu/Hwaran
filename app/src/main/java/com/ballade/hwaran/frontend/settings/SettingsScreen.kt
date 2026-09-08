@@ -1,4 +1,4 @@
-package com.ballade.hwaran.ui.screens
+package com.ballade.hwaran.frontend.settings
 
 import com.ballade.hwaran.R
 import android.content.Intent

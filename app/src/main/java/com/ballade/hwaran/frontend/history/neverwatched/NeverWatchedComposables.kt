@@ -1,4 +1,4 @@
-package com.ballade.hwaran.ui.screens.neverwatched
+package com.ballade.hwaran.frontend.history.neverwatched
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,9 +24,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
-import com.ballade.hwaran.ui.screens.history.models.UnplayedPlaylist
-import com.ballade.hwaran.ui.screens.history.models.UnwatchedItem
-import com.ballade.hwaran.ui.screens.history.models.truncateMiddle
+import com.ballade.hwaran.frontend.history.models.UnplayedPlaylist
+import com.ballade.hwaran.frontend.history.models.UnwatchedItem
+import com.ballade.hwaran.frontend.history.models.truncateMiddle
 
 @Composable
 fun ToonNeverWatched(

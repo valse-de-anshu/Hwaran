@@ -1,4 +1,4 @@
-package com.ballade.hwaran.ui.screens.history.cards
+package com.ballade.hwaran.frontend.history.cards
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -22,11 +22,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.core.database.entity.ChapterEntity
-import com.ballade.hwaran.ui.screens.history.models.HistoryTimelineItem
-import com.ballade.hwaran.ui.screens.history.models.parseDetails
-import com.ballade.hwaran.ui.screens.history.models.truncateMiddle
-import com.ballade.hwaran.ui.screens.history.models.formatTimeOnly
-import com.ballade.hwaran.ui.screens.history.models.formatDurationTime
+import com.ballade.hwaran.frontend.history.models.HistoryTimelineItem
+import com.ballade.hwaran.frontend.history.models.parseDetails
+import com.ballade.hwaran.frontend.history.models.truncateMiddle
+import com.ballade.hwaran.frontend.history.models.formatTimeOnly
+import com.ballade.hwaran.frontend.history.models.formatDurationTime
 import java.text.SimpleDateFormat
 import java.util.*
 

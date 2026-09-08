@@ -1,4 +1,4 @@
-package com.ballade.hwaran.ui.screens.workspace
+package com.ballade.hwaran.frontend.workspace
 
 object WorkspaceTracker {
     fun resolveActiveWorkspace(

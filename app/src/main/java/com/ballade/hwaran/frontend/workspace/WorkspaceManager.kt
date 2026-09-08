@@ -1,4 +1,4 @@
-package com.ballade.hwaran.ui.screens.workspace
+package com.ballade.hwaran.frontend.workspace
 
 import com.ballade.hwaran.ui.viewmodels.LibraryViewModel
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel

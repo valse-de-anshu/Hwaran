@@ -19,8 +19,8 @@ import com.ballade.hwaran.frontend.player.music.MusicPlayerScreen as NowPlayingS
 import com.ballade.hwaran.frontend.editor.music.EditPlaylistScreen
 import com.ballade.hwaran.frontend.editor.music.EditSongScreen
 import com.ballade.hwaran.frontend.history.HistoryScreen as FrontendHistoryScreen
-import com.ballade.hwaran.ui.screens.SettingsScreen
-import com.ballade.hwaran.ui.screens.LockSelectionScreen
+import com.ballade.hwaran.frontend.settings.SettingsScreen
+import com.ballade.hwaran.frontend.lock.LockSelectionScreen
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ballade.hwaran.ui.viewmodels.LibraryViewModel
@@ -129,7 +129,7 @@ fun AppNavGraph(
             }
         ) {
             BlockTouchesWhenExiting {
-                com.ballade.hwaran.ui.screens.IntroScreen(
+                com.ballade.hwaran.frontend.intro.IntroScreen(
                     settingsViewModel = settingsViewModel,
                     onNavigateToHome = {
                         navController.navigate(Screen.Home.route) {

@@ -1,4 +1,4 @@
-package com.ballade.hwaran.ui.screens
+package com.ballade.hwaran.frontend.intro
 
 import android.annotation.SuppressLint
 import android.webkit.JavascriptInterface

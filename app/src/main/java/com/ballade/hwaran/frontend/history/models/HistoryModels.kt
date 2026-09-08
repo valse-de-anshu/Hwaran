@@ -1,4 +1,4 @@
-package com.ballade.hwaran.ui.screens.history.models
+package com.ballade.hwaran.frontend.history.models
 
 import com.ballade.hwaran.core.database.entity.HistoryEventEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity

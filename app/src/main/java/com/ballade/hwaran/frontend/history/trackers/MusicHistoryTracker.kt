@@ -1,4 +1,4 @@
-package com.ballade.hwaran.ui.screens.history.trackers
+package com.ballade.hwaran.frontend.history.trackers
 
 import com.ballade.hwaran.core.database.entity.HistoryEventEntity
 

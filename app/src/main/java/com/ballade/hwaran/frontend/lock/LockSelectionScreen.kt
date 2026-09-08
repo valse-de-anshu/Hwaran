@@ -1,4 +1,4 @@
-package com.ballade.hwaran.ui.screens
+package com.ballade.hwaran.frontend.lock
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

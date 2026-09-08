@@ -1,4 +1,4 @@
-package com.ballade.hwaran.ui.screens.workspace.move
+package com.ballade.hwaran.frontend.workspace.move
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

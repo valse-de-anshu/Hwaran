@@ -1,7 +1,7 @@
-package com.ballade.hwaran.ui.screens.history.trackers
+package com.ballade.hwaran.frontend.history.trackers
 
 import com.ballade.hwaran.core.database.entity.HistoryEventEntity
-import com.ballade.hwaran.ui.screens.history.models.parseDetails
+import com.ballade.hwaran.frontend.history.models.parseDetails
 
 object BookHistoryTracker {
     fun calculateUniqueBooksRead(events: List<HistoryEventEntity>): Int {
