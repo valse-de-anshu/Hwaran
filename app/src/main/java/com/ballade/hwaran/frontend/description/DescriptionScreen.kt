@@ -28,7 +28,7 @@ import com.ballade.hwaran.ui.dialogs.HolographicCloverPanel
 import com.ballade.hwaran.ui.dialogs.PremiumGlassPanel
 import com.ballade.hwaran.ui.dialogs.PremiumSlider
 import com.ballade.hwaran.ui.dialogs.SidebarIcon
-import com.ballade.hwaran.ui.screens.video.VideoPreview
+import com.ballade.hwaran.frontend.player.video.VideoPreview
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts

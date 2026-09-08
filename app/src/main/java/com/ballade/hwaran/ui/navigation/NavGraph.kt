@@ -10,11 +10,15 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.ballade.hwaran.ui.screens.DescriptionScreen
-import com.ballade.hwaran.ui.screens.HomeScreen
-import com.ballade.hwaran.ui.screens.reader.ReaderScreen
-import com.ballade.hwaran.ui.screens.reader.PdfReaderScreen
-import com.ballade.hwaran.ui.screens.video.VideoPlayerScreen
+import com.ballade.hwaran.frontend.description.DescriptionScreen
+import com.ballade.hwaran.frontend.home.HomeScreen
+import com.ballade.hwaran.frontend.player.toon.ToonPlayerScreen as ReaderScreen
+import com.ballade.hwaran.frontend.player.book.BookPlayerScreen as PdfReaderScreen
+import com.ballade.hwaran.frontend.player.video.VideoPlayerScreen
+import com.ballade.hwaran.frontend.player.music.MusicPlayerScreen as NowPlayingScreen
+import com.ballade.hwaran.frontend.editor.music.EditPlaylistScreen
+import com.ballade.hwaran.frontend.editor.music.EditSongScreen
+import com.ballade.hwaran.frontend.history.HistoryScreen as FrontendHistoryScreen
 import com.ballade.hwaran.ui.screens.SettingsScreen
 import com.ballade.hwaran.ui.screens.LockSelectionScreen
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
@@ -22,9 +26,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ballade.hwaran.ui.viewmodels.LibraryViewModel
 import androidx.compose.ui.input.pointer.pointerInput
 import com.ballade.hwaran.ui.screens.music.PlaylistDetailScreen
-import com.ballade.hwaran.ui.screens.music.NowPlayingScreen
-import com.ballade.hwaran.ui.screens.music.EditPlaylistScreen
-import com.ballade.hwaran.ui.screens.music.EditSongScreen
 import com.ballade.hwaran.ui.viewmodels.MusicViewModel
 import com.ballade.hwaran.ui.viewmodels.DescriptionViewModel
 import androidx.compose.runtime.LaunchedEffect
@@ -172,7 +173,7 @@ fun AppNavGraph(
         }
         composable(Screen.History.route) {
             BlockTouchesWhenExiting {
-                com.ballade.hwaran.ui.screens.history.HistoryScreen(
+                FrontendHistoryScreen(
                     settingsViewModel = settingsViewModel,
                     musicViewModel = musicViewModel,
                     onNavigateBack = { navController.popBackStack() },
