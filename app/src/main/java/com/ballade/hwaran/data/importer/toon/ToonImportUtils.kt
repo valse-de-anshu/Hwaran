@@ -31,6 +31,15 @@ object ToonImportUtils {
         return false to "No readable images or chapters found"
     }
 
+    fun detectStructure(folderDoc: DocumentFile): String {
+        val files = folderDoc.listFiles() ?: return "SINGLE"
+        val subDirs = files.filter { it.isDirectory && !(it.name?.startsWith(".") == true) }
+        val anyChildHasSubDirs = subDirs.any { child ->
+            child.listFiles().any { it.isDirectory && !(it.name?.startsWith(".") == true) }
+        }
+        return if (anyChildHasSubDirs) "MEGA" else "SINGLE"
+    }
+
     /**
      * Finds a cover image among the list of files.
      * Looks for common names like cover.jpg, folder.png, poster.jpg, etc.
