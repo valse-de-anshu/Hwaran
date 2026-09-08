@@ -71,5 +71,4 @@ For detailed guides, refer to the documentation in [`docs/`](docs/):
 - 🗄️ [**`docs/DATABASE.md`**](docs/DATABASE.md) — *How does data persist?* (Room schema v15, tables, DAOs, migrations)
 - 🎯 [**`docs/FEATURES.md`**](docs/FEATURES.md) — *What is Hwaran supposed to do?* (Feature matrix, reader modes, audio shaders)
 - 🛠️ [**`docs/DEVELOPMENT.md`**](docs/DEVELOPMENT.md) — *How do I build, test, and work on Hwaran?* (Prerequisites, Gradle, Git strategy)
-- 📜 [**`docs/CHANGELOG.md`**](docs/CHANGELOG.md) — *What changed?* (Version history and refactoring milestones)
-- 📓 [**`docs/PROGRESS.md`**](docs/PROGRESS.md) — *What did we do today?* (Daily dev journal and active work log)
+- 📜 [**`docs/CHANGELOG.md`**](docs/CHANGELOG.md) — *What changed?* (Version history, progress journal, and refactoring milestones)
