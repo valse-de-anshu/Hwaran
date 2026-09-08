@@ -35,6 +35,12 @@ All notable changes, architectural milestones, and structural refactors to this 
   - Added companion playback flags and `stopPlayback()` in `MusicViewModel` for `PopUpPlayerActivity`.
   - Cleaned up temp scratch files (`patch.kt`, `test_*.kt`, `.orig` files) and updated `.gitignore`.
 
+### ⚡ Frontend / Backend Module Split & Screen Retirement
+- **Backend Modules**: Established `backend/{toon, book, video/series, video/channel, music, history, workspace}` as the isolated business and data orchestration layer.
+- **Frontend Architecture**: Established `frontend/{player, editor, home, description, history, workspace, intro, lock, settings}` as the presentation screen layer.
+- **NavGraph Overhaul**: Rewired all navigation routes directly to canonical `frontend/` screens.
+- **ui/screens/ Elimination**: Completely deleted obsolete, duplicate `ui/screens/` files and directories.
+
 ---
 
 ## [Database Schema v15] - 2026-06-15

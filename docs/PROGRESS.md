@@ -51,7 +51,38 @@ Establish an **ironclad architecture foundation** first:
 
 ---
 
+#### 6. Phase 2 — Frontend & Backend Modular Architecture
+- **Backend Domain Logic (`backend/`)**:
+  - `backend/toon/ToonBackend.kt`: Manga/manhua import & business operations.
+  - `backend/book/BookBackend.kt`: PDF file/vault import & management with `isFile` support.
+  - `backend/video/series/VideoSeriesBackend.kt`: Series import and layout logic.
+  - `backend/video/channel/VideoChannelBackend.kt`: Video channel and item logic.
+  - `backend/music/MusicBackend.kt`: Music import, playlist, and audio engine bridge.
+  - `backend/history/HistoryBackend.kt`: Event tracking & timeline persistence.
+  - `backend/workspace/WorkspaceBackend.kt`: Reactive workspace management.
+- **Frontend Domain Screens (`frontend/`)**:
+  - `frontend/player/`: `ToonPlayerScreen`, `BookPlayerScreen`, `VideoPlayerScreen`, `MusicPlayerScreen`, `PdfLinkExtractor`, `VideoPreview`.
+  - `frontend/editor/music/`: `EditSongScreen`, `EditPlaylistScreen`.
+  - `frontend/home/`: `HomeScreen` coordinator + `frontend/home/music/MusicHomeScreen`.
+  - `frontend/description/`: `DescriptionScreen` coordinator + `frontend/description/music/PlaylistDetailScreen`.
+  - `frontend/history/`: `HistoryScreen` + `cards/`, `models/`, `trackers/`, `neverwatched/`.
+  - `frontend/workspace/`: `WorkspaceManager`, `WorkspaceTracker`, `dialogs/`, `move/`.
+  - `frontend/intro/`: `IntroScreen`.
+  - `frontend/lock/`: `LockSelectionScreen`.
+  - `frontend/settings/`: `SettingsScreen`.
+- **NavGraph Routing**:
+  - Rewired `NavGraph.kt` to route exclusively through `frontend/` packages.
+- **Cleanup**:
+  - Completely eliminated obsolete `ui/screens/` directory and duplicate files.
+- **Full Verification**:
+  - `./gradlew compileDebugKotlin` ──► **BUILD SUCCESSFUL** (0 errors)
+  - `./gradlew assembleDebug` ──► **BUILD SUCCESSFUL** (clean APK built)
+  - `./gradlew testDebugUnitTest` ──► **BUILD SUCCESSFUL** (all unit tests passed)
+
+---
+
 ## 📊 Status Tracker
 
-- **Phase 1: Architecture Foundation & Package Reorganization** — ✅ **100% COMPLETE** (Clean compilation, APK built, 4 DAOs split, clean packages).
-- **Next Priority** — Awaiting direction from user.
+- **Phase 1: Architecture Foundation & Package Reorganization** — ✅ **100% COMPLETE**
+- **Phase 2: Frontend / Backend Modularization & ui/screens Retirement** — ✅ **100% COMPLETE**
+- **Working Tree**: Clean, verified, ready for branch merge/push.

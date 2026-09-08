@@ -11,6 +11,43 @@ Hwaran follows a **feature-based clean architecture** with **Unidirectional Data
 ```text
 com.ballade.hwaran/
 │
+├── backend/                             # Feature-isolated business & data operations
+│   ├── toon/                            # ToonBackend: manga/manhua import & data orchestration
+│   ├── book/                            # BookBackend: PDF import, file operations & data
+│   ├── video/                           # Video business logic
+│   │   ├── series/                      # VideoSeriesBackend: series & mega-import logic
+│   │   └── channel/                     # VideoChannelBackend: channel & video management
+│   ├── music/                           # MusicBackend: audio imports & playlist management
+│   ├── history/                         # HistoryBackend: event logging & queries
+│   └── workspace/                       # WorkspaceBackend: workspace creation, moves & renames
+│
+├── frontend/                            # Presentation screens organized by feature domain
+│   ├── home/                            # Home screen & domain home tabs
+│   │   ├── HomeScreen.kt                # Coordinator hosting bottom nav & mode switcher
+│   │   └── music/MusicHomeScreen.kt     # Dedicated music home screen
+│   ├── description/                     # Item details & chapter management
+│   │   ├── DescriptionScreen.kt         # Content coordinator
+│   │   └── music/PlaylistDetailScreen.kt# Music playlist / album description
+│   ├── player/                          # Media players
+│   │   ├── toon/ToonPlayerScreen.kt     # Webtoon continuous scroll & zoom reader
+│   │   ├── book/BookPlayerScreen.kt     # PDF multi-page reader & link extractor
+│   │   ├── video/VideoPlayerScreen.kt   # ExoPlayer video player with gestures & preview
+│   │   └── music/MusicPlayerScreen.kt   # Audio playback player & queue
+│   ├── editor/                          # Metadata & content editing
+│   │   └── music/                       # EditSongScreen.kt, EditPlaylistScreen.kt
+│   ├── history/                         # History & analytics
+│   │   ├── HistoryScreen.kt             # Main history screen
+│   │   ├── cards/                       # Domain-specific timeline cards
+│   │   ├── trackers/                    # Reading/listening progress trackers
+│   │   ├── models/                      # Timeline models & metadata parsing
+│   │   └── neverwatched/                # Unplayed/unwatched backlog views
+│   ├── workspace/                       # Workspace management UI
+│   │   ├── dialogs/                     # Create, delete, rename dialogs
+│   │   └── move/                        # Move entire workspace & items dialogs
+│   ├── intro/IntroScreen.kt             # App intro / onboarding
+│   ├── lock/LockSelectionScreen.kt      # App lock & PIN selection
+│   └── settings/SettingsScreen.kt       # Application settings
+│
 ├── core/                                # Shared cross-cutting infrastructure
 │   ├── database/                        # Room database & data persistence
 │   │   ├── AppDatabase.kt               # Database singleton (version 15)
@@ -43,20 +80,12 @@ com.ballade.hwaran/
 │   ├── HwaranPlayerHolder.kt            # Singleton player provider
 │   └── MusicNotificationService.kt      # Foreground MediaSessionService
 │
-└── ui/                                  # Presentation layer (Jetpack Compose)
+└── ui/                                  # Shared presentation infrastructure
     ├── theme/                           # Design tokens, typography, colors, theme
     ├── background/                      # 7 ambient Canvas shader backgrounds
     ├── components/                      # Pure, reusable atomic widgets
     ├── dialogs/                         # Modal sheets, onboarding, picker dialogs
     ├── navigation/                      # NavGraph & route coordinators
-    ├── screens/                         # Feature screens grouped by media domain
-    │   ├── home/                        # Library grid, workspace filters, mode switcher
-    │   ├── description/                 # Item details, chapter list, child boxes
-    │   ├── music/                       # Music player, playlist details, tag editors
-    │   ├── reader/                      # Webtoon continuous reader & PDF reader
-    │   ├── video/                       # Video player with gestures & preview
-    │   ├── history/                     # History feed & domain-specific cards
-    │   └── workspace/                   # Workspace management & move dialogs
     └── viewmodels/                      # Lifecycle-aware ViewModels holding UI state
 ```
 
