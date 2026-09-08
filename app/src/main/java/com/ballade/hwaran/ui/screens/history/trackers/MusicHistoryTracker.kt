@@ -1,6 +1,6 @@
 package com.ballade.hwaran.ui.screens.history.trackers
 
-import com.ballade.hwaran.data.local.HistoryEventEntity
+import com.ballade.hwaran.core.database.entity.HistoryEventEntity
 
 object MusicHistoryTracker {
     fun calculateTotalPlaybacks(events: List<HistoryEventEntity>): Int {

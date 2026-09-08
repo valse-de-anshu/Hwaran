@@ -1,8 +1,8 @@
 package com.ballade.hwaran.ui.screens.history.models
 
-import com.ballade.hwaran.data.local.HistoryEventEntity
-import com.ballade.hwaran.data.local.MangaEntity
-import com.ballade.hwaran.data.local.ChapterEntity
+import com.ballade.hwaran.core.database.entity.HistoryEventEntity
+import com.ballade.hwaran.core.database.entity.MangaEntity
+import com.ballade.hwaran.core.database.entity.ChapterEntity
 import java.text.SimpleDateFormat
 import java.util.*
 

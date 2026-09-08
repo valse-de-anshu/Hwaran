@@ -20,7 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ballade.hwaran.data.local.MangaEntity
+import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.ui.screens.history.models.HistoryTimelineItem
 import com.ballade.hwaran.ui.screens.history.models.parseDetails
 import com.ballade.hwaran.ui.screens.history.models.truncateMiddle

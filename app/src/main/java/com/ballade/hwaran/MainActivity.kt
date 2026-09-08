@@ -42,16 +42,16 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.ballade.hwaran.ui.navigation.AppNavGraph
 import com.ballade.hwaran.ui.navigation.Screen
 import com.ballade.hwaran.ui.components.MiniPlayer
-import com.ballade.hwaran.ui.screens.DrunkStarsBackground
-import com.ballade.hwaran.ui.screens.JellyfishBackground
-import com.ballade.hwaran.ui.screens.KaleidoscopeBackground
-import com.ballade.hwaran.ui.screens.FlowerBackground
+import com.ballade.hwaran.ui.background.DrunkStarsBackground
+import com.ballade.hwaran.ui.background.JellyfishBackground
+import com.ballade.hwaran.ui.background.KaleidoscopeBackground
+import com.ballade.hwaran.ui.background.FlowerBackground
 import com.ballade.hwaran.ui.theme.HwaranTheme
-import com.ballade.hwaran.ui.components.OnboardingOverlay
+import com.ballade.hwaran.ui.dialogs.OnboardingOverlay
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
 import com.ballade.hwaran.ui.viewmodels.MusicViewModel
-import com.ballade.hwaran.data.local.GlobalSettings
-import com.ballade.hwaran.data.local.dataStore
+import com.ballade.hwaran.core.datastore.GlobalSettings
+import com.ballade.hwaran.core.datastore.dataStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 
@@ -69,11 +69,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         // Initialize database and tracking singleton
-        val database = com.ballade.hwaran.data.local.AppDatabase.getDatabase(applicationContext)
-        com.ballade.hwaran.data.local.HistoryTracker.init(applicationContext, database)
+        val database = com.ballade.hwaran.core.database.AppDatabase.getDatabase(applicationContext)
+        com.ballade.hwaran.core.util.HistoryTracker.init(applicationContext, database)
 
         if (savedInstanceState == null) {
-            com.ballade.hwaran.data.local.HistoryTracker.logEvent("APP_OPEN", "App Opened", "")
+            com.ballade.hwaran.core.util.HistoryTracker.logEvent("APP_OPEN", "App Opened", "")
         }
 
         enableEdgeToEdge()
@@ -146,7 +146,7 @@ class MainActivity : ComponentActivity() {
                     Box(modifier = Modifier.fillMaxSize()) {
                         // Content Layer - Only composed when ready, but overlay is always here
                         if (isReady) {
-                            val pointerState = remember { com.ballade.hwaran.ui.screens.LiquidPointerState() }
+                            val pointerState = remember { com.ballade.hwaran.ui.background.LiquidPointerState() }
 
                             Box(modifier = Modifier
                                 .fillMaxSize()
@@ -250,41 +250,41 @@ class MainActivity : ComponentActivity() {
                                         exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(800))
                                     ) {
                                         Box(modifier = Modifier.fillMaxSize()) {
-                                            com.ballade.hwaran.ui.screens.DrunkStarsBackground(
+                                            com.ballade.hwaran.ui.background.DrunkStarsBackground(
                                                 animationSpeed = animationSpeed,
                                                 isEnabled = animationType == 0 && animationVisibility,
                                                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = starsAlpha }
                                             )
-                                            com.ballade.hwaran.ui.screens.JellyfishBackground(
+                                            com.ballade.hwaran.ui.background.JellyfishBackground(
                                                 animationSpeed = animationSpeed,
                                                 isEnabled = animationType == 1 && effectiveAnimationVisible,
                                                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = jellyfishAlpha }
                                             )
-                                            com.ballade.hwaran.ui.screens.CelestialBackground(
+                                            com.ballade.hwaran.ui.background.CelestialBackground(
                                                 animationSpeed = animationSpeed,
                                                 isEnabled = animationType == 2 && effectiveAnimationVisible,
                                                 scrollOffset = bgScrollOffset + autoScrollOffset,
                                                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = celestialAlpha }
                                             )
-                                            com.ballade.hwaran.ui.screens.PokerBackground(
+                                            com.ballade.hwaran.ui.background.PokerBackground(
                                                 animationSpeed = animationSpeed,
                                                 isEnabled = animationType == 3 && effectiveAnimationVisible,
                                                 scrollOffset = bgScrollOffset + autoScrollOffset,
                                                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = pokerAlpha }
                                             )
-                                            com.ballade.hwaran.ui.screens.KaleidoscopeBackground(
+                                            com.ballade.hwaran.ui.background.KaleidoscopeBackground(
                                                 animationSpeed = animationSpeed,
                                                 isEnabled = animationType == 4 && effectiveAnimationVisible,
                                                 scrollOffset = bgScrollOffset + autoScrollOffset,
                                                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = kaleidoscopeAlpha }
                                             )
-                                            com.ballade.hwaran.ui.screens.FlowerBackground(
+                                            com.ballade.hwaran.ui.background.FlowerBackground(
                                                 animationSpeed = animationSpeed,
                                                 isEnabled = animationType == 5 && effectiveAnimationVisible,
                                                 scrollOffset = bgScrollOffset + autoScrollOffset,
                                                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = flowerAlpha }
                                             )
-                                            com.ballade.hwaran.ui.screens.LiquidBackground(
+                                            com.ballade.hwaran.ui.background.LiquidBackground(
                                                 isEnabled = animationType == 6 && effectiveAnimationVisible,
                                                 pointerState = pointerState,
                                                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = liquidAlpha }
@@ -425,6 +425,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
-        com.ballade.hwaran.data.local.HistoryTracker.logEvent("APP_CLOSE", "App Closed", "")
+        com.ballade.hwaran.core.util.HistoryTracker.logEvent("APP_CLOSE", "App Closed", "")
     }
 }

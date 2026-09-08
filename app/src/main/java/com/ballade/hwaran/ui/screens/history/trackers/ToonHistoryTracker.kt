@@ -1,7 +1,7 @@
 package com.ballade.hwaran.ui.screens.history.trackers
 
-import com.ballade.hwaran.data.local.HistoryEventEntity
-import com.ballade.hwaran.data.local.MangaEntity
+import com.ballade.hwaran.core.database.entity.HistoryEventEntity
+import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.ui.screens.history.models.parseDetails
 
 object ToonHistoryTracker {

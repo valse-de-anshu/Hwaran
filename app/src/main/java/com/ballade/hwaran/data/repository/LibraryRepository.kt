@@ -6,9 +6,9 @@ import androidx.documentfile.provider.DocumentFile
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
-import com.ballade.hwaran.data.local.AppDatabase
-import com.ballade.hwaran.data.local.ChapterEntity
-import com.ballade.hwaran.data.local.MangaEntity
+import com.ballade.hwaran.core.database.AppDatabase
+import com.ballade.hwaran.core.database.entity.ChapterEntity
+import com.ballade.hwaran.core.database.entity.MangaEntity
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.withPermit
 import java.io.File
@@ -21,7 +21,7 @@ class ImportResult(
 
 class LibraryRepository(private val context: Context, private val database: AppDatabase) {
 
-    suspend fun getRootMangaByUri(uri: String): com.ballade.hwaran.data.local.MangaEntity? {
+    suspend fun getRootMangaByUri(uri: String): com.ballade.hwaran.core.database.entity.MangaEntity? {
         return withContext(Dispatchers.IO) {
             database.libraryDao().getRootMangaByUri(uri)
         }
@@ -678,7 +678,7 @@ class LibraryRepository(private val context: Context, private val database: AppD
             3 -> "Music"
             else -> "Toon"
         }
-        com.ballade.hwaran.data.local.HistoryTracker.logEvent("IMPORT", title, "$typeStr • $importMode | Source: $sourceLoc")
+        com.ballade.hwaran.core.util.HistoryTracker.logEvent("IMPORT", title, "$typeStr • $importMode | Source: $sourceLoc")
         return@withContext mangaId
     }
 

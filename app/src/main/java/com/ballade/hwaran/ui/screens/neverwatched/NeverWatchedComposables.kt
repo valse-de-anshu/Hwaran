@@ -22,8 +22,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ballade.hwaran.data.local.ChapterEntity
-import com.ballade.hwaran.data.local.MangaEntity
+import com.ballade.hwaran.core.database.entity.ChapterEntity
+import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.ui.screens.history.models.UnplayedPlaylist
 import com.ballade.hwaran.ui.screens.history.models.UnwatchedItem
 import com.ballade.hwaran.ui.screens.history.models.truncateMiddle

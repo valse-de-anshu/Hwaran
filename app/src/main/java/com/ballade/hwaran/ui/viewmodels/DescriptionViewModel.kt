@@ -6,9 +6,9 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.ballade.hwaran.data.local.AppDatabase
-import com.ballade.hwaran.data.local.ChapterEntity
-import com.ballade.hwaran.data.local.MangaEntity
+import com.ballade.hwaran.core.database.AppDatabase
+import com.ballade.hwaran.core.database.entity.ChapterEntity
+import com.ballade.hwaran.core.database.entity.MangaEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -35,6 +35,7 @@ val AppImportScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 class DescriptionViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
     private val libraryDao = database.libraryDao()
+    private val trackDao = database.trackDao()
 
     private val _manga = MutableStateFlow<MangaEntity?>(null)
     val manga: StateFlow<MangaEntity?> = _manga
@@ -113,7 +114,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                 val contentType = withContext(Dispatchers.IO) {
                     libraryDao.getMangaById(mangaId)?.contentType ?: 0
                 }
-                libraryDao.getChaptersForManga(mangaId).collect { list ->
+                trackDao.getChaptersForManga(mangaId).collect { list ->
                     val sortedList = list.sortedWith(compareBy<ChapterEntity> { 
                         Regex("(\\d+(\\.\\d+)?)").find(it.title)?.value?.toFloat() ?: Float.MAX_VALUE 
                     }.thenBy {
@@ -244,7 +245,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                         }
                     }
 
-                    libraryDao.insertChapter(chapter.copy(duration = duration, thumbnailUri = thumbUri, artist = artist))
+                    trackDao.insertChapter(chapter.copy(duration = duration, thumbnailUri = thumbUri, artist = artist))
                 } catch (e: Exception) {
                     e.printStackTrace()
                 } finally {
@@ -293,7 +294,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
         _chapters.value = chapters
         viewModelScope.launch(Dispatchers.IO) {
             chapters.forEachIndexed { index, chapter ->
-                libraryDao.insertChapter(chapter.copy(position = index))
+                trackDao.insertChapter(chapter.copy(position = index))
             }
         }
     }
@@ -381,7 +382,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
         _importProgress.value = 0
         
         importJob = AppImportScope.launch {
-            val isLocalMode = (storageModeOverride ?: com.ballade.hwaran.data.local.GlobalSettings(getApplication()).storageModeFlow.first()) == 0
+            val isLocalMode = (storageModeOverride ?: com.ballade.hwaran.core.datastore.GlobalSettings(getApplication()).storageModeFlow.first()) == 0
 
             try {
                 val m = libraryDao.getMangaById(currentMangaId) ?: return@launch
@@ -449,7 +450,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                         files.forEachIndexed { index, fileDoc ->
                             val rawName = fileDoc.name ?: "Unknown Chapter"
                             val title = if (rawName.contains(".")) rawName.substringBeforeLast(".") else rawName
-                            libraryDao.insertChapter(
+                            trackDao.insertChapter(
                                 ChapterEntity(
                                     mangaId = currentMangaId,
                                     title = title,
@@ -460,7 +461,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                             _importProgress.value = (((index + 1).toFloat() / total) * 100).toInt()
                         }
                     } else if (subDirs.isEmpty()) {
-                        libraryDao.insertChapter(
+                        trackDao.insertChapter(
                             ChapterEntity(
                                 mangaId = currentMangaId,
                                 title = sourceDoc.name ?: "Unknown Chapter",
@@ -482,7 +483,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                             } else null
                             val finalUriStr = mediaFileDoc?.uri?.toString() ?: chapterDoc.uri.toString()
 
-                            libraryDao.insertChapter(
+                            trackDao.insertChapter(
                                 ChapterEntity(
                                     mangaId = currentMangaId,
                                     title = title,
@@ -551,7 +552,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                                 e.printStackTrace()
                             }
                             
-                            libraryDao.insertChapter(
+                            trackDao.insertChapter(
                                 ChapterEntity(
                                     mangaId = currentMangaId,
                                     title = chapterName,
@@ -593,7 +594,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                         } else null
                         val finalFolderUri = mediaFile?.absolutePath ?: chapterDest.absolutePath
 
-                        libraryDao.insertChapter(
+                        trackDao.insertChapter(
                             ChapterEntity(
                                 mangaId = currentMangaId,
                                 title = chapterDest.name,
@@ -622,7 +623,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                             } else null
                             val finalFolderUri = mediaFile?.absolutePath ?: chapterDest.absolutePath
 
-                            libraryDao.insertChapter(
+                            trackDao.insertChapter(
                                 ChapterEntity(
                                     mangaId = currentMangaId,
                                     title = chapterDest.name,
@@ -663,7 +664,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
         _importProgress.value = 0
 
         importJob = AppImportScope.launch {
-            val isLocalMode = (storageModeOverride ?: com.ballade.hwaran.data.local.GlobalSettings(getApplication()).storageModeFlow.first()) == 0
+            val isLocalMode = (storageModeOverride ?: com.ballade.hwaran.core.datastore.GlobalSettings(getApplication()).storageModeFlow.first()) == 0
 
             try {
                 val m = libraryDao.getMangaById(currentMangaId) ?: return@launch
@@ -775,7 +776,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                 }
 
                 if (newChapters.isNotEmpty()) {
-                    libraryDao.insertChapters(newChapters)
+                    trackDao.insertChapters(newChapters)
                 }
 
             } catch (e: Exception) {
@@ -794,7 +795,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
         _importProgress.value = 0
 
         AppImportScope.launch {
-            val isLocalMode = (storageModeOverride ?: com.ballade.hwaran.data.local.GlobalSettings(getApplication()).storageModeFlow.first()) == 0
+            val isLocalMode = (storageModeOverride ?: com.ballade.hwaran.core.datastore.GlobalSettings(getApplication()).storageModeFlow.first()) == 0
 
             try {
                 val m = libraryDao.getMangaById(currentMangaId) ?: return@launch
@@ -846,7 +847,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                             e.printStackTrace()
                         }
 
-                        libraryDao.insertChapter(
+                        trackDao.insertChapter(
                             ChapterEntity(
                                 mangaId = currentMangaId,
                                 title = chapterName,
@@ -907,7 +908,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                             e.printStackTrace()
                         }
                         
-                        libraryDao.insertChapter(
+                        trackDao.insertChapter(
                             ChapterEntity(
                                 mangaId = currentMangaId,
                                 title = chapterName,
@@ -939,20 +940,20 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             val m = _manga.value
             if (m != null) {
-                com.ballade.hwaran.data.local.HistoryTracker.logEvent("DELETE", m.title, "Manga Folder")
+                com.ballade.hwaran.core.util.HistoryTracker.logEvent("DELETE", m.title, "Manga Folder")
                 withContext(Dispatchers.IO) {
                     val isChildBox = m.parentMangaId != null
                     
                     if (isChildBox) {
                         // For child boxes, only delete chapters and their specific files
-                        val chaptersToDelete = libraryDao.getChaptersForMangaList(m.id)
+                        val chaptersToDelete = trackDao.getChaptersForMangaList(m.id)
                         chaptersToDelete.forEach { chapter ->
                             val folder = java.io.File(chapter.folderUri)
                             if (folder.exists()) {
                                 folder.deleteRecursively()
                             }
                         }
-                        libraryDao.deleteChaptersByMangaId(m.id)
+                        trackDao.deleteChaptersByMangaId(m.id)
                     } else {
                         // For root manga, delete everything in the vault
                         val folder = java.io.File(m.parentUri)
@@ -963,10 +964,10 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                         // Clean up all children and their chapters from DB
                         val children = libraryDao.getChildrenForMangaList(m.id)
                         children.forEach { child ->
-                            libraryDao.deleteChaptersByMangaId(child.id)
+                            trackDao.deleteChaptersByMangaId(child.id)
                         }
                         libraryDao.deleteChildrenByParentId(m.id)
-                        libraryDao.deleteChaptersByMangaId(m.id)
+                        trackDao.deleteChaptersByMangaId(m.id)
                     }
                     
                     database.libraryDao().deleteManga(m)
@@ -981,14 +982,14 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 chapterIds.forEach { id ->
-                    val chapter = database.libraryDao().getChapterById(id)
+                    val chapter = database.trackDao().getChapterById(id)
                     if (chapter != null) {
-                        com.ballade.hwaran.data.local.HistoryTracker.logEvent("DELETE", chapter.title, "Chapter (Folder)")
+                        com.ballade.hwaran.core.util.HistoryTracker.logEvent("DELETE", chapter.title, "Chapter (Folder)")
                         val folder = java.io.File(chapter.folderUri)
                         if (folder.exists()) {
                             folder.deleteRecursively() // Physical true-delete
                         }
-                        database.libraryDao().deleteChapter(chapter)
+                        database.trackDao().deleteChapter(chapter)
                     }
                 }
             }
@@ -1028,9 +1029,9 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
     fun updateChapterThumbnail(chapterId: Long, thumbnailUri: String) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                val chapter = database.libraryDao().getChapterById(chapterId)
+                val chapter = database.trackDao().getChapterById(chapterId)
                 if (chapter != null) {
-                    database.libraryDao().insertChapter(chapter.copy(thumbnailUri = thumbnailUri))
+                    database.trackDao().insertChapter(chapter.copy(thumbnailUri = thumbnailUri))
                 }
             }
             // Update in-memory chapters list

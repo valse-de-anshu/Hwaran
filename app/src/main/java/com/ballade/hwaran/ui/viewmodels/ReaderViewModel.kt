@@ -4,8 +4,8 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.ballade.hwaran.data.local.AppDatabase
-import com.ballade.hwaran.data.local.ChapterEntity
+import com.ballade.hwaran.core.database.AppDatabase
+import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.data.repository.LibraryRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,7 +44,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         if (chapterId == -1L) return
         _isLoading.value = true
         viewModelScope.launch {
-            val chapterEntity = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { database.libraryDao().getChapterById(chapterId) }
+            val chapterEntity = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { database.trackDao().getChapterById(chapterId) }
             _chapter.value = chapterEntity
 
             if (chapterEntity != null) {
@@ -62,10 +62,10 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                             lastReadTitle = chapterEntity.title,
                             openCount = mangaEntity.openCount + 1
                         ))
-                        database.libraryDao().insertChapter(chapterEntity.copy(openCount = chapterEntity.openCount + 1))
+                        database.trackDao().insertChapter(chapterEntity.copy(openCount = chapterEntity.openCount + 1))
                     }
                     // Log Toon Read Event
-                    com.ballade.hwaran.data.local.HistoryTracker.logEvent(
+                    com.ballade.hwaran.core.util.HistoryTracker.logEvent(
                         "READ_TOON",
                         chapterEntity.title,
                         "mangaId:${mangaEntity.id}|chapterId:${chapterEntity.id}|fallback:Toon: ${mangaEntity.title}"
@@ -79,7 +79,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                 // Fetch all chapters to determine next/prev
                 chaptersJob?.cancel()
                 chaptersJob = viewModelScope.launch {
-                    database.libraryDao().getChaptersForManga(chapterEntity.mangaId).collect { list ->
+                    database.trackDao().getChaptersForManga(chapterEntity.mangaId).collect { list ->
                         val sortedList = list.sortedWith(compareBy<ChapterEntity> { 
                             Regex("(\\d+(\\.\\d+)?)").find(it.title)?.value?.toFloat() ?: Float.MAX_VALUE 
                         }.thenBy {

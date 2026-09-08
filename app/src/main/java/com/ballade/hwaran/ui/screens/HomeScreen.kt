@@ -5,10 +5,11 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import com.ballade.hwaran.ui.components.HolographicCloverPanel
-import com.ballade.hwaran.ui.components.PremiumGlassPanel
-import com.ballade.hwaran.ui.components.PremiumSlider
-import com.ballade.hwaran.ui.components.SidebarIcon
+import com.ballade.hwaran.ui.dialogs.HolographicCloverPanel
+import com.ballade.hwaran.ui.dialogs.PremiumGlassPanel
+import com.ballade.hwaran.ui.dialogs.PremiumSlider
+import com.ballade.hwaran.ui.dialogs.SidebarIcon
+import com.ballade.hwaran.ui.screens.music.MusicScreen
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.fadeIn
@@ -37,7 +38,7 @@ import com.ballade.hwaran.ui.components.JellyToggle
 import com.ballade.hwaran.ui.components.JellyToggle3
 import com.ballade.hwaran.ui.components.MediaModeIndicator
 import com.ballade.hwaran.ui.components.JellyBall
-import com.ballade.hwaran.ui.components.spotlightTarget
+import com.ballade.hwaran.ui.dialogs.spotlightTarget
 import com.ballade.hwaran.ui.components.WobblySnakeRing
 import com.ballade.hwaran.ui.components.LiquidNavigation
 import androidx.compose.ui.platform.LocalDensity
@@ -80,8 +81,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.ballade.hwaran.data.local.MangaEntity
-import com.ballade.hwaran.ui.components.GenreSelectionDialog
+import com.ballade.hwaran.core.database.entity.MangaEntity
+import com.ballade.hwaran.ui.dialogs.GenreSelectionDialog
 import com.ballade.hwaran.ui.viewmodels.LibraryViewModel
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
 import com.ballade.hwaran.ui.viewmodels.MusicViewModel
@@ -1357,7 +1358,7 @@ fun LibraryContent(
                             val cleanName = nameInput.trim()
                             coroutineScope.launch {
                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                    val db = com.ballade.hwaran.data.local.AppDatabase.getDatabase(context)
+                                    val db = com.ballade.hwaran.core.database.AppDatabase.getDatabase(context)
                                     db.libraryDao().updateDefaultWorkspace(mediaMode, cleanName)
                                 }
                                 settingsViewModel.addWorkspace(mediaMode, cleanName)

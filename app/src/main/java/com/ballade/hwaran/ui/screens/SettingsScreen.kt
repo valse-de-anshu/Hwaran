@@ -50,18 +50,18 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
-import com.ballade.hwaran.data.local.AppDatabase
+import com.ballade.hwaran.core.database.AppDatabase
 import java.io.File
 import kotlin.math.cos
 import kotlin.math.sin
 import com.ballade.hwaran.ui.components.JellyToggle
 import com.ballade.hwaran.ui.components.JellyToggle3
 import com.ballade.hwaran.ui.components.MediaModeIndicator
-import com.ballade.hwaran.ui.components.PremiumGlassPanel
-import com.ballade.hwaran.ui.components.PremiumSlider
-import com.ballade.hwaran.ui.components.SidebarIcon
+import com.ballade.hwaran.ui.dialogs.PremiumGlassPanel
+import com.ballade.hwaran.ui.dialogs.PremiumSlider
+import com.ballade.hwaran.ui.dialogs.SidebarIcon
 import com.ballade.hwaran.ui.components.JellyBall
-import com.ballade.hwaran.ui.components.spotlightTarget
+import com.ballade.hwaran.ui.dialogs.spotlightTarget
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -815,7 +815,7 @@ fun SecurityContent(
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch(Dispatchers.IO) {
-                        database.libraryDao().clearAllHistoryEvents()
+                        database.historyDao().clearAllHistoryEvents()
                     }
                     showWipeConfirmation = false
                 }) {

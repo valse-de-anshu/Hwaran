@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.ballade.hwaran.data.local.GlobalSettings
+import com.ballade.hwaran.core.datastore.GlobalSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -462,7 +462,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setLibraryPassword(value: String) {
         viewModelScope.launch { 
             globalSettings.setLibraryPassword(value)
-            com.ballade.hwaran.data.local.HistoryTracker.logEvent("PASSWORD_SET", if (value.isEmpty()) "Password Cleared" else "Password Configured", "")
+            com.ballade.hwaran.core.util.HistoryTracker.logEvent("PASSWORD_SET", if (value.isEmpty()) "Password Cleared" else "Password Configured", "")
         }
     }
 
@@ -483,38 +483,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setGlowColor(value: Long) {
-        viewModelScope.launch { globalSettings.setGlowColor(value) }
-    }
-
-    fun setFabStyle(value: Int) {
-        viewModelScope.launch { globalSettings.setFabStyle(value) }
-    }
-
-    fun setUsePillAsHighlight(value: Boolean) {
-        viewModelScope.launch { globalSettings.setUsePillAsHighlight(value) }
-    }
-
-    fun setMusicMode(value: Int) {
-        viewModelScope.launch { globalSettings.setMusicMode(value) }
-    }
-
-    fun setBatterySavingMode(value: Boolean) {
-        viewModelScope.launch { globalSettings.setBatterySavingMode(value) }
-    }
-
-    fun setStopTracking(value: Boolean) {
-        viewModelScope.launch { globalSettings.setStopTracking(value) }
-    }
-
-    fun setHasSeenIntro(value: Boolean) {
-        viewModelScope.launch { globalSettings.setHasSeenIntro(value) }
-    }
-
-    fun setActiveTab(value: Int) {
-        _activeTab.value = value
-    }
-}
- {
         viewModelScope.launch { globalSettings.setGlowColor(value) }
     }
 

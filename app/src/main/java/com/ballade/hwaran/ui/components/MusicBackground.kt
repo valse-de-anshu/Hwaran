@@ -12,8 +12,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.ballade.hwaran.data.local.ChapterEntity
-import com.ballade.hwaran.data.local.MangaEntity
+import com.ballade.hwaran.core.database.entity.ChapterEntity
+import com.ballade.hwaran.core.database.entity.MangaEntity
 
 @Composable
 fun MusicBackground(

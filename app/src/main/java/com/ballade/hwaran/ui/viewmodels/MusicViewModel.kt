@@ -22,9 +22,9 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.palette.graphics.Palette
 import com.ballade.hwaran.audio.HwaranPlayerHolder
 import com.ballade.hwaran.audio.MusicNotificationService
-import com.ballade.hwaran.data.local.AppDatabase
-import com.ballade.hwaran.data.local.ChapterEntity
-import com.ballade.hwaran.data.local.MangaEntity
+import com.ballade.hwaran.core.database.AppDatabase
+import com.ballade.hwaran.core.database.entity.ChapterEntity
+import com.ballade.hwaran.core.database.entity.MangaEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -92,9 +92,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 updateDominantColor(chapter.thumbnailUri ?: chapter.folderUri ?: _currentManga.value?.coverPath)
                 // ADD OPEN COUNT INCREMENT HERE
                 viewModelScope.launch(Dispatchers.IO) {
-                    val dbChapter = database.libraryDao().getChapterById(chapter.id)
+                    val dbChapter = database.trackDao().getChapterById(chapter.id)
                     if (dbChapter != null) {
-                        database.libraryDao().insertChapter(dbChapter.copy(openCount = dbChapter.openCount + 1))
+                        database.trackDao().insertChapter(dbChapter.copy(openCount = dbChapter.openCount + 1))
                         val dbManga = database.libraryDao().getMangaById(dbChapter.mangaId)
                         if (dbManga != null) {
                             database.libraryDao().insertManga(dbManga.copy(openCount = dbManga.openCount + 1))
@@ -102,7 +102,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 
-                com.ballade.hwaran.data.local.HistoryTracker.logEvent(
+                com.ballade.hwaran.core.util.HistoryTracker.logEvent(
                     "LISTEN",
                     chapter.title,
                     "mangaId:${_currentManga.value?.id ?: -1L}|chapterId:${chapter.id}|fallback:Playlist: ${_currentManga.value?.title ?: "Unknown"}"
@@ -338,7 +338,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
             withContext(Dispatchers.IO) {
                 val manga = database.libraryDao().getMangaById(mangaId)
-                val chapters = database.libraryDao().getChaptersForMangaList(mangaId)
+                val chapters = database.trackDao().getChaptersForMangaList(mangaId)
                 val index = chapters.indexOfFirst { it.id == chapterId }
 
                 if (manga != null && index != -1) {
@@ -506,7 +506,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshCurrentChapter() {
         val current = _currentChapter.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            val updated = database.libraryDao().getChapterById(current.id)
+            val updated = database.trackDao().getChapterById(current.id)
             if (updated != null) {
                 _currentChapter.value = updated
             }
@@ -662,6 +662,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
             return Uri.parse(path)
         }
+    }
+
+    fun stopPlayback() {
+        exoPlayer.stop()
+    }
+
+    companion object {
+        var skipRestore: Boolean = false
+        var isPopUpActive: Boolean = false
     }
 
     override fun onCleared() {

@@ -3,7 +3,7 @@ package com.ballade.hwaran.ui.viewmodels
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.ballade.hwaran.data.local.AppDatabase
+import com.ballade.hwaran.core.database.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -13,9 +13,9 @@ class VideoViewModel(application: Application) : AndroidViewModel(application) {
     fun saveLastPosition(chapterId: Long, positionMs: Long, durationMs: Long) {
         if (chapterId == -1L) return
         viewModelScope.launch(Dispatchers.IO) {
-            val chapter = database.libraryDao().getChapterById(chapterId)
+            val chapter = database.trackDao().getChapterById(chapterId)
             if (chapter != null) {
-                database.libraryDao().insertChapter(
+                database.trackDao().insertChapter(
                     chapter.copy(
                         position = positionMs.toInt(),
                         duration = durationMs
@@ -32,9 +32,9 @@ class VideoViewModel(application: Application) : AndroidViewModel(application) {
     fun incrementOpenCount(chapterId: Long) {
         if (chapterId == -1L) return
         viewModelScope.launch(Dispatchers.IO) {
-            val chapter = database.libraryDao().getChapterById(chapterId)
+            val chapter = database.trackDao().getChapterById(chapterId)
             if (chapter != null) {
-                database.libraryDao().insertChapter(chapter.copy(openCount = chapter.openCount + 1))
+                database.trackDao().insertChapter(chapter.copy(openCount = chapter.openCount + 1))
                 val manga = database.libraryDao().getMangaById(chapter.mangaId)
                 if (manga != null) {
                     database.libraryDao().insertManga(manga.copy(openCount = manga.openCount + 1))

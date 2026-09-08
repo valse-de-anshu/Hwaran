@@ -5,8 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.ballade.hwaran.data.local.AppDatabase
-import com.ballade.hwaran.data.local.MangaEntity
+import com.ballade.hwaran.core.database.AppDatabase
+import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.data.repository.LibraryRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 
 import androidx.documentfile.provider.DocumentFile
-import com.ballade.hwaran.data.local.ChapterEntity
+import com.ballade.hwaran.core.database.entity.ChapterEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -53,7 +53,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         .map { list -> list.find { it.title.equals("Favorites", ignoreCase = true) && it.contentType == 3 } }
         .flatMapLatest { favManga ->
             if (favManga == null) kotlinx.coroutines.flow.flowOf(emptySet())
-            else database.libraryDao().getChaptersForManga(favManga.id)
+            else database.trackDao().getChaptersForManga(favManga.id)
                 .map { chapters -> chapters.map { it.folderUri }.toSet() }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
@@ -139,7 +139,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             _megaImportProgress.value = 0f
             _megaImportSummary.value = null
 
-            val globalSettings = com.ballade.hwaran.data.local.GlobalSettings(getApplication())
+            val globalSettings = com.ballade.hwaran.core.datastore.GlobalSettings(getApplication())
             val mediaMode = globalSettings.mediaModeFlow.first()
             val isLocalMode = (storageModeOverride ?: globalSettings.storageModeFlow.first()) == 0
             val videoLayoutMode = globalSettings.videoLayoutModeFlow.first()
@@ -149,7 +149,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 if (mediaMode == 1) { // Book Mode
                     val parentDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(getApplication(), parentUri)
                     if (parentDoc != null) {
-                        val mode = com.ballade.hwaran.data.book.BookImportUtils.detectImportMode(parentDoc)
+                        val mode = com.ballade.hwaran.data.importer.book.BookImportUtils.detectImportMode(parentDoc)
                         if (mode == "SINGLE") {
                             _isMegaImporting.value = false
                             importFolder(
@@ -161,9 +161,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                             )
                             return@launch
                         } else {
-                            val bookRepository = com.ballade.hwaran.data.book.BookImportRepository(database.libraryDao())
+                            val bookRepository = com.ballade.hwaran.data.importer.book.BookImportRepository(database.libraryDao())
                             val bookSummary = if (isLocalMode) {
-                                com.ballade.hwaran.data.book.BookLocalMegaImport.execute(
+                                com.ballade.hwaran.data.importer.book.BookLocalMegaImport.execute(
                                     context = getApplication(),
                                     repository = bookRepository,
                                     parentUri = parentUri,
@@ -174,7 +174,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                                     onProgress = { progress -> _megaImportProgress.value = progress }
                                 )
                             } else {
-                                com.ballade.hwaran.data.book.BookExternalMegaImport.execute(
+                                com.ballade.hwaran.data.importer.book.BookExternalMegaImport.execute(
                                     context = getApplication(),
                                     repository = bookRepository,
                                     parentUri = parentUri,
@@ -195,9 +195,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                         }
                     }
                 } else if (mediaMode == 0) {
-                    val toonRepository = com.ballade.hwaran.data.toon.ToonImportRepository(database.libraryDao())
+                    val toonRepository = com.ballade.hwaran.data.importer.toon.ToonImportRepository(database.libraryDao())
                     val toonSummary = if (isLocalMode) {
-                        com.ballade.hwaran.data.toon.ToonLocalMegaImport.execute(
+                        com.ballade.hwaran.data.importer.toon.ToonLocalMegaImport.execute(
                             context = getApplication(),
                             repository = toonRepository,
                             parentUri = parentUri,
@@ -208,7 +208,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                             onProgress = { progress -> _megaImportProgress.value = progress }
                         )
                     } else {
-                        com.ballade.hwaran.data.toon.ToonExternalMegaImport.execute(
+                        com.ballade.hwaran.data.importer.toon.ToonExternalMegaImport.execute(
                             context = getApplication(),
                             repository = toonRepository,
                             parentUri = parentUri,
@@ -228,9 +228,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                     )
                 } else if (mediaMode == 2) {
                     // Video Mega Import — isolated pipeline
-                    val videoRepository = com.ballade.hwaran.data.video.VideoImportRepository(database.libraryDao())
+                    val videoRepository = com.ballade.hwaran.data.importer.video.VideoImportRepository(database.libraryDao())
                     val videoSummary = if (isLocalMode) {
-                        com.ballade.hwaran.data.video.VideoLocalMegaImport.execute(
+                        com.ballade.hwaran.data.importer.video.VideoLocalMegaImport.execute(
                             context = getApplication(),
                             repository = videoRepository,
                             parentUri = parentUri,
@@ -241,7 +241,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                             onProgress = { progress -> _megaImportProgress.value = progress }
                         )
                     } else {
-                        com.ballade.hwaran.data.video.VideoExternalMegaImport.execute(
+                        com.ballade.hwaran.data.importer.video.VideoExternalMegaImport.execute(
                             context = getApplication(),
                             repository = videoRepository,
                             parentUri = parentUri,
@@ -311,7 +311,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                                 continue
                             }
 
-                            val (isValid, reason) = com.ballade.hwaran.data.toon.ToonImportUtils.isToonFolderValid(child)
+                            val (isValid, reason) = com.ballade.hwaran.data.importer.toon.ToonImportUtils.isToonFolderValid(child)
                             if (isValid) {
                                 try {
                                     val importedId = repository.scanImportedFolder(
@@ -372,7 +372,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         importJob = viewModelScope.launch {
             var importedId: Long? = null
             try {
-                val globalSettings = com.ballade.hwaran.data.local.GlobalSettings(getApplication())
+                val globalSettings = com.ballade.hwaran.core.datastore.GlobalSettings(getApplication())
                 val isLocalMode = (storageModeOverride ?: globalSettings.storageModeFlow.first()) == 0
                 val mediaMode = globalSettings.mediaModeFlow.first()
                 val videoLayoutMode = globalSettings.videoLayoutModeFlow.first()
@@ -408,9 +408,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 }
 
                 if (mediaMode == 0 && !isFile) {
-                    val toonRepository = com.ballade.hwaran.data.toon.ToonImportRepository(database.libraryDao())
+                    val toonRepository = com.ballade.hwaran.data.importer.toon.ToonImportRepository(database.libraryDao())
                     if (isLocalMode) {
-                        importedId = com.ballade.hwaran.data.toon.ToonLocalSingleImport.execute(
+                        importedId = com.ballade.hwaran.data.importer.toon.ToonLocalSingleImport.execute(
                             context = getApplication(),
                             repository = toonRepository,
                             uri = uri,
@@ -421,7 +421,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                             onProgress = { progress -> _importProgress.value = progress }
                         )
                     } else {
-                        importedId = com.ballade.hwaran.data.toon.ToonExternalSingleImport.execute(
+                        importedId = com.ballade.hwaran.data.importer.toon.ToonExternalSingleImport.execute(
                             context = getApplication(),
                             repository = toonRepository,
                             uri = uri,
@@ -433,14 +433,14 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                         )
                     }
                 } else if (mediaMode == 1) {
-                    val bookRepository = com.ballade.hwaran.data.book.BookImportRepository(database.libraryDao())
+                    val bookRepository = com.ballade.hwaran.data.importer.book.BookImportRepository(database.libraryDao())
                     if (isFile) {
                         // Single-file URI from OpenDocument picker — must use fromSingleUri,
                         // NOT fromTreeUri (which always returns null for file URIs).
                         val pdfDoc = androidx.documentfile.provider.DocumentFile.fromSingleUri(getApplication(), uri)
                         if (pdfDoc != null) {
                             if (isLocalMode) {
-                                importedId = com.ballade.hwaran.data.book.BookLocalSingleImport.executeSinglePdf(
+                                importedId = com.ballade.hwaran.data.importer.book.BookLocalSingleImport.executeSinglePdf(
                                     context = getApplication(),
                                     repository = bookRepository,
                                     pdfDoc = pdfDoc,
@@ -451,7 +451,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                                     isCancelled = { _isCancelRequested.value }
                                 )
                             } else {
-                                importedId = com.ballade.hwaran.data.book.BookExternalSingleImport.executeSinglePdf(
+                                importedId = com.ballade.hwaran.data.importer.book.BookExternalSingleImport.executeSinglePdf(
                                     context = getApplication(),
                                     repository = bookRepository,
                                     pdfDoc = pdfDoc,
@@ -464,7 +464,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                             }
                         }
                     } else if (isLocalMode) {
-                        importedId = com.ballade.hwaran.data.book.BookLocalSingleImport.execute(
+                        importedId = com.ballade.hwaran.data.importer.book.BookLocalSingleImport.execute(
                             context = getApplication(),
                             repository = bookRepository,
                             uri = uri,
@@ -475,7 +475,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                             onProgress = { progress -> _importProgress.value = progress }
                         )
                     } else {
-                        importedId = com.ballade.hwaran.data.book.BookExternalSingleImport.execute(
+                        importedId = com.ballade.hwaran.data.importer.book.BookExternalSingleImport.execute(
                             context = getApplication(),
                             repository = bookRepository,
                             uri = uri,
@@ -553,9 +553,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     fun updateChapterGenre(chapterId: Long, genre: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val chapter = database.libraryDao().getChapterById(chapterId)
+            val chapter = database.trackDao().getChapterById(chapterId)
             if (chapter != null) {
-                database.libraryDao().insertChapter(chapter.copy(genre = genre))
+                database.trackDao().insertChapter(chapter.copy(genre = genre))
             }
         }
     }
@@ -576,9 +576,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val manga = database.libraryDao().getMangaById(mangaId)
             if (manga != null) {
-                com.ballade.hwaran.data.local.HistoryTracker.logEvent("DELETE", manga.title, "Playlist")
+                com.ballade.hwaran.core.util.HistoryTracker.logEvent("DELETE", manga.title, "Playlist")
                 // Delete associated chapters first
-                database.libraryDao().deleteChaptersByMangaId(mangaId)
+                database.trackDao().deleteChaptersByMangaId(mangaId)
                 // Delete the playlist itself
                 database.libraryDao().deleteManga(manga)
             }
@@ -603,11 +603,11 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     fun addSongToPlaylist(playlistId: Long, song: ChapterEntity) {
         viewModelScope.launch(Dispatchers.IO) {
-            val existingChapters = database.libraryDao().getChaptersForMangaList(playlistId)
+            val existingChapters = database.trackDao().getChaptersForMangaList(playlistId)
             val duplicate = existingChapters.find { it.folderUri == song.folderUri }
             if (duplicate == null) {
                 val newSong = song.copy(id = 0, mangaId = playlistId)
-                database.libraryDao().insertChapter(newSong)
+                database.trackDao().insertChapter(newSong)
             }
         }
     }
@@ -637,13 +637,13 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             
             // Toggle song in the favorites playlist
             if (favPlaylist != null) {
-                val existingChapters = database.libraryDao().getChaptersForMangaList(favPlaylist.id)
+                val existingChapters = database.trackDao().getChaptersForMangaList(favPlaylist.id)
                 val duplicate = existingChapters.find { it.folderUri == song.folderUri }
                 if (duplicate != null) {
-                    database.libraryDao().deleteChapter(duplicate)
+                    database.trackDao().deleteChapter(duplicate)
                 } else {
                     val newSong = song.copy(id = 0, mangaId = favPlaylist.id)
-                    database.libraryDao().insertChapter(newSong)
+                    database.trackDao().insertChapter(newSong)
                 }
             }
         }
@@ -651,10 +651,10 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     fun deleteChapterOnlyFromDb(chapterId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
-            val chapter = database.libraryDao().getChapterById(chapterId)
+            val chapter = database.trackDao().getChapterById(chapterId)
             if (chapter != null) {
-                com.ballade.hwaran.data.local.HistoryTracker.logEvent("DELETE", chapter.title, "Chapter (DB only)")
-                database.libraryDao().deleteChapter(chapter)
+                com.ballade.hwaran.core.util.HistoryTracker.logEvent("DELETE", chapter.title, "Chapter (DB only)")
+                database.trackDao().deleteChapter(chapter)
             }
         }
     }
@@ -664,9 +664,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 chapterIds.forEach { id ->
-                    val chapter = database.libraryDao().getChapterById(id)
+                    val chapter = database.trackDao().getChapterById(id)
                     if (chapter != null) {
-                        com.ballade.hwaran.data.local.HistoryTracker.logEvent("DELETE", chapter.title, "Chapter (Physical)")
+                        com.ballade.hwaran.core.util.HistoryTracker.logEvent("DELETE", chapter.title, "Chapter (Physical)")
                         try {
                             if (chapter.folderUri.startsWith("content://")) {
                                 val uri = Uri.parse(chapter.folderUri)
@@ -699,22 +699,26 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
-                        database.libraryDao().deleteChapter(chapter)
+                        database.trackDao().deleteChapter(chapter)
                     }
                 }
             }
         }
     }
 
+    fun deleteWorkspace(mediaMode: Int, workspaceName: String) {
+        deleteWorkspace(mediaMode, -1, workspaceName)
+    }
+
     fun deleteWorkspace(mediaMode: Int, videoLayoutMode: Int, workspaceName: String) {
         if (workspaceName == "I Love It") return
         viewModelScope.launch(Dispatchers.IO) {
-            val globalSettings = com.ballade.hwaran.data.local.GlobalSettings(getApplication())
+            val globalSettings = com.ballade.hwaran.core.datastore.GlobalSettings(getApplication())
             globalSettings.removeWorkspace(mediaMode, workspaceName)
 
             val items = database.libraryDao().getMangaListForMove(mediaMode, videoLayoutMode, workspaceName)
             items.forEach { m ->
-                com.ballade.hwaran.data.local.HistoryTracker.logEvent("IMPORT", "Merged to I Love It", m.title)
+                com.ballade.hwaran.core.util.HistoryTracker.logEvent("IMPORT", "Merged to I Love It", m.title)
                 database.libraryDao().updateWorkspaceForMangaTree(m.id, "I Love It")
             }
         }
@@ -739,11 +743,11 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
                 val parentDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(getApplication(), uri)
                 if (parentDoc != null) {
-                    val structure = com.ballade.hwaran.data.music.MusicImportUtils.detectStructure(parentDoc)
-                    val repository = com.ballade.hwaran.data.music.MusicImportRepository(database.libraryDao())
+                    val structure = com.ballade.hwaran.data.importer.music.MusicImportUtils.detectStructure(parentDoc)
+                    val repository = com.ballade.hwaran.data.importer.music.MusicImportRepository(database.libraryDao())
 
                     if (structure == "SINGLE") {
-                        val albumId = com.ballade.hwaran.data.music.MusicExternalSingleImport.execute(
+                        val albumId = com.ballade.hwaran.data.importer.music.MusicExternalSingleImport.execute(
                             context = getApplication(),
                             repository = repository,
                             folderDoc = parentDoc,
@@ -761,7 +765,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                             }
                         }
                     } else {
-                        val summary = com.ballade.hwaran.data.music.MusicExternalMegaImport.execute(
+                        val summary = com.ballade.hwaran.data.importer.music.MusicExternalMegaImport.execute(
                             context = getApplication(),
                             repository = repository,
                             parentDoc = parentDoc,
@@ -789,6 +793,48 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 _isCancelRequested.value = false
                 _isCancelArmed.value = false
             }
+        }
+    }
+
+    fun getAllDistinctWorkspaces(): kotlinx.coroutines.flow.Flow<List<String>> {
+        return database.libraryDao().getAllDistinctWorkspaces()
+    }
+
+    fun moveEntireWorkspace(mediaMode: Int, videoLayoutMode: Int, oldWorkspace: String, newWorkspace: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            database.libraryDao().updateEntireWorkspace(mediaMode, videoLayoutMode, oldWorkspace, newWorkspace)
+            com.ballade.hwaran.core.util.HistoryTracker.logEvent("IMPORT", "Moved Workspace", "$oldWorkspace -> $newWorkspace")
+            
+            // Also need to rename the workspace in GlobalSettings so UI knows about it if it's the active one
+            val globalSettings = com.ballade.hwaran.core.datastore.GlobalSettings(getApplication())
+            globalSettings.renameWorkspaceIfActive(mediaMode, oldWorkspace, newWorkspace)
+        }
+    }
+
+    fun moveItemsToDifferentWorkspace(rootIds: List<Long>, oldWorkspace: String, newWorkspace: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            for (rootId in rootIds) {
+                // This updates the root manga and all its children/seasons/episodes
+                database.libraryDao().updateWorkspaceForMangaTree(rootId, newWorkspace)
+            }
+            com.ballade.hwaran.core.util.HistoryTracker.logEvent("IMPORT", "Moved ${rootIds.size} items", "$oldWorkspace -> $newWorkspace")
+        }
+    }
+
+    fun renameWorkspace(mediaMode: Int, videoLayoutMode: Int, oldWorkspace: String, newWorkspace: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val cleanOld = oldWorkspace.trim()
+            val cleanNew = newWorkspace.trim()
+            if (cleanOld.isBlank() || cleanNew.isBlank() || cleanOld == "I Love It" || cleanNew == "I Love It") return@launch
+
+            database.libraryDao().updateEntireWorkspace(mediaMode, videoLayoutMode, cleanOld, cleanNew)
+
+            val globalSettings = com.ballade.hwaran.core.datastore.GlobalSettings(getApplication())
+            globalSettings.addWorkspace(mediaMode, cleanNew)
+            globalSettings.removeWorkspace(mediaMode, cleanOld)
+            globalSettings.renameWorkspaceIfActive(mediaMode, cleanOld, cleanNew)
+            
+            com.ballade.hwaran.core.util.HistoryTracker.logEvent("IMPORT", "Renamed Workspace", "$cleanOld -> $cleanNew")
         }
     }
 }

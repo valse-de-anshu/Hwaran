@@ -3,8 +3,8 @@ package com.ballade.hwaran.ui.viewmodels
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.ballade.hwaran.data.local.AppDatabase
-import com.ballade.hwaran.data.local.PdfMarkerEntity
+import com.ballade.hwaran.core.database.AppDatabase
+import com.ballade.hwaran.core.database.entity.PdfMarkerEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -35,18 +35,18 @@ class PdfViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getMarkers(mangaId: Long): Flow<List<PdfMarkerEntity>> {
         if (mangaId == -1L) return emptyFlow()
-        return database.libraryDao().getMarkersForPdf(mangaId)
+        return database.annotationDao().getMarkersForPdf(mangaId)
     }
 
     fun addMarker(marker: PdfMarkerEntity) {
         viewModelScope.launch(Dispatchers.IO) {
-            database.libraryDao().insertMarker(marker)
+            database.annotationDao().insertMarker(marker)
         }
     }
 
     fun deleteMarker(marker: PdfMarkerEntity) {
         viewModelScope.launch(Dispatchers.IO) {
-            database.libraryDao().deleteMarker(marker)
+            database.annotationDao().deleteMarker(marker)
         }
     }
 }

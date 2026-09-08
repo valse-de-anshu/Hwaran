@@ -65,7 +65,7 @@ fun MediaModeIndicator(mediaMode: Int, videoLayoutMode: Int = 0, modifier: Modif
 }
 
 @Composable
-private fun ToonIndicator() {
+fun ToonIndicator() {
     val infiniteTransition = rememberInfiniteTransition("toon")
     val scrollY by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -113,7 +113,7 @@ private fun ToonIndicator() {
 }
 
 @Composable
-private fun BookIndicator() {
+fun BookIndicator() {
     val infiniteTransition = rememberInfiniteTransition("book")
     
     val coverScaleX by infiniteTransition.animateFloat(
@@ -247,7 +247,7 @@ private fun BookIndicator() {
 }
 
 @Composable
-private fun VideoSeriesIndicator() {
+fun VideoSeriesIndicator() {
     val infiniteTransition = rememberInfiniteTransition("video_series")
     
     val scrubberX by infiniteTransition.animateFloat(
@@ -332,7 +332,7 @@ private fun VideoSeriesIndicator() {
 }
 
 @Composable
-private fun VideoCreatorIndicator() {
+fun VideoCreatorIndicator() {
     val infiniteTransition = rememberInfiniteTransition("video_creator")
     
     val scrubberX by infiniteTransition.animateFloat(
