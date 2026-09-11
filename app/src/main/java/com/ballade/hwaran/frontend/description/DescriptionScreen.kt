@@ -172,11 +172,29 @@ fun DescriptionScreen(
     val draftTitle by descriptionViewModel.draftTitle.collectAsState()
     val draftIsNsfw by descriptionViewModel.draftIsNsfw.collectAsState()
 
+    val entryMetadata by descriptionViewModel.entryMetadata.collectAsState()
+    val assignedTags by descriptionViewModel.assignedTags.collectAsState()
+    val tagQuery by descriptionViewModel.tagQuery.collectAsState()
+    val tagSuggestions by descriptionViewModel.tagSuggestions.collectAsState()
+    val isTagSearchVisible by descriptionViewModel.isTagSearchVisible.collectAsState()
+    val draftAltTitle by descriptionViewModel.draftAltTitle.collectAsState()
+    val draftAuthor by descriptionViewModel.draftAuthor.collectAsState()
+    val draftArtist by descriptionViewModel.draftArtist.collectAsState()
+    val draftPublisher by descriptionViewModel.draftPublisher.collectAsState()
+    val draftSerialization by descriptionViewModel.draftSerialization.collectAsState()
+    val draftYear by descriptionViewModel.draftYear.collectAsState()
+    val draftStatus by descriptionViewModel.draftStatus.collectAsState()
+    val draftRating by descriptionViewModel.draftRating.collectAsState()
+
     var showChapters by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showChaptersWindow by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
-    BackHandler(enabled = isEditMode) {
+    BackHandler(enabled = showChaptersWindow) {
+        showChaptersWindow = false
+    }
+    BackHandler(enabled = isEditMode && !showChaptersWindow) {
         descriptionViewModel.toggleEditMode()
     }
     var isSwitchingNsfw by remember { mutableStateOf(false) }
@@ -418,7 +436,7 @@ fun DescriptionScreen(
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
-            if (!isDeleteMode) {
+            if (!isDeleteMode && manga?.contentType != 0) {
                 Box(
                     modifier = Modifier
                         .offset(y = (-48).dp)
@@ -577,19 +595,70 @@ fun DescriptionScreen(
             }
 
             val scrollState = rememberLazyListState()
-            // NOTE: The scroll-offset→settingsViewModel LaunchedEffect was removed.
-            // It fired on every scroll frame and wrote to SettingsViewModel, causing
-            // the global navigation background to recompose in sync with every scroll
-            // event — the primary source of frame drops on this screen.
 
-            // Shared Coil ImageLoader for all video thumbnails on this screen.
-            // Creating one per-item (as the old code did) allocates a new loader
-            // and codec pipeline on every list item composition.
-            val sharedVideoImageLoader = remember {
-                coil.ImageLoader.Builder(context)
-                    .components { add(VideoFrameDecoder.Factory()) }
-                    .build()
-            }
+            if (manga != null && manga?.contentType == 0) {
+                if (showChaptersWindow) {
+                    ToonChaptersView(
+                        manga = manga!!,
+                        chapters = chapters,
+                        onNavigateBack = { showChaptersWindow = false },
+                        onNavigateToChapter = { chapterId -> onNavigateToMedia(chapterId, 0) },
+                        onPickChaptersFolder = { folderPickerLauncher.launch(null) },
+                        onDeleteChapters = { chapterIds -> descriptionViewModel.deleteSelectedChapters(chapterIds) }
+                    )
+                } else {
+                    ToonDescriptionView(
+                        manga = manga!!,
+                        chapters = chapters,
+                        entryMetadata = entryMetadata,
+                        assignedTags = assignedTags,
+                        isEditMode = isEditMode,
+                        tagQuery = tagQuery,
+                        tagSuggestions = tagSuggestions,
+                        isTagSearchVisible = isTagSearchVisible,
+                        draftTitle = draftTitle,
+                        draftAltTitle = draftAltTitle,
+                        draftAuthor = draftAuthor,
+                        draftArtist = draftArtist,
+                        draftPublisher = draftPublisher,
+                        draftSerialization = draftSerialization,
+                        draftYear = draftYear,
+                        draftStatus = draftStatus,
+                        draftRating = draftRating,
+                        draftDesc = draftDesc,
+                        draftCover = draftCover,
+                        scrollState = scrollState,
+                        onToggleEditMode = { descriptionViewModel.toggleEditMode() },
+                        onSaveManga = { descriptionViewModel.saveManga() },
+                        onNavigateBack = onNavigateBack,
+                        onNavigateToMedia = onNavigateToMedia,
+                        onOpenChapters = { showChaptersWindow = true },
+                        onAddTag = { descriptionViewModel.addTag(it) },
+                        onRemoveTag = { descriptionViewModel.removeTag(it) },
+                        onSetTagQuery = { descriptionViewModel.setTagQuery(it) },
+                        onToggleTagSearchVisible = { descriptionViewModel.toggleTagSearchVisible() },
+                        onPickCover = { imagePickerLauncher.launch(arrayOf("image/*")) },
+                        onSetMaterialTag = { descriptionViewModel.setMaterialTag(it) },
+                        onUpdateDraftTitle = { descriptionViewModel.draftTitle.value = it },
+                        onUpdateDraftAltTitle = { descriptionViewModel.draftAltTitle.value = it },
+                        onUpdateDraftAuthor = { descriptionViewModel.draftAuthor.value = it },
+                        onUpdateDraftArtist = { descriptionViewModel.draftArtist.value = it },
+                        onUpdateDraftPublisher = { descriptionViewModel.draftPublisher.value = it },
+                        onUpdateDraftSerialization = { descriptionViewModel.draftSerialization.value = it },
+                        onUpdateDraftYear = { descriptionViewModel.draftYear.value = it },
+                        onUpdateDraftStatus = { descriptionViewModel.draftStatus.value = it },
+                        onUpdateDraftRating = { descriptionViewModel.draftRating.value = it },
+                        onUpdateDraftDesc = { descriptionViewModel.draftDescription.value = it },
+                        onDeleteManga = { showDeleteDialog = true }
+                    )
+                }
+            } else {
+                // Shared Coil ImageLoader for all video thumbnails on this screen.
+                val sharedVideoImageLoader = remember {
+                    coil.ImageLoader.Builder(context)
+                        .components { add(VideoFrameDecoder.Factory()) }
+                        .build()
+                }
 
             LazyColumn(
                 state = scrollState,
@@ -1808,6 +1877,7 @@ fun DescriptionScreen(
                     Spacer(modifier = Modifier.height(180.dp))
                 }
             }
+            } // closes else (non-toon mode)
 
             // 1. FULL SCREEN BLUR OVERLAY
             androidx.compose.animation.AnimatedVisibility(
@@ -1838,63 +1908,65 @@ fun DescriptionScreen(
             }
 
             // --- FLOATING TOP BAR ---
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-                    .zIndex(10f)
-            ) {
+            if (manga?.contentType != 0) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(top = 40.dp, bottom = 12.dp)
+                        .align(Alignment.TopCenter)
+                        .zIndex(10f)
                 ) {
-                    IconButton(
-                        onClick = { 
-                            if (isEditMode) descriptionViewModel.toggleEditMode() 
-                            else if (isDeleteMode) isDeleteMode = false
-                            else onNavigateBack() 
-                        },
-                        modifier = Modifier.padding(start = 12.dp, top = 12.dp)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(top = 40.dp, bottom = 12.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack, 
-                            contentDescription = "Back", 
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-
-                    if (isEditMode) {
-                        IconButton(
-                            onClick = { descriptionViewModel.saveManga() },
-                            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp, top = 12.dp)
-                        ) {
-                            Icon(imageVector = Icons.Rounded.Save, contentDescription = "Save", tint = PrimaryPurple)
-                        }
-                    } else if (isDeleteMode) {
                         IconButton(
                             onClick = { 
-                                descriptionViewModel.deleteSelectedChapters(selectedChapters.toList())
-                                isDeleteMode = false
-                                selectedChapters.clear()
+                                if (isEditMode) descriptionViewModel.toggleEditMode() 
+                                else if (isDeleteMode) isDeleteMode = false
+                                else onNavigateBack() 
                             },
-                            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp, top = 12.dp)
-                        ) {
-                            Icon(imageVector = Icons.Rounded.DeleteSweep, contentDescription = "Delete Selected", tint = Color(0xFFE57373))
-                        }
-                    } else if (isChannelMode && !isEditMode) {
-                        IconButton(
-                            onClick = { showChannelOptions = !showChannelOptions },
-                            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp, top = 12.dp)
+                            modifier = Modifier.padding(start = 12.dp, top = 12.dp)
                         ) {
                             Icon(
-                                imageVector = if (showChannelOptions) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown, 
-                                contentDescription = if (showChannelOptions) "Collapse" else "Expand", 
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack, 
+                                contentDescription = "Back", 
                                 tint = Color.White,
-                                modifier = Modifier.size(32.dp)
+                                modifier = Modifier.size(28.dp)
                             )
+                        }
+
+                        if (isEditMode) {
+                            IconButton(
+                                onClick = { descriptionViewModel.saveManga() },
+                                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp, top = 12.dp)
+                            ) {
+                                Icon(imageVector = Icons.Rounded.Save, contentDescription = "Save", tint = PrimaryPurple)
+                            }
+                        } else if (isDeleteMode) {
+                            IconButton(
+                                onClick = { 
+                                    descriptionViewModel.deleteSelectedChapters(selectedChapters.toList())
+                                    isDeleteMode = false
+                                    selectedChapters.clear()
+                                },
+                                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp, top = 12.dp)
+                            ) {
+                                Icon(imageVector = Icons.Rounded.DeleteSweep, contentDescription = "Delete Selected", tint = Color(0xFFE57373))
+                            }
+                        } else if (isChannelMode && !isEditMode) {
+                            IconButton(
+                                onClick = { showChannelOptions = !showChannelOptions },
+                                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp, top = 12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (showChannelOptions) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown, 
+                                    contentDescription = if (showChannelOptions) "Collapse" else "Expand", 
+                                    tint = Color.White,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
                         }
                     }
                 }

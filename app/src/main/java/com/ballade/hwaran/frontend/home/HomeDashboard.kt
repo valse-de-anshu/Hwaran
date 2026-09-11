@@ -37,6 +37,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.ballade.hwaran.core.database.entity.HistoryEventEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
+import com.ballade.hwaran.core.util.CoverArtResolver
 import kotlinx.coroutines.delay
 
 @Composable
@@ -496,9 +497,12 @@ private fun ContinueWatchingSection(
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         // Cover background
+                        val coverModel = remember(manga.coverPath, manga.parentUri) {
+                            CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
+                        }
                         AsyncImage(
                             model = ImageRequest.Builder(context)
-                                .data(manga.coverPath)
+                                .data(coverModel)
                                 .crossfade(true)
                                 .build(),
                             contentDescription = manga.title,
@@ -623,9 +627,12 @@ private fun RecentlyAddedSection(
                         color = Color(0xFF161520),
                         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
                     ) {
+                        val coverModel = remember(manga.coverPath, manga.parentUri) {
+                            CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
+                        }
                         AsyncImage(
                             model = ImageRequest.Builder(context)
-                                .data(manga.coverPath)
+                                .data(coverModel)
                                 .crossfade(true)
                                 .build(),
                             contentDescription = manga.title,

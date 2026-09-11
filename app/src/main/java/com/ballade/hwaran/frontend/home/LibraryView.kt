@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.ballade.hwaran.core.database.entity.MangaEntity
+import com.ballade.hwaran.core.util.CoverArtResolver
 
 @Composable
 fun LibraryView(
@@ -293,27 +294,32 @@ private fun LibraryMaterialCard(
                             modifier = Modifier.size(28.dp)
                         )
                     }
-                } else if (manga.coverPath.isNotBlank() && manga.coverPath != "android.resource://android/drawable/ic_menu_gallery") {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(manga.coverPath)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = manga.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
                 } else {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (manga.contentType == 3) Icons.Rounded.MusicNote else Icons.Rounded.Image,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.2f),
-                            modifier = Modifier.size(32.dp)
+                    val coverModel = remember(manga.coverPath, manga.parentUri) {
+                        CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
+                    }
+                    if (coverModel != null) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(coverModel)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = manga.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
                         )
+                    } else {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (manga.contentType == 3) Icons.Rounded.MusicNote else Icons.Rounded.Image,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.2f),
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
                     }
                 }
             }

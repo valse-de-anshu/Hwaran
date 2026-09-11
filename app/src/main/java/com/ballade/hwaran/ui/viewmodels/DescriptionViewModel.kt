@@ -28,6 +28,9 @@ import android.graphics.BitmapFactory
 import java.io.File
 import java.io.FileOutputStream
 
+import com.ballade.hwaran.core.metadata.EntryMetadata
+import com.ballade.hwaran.core.metadata.MasterTagItem
+import com.ballade.hwaran.core.metadata.MediaMetadataManager
 import java.util.UUID
 
 val AppImportScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -62,6 +65,32 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
     val draftContentType = MutableStateFlow(0)
     val draftBoxPurpose = MutableStateFlow<String?>(null)
 
+    // Entry Metadata & Master Tags State
+    private val _entryMetadata = MutableStateFlow(EntryMetadata())
+    val entryMetadata: StateFlow<EntryMetadata> = _entryMetadata
+
+    private val _assignedTags = MutableStateFlow<List<String>>(emptyList())
+    val assignedTags: StateFlow<List<String>> = _assignedTags
+
+    private val _tagQuery = MutableStateFlow("")
+    val tagQuery: StateFlow<String> = _tagQuery
+
+    private val _tagSuggestions = MutableStateFlow<List<MasterTagItem>>(emptyList())
+    val tagSuggestions: StateFlow<List<MasterTagItem>> = _tagSuggestions
+
+    private val _isTagSearchVisible = MutableStateFlow(false)
+    val isTagSearchVisible: StateFlow<Boolean> = _isTagSearchVisible
+
+    // Editable Metadata Fields
+    val draftAltTitle = MutableStateFlow("")
+    val draftAuthor = MutableStateFlow("")
+    val draftArtist = MutableStateFlow("")
+    val draftPublisher = MutableStateFlow("")
+    val draftSerialization = MutableStateFlow("")
+    val draftYear = MutableStateFlow("")
+    val draftStatus = MutableStateFlow("Ongoing")
+    val draftRating = MutableStateFlow("8.7 (152K)")
+
     private val _isImporting = MutableStateFlow(false)
     val isImporting: StateFlow<Boolean> = _isImporting
 
@@ -85,6 +114,16 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
             draftCoverPath.value = ""
             draftContentType.value = 0
             draftBoxPurpose.value = null
+            _entryMetadata.value = EntryMetadata()
+            _assignedTags.value = emptyList()
+            draftAltTitle.value = ""
+            draftAuthor.value = ""
+            draftArtist.value = ""
+            draftPublisher.value = ""
+            draftSerialization.value = ""
+            draftYear.value = ""
+            draftStatus.value = "Ongoing"
+            draftRating.value = "8.7 (152K)"
             _chapters.value = emptyList()
             _childBoxes.value = emptyList()
         } else {
@@ -100,6 +139,22 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                     draftGenre.value = m.genre ?: ""
                     draftContentType.value = m.contentType
                     draftBoxPurpose.value = m.boxPurpose
+
+                    val context = getApplication<Application>().applicationContext
+                    val meta = withContext(Dispatchers.IO) {
+                        MediaMetadataManager.loadMetadata(context, mangaId, m.parentUri, m)
+                    }
+                    _entryMetadata.value = meta
+                    _assignedTags.value = meta.tags
+                    draftAltTitle.value = meta.altTitle
+                    draftAuthor.value = meta.author
+                    draftArtist.value = meta.artist
+                    draftPublisher.value = meta.publisher
+                    draftSerialization.value = meta.serialization
+                    draftYear.value = meta.year
+                    draftStatus.value = meta.status
+                    draftRating.value = meta.rating
+                    searchMasterTags("")
                     
                     val rootId = m.parentMangaId ?: m.id
                     val root = if (m.parentMangaId == null) m else withContext(Dispatchers.IO) { libraryDao.getMangaById(rootId) }
@@ -332,6 +387,13 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
 
     fun saveManga() {
         viewModelScope.launch {
+            val currentTags = _assignedTags.value
+            val genreString = if (currentTags.isNotEmpty()) {
+                currentTags.joinToString(", ")
+            } else {
+                draftGenre.value.ifBlank { null }
+            }
+
             val entity = MangaEntity(
                 id = if (currentMangaId == -1L) 0L else currentMangaId,
                 title = draftTitle.value.ifBlank { "Untitled" },
@@ -348,14 +410,80 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                 position = _manga.value?.position ?: 0,
                 lastReadTitle = _manga.value?.lastReadTitle,
                 lastReadPage = _manga.value?.lastReadPage,
-                genre = draftGenre.value.ifBlank { null }
+                genre = genreString
             )
             val newId = withContext(Dispatchers.IO) { libraryDao.insertManga(entity) }
             if (currentMangaId == -1L) {
                 currentMangaId = newId
             }
+
+            // Save EntryMetadata to entry.json / metadata.json
+            val context = getApplication<Application>().applicationContext
+            val updatedMeta = EntryMetadata(
+                title = entity.title,
+                altTitle = draftAltTitle.value,
+                author = draftAuthor.value,
+                artist = draftArtist.value,
+                description = entity.description,
+                type = when (entity.contentType) {
+                    0 -> if (entity.genre?.contains("manhua", ignoreCase = true) == true) "Manhua" 
+                         else if (entity.genre?.contains("manhwa", ignoreCase = true) == true) "Manhwa" 
+                         else "Manga"
+                    1 -> "Book"
+                    2 -> if (entity.boxPurpose == "series") "Series Video" else "Channel Video"
+                    else -> "Media"
+                },
+                status = draftStatus.value,
+                rating = draftRating.value,
+                tags = currentTags,
+                publisher = draftPublisher.value,
+                serialization = draftSerialization.value,
+                year = draftYear.value,
+                totalChapters = _chapters.value.size
+            )
+            withContext(Dispatchers.IO) {
+                MediaMetadataManager.saveMetadata(context, currentMangaId, entity.parentUri, updatedMeta)
+            }
+            _entryMetadata.value = updatedMeta
+
             _isEditMode.value = false
             loadManga(currentMangaId)
+        }
+    }
+
+    fun addTag(tag: String) {
+        val clean = tag.trim()
+        if (clean.isNotBlank() && !_assignedTags.value.any { it.equals(clean, ignoreCase = true) }) {
+            _assignedTags.value = _assignedTags.value + clean
+            syncGenreWithTags()
+        }
+    }
+
+    fun removeTag(tag: String) {
+        _assignedTags.value = _assignedTags.value.filterNot { it.equals(tag, ignoreCase = true) }
+        syncGenreWithTags()
+    }
+
+    private fun syncGenreWithTags() {
+        draftGenre.value = _assignedTags.value.joinToString(", ")
+    }
+
+    fun setTagQuery(query: String) {
+        _tagQuery.value = query
+        searchMasterTags(query)
+    }
+
+    fun toggleTagSearchVisible() {
+        _isTagSearchVisible.value = !_isTagSearchVisible.value
+    }
+
+    fun searchMasterTags(query: String) {
+        viewModelScope.launch {
+            val context = getApplication<Application>().applicationContext
+            val suggestions = withContext(Dispatchers.IO) {
+                MediaMetadataManager.searchMasterTags(context, query)
+            }
+            _tagSuggestions.value = suggestions
         }
     }
 
