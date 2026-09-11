@@ -59,6 +59,8 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
     val draftIsNsfw = MutableStateFlow(false)
     val draftCoverPath = MutableStateFlow("")
     val draftGenre = MutableStateFlow("")
+    val draftContentType = MutableStateFlow(0)
+    val draftBoxPurpose = MutableStateFlow<String?>(null)
 
     private val _isImporting = MutableStateFlow(false)
     val isImporting: StateFlow<Boolean> = _isImporting
@@ -81,6 +83,8 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
             draftDescription.value = ""
             draftIsNsfw.value = false
             draftCoverPath.value = ""
+            draftContentType.value = 0
+            draftBoxPurpose.value = null
             _chapters.value = emptyList()
             _childBoxes.value = emptyList()
         } else {
@@ -94,6 +98,8 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                     draftIsNsfw.value = m.isNsfw
                     draftCoverPath.value = m.coverPath
                     draftGenre.value = m.genre ?: ""
+                    draftContentType.value = m.contentType
+                    draftBoxPurpose.value = m.boxPurpose
                     
                     val rootId = m.parentMangaId ?: m.id
                     val root = if (m.parentMangaId == null) m else withContext(Dispatchers.IO) { libraryDao.getMangaById(rootId) }
@@ -335,10 +341,10 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                 isNsfw = draftIsNsfw.value,
                 parentUri = _manga.value?.parentUri ?: "",
                 lastModified = System.currentTimeMillis(),
-                contentType = _manga.value?.contentType ?: 0,
+                contentType = draftContentType.value,
                 parentMangaId = _manga.value?.parentMangaId,
                 boxLabel = _manga.value?.boxLabel,
-                boxPurpose = _manga.value?.boxPurpose,
+                boxPurpose = draftBoxPurpose.value,
                 position = _manga.value?.position ?: 0,
                 lastReadTitle = _manga.value?.lastReadTitle,
                 lastReadPage = _manga.value?.lastReadPage,
@@ -350,6 +356,86 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
             }
             _isEditMode.value = false
             loadManga(currentMangaId)
+        }
+    }
+
+    fun setMaterialTag(tag: String) {
+        when (tag) {
+            "Manga" -> {
+                draftContentType.value = 0
+                if (draftGenre.value.contains("manhua", ignoreCase = true) || draftGenre.value.contains("manhwa", ignoreCase = true) || draftGenre.value.contains("webtoon", ignoreCase = true)) {
+                    draftGenre.value = "Manga"
+                }
+            }
+            "Manhua" -> {
+                draftContentType.value = 0
+                draftGenre.value = "Manhua"
+            }
+            "Book" -> {
+                draftContentType.value = 1
+            }
+            "Series Video" -> {
+                draftContentType.value = 2
+                draftBoxPurpose.value = "series"
+            }
+            "Channel Video" -> {
+                draftContentType.value = 2
+                draftBoxPurpose.value = "channel"
+            }
+        }
+    }
+
+    fun updateMaterialTagDirectly(tag: String) {
+        val m = _manga.value ?: return
+        setMaterialTag(tag)
+        viewModelScope.launch {
+            val updated = when (tag) {
+                "Manga" -> m.copy(
+                    contentType = 0,
+                    genre = if (m.genre?.contains("manhua", ignoreCase = true) == true || m.genre?.contains("manhwa", ignoreCase = true) == true || m.genre?.contains("webtoon", ignoreCase = true) == true) "Manga" else m.genre
+                )
+                "Manhua" -> m.copy(
+                    contentType = 0,
+                    genre = "Manhua"
+                )
+                "Book" -> m.copy(
+                    contentType = 1
+                )
+                "Series Video" -> m.copy(
+                    contentType = 2,
+                    boxPurpose = "series"
+                )
+                "Channel Video" -> m.copy(
+                    contentType = 2,
+                    boxPurpose = "channel"
+                )
+                else -> m
+            }
+            withContext(Dispatchers.IO) {
+                libraryDao.insertManga(updated)
+            }
+            loadManga(m.id)
+        }
+    }
+
+    fun getEffectiveMaterialTag(isEdit: Boolean): String {
+        return if (isEdit) {
+            when (draftContentType.value) {
+                0 -> if (draftGenre.value.contains("manhua", ignoreCase = true) || draftGenre.value.contains("manhwa", ignoreCase = true) || draftGenre.value.contains("webtoon", ignoreCase = true)) "Manhua" else "Manga"
+                1 -> "Book"
+                2 -> if (draftBoxPurpose.value == "channel") "Channel Video" else "Series Video"
+                3 -> "Music"
+                else -> "Manga"
+            }
+        } else {
+            val m = _manga.value
+            when (m?.contentType) {
+                0 -> if (m.genre?.contains("manhua", ignoreCase = true) == true || m.genre?.contains("manhwa", ignoreCase = true) == true || m.genre?.contains("webtoon", ignoreCase = true) == true) "Manhua" else "Manga"
+                1 -> "Book"
+                2 -> if (m.boxPurpose == "channel") "Channel Video" else "Series Video"
+                3 -> "Music"
+                else -> "Manga"
+            }
         }
     }
 

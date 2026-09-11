@@ -1,5 +1,6 @@
 package com.ballade.hwaran.frontend.description
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import java.io.File
 import android.content.Intent
@@ -40,8 +41,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -710,66 +714,42 @@ fun DescriptionScreen(
                                     }
                                 }
 
-                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    // Thoughts
-                                    AnnotatedCard(
-                                        modifier = Modifier.fillMaxWidth().graphicsLayer(alpha = descriptionUiTransparency),
-                                        title = "My Thoughts",
-                                        coverTransparency = descriptionUiTransparency,
-                                        cardBg = CardBg
-                                    ) {
-                                        if (isEditMode) {
-                                            TextField(
-                                                value = draftThoughts,
-                                                onValueChange = { descriptionViewModel.draftThoughts.value = it },
-                                                placeholder = { Text("add text here", color = TextMuted, fontSize = 14.sp) },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                colors = TextFieldDefaults.colors(
-                                                    focusedContainerColor = Color.Transparent,
-                                                    unfocusedContainerColor = Color.Transparent,
-                                                    focusedIndicatorColor = PrimaryPurple,
-                                                    unfocusedIndicatorColor = DividerColor,
-                                                    focusedTextColor = Color.White,
-                                                    unfocusedTextColor = Color.White
-                                                )
+                                // Description Card (paired with Cover Art)
+                                AnnotatedCard(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(220.dp)
+                                        .graphicsLayer(alpha = descriptionUiTransparency),
+                                    title = "Description",
+                                    coverTransparency = descriptionUiTransparency,
+                                    cardBg = CardBg
+                                ) {
+                                    if (isEditMode) {
+                                        TextField(
+                                            value = draftDesc,
+                                            onValueChange = { descriptionViewModel.draftDescription.value = it },
+                                            modifier = Modifier.fillMaxSize(),
+                                            placeholder = { Text("add text here", color = TextMuted, fontSize = 14.sp) },
+                                            colors = TextFieldDefaults.colors(
+                                                focusedContainerColor = Color.Transparent,
+                                                unfocusedContainerColor = Color.Transparent,
+                                                focusedIndicatorColor = PrimaryPurple,
+                                                unfocusedIndicatorColor = DividerColor,
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White
                                             )
-                                        } else {
-                                            Text(
-                                                text = manga?.thoughts ?: "No thoughts added.",
-                                                color = TextMuted,
-                                                fontSize = 14.sp,
-                                                lineHeight = 18.sp
-                                            )
-                                        }
-                                    }
-
-                                    // Description
-                                    AnnotatedCard(
-                                        modifier = Modifier.fillMaxWidth().graphicsLayer(alpha = descriptionUiTransparency),
-                                        title = "Description",
-                                        coverTransparency = descriptionUiTransparency,
-                                        cardBg = CardBg
-                                    ) {
-                                        if (isEditMode) {
-                                            TextField(
-                                                value = draftDesc,
-                                                onValueChange = { descriptionViewModel.draftDescription.value = it },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                placeholder = { Text("add text here", color = TextMuted, fontSize = 14.sp) },
-                                                colors = TextFieldDefaults.colors(
-                                                    focusedContainerColor = Color.Transparent,
-                                                    unfocusedContainerColor = Color.Transparent,
-                                                    focusedIndicatorColor = PrimaryPurple,
-                                                    unfocusedIndicatorColor = DividerColor,
-                                                    focusedTextColor = Color.White,
-                                                    unfocusedTextColor = Color.White
-                                                )
-                                            )
-                                        } else {
+                                        )
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .verticalScroll(rememberScrollState())
+                                        ) {
                                             Text(
                                                 text = manga?.description ?: "No description added yet.",
                                                 color = TextMuted,
-                                                fontSize = 14.sp
+                                                fontSize = 14.sp,
+                                                lineHeight = 18.sp
                                             )
                                         }
                                     }
@@ -782,10 +762,10 @@ fun DescriptionScreen(
                                     .padding(top = if (isEditMode) 0.dp else 16.dp),
                                 verticalAlignment = Alignment.Top
                             ) {
-                                // Cover Art (Red Box 1)
+                                // Cover Art
                                 Box(
                                     modifier = Modifier
-                                        .size(160.dp, 220.dp)
+                                        .size(150.dp, 210.dp)
                                         .clip(RoundedCornerShape(24.dp))
                                         .background(CardBg)
                                         .clickable(enabled = isEditMode) { imagePickerLauncher.launch(arrayOf("image/*")) },
@@ -810,17 +790,20 @@ fun DescriptionScreen(
                                 if (!isDeleteMode) {
                                     Spacer(modifier = Modifier.width(12.dp))
 
-                                    // Thoughts Card (Blue Box 2)
+                                    // Description Card (paired with Cover Art)
                                     AnnotatedCard(
-                                        modifier = Modifier.weight(1f).height(220.dp).graphicsLayer(alpha = descriptionUiTransparency),
-                                        title = "My Thoughts",
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(210.dp)
+                                            .graphicsLayer(alpha = descriptionUiTransparency),
+                                        title = "Description",
                                         coverTransparency = descriptionUiTransparency,
                                         cardBg = CardBg
                                     ) {
                                         if (isEditMode) {
                                             TextField(
-                                                value = draftThoughts,
-                                                onValueChange = { descriptionViewModel.draftThoughts.value = it },
+                                                value = draftDesc,
+                                                onValueChange = { descriptionViewModel.draftDescription.value = it },
                                                 placeholder = { Text("add text here", color = TextMuted, fontSize = 14.sp) },
                                                 modifier = Modifier.fillMaxSize(),
                                                 colors = TextFieldDefaults.colors(
@@ -833,12 +816,18 @@ fun DescriptionScreen(
                                                 )
                                             )
                                         } else {
-                                            Text(
-                                                text = manga?.thoughts ?: "No thoughts added.",
-                                                color = TextMuted,
-                                                fontSize = 14.sp,
-                                                lineHeight = 18.sp
-                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .verticalScroll(rememberScrollState())
+                                            ) {
+                                                Text(
+                                                    text = manga?.description ?: "No description added yet.",
+                                                    color = TextMuted,
+                                                    fontSize = 14.sp,
+                                                    lineHeight = 18.sp
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -847,36 +836,80 @@ fun DescriptionScreen(
                     }
                 }
 
-                if (!isDeleteMode && !isChannelMode && !isLandscape) {
-                    // Description Card (Blue Box 3)
+                if (!isDeleteMode && !isChannelMode) {
+                    // Material Type Tag Section (Tag 1)
                     item {
+                        val materialTags = remember { listOf("Manga", "Manhua", "Book", "Series Video", "Channel Video") }
+                        val currentSelectedTag = descriptionViewModel.getEffectiveMaterialTag(isEditMode)
+
                         AnnotatedCard(
-                            modifier = Modifier.fillMaxWidth().graphicsLayer(alpha = descriptionUiTransparency),
-                            title = "Description",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 12.dp)
+                                .graphicsLayer(alpha = descriptionUiTransparency),
+                            title = "Material Type",
                             coverTransparency = descriptionUiTransparency,
                             cardBg = CardBg
                         ) {
-                            if (isEditMode) {
-                                TextField(
-                                    value = draftDesc,
-                                    onValueChange = { descriptionViewModel.draftDescription.value = it },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    placeholder = { Text("add text here", color = TextMuted, fontSize = 14.sp) },
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color.Transparent,
-                                        unfocusedContainerColor = Color.Transparent,
-                                        focusedIndicatorColor = PrimaryPurple,
-                                        unfocusedIndicatorColor = DividerColor,
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(materialTags) { tag ->
+                                    val isSelected = currentSelectedTag.equals(tag, ignoreCase = true)
+                                    val pillBg by animateColorAsState(
+                                        targetValue = if (isSelected) Color(glowColor).copy(alpha = 0.25f) else Color.White.copy(alpha = 0.05f),
+                                        animationSpec = tween(200),
+                                        label = "tagBg"
                                     )
-                                )
-                            } else {
-                                Text(
-                                    text = manga?.description ?: "No description added yet.",
-                                    color = TextMuted,
-                                    fontSize = 14.sp
-                                )
+                                    val pillBorder by animateColorAsState(
+                                        targetValue = if (isSelected) Color(glowColor).copy(alpha = 0.85f) else Color.White.copy(alpha = 0.12f),
+                                        animationSpec = tween(200),
+                                        label = "tagBorder"
+                                    )
+                                    val pillTextColor by animateColorAsState(
+                                        targetValue = if (isSelected) Color.White else TextMuted,
+                                        animationSpec = tween(200),
+                                        label = "tagText"
+                                    )
+
+                                    Surface(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable {
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                if (isEditMode) {
+                                                    descriptionViewModel.setMaterialTag(tag)
+                                                } else {
+                                                    descriptionViewModel.updateMaterialTagDirectly(tag)
+                                                }
+                                            },
+                                        color = pillBg,
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(1.dp, pillBorder)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            if (isSelected) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(6.dp)
+                                                        .clip(CircleShape)
+                                                        .background(Color(glowColor))
+                                                )
+                                            }
+                                            Text(
+                                                text = tag,
+                                                color = pillTextColor,
+                                                fontSize = 13.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

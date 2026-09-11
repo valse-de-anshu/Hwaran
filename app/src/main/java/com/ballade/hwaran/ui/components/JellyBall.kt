@@ -83,7 +83,7 @@ fun JellyBall(
                     jumpTimer += elapsedMs
 
                     val targetJumpTime = if (isHappy) 300f else 6000f
-                    if ((enableJump || isHappy) && jumpTimer > targetJumpTime && !isJumping) {
+                    if (enableJump && jumpTimer > targetJumpTime && !isJumping) {
                         isJumping = true
                         jumpProgress = 0f
                     }

@@ -157,7 +157,8 @@ fun AppNavGraph(
                     settingsViewModel = settingsViewModel,
                     musicViewModel = musicViewModel,
                     onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
-                    onNavigateToDescription = { mangaId -> navController.navigate(Screen.Description.createRoute(mangaId)) }
+                    onNavigateToDescription = { mangaId -> navController.navigate(Screen.Description.createRoute(mangaId)) },
+                    onNavigateToHistory = { navController.navigate(Screen.History.route) }
                 )
             }
         }
