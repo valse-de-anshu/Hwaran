@@ -90,6 +90,10 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
     val draftYear = MutableStateFlow("")
     val draftStatus = MutableStateFlow("Ongoing")
     val draftRating = MutableStateFlow("8.7 (152K)")
+    val draftLanguage = MutableStateFlow("English")
+    val draftPages = MutableStateFlow("")
+    val draftMaterialTag = MutableStateFlow("Manga")
+    val draftIsFavorite = MutableStateFlow(false)
 
     private val _isImporting = MutableStateFlow(false)
     val isImporting: StateFlow<Boolean> = _isImporting
@@ -124,6 +128,10 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
             draftYear.value = ""
             draftStatus.value = "Ongoing"
             draftRating.value = "8.7 (152K)"
+            draftLanguage.value = "English"
+            draftPages.value = ""
+            draftMaterialTag.value = "Manga"
+            draftIsFavorite.value = false
             _chapters.value = emptyList()
             _childBoxes.value = emptyList()
         } else {
@@ -145,7 +153,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                         MediaMetadataManager.loadMetadata(context, mangaId, m.parentUri, m)
                     }
                     _entryMetadata.value = meta
-                    _assignedTags.value = meta.tags
+                    _assignedTags.value = meta.tags.filterNot { it.equals("Favorite", ignoreCase = true) }
                     draftAltTitle.value = meta.altTitle
                     draftAuthor.value = meta.author
                     draftArtist.value = meta.artist
@@ -154,6 +162,19 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                     draftYear.value = meta.year
                     draftStatus.value = meta.status
                     draftRating.value = meta.rating
+                    draftLanguage.value = meta.language.ifBlank { "English" }
+                    draftPages.value = meta.pages
+                    draftIsFavorite.value = m.isFavorite || meta.isFavorite
+                    draftMaterialTag.value = when {
+                        meta.type.isNotBlank() && listOf("Book", "Manhua", "Manga", "Series", "Channel").any { it.equals(meta.type, ignoreCase = true) } -> {
+                            listOf("Book", "Manhua", "Manga", "Series", "Channel").first { it.equals(meta.type, ignoreCase = true) }
+                        }
+                        m.contentType == 1 || m.boxPurpose == "book" -> "Book"
+                        m.contentType == 2 && m.boxPurpose == "channel" -> "Channel"
+                        m.contentType == 2 -> "Series"
+                        m.contentType == 0 && (m.boxPurpose == "manhua" || m.genre?.contains("manhua", ignoreCase = true) == true || m.genre?.contains("manhwa", ignoreCase = true) == true) -> "Manhua"
+                        else -> "Manga"
+                    }
                     searchMasterTags("")
                     
                     val rootId = m.parentMangaId ?: m.id
@@ -347,7 +368,64 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                 workspace = parent.workspace
             )
             val newId = withContext(Dispatchers.IO) { libraryDao.insertManga(entity) }
+            loadManga(currentMangaId)
             onCreated(newId)
+        }
+    }
+
+    private val _availableMediaForLinking = MutableStateFlow<List<MangaEntity>>(emptyList())
+    val availableMediaForLinking: StateFlow<List<MangaEntity>> = _availableMediaForLinking
+
+    fun loadAvailableMediaForLinking() {
+        viewModelScope.launch {
+            val root = _manga.value ?: return@launch
+            val all = withContext(Dispatchers.IO) { libraryDao.getAllMangaList() }
+            val rootId = root.parentMangaId ?: root.id
+            val linkedIds = _childBoxes.value.map { it.id }.toSet() + rootId
+            _availableMediaForLinking.value = all.filter { it.id !in linkedIds }
+        }
+    }
+
+    fun linkExistingMediaAsRelated(targetMangaId: Long, relationType: String, customLabel: String? = null, onLinked: () -> Unit = {}) {
+        val root = _manga.value ?: return
+        viewModelScope.launch {
+            val rootId = root.parentMangaId ?: root.id
+            val target = withContext(Dispatchers.IO) { libraryDao.getMangaById(targetMangaId) } ?: return@launch
+            val nextPosition = _childBoxes.value.size
+            val updated = target.copy(
+                parentMangaId = rootId,
+                boxPurpose = relationType,
+                boxLabel = if (!customLabel.isNullOrBlank()) customLabel else target.title,
+                position = nextPosition
+            )
+            withContext(Dispatchers.IO) { libraryDao.insertManga(updated) }
+            loadManga(currentMangaId)
+            onLinked()
+        }
+    }
+
+    fun unlinkRelatedMedia(targetMangaId: Long, onUnlinked: () -> Unit = {}) {
+        viewModelScope.launch {
+            val target = withContext(Dispatchers.IO) { libraryDao.getMangaById(targetMangaId) } ?: return@launch
+            val updated = target.copy(
+                parentMangaId = null,
+                boxPurpose = if (target.contentType == 2) "series" else target.boxPurpose
+            )
+            withContext(Dispatchers.IO) { libraryDao.insertManga(updated) }
+            loadManga(currentMangaId)
+            onUnlinked()
+        }
+    }
+
+    fun deleteRelatedMedia(targetMangaId: Long, onDeleted: () -> Unit = {}) {
+        viewModelScope.launch {
+            val target = withContext(Dispatchers.IO) { libraryDao.getMangaById(targetMangaId) } ?: return@launch
+            withContext(Dispatchers.IO) {
+                trackDao.deleteChaptersByMangaId(targetMangaId)
+                libraryDao.deleteManga(target)
+            }
+            loadManga(currentMangaId)
+            onDeleted()
         }
     }
 
@@ -387,11 +465,27 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
 
     fun saveManga() {
         viewModelScope.launch {
-            val currentTags = _assignedTags.value
+            val currentTags = _assignedTags.value.filterNot { it.equals("Favorite", ignoreCase = true) }
+            val matTag = draftMaterialTag.value
+            val currentContentType = when (matTag) {
+                "Book" -> 1
+                "Series", "Channel" -> 2
+                else -> 0
+            }
+            val currentBoxPurpose = when (matTag) {
+                "Book" -> "book"
+                "Manhua" -> "manhua"
+                "Manga" -> "manga"
+                "Series" -> "series"
+                "Channel" -> "channel"
+                else -> draftBoxPurpose.value
+            }
             val genreString = if (currentTags.isNotEmpty()) {
                 currentTags.joinToString(", ")
+            } else if (matTag == "Manhua") {
+                "Manhua"
             } else {
-                draftGenre.value.ifBlank { null }
+                null
             }
 
             val entity = MangaEntity(
@@ -403,14 +497,15 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                 isNsfw = draftIsNsfw.value,
                 parentUri = _manga.value?.parentUri ?: "",
                 lastModified = System.currentTimeMillis(),
-                contentType = draftContentType.value,
+                contentType = currentContentType,
                 parentMangaId = _manga.value?.parentMangaId,
                 boxLabel = _manga.value?.boxLabel,
-                boxPurpose = draftBoxPurpose.value,
+                boxPurpose = currentBoxPurpose,
                 position = _manga.value?.position ?: 0,
                 lastReadTitle = _manga.value?.lastReadTitle,
                 lastReadPage = _manga.value?.lastReadPage,
-                genre = genreString
+                genre = genreString,
+                isFavorite = draftIsFavorite.value
             )
             val newId = withContext(Dispatchers.IO) { libraryDao.insertManga(entity) }
             if (currentMangaId == -1L) {
@@ -425,21 +520,17 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                 author = draftAuthor.value,
                 artist = draftArtist.value,
                 description = entity.description,
-                type = when (entity.contentType) {
-                    0 -> if (entity.genre?.contains("manhua", ignoreCase = true) == true) "Manhua" 
-                         else if (entity.genre?.contains("manhwa", ignoreCase = true) == true) "Manhwa" 
-                         else "Manga"
-                    1 -> "Book"
-                    2 -> if (entity.boxPurpose == "series") "Series Video" else "Channel Video"
-                    else -> "Media"
-                },
+                type = matTag,
                 status = draftStatus.value,
                 rating = draftRating.value,
                 tags = currentTags,
                 publisher = draftPublisher.value,
                 serialization = draftSerialization.value,
                 year = draftYear.value,
-                totalChapters = _chapters.value.size
+                language = draftLanguage.value,
+                pages = draftPages.value,
+                totalChapters = _chapters.value.size,
+                isFavorite = draftIsFavorite.value
             )
             withContext(Dispatchers.IO) {
                 MediaMetadataManager.saveMetadata(context, currentMangaId, entity.parentUri, updatedMeta)
@@ -488,25 +579,25 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     fun setMaterialTag(tag: String) {
+        draftMaterialTag.value = tag
         when (tag) {
             "Manga" -> {
                 draftContentType.value = 0
-                if (draftGenre.value.contains("manhua", ignoreCase = true) || draftGenre.value.contains("manhwa", ignoreCase = true) || draftGenre.value.contains("webtoon", ignoreCase = true)) {
-                    draftGenre.value = "Manga"
-                }
+                draftBoxPurpose.value = "manga"
             }
             "Manhua" -> {
                 draftContentType.value = 0
-                draftGenre.value = "Manhua"
+                draftBoxPurpose.value = "manhua"
             }
             "Book" -> {
                 draftContentType.value = 1
+                draftBoxPurpose.value = "book"
             }
-            "Series Video" -> {
+            "Series", "Series Video" -> {
                 draftContentType.value = 2
                 draftBoxPurpose.value = "series"
             }
-            "Channel Video" -> {
+            "Channel", "Channel Video" -> {
                 draftContentType.value = 2
                 draftBoxPurpose.value = "channel"
             }
@@ -520,50 +611,64 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
             val updated = when (tag) {
                 "Manga" -> m.copy(
                     contentType = 0,
+                    boxPurpose = "manga",
                     genre = if (m.genre?.contains("manhua", ignoreCase = true) == true || m.genre?.contains("manhwa", ignoreCase = true) == true || m.genre?.contains("webtoon", ignoreCase = true) == true) "Manga" else m.genre
                 )
                 "Manhua" -> m.copy(
                     contentType = 0,
+                    boxPurpose = "manhua",
                     genre = "Manhua"
                 )
                 "Book" -> m.copy(
-                    contentType = 1
+                    contentType = 1,
+                    boxPurpose = "book"
                 )
-                "Series Video" -> m.copy(
+                "Series", "Series Video" -> m.copy(
                     contentType = 2,
                     boxPurpose = "series"
                 )
-                "Channel Video" -> m.copy(
+                "Channel", "Channel Video" -> m.copy(
                     contentType = 2,
                     boxPurpose = "channel"
                 )
                 else -> m
             }
-            withContext(Dispatchers.IO) {
-                libraryDao.insertManga(updated)
-            }
-            loadManga(m.id)
+            withContext(Dispatchers.IO) { libraryDao.insertManga(updated) }
+            loadManga(currentMangaId)
         }
     }
 
-    fun getEffectiveMaterialTag(isEdit: Boolean): String {
+    fun getDisplayContentType(isEdit: Boolean = false): String {
         return if (isEdit) {
-            when (draftContentType.value) {
-                0 -> if (draftGenre.value.contains("manhua", ignoreCase = true) || draftGenre.value.contains("manhwa", ignoreCase = true) || draftGenre.value.contains("webtoon", ignoreCase = true)) "Manhua" else "Manga"
-                1 -> "Book"
-                2 -> if (draftBoxPurpose.value == "channel") "Channel Video" else "Series Video"
-                3 -> "Music"
-                else -> "Manga"
-            }
+            draftMaterialTag.value
         } else {
             val m = _manga.value
-            when (m?.contentType) {
-                0 -> if (m.genre?.contains("manhua", ignoreCase = true) == true || m.genre?.contains("manhwa", ignoreCase = true) == true || m.genre?.contains("webtoon", ignoreCase = true) == true) "Manhua" else "Manga"
-                1 -> "Book"
-                2 -> if (m.boxPurpose == "channel") "Channel Video" else "Series Video"
-                3 -> "Music"
+            when {
+                m?.contentType == 1 || m?.boxPurpose == "book" -> "Book"
+                m?.contentType == 2 && m?.boxPurpose == "channel" -> "Channel"
+                m?.contentType == 2 -> "Series"
+                m?.contentType == 0 && (m.boxPurpose == "manhua" || m.genre?.contains("manhua", ignoreCase = true) == true || m.genre?.contains("manhwa", ignoreCase = true) == true) -> "Manhua"
                 else -> "Manga"
             }
+        }
+    }
+
+    fun getEffectiveMaterialTag(isEdit: Boolean): String = getDisplayContentType(isEdit)
+
+    fun toggleFavorite() {
+        val m = _manga.value ?: return
+        val newFav = !draftIsFavorite.value
+        draftIsFavorite.value = newFav
+        viewModelScope.launch {
+            val updatedManga = m.copy(isFavorite = newFav)
+            withContext(Dispatchers.IO) { libraryDao.insertManga(updatedManga) }
+            val context = getApplication<Application>().applicationContext
+            val meta = _entryMetadata.value.copy(isFavorite = newFav)
+            withContext(Dispatchers.IO) {
+                MediaMetadataManager.saveMetadata(context, m.id, m.parentUri, meta)
+            }
+            _entryMetadata.value = meta
+            _manga.value = updatedManga
         }
     }
 

@@ -23,7 +23,8 @@ data class MangaEntity(
     val lastReadPage: Int? = null,
     val genre: String? = null,
     val workspace: String? = null,
-    val openCount: Int = 0
+    val openCount: Int = 0,
+    val isFavorite: Boolean = false
 )
 
 @Entity(tableName = "chapter")

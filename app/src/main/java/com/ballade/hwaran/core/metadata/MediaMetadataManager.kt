@@ -23,7 +23,10 @@ data class EntryMetadata(
     val publisher: String = "",
     val serialization: String = "",
     val year: String = "",
-    val totalChapters: Int = 0
+    val language: String = "English",
+    val pages: String = "",
+    val totalChapters: Int = 0,
+    val isFavorite: Boolean = false
 )
 
 data class MasterTagItem(
@@ -80,11 +83,11 @@ object MediaMetadataManager {
         val all = getMasterTags(context)
         if (query.isBlank()) {
             val popularNames = listOf(
-                "Action", "Adventure", "Comedy", "Drama", "Fantasy",
-                "Horror", "Isekai", "Mystery", "Romance", "Sci-Fi",
-                "Slice of Life", "Supernatural", "Psychological",
-                "Martial Arts", "Shounen", "Seinen", "Shoujo", "Josei",
-                "Historical", "School Life", "Super Power", "Tragedy", "Ecchi"
+                "Action", "Adventure", "Fantasy", "Light Novel", "Web Novel",
+                "Fiction", "Cultivation", "LitRPG", "Comedy", "Drama",
+                "Mystery", "Romance", "Sci-Fi", "Slice of Life", "Supernatural",
+                "Psychological", "Martial Arts", "Horror", "Isekai", "Historical",
+                "Non-Fiction", "Classic Literature", "Dystopian", "Philosophy"
             )
             val popularItems = popularNames.mapNotNull { name ->
                 all.firstOrNull { it.tag.equals(name, ignoreCase = true) }
@@ -158,11 +161,12 @@ object MediaMetadataManager {
                 if (tagsArr != null) {
                     for (i in 0 until tagsArr.length()) {
                         val t = tagsArr.getString(i).trim()
-                        if (t.isNotEmpty()) tagsList.add(t)
+                        if (t.isNotEmpty() && !t.equals("Favorite", ignoreCase = true)) tagsList.add(t)
                     }
                 }
-                val entityGenreTags = manga?.genre?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
+                val entityGenreTags = manga?.genre?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() && !it.equals("Favorite", ignoreCase = true) } ?: emptyList()
                 val mergedTags = (tagsList + entityGenreTags).distinct()
+                val isFav = obj.optBoolean("isFavorite", obj.optBoolean("favorite", manga?.isFavorite == true))
 
                 return@withContext EntryMetadata(
                     title = obj.optString("title", manga?.title ?: ""),
@@ -177,7 +181,10 @@ object MediaMetadataManager {
                     publisher = obj.optString("publisher", ""),
                     serialization = obj.optString("serialization", ""),
                     year = obj.optString("year", ""),
-                    totalChapters = obj.optInt("totalChapters", 0)
+                    language = obj.optString("language", "English"),
+                    pages = obj.optString("pages", obj.optString("pageCount", "")),
+                    totalChapters = obj.optInt("totalChapters", 0),
+                    isFavorite = isFav
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -185,26 +192,32 @@ object MediaMetadataManager {
         }
 
         // Fallback default from MangaEntity
-        val defaultTags = manga?.genre?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
+        val defaultTags = manga?.genre?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() && !it.equals("Favorite", ignoreCase = true) } ?: emptyList()
         EntryMetadata(
             title = manga?.title ?: "",
             altTitle = "",
             author = "",
             artist = "",
             description = manga?.description?.takeIf { it != "No description added yet." } ?: "",
-            type = manga?.boxPurpose ?: "Manga",
+            type = manga?.boxPurpose ?: if (manga?.contentType == 1) "Book" else "Manga",
             status = "Ongoing",
             rating = "8.7 (152K)",
             tags = defaultTags,
             publisher = "",
             serialization = "",
             year = "",
-            totalChapters = 0
+            language = "English",
+            pages = "",
+            totalChapters = 0,
+            isFavorite = manga?.isFavorite == true
         )
     }
 
     /**
-     * Persists entry.json into the external folder (if accessible) and in the app internal metadata cache.
+     * Saves EntryMetadata to:
+     * 1. Internal app cache (files/metadata/{mangaId}.json)
+     * 2. Local entry.json in parentUri directory (if writable)
+     * 3. SAF entry.json (if content:// tree URI)
      */
     suspend fun saveMetadata(
         context: Context,
@@ -225,7 +238,10 @@ object MediaMetadataManager {
             put("publisher", metadata.publisher)
             put("serialization", metadata.serialization)
             put("year", metadata.year)
+            put("language", metadata.language)
+            put("pages", metadata.pages)
             put("totalChapters", metadata.totalChapters)
+            put("isFavorite", metadata.isFavorite)
         }
         val content = obj.toString(2)
 

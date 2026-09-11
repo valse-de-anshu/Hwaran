@@ -50,7 +50,7 @@ fun LibraryView(
 ) {
     val haptic = LocalHapticFeedback.current
     val tags = remember {
-        listOf("All", "Manga", "Manhua", "Book", "Series Video", "Channel Video", "Music")
+        listOf("All", "Favorite", "Book", "Manhua", "Manga", "Series", "Channel")
     }
 
     var selectedTag by remember(initialTag) { mutableStateOf(initialTag) }
@@ -65,20 +65,29 @@ fun LibraryView(
         val nonNsfw = allManga.filter { !it.isNsfw }
         when (selectedTag) {
             "All" -> nonNsfw
-            "Manga" -> nonNsfw.filter {
-                it.contentType == 0 && (it.genre == null || (!it.genre.contains("manhua", ignoreCase = true) && !it.genre.contains("manhwa", ignoreCase = true) && !it.genre.contains("webtoon", ignoreCase = true)))
-            }
+            "Favorite" -> nonNsfw.filter { it.isFavorite || it.genre?.contains("favorite", ignoreCase = true) == true }
+            "Book" -> nonNsfw.filter { it.contentType == 1 || it.boxPurpose == "book" }
             "Manhua" -> nonNsfw.filter {
-                it.contentType == 0 && (it.genre?.contains("manhua", ignoreCase = true) == true ||
-                        it.genre?.contains("manhwa", ignoreCase = true) == true ||
-                        it.genre?.contains("webtoon", ignoreCase = true) == true ||
-                        it.title.contains("manhua", ignoreCase = true) ||
-                        it.title.contains("manhwa", ignoreCase = true))
+                (it.contentType == 0 || it.boxPurpose == "manhua") && (
+                    it.boxPurpose == "manhua" ||
+                    it.genre?.contains("manhua", ignoreCase = true) == true ||
+                    it.genre?.contains("manhwa", ignoreCase = true) == true ||
+                    it.genre?.contains("webtoon", ignoreCase = true) == true ||
+                    it.title.contains("manhua", ignoreCase = true) ||
+                    it.title.contains("manhwa", ignoreCase = true)
+                )
             }
-            "Book" -> nonNsfw.filter { it.contentType == 1 }
-            "Series Video" -> nonNsfw.filter { it.contentType == 2 && (it.boxPurpose == "series" || it.boxPurpose == null) }
-            "Channel Video" -> nonNsfw.filter { it.contentType == 2 && it.boxPurpose == "channel" }
-            "Music" -> allManga.filter { it.contentType == 3 }
+            "Manga" -> nonNsfw.filter {
+                it.contentType == 0 && it.boxPurpose != "manhua" && it.boxPurpose != "book" && (
+                    it.genre == null || (
+                        !it.genre.contains("manhua", ignoreCase = true) &&
+                        !it.genre.contains("manhwa", ignoreCase = true) &&
+                        !it.genre.contains("webtoon", ignoreCase = true)
+                    )
+                )
+            }
+            "Series" -> nonNsfw.filter { (it.contentType == 2 || it.boxPurpose == "series") && it.boxPurpose != "channel" }
+            "Channel" -> nonNsfw.filter { (it.contentType == 2 || it.boxPurpose == "channel") && it.boxPurpose == "channel" }
             else -> nonNsfw
         }
     }

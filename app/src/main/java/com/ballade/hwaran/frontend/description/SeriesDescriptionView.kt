@@ -2,8 +2,6 @@ package com.ballade.hwaran.frontend.description
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -20,7 +18,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -46,9 +43,10 @@ import com.ballade.hwaran.core.util.CoverArtResolver
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ToonDescriptionView(
+fun SeriesDescriptionView(
     manga: MangaEntity,
     chapters: List<ChapterEntity>,
+    childBoxes: List<MangaEntity>,
     entryMetadata: EntryMetadata,
     assignedTags: List<String>,
     isEditMode: Boolean,
@@ -65,7 +63,6 @@ fun ToonDescriptionView(
     draftStatus: String,
     draftRating: String,
     draftLanguage: String,
-    draftPages: String,
     draftMaterialTag: String,
     draftIsFavorite: Boolean,
     draftDesc: String,
@@ -75,13 +72,14 @@ fun ToonDescriptionView(
     onSaveManga: () -> Unit,
     onNavigateBack: () -> Unit,
     onNavigateToMedia: (Long, Int) -> Unit,
-    onOpenChapters: () -> Unit,
+    onOpenRelated: (String) -> Unit = {},
     onToggleFavorite: () -> Unit,
     onAddTag: (String) -> Unit,
     onRemoveTag: (String) -> Unit,
     onSetTagQuery: (String) -> Unit,
     onToggleTagSearchVisible: () -> Unit,
     onPickCover: () -> Unit,
+    onPickEpisodes: () -> Unit,
     onSetMaterialTag: (String) -> Unit,
     onUpdateDraftTitle: (String) -> Unit,
     onUpdateDraftAltTitle: (String) -> Unit,
@@ -93,7 +91,6 @@ fun ToonDescriptionView(
     onUpdateDraftStatus: (String) -> Unit,
     onUpdateDraftRating: (String) -> Unit,
     onUpdateDraftLanguage: (String) -> Unit,
-    onUpdateDraftPages: (String) -> Unit,
     onUpdateDraftDesc: (String) -> Unit,
     onDeleteManga: () -> Unit
 ) {
@@ -104,8 +101,6 @@ fun ToonDescriptionView(
 
     var isSynopsisExpanded by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
-
-    val isSingleFileBook = manga.contentType == 1 && chapters.size <= 1
 
     val resolvedCoverModel = remember(manga.coverPath, draftCover, isEditMode) {
         val path = if (isEditMode && draftCover.isNotBlank()) draftCover else manga.coverPath
@@ -121,12 +116,12 @@ fun ToonDescriptionView(
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // Generous Top Spacer ensuring full clearance below camera punch hole/notch
+            // Top Spacer ensuring clean clearance below camera punch hole/notch
             item {
-                Spacer(modifier = Modifier.statusBarsPadding().displayCutoutPadding().height(120.dp))
+                Spacer(modifier = Modifier.statusBarsPadding().displayCutoutPadding().height(64.dp))
             }
 
-            // ── Hero Media Card (Flexible for long titles) ──
+            // ── Hero Series Card ──
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -151,13 +146,13 @@ fun ToonDescriptionView(
                                     .data(resolvedCoverModel)
                                     .crossfade(true)
                                     .build(),
-                                contentDescription = "Cover Art",
+                                contentDescription = "Series Cover",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
                             Icon(
-                                imageVector = if (manga.contentType == 1) Icons.Rounded.Book else Icons.AutoMirrored.Rounded.MenuBook,
+                                imageVector = Icons.Rounded.Movie,
                                 contentDescription = null,
                                 tint = TextMuted,
                                 modifier = Modifier.size(40.dp)
@@ -192,24 +187,16 @@ fun ToonDescriptionView(
                         }
                     }
 
-                    // Metadata Column (Flexible wrapping for big titles)
+                    // Metadata Column
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .padding(top = 2.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Tag 1: Material Type Pill (Book / Manhua / Manga / Series / Channel) & Favorite Badge
+                        // Tag 1: Material Type Pill (Series) & Favorite Badge
                         val effectiveType = if (isEditMode) draftMaterialTag else {
-                            entryMetadata.type.ifBlank {
-                                when {
-                                    manga.contentType == 1 || manga.boxPurpose == "book" -> "Book"
-                                    (manga.contentType == 2 && manga.boxPurpose == "channel") -> "Channel"
-                                    manga.contentType == 2 -> "Series"
-                                    manga.contentType == 0 && (manga.boxPurpose == "manhua" || manga.genre?.contains("manhua", ignoreCase = true) == true || manga.genre?.contains("manhwa", ignoreCase = true) == true) -> "Manhua"
-                                    else -> "Manga"
-                                }
-                            }
+                            entryMetadata.type.ifBlank { "Series" }
                         }
 
                         if (isEditMode) {
@@ -245,8 +232,8 @@ fun ToonDescriptionView(
                             ) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = PrimaryPurple.copy(alpha = 0.18f),
-                                    border = BorderStroke(1.dp, PrimaryPurple.copy(alpha = 0.4f))
+                                    color = Color(0xFF673AB7).copy(alpha = 0.20f),
+                                    border = BorderStroke(1.dp, Color(0xFF9575CD).copy(alpha = 0.45f))
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -257,11 +244,11 @@ fun ToonDescriptionView(
                                             modifier = Modifier
                                                 .size(6.dp)
                                                 .clip(CircleShape)
-                                                .background(PrimaryPurple)
+                                                .background(Color(0xFF9575CD))
                                         )
                                         Text(
                                             text = effectiveType.uppercase(),
-                                            color = PrimaryPurple,
+                                            color = Color(0xFFD1C4E9),
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             letterSpacing = 0.8.sp
@@ -299,12 +286,12 @@ fun ToonDescriptionView(
                             }
                         }
 
-                        // Title (Unrestricted lines for big names)
+                        // Title
                         if (isEditMode) {
                             TextField(
                                 value = draftTitle,
                                 onValueChange = onUpdateDraftTitle,
-                                placeholder = { Text(if (manga.contentType == 1) "Book / Novel Title" else "Manga Title", color = TextMuted, fontSize = 16.sp) },
+                                placeholder = { Text("Series / Anime Title", color = TextMuted, fontSize = 16.sp) },
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
                                     unfocusedContainerColor = Color.Transparent,
@@ -324,13 +311,13 @@ fun ToonDescriptionView(
                             )
                         }
 
-                        // Alternative / Native Title
+                        // Alternative Title / Japanese Title
                         val alt = if (isEditMode) draftAltTitle else entryMetadata.altTitle
                         if (isEditMode) {
                             TextField(
                                 value = draftAltTitle,
                                 onValueChange = onUpdateDraftAltTitle,
-                                placeholder = { Text("Alt / Native Title", color = TextMuted, fontSize = 12.sp) },
+                                placeholder = { Text("Alt / Romaji Title", color = TextMuted, fontSize = 12.sp) },
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
                                     unfocusedContainerColor = Color.Transparent,
@@ -350,8 +337,8 @@ fun ToonDescriptionView(
                         }
 
                         // Status & Rating Line
-                        val status = if (isEditMode) draftStatus else entryMetadata.status.ifBlank { "Ongoing" }
-                        val rating = if (isEditMode) draftRating else entryMetadata.rating.ifBlank { "8.7 (152K)" }
+                        val status = if (isEditMode) draftStatus else entryMetadata.status.ifBlank { "Completed" }
+                        val rating = if (isEditMode) draftRating else entryMetadata.rating.ifBlank { "8.8 (120K)" }
 
                         if (isEditMode) {
                             Row(
@@ -406,34 +393,26 @@ fun ToonDescriptionView(
                                 Text("•", color = TextMuted, fontSize = 12.sp)
                                 Text(
                                     text = status,
-                                    color = if (status.contains("ongoing", ignoreCase = true)) Color(0xFF4CAF50) else PrimaryPurple,
+                                    color = if (status.contains("ongoing", ignoreCase = true) || status.contains("airing", ignoreCase = true)) Color(0xFF4CAF50) else PrimaryPurple,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }
 
-                        // Chapters Count Badge
-                        if (!isSingleFileBook) {
-                            Text(
-                                text = "${chapters.size} Chapters available",
-                                color = TextMuted,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
-                        } else if (manga.contentType == 1) {
-                            Text(
-                                text = "Single Document / Volume",
-                                color = TextMuted,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
-                        }
+                        // Episodes & Franchise Badge
+                        val episodeText = if (chapters.isNotEmpty()) "${chapters.size} Episodes available" else "No episodes imported yet"
+                        Text(
+                            text = episodeText,
+                            color = TextMuted,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
                     }
                 }
             }
 
-            // ── Tags Section (Tag 2 - Website Style with ✕ cut buttons) ──
+            // ── Tags Section (Tag 2 - Master Tags with ✕ cut buttons) ──
             item {
                 Column(
                     modifier = Modifier
@@ -451,109 +430,111 @@ fun ToonDescriptionView(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text(
-                                text = "Tags",
-                                color = Color.White,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
+                            Icon(
+                                imageVector = Icons.Rounded.LocalOffer,
+                                contentDescription = null,
+                                tint = PrimaryPurple,
+                                modifier = Modifier.size(16.dp)
                             )
-                            Surface(
-                                shape = CircleShape,
-                                color = Color.White.copy(alpha = 0.08f)
-                            ) {
-                                Text(
-                                    text = "${assignedTags.size}",
-                                    color = TextMuted,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
+                            Text(
+                                text = "GENRES & TAGS",
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 1.sp
+                            )
                         }
 
-                        // Summon Tag Searcher button
-                        Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { onToggleTagSearchVisible() },
-                            color = if (isTagSearchVisible) PrimaryPurple.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
-                            border = BorderStroke(1.dp, if (isTagSearchVisible) PrimaryPurple else Color.White.copy(alpha = 0.12f)),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        if (isEditMode) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isTagSearchVisible) PrimaryPurple.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.06f),
+                                border = BorderStroke(1.dp, if (isTagSearchVisible) PrimaryPurple else Color.White.copy(alpha = 0.12f)),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { onToggleTagSearchVisible() }
                             ) {
-                                Icon(
-                                    imageVector = if (isTagSearchVisible) Icons.Rounded.Close else Icons.Rounded.Add,
-                                    contentDescription = "Search Tags",
-                                    tint = if (isTagSearchVisible) PrimaryPurple else Color.White,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Text(
-                                    text = if (isTagSearchVisible) "Close Search" else "Add Tag",
-                                    color = if (isTagSearchVisible) PrimaryPurple else Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isTagSearchVisible) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.Add,
+                                        contentDescription = null,
+                                        tint = if (isTagSearchVisible) PrimaryPurple else Color.White,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = if (isTagSearchVisible) "Close Tag Search" else "Add Tags",
+                                        color = if (isTagSearchVisible) PrimaryPurple else Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }
 
-                    // Assigned Tags FlowRow with ✕ Buttons
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        assignedTags.forEach { tag ->
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = CardBg.copy(alpha = 0.85f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(start = 10.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    // Assigned Tag Pills
+                    if (assignedTags.isNotEmpty()) {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            assignedTags.forEach { tag ->
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = CardBg,
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
                                 ) {
-                                    Text(
-                                        text = tag,
-                                        color = Color.White.copy(alpha = 0.9f),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    // ✕ Button to cut/remove unnecessary tag
-                                    IconButton(
-                                        onClick = { onRemoveTag(tag) },
-                                        modifier = Modifier.size(20.dp)
+                                    Row(
+                                        modifier = Modifier.padding(
+                                            start = 10.dp,
+                                            end = if (isEditMode) 4.dp else 10.dp,
+                                            top = 5.dp,
+                                            bottom = 5.dp
+                                        ),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Close,
-                                            contentDescription = "Remove $tag",
-                                            tint = Color.White.copy(alpha = 0.6f),
-                                            modifier = Modifier.size(12.dp)
+                                        Text(
+                                            text = tag,
+                                            color = Color.White.copy(alpha = 0.9f),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium
                                         )
+                                        if (isEditMode) {
+                                            IconButton(
+                                                onClick = { onRemoveTag(tag) },
+                                                modifier = Modifier.size(18.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Close,
+                                                    contentDescription = "Remove tag",
+                                                    tint = TextMuted,
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
-
-                        if (assignedTags.isEmpty()) {
-                            Text(
-                                text = "No tags assigned. Tap '+ Add Tag' to search master tags.",
-                                color = TextMuted,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(vertical = 4.dp)
-                            )
-                        }
+                    } else {
+                        Text(
+                            text = "No tags assigned.",
+                            color = TextMuted,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
                     }
 
-                    // Tag Searcher Panel (Summoned via + Add Tag)
+                    // Expandable Master Tag Searcher
                     AnimatedVisibility(
-                        visible = isTagSearchVisible || isEditMode,
-                        enter = expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
+                        visible = isEditMode && isTagSearchVisible,
+                        enter = expandVertically() + fadeIn(),
                         exit = shrinkVertically() + fadeOut()
                     ) {
                         Surface(
@@ -569,7 +550,7 @@ fun ToonDescriptionView(
                                     value = tagQuery,
                                     onValueChange = onSetTagQuery,
                                     modifier = Modifier.fillMaxWidth(),
-                                    placeholder = { Text("Search 4,000+ tags (Action, Isekai, Romance...)", color = TextMuted, fontSize = 12.sp) },
+                                    placeholder = { Text("Search 4,000+ tags (Action, Shounen, Sci-Fi...)", color = TextMuted, fontSize = 12.sp) },
                                     leadingIcon = {
                                         Icon(Icons.Rounded.Search, contentDescription = null, tint = PrimaryPurple, modifier = Modifier.size(18.dp))
                                     },
@@ -637,7 +618,6 @@ fun ToonDescriptionView(
                                         }
                                     }
 
-                                    // Add custom typed tag
                                     if (tagQuery.isNotBlank() && !tagSuggestions.any { it.tag.equals(tagQuery.trim(), ignoreCase = true) }) {
                                         Surface(
                                             modifier = Modifier
@@ -693,7 +673,7 @@ fun ToonDescriptionView(
                             OutlinedTextField(
                                 value = draftDesc,
                                 onValueChange = onUpdateDraftDesc,
-                                placeholder = { Text("Enter manga synopsis / description...", color = TextMuted, fontSize = 13.sp) },
+                                placeholder = { Text("Enter series synopsis / plot...", color = TextMuted, fontSize = 13.sp) },
                                 modifier = Modifier.fillMaxWidth(),
                                 minLines = 4,
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -705,7 +685,7 @@ fun ToonDescriptionView(
                                 shape = RoundedCornerShape(12.dp)
                             )
                         } else {
-                            val descriptionText = manga.description.ifBlank { "No description added yet." }
+                            val descriptionText = manga.description.ifBlank { "No synopsis added yet." }
                             val isLong = descriptionText.length > 160
 
                             Text(
@@ -747,7 +727,7 @@ fun ToonDescriptionView(
                 }
             }
 
-            // ── Action Row (Read, Chapters Window, Bookmark) - Hidden during Edit Mode ──
+            // ── Action Row (Watch, Related Window, Bookmark) - Hidden during Edit Mode ──
             if (!isEditMode) {
                 item {
                     Row(
@@ -755,21 +735,20 @@ fun ToonDescriptionView(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Primary "Read" Button -> Opens chapter 1 / book reader directly
+                        // 1. Primary "Watch" Button -> Starts/Resumes Episode 1 or Last Watched
+                        val targetEpisode = chapters.firstOrNull { it.title == manga.lastReadTitle }
+                            ?: chapters.firstOrNull()
+
                         Button(
                             onClick = {
-                                if (manga.contentType == 1) {
-                                    onNavigateToMedia(manga.id, 1)
+                                if (targetEpisode != null) {
+                                    onNavigateToMedia(targetEpisode.id, 2)
                                 } else {
-                                    val targetChapter = chapters.firstOrNull { it.title == manga.lastReadTitle }
-                                        ?: chapters.firstOrNull()
-                                    if (targetChapter != null) {
-                                        onNavigateToMedia(targetChapter.id, 0)
-                                    }
+                                    onPickEpisodes()
                                 }
                             },
                             modifier = Modifier
-                                .weight(if (isSingleFileBook) 1f else 1.2f)
+                                .weight(1.2f)
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
@@ -779,18 +758,15 @@ fun ToonDescriptionView(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.MenuBook,
+                                    imageVector = Icons.Rounded.PlayArrow,
                                     contentDescription = null,
                                     tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                                 Text(
-                                    text = if (manga.contentType == 1) {
-                                        if (manga.lastReadPage != null && manga.lastReadPage!! > 1) "Resume (p. ${manga.lastReadPage})"
-                                        else if (manga.lastReadTitle != null) "Resume" else "Read"
-                                    } else {
-                                        if (manga.lastReadTitle != null) "Resume" else "Read"
-                                    },
+                                    text = if (targetEpisode != null) {
+                                        if (manga.lastReadTitle != null) "Resume" else "Watch"
+                                    } else "Add Episodes",
                                     color = Color.White,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
@@ -798,40 +774,38 @@ fun ToonDescriptionView(
                             }
                         }
 
-                        // "Chapters" Button -> ONLY shown if NOT a single-file book
-                        if (!isSingleFileBook) {
-                            FilledTonalButton(
-                                onClick = onOpenChapters,
-                                modifier = Modifier
-                                    .weight(1.1f)
-                                    .height(48.dp),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = CardBg,
-                                    contentColor = Color.White
-                                ),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                        // 2. "Videos" Button -> Opens Videos / Related Media Window (Default: Videos)
+                        FilledTonalButton(
+                            onClick = { onOpenRelated("Videos") },
+                            modifier = Modifier
+                                .weight(1.1f)
+                                .height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = CardBg,
+                                contentColor = Color.White
+                            ),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.MenuBook,
-                                        contentDescription = null,
-                                        tint = PrimaryPurple,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Text(
-                                        text = "Chapters (${chapters.size})",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Rounded.VideoLibrary,
+                                    contentDescription = null,
+                                    tint = PrimaryPurple,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = if (chapters.isNotEmpty()) "Videos (${chapters.size})" else "Videos",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
                         }
 
-                        // Bookmark / In Library Button -> Connected with Favorite
+                        // 3. Bookmark / Favorite Button
                         val isFavorite = draftIsFavorite || manga.isFavorite
 
                         OutlinedButton(
@@ -855,7 +829,7 @@ fun ToonDescriptionView(
                 }
             }
 
-            // ── Additional Information Grid ──
+            // ── Additional Series Details Card ──
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -863,153 +837,104 @@ fun ToonDescriptionView(
                     color = CardBg,
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
                         Text(
-                            text = "Additional Information",
+                            text = "Series Details",
                             color = Color.White,
                             fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 12.dp)
+                            fontWeight = FontWeight.Bold
                         )
 
-                        // 2-Column Key-Value Grid
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            if (manga.contentType == 1) {
-                                // Book additional info: Author, Publisher, Published, Language, Status, Pages
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Author",
-                                        value = if (isEditMode) draftAuthor else entryMetadata.author.ifBlank { "Unknown" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftAuthor
-                                    )
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Publisher",
-                                        value = if (isEditMode) draftPublisher else entryMetadata.publisher.ifBlank { "Unknown" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftPublisher
-                                    )
-                                }
-                                HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Published",
-                                        value = if (isEditMode) draftYear else entryMetadata.year.ifBlank { "Unknown" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftYear
-                                    )
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Language",
-                                        value = if (isEditMode) draftLanguage else entryMetadata.language.ifBlank { "English" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftLanguage
-                                    )
-                                }
-                                HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Status",
-                                        value = if (isEditMode) draftStatus else entryMetadata.status.ifBlank { "Completed" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftStatus
-                                    )
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Pages",
-                                        value = if (isEditMode) draftPages else entryMetadata.pages.ifBlank { "—" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftPages
-                                    )
-                                }
-                            } else {
-                                // Manga / Manhua additional info
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Author",
-                                        value = if (isEditMode) draftAuthor else entryMetadata.author.ifBlank { "Unknown" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftAuthor
-                                    )
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Artist",
-                                        value = if (isEditMode) draftArtist else entryMetadata.artist.ifBlank { "Unknown" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftArtist
-                                    )
-                                }
-                                HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Publisher",
-                                        value = if (isEditMode) draftPublisher else entryMetadata.publisher.ifBlank { "Unknown" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftPublisher
-                                    )
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Serialization",
-                                        value = if (isEditMode) draftSerialization else entryMetadata.serialization.ifBlank { "Unknown" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftSerialization
-                                    )
-                                }
-                                HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Year",
-                                        value = if (isEditMode) draftYear else entryMetadata.year.ifBlank { "Unknown" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftYear
-                                    )
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Status",
-                                        value = if (isEditMode) draftStatus else entryMetadata.status.ifBlank { "Ongoing" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftStatus
-                                    )
-                                }
-                            }
+                        // Row 1: Studio & Network / Broadcast
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            MetadataItemView(
+                                modifier = Modifier.weight(1f),
+                                label = "Studio / Director",
+                                value = if (isEditMode) draftArtist else entryMetadata.artist.ifBlank { "Unknown Studio" },
+                                isEditMode = isEditMode,
+                                onValueChange = onUpdateDraftArtist
+                            )
+                            MetadataItemView(
+                                modifier = Modifier.weight(1f),
+                                label = "Network / Platform",
+                                value = if (isEditMode) draftSerialization else entryMetadata.serialization.ifBlank { "Original" },
+                                isEditMode = isEditMode,
+                                onValueChange = onUpdateDraftSerialization
+                            )
+                        }
+
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+
+                        // Row 2: Year & Language
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            MetadataItemView(
+                                modifier = Modifier.weight(1f),
+                                label = "Release Year",
+                                value = if (isEditMode) draftYear else entryMetadata.year.ifBlank { "2024" },
+                                isEditMode = isEditMode,
+                                onValueChange = onUpdateDraftYear
+                            )
+                            MetadataItemView(
+                                modifier = Modifier.weight(1f),
+                                label = "Audio / Subtitles",
+                                value = if (isEditMode) draftLanguage else entryMetadata.language.ifBlank { "Japanese / Sub" },
+                                isEditMode = isEditMode,
+                                onValueChange = onUpdateDraftLanguage
+                            )
+                        }
+
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+
+                        // Row 3: Status & Total Episodes
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            MetadataItemView(
+                                modifier = Modifier.weight(1f),
+                                label = "Status",
+                                value = if (isEditMode) draftStatus else entryMetadata.status.ifBlank { "Completed" },
+                                isEditMode = isEditMode,
+                                onValueChange = onUpdateDraftStatus
+                            )
+                            MetadataItemView(
+                                modifier = Modifier.weight(1f),
+                                label = "Total Episodes",
+                                value = "${chapters.size}",
+                                isEditMode = false,
+                                onValueChange = {}
+                            )
                         }
                     }
                 }
             }
 
-            // Bottom clearance
+            // Bottom spacer for comfortable scrolling
             item {
-                Spacer(modifier = Modifier.height(if (isEditMode) 200.dp else 48.dp))
+                Spacer(modifier = Modifier.height(140.dp))
             }
         }
 
-        // ── 2. Top Bar (Positioned well below camera cutout/notch, hidden during edit mode) ──
+        // ── 2. Top Floating Navigation Bar ──
         if (!isEditMode) {
-            Row(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .align(Alignment.TopCenter)
                     .statusBarsPadding()
                     .displayCutoutPadding()
-                    .padding(top = 36.dp, start = 18.dp, end = 18.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 20.dp, vertical = 10.dp)
             ) {
-                // Minimal Frosted Back Button
+                // Back Button
                 Surface(
+                    shape = CircleShape,
+                    color = Color.Black.copy(alpha = 0.65f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
                     modifier = Modifier
+                        .align(Alignment.CenterStart)
                         .size(42.dp)
                         .clip(CircleShape)
-                        .clickable { onNavigateBack() },
-                    shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.08f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                        .clickable { onNavigateBack() }
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -1021,16 +946,16 @@ fun ToonDescriptionView(
                     }
                 }
 
-                // 3-Dot More Menu Button (Re-activated, Pencil removed)
-                Box {
+                // More Menu Button (3 Dots)
+                Box(modifier = Modifier.align(Alignment.CenterEnd)) {
                     Surface(
+                        shape = CircleShape,
+                        color = Color.Black.copy(alpha = 0.65f),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
                         modifier = Modifier
                             .size(42.dp)
                             .clip(CircleShape)
-                            .clickable { showMoreMenu = true },
-                        shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.08f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                            .clickable { showMoreMenu = true }
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
@@ -1053,10 +978,7 @@ fun ToonDescriptionView(
                                 onToggleEditMode()
                             },
                             leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Rounded.Edit,
-                                    contentDescription = null
-                                )
+                                Icon(Icons.Rounded.Edit, contentDescription = null)
                             }
                         )
                         DropdownMenuItem(
@@ -1069,21 +991,39 @@ fun ToonDescriptionView(
                                 Icon(Icons.Rounded.Image, contentDescription = null)
                             }
                         )
-                        if (!isSingleFileBook) {
-                            DropdownMenuItem(
-                                text = { Text("Open Chapters") },
-                                onClick = {
-                                    showMoreMenu = false
-                                    onOpenChapters()
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.AutoMirrored.Rounded.MenuBook, contentDescription = null)
-                                }
-                            )
-                        }
+                        DropdownMenuItem(
+                            text = { Text("Add / Import Episodes") },
+                            onClick = {
+                                showMoreMenu = false
+                                onPickEpisodes()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Rounded.VideoFile, contentDescription = null)
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Videos (${chapters.size})") },
+                            onClick = {
+                                showMoreMenu = false
+                                onOpenRelated("Videos")
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Rounded.VideoLibrary, contentDescription = null)
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Franchise & Related (${childBoxes.size})") },
+                            onClick = {
+                                showMoreMenu = false
+                                onOpenRelated("Seasons")
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Rounded.Hub, contentDescription = null)
+                            }
+                        )
                         HorizontalDivider()
                         DropdownMenuItem(
-                            text = { Text("Delete Entry", color = Color(0xFFE57373)) },
+                            text = { Text("Delete Series", color = Color(0xFFE57373)) },
                             onClick = {
                                 showMoreMenu = false
                                 onDeleteManga()
@@ -1117,86 +1057,86 @@ fun ToonDescriptionView(
                 enter = expandVertically(expandFrom = Alignment.Bottom) + fadeIn(),
                 exit = shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut()
             ) {
-            Surface(
-                shape = CircleShape,
-                color = Color(0xFF16131F).copy(alpha = 0.95f),
-                border = BorderStroke(
-                    1.dp,
-                    Brush.horizontalGradient(
-                        listOf(
-                            PrimaryPurple.copy(alpha = 0.5f),
-                            Color.White.copy(alpha = 0.15f),
-                            PrimaryPurple.copy(alpha = 0.5f)
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFF16131F).copy(alpha = 0.95f),
+                    border = BorderStroke(
+                        1.dp,
+                        Brush.horizontalGradient(
+                            listOf(
+                                PrimaryPurple.copy(alpha = 0.5f),
+                                Color.White.copy(alpha = 0.15f),
+                                PrimaryPurple.copy(alpha = 0.5f)
+                            )
                         )
-                    )
-                ),
-                shadowElevation = 16.dp
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    ),
+                    shadowElevation = 16.dp
                 ) {
-                    // Tactile Frosted Cancel Pill
-                    Surface(
-                        shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.08f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .clickable { onToggleEditMode() }
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        // Cancel Pill
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.08f),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable { onToggleEditMode() }
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Cancel",
-                                tint = Color.White.copy(alpha = 0.7f),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = "Cancel",
-                                color = Color.White.copy(alpha = 0.85f),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Cancel",
+                                    tint = Color.White.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Cancel",
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
-                    }
 
-                    // Radiant Glowing Save Changes Pill
-                    Surface(
-                        shape = CircleShape,
-                        color = PrimaryPurple,
-                        shadowElevation = 6.dp,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .clickable { onSaveManga() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        // Save Changes Pill
+                        Surface(
+                            shape = CircleShape,
+                            color = PrimaryPurple,
+                            shadowElevation = 6.dp,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable { onSaveManga() }
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = "Save Changes",
-                                color = Color.White,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.2.sp
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Check,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "Save Changes",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.2.sp
+                                )
+                            }
                         }
                     }
                 }
-            }
             }
         }
     }
