@@ -42,8 +42,9 @@ All notable changes, architectural milestones, and structural refactors to this 
 - **Non-Intrusive Golden Sticky Ribbon Tabs (`BookPlayerScreen.kt`)**:
   - Completely removed intrusive, opaque text cards that covered document text in the top-left area.
   - Replaced with a sleek, minimalist golden bookmark ribbon (`Alignment.TopEnd`) resting in the blank top-right margin like a physical sticky flag. Tapping it opens the full note detail or page notes view without obscuring body text.
-- **Interactive Page Stepper in Notes Modal (`BookPlayerScreen.kt`)**:
-  - Added an interactive `< Page X >` stepper in the Page Notes dialog, allowing readers to view, switch, and add notes to any page with unambiguous confirmation.
+- **Streamlined Page Notes Dialog (`BookPlayerScreen.kt`)**:
+  - Automatically anchors directly to the page currently being read (`Notes • Page X`), eliminating clunky page steppers or manual switching.
+  - One-tap "Save Note" directly persists notes to the active page without requiring navigation or spamming buttons.
 - **3-Button Android Navigation Bar Clearance (`BookPlayerScreen.kt`)**:
   - Replaced generic `.navigationBarsPadding()` with an explicit safe inset calculator (`maxOf(navigationBars, systemBars) + 16.dp`, with a 60dp fallback).
   - Lifts the bottom dock pill gracefully above Android's 3-button navigation bar (Back, Home, Recents) on all devices, completely eliminating touch overlap.

@@ -294,7 +294,7 @@ fun BookPlayerScreen(
     val redoStack = remember { mutableStateListOf<PdfAnnotationAction>() }
     val textNotes = remember { mutableStateListOf<PdfTextNote>() }
     var showNotesDialog by remember { mutableStateOf(false) }
-    var selectedNotePage by remember { mutableIntStateOf(1) }
+    var noteDialogPage by remember { mutableIntStateOf(1) }
     var noteInputText by remember { mutableStateOf("") }
     var noteForDetailDialog by remember { mutableStateOf<PdfTextNote?>(null) }
 
@@ -957,7 +957,7 @@ fun BookPlayerScreen(
                                                 deleteNote(note)
                                             },
                                             onOpenPageNotes = { pageNum ->
-                                                selectedNotePage = pageNum
+                                                noteDialogPage = pageNum
                                                 showNotesDialog = true
                                             },
                                             onScrollToPage = { targetPage ->
@@ -1441,6 +1441,7 @@ fun BookPlayerScreen(
                                                     .clip(CircleShape)
                                                     .clickable {
                                                         noteInputText = ""
+                                                        noteDialogPage = currentPage + 1
                                                         showNotesDialog = true
                                                     }
                                             ) {
@@ -1553,7 +1554,7 @@ fun BookPlayerScreen(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.StickyNote2,
@@ -1561,80 +1562,39 @@ fun BookPlayerScreen(
                             tint = Color(0xFFFFD54F),
                             modifier = Modifier.size(20.dp)
                         )
-                        Text("Notes", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+                        Text(
+                            text = "Notes • Page $noteDialogPage",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = Color.White
+                        )
                     }
 
-                    // Interactive Page Stepper
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    IconButton(
+                        onClick = {
+                            showNotesDialog = false
+                            noteInputText = ""
+                        },
+                        modifier = Modifier.size(28.dp)
                     ) {
-                        IconButton(
-                            onClick = { if (selectedNotePage > 1) selectedNotePage-- },
-                            enabled = selectedNotePage > 1,
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = "Previous Page",
-                                tint = if (selectedNotePage > 1) Color.White else Color.White.copy(alpha = 0.25f),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFFFFD54F).copy(alpha = 0.16f),
-                            border = BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.45f))
-                        ) {
-                            Text(
-                                text = "Page $selectedNotePage",
-                                color = Color(0xFFFFD54F),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = { if (selectedNotePage < pageCount) selectedNotePage++ },
-                            enabled = selectedNotePage < pageCount,
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                                contentDescription = "Next Page",
-                                tint = if (selectedNotePage < pageCount) Color.White else Color.White.copy(alpha = 0.25f),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = {
-                                showNotesDialog = false
-                                noteInputText = ""
-                            },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Close",
-                                tint = Color.White.copy(alpha = 0.6f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Close",
+                            tint = Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
             },
             text = {
-                val currentPageNotes = textNotes.filter { it.page == selectedNotePage }
+                val currentPageNotes = textNotes.filter { it.page == noteDialogPage }
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     if (currentPageNotes.isNotEmpty()) {
                         Text(
-                            text = "Notes on Page $selectedNotePage:",
+                            text = "Notes on Page $noteDialogPage:",
                             color = Color.White.copy(alpha = 0.7f),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
@@ -1688,7 +1648,7 @@ fun BookPlayerScreen(
                     OutlinedTextField(
                         value = noteInputText,
                         onValueChange = { noteInputText = it },
-                        placeholder = { Text("Write note for Page $selectedNotePage...", color = Color.White.copy(alpha = 0.4f), fontSize = 13.sp) },
+                        placeholder = { Text("Write note for Page $noteDialogPage...", color = Color.White.copy(alpha = 0.4f), fontSize = 13.sp) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 80.dp, max = 130.dp),
@@ -1705,7 +1665,7 @@ fun BookPlayerScreen(
             },
             confirmButton = {
                 Button(
-                    onClick = { addNoteToPage(selectedNotePage, noteInputText) },
+                    onClick = { addNoteToPage(noteDialogPage, noteInputText) },
                     enabled = noteInputText.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFFFFD54F),
@@ -1715,7 +1675,7 @@ fun BookPlayerScreen(
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Save to Page $selectedNotePage", fontWeight = FontWeight.Bold)
+                    Text("Save Note", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
