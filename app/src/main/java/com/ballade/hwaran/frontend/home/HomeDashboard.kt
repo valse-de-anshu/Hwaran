@@ -58,6 +58,7 @@ fun HomeDashboard(
     onNavigateToHistory: () -> Unit,
     onNavigateToSearch: () -> Unit = {},
     onMediaShortcutClick: (tag: String) -> Unit,
+    onOpenMusic: () -> Unit = {},
     glowColor: Color = Color(0xFF9C27B0),
     modifier: Modifier = Modifier
 ) {
@@ -113,6 +114,9 @@ fun HomeDashboard(
     }
     val channelCount = remember(allManga) {
         allManga.count { !it.isNsfw && (it.contentType == 2 || it.boxPurpose == "channel") && it.boxPurpose == "channel" }
+    }
+    val musicCount = remember(allManga) {
+        allManga.count { !it.isNsfw && it.contentType == 3 }
     }
     val favoriteCount = remember(allManga) {
         allManga.count { !it.isNsfw && (it.isFavorite || it.genre?.contains("favorite", ignoreCase = true) == true) }
@@ -191,20 +195,31 @@ fun HomeDashboard(
         // 2. Large Horizontally Swipeable Promo Banner Carousel
         BannerCarouselSection(
             banners = promoBanners,
-            glowColor = glowColor
+            glowColor = glowColor,
+            onBannerClick = { page ->
+                when (page) {
+                    1 -> onMediaShortcutClick("Manga")
+                    2 -> onMediaShortcutClick("Book")
+                    3 -> onMediaShortcutClick("Series")
+                    4 -> onOpenMusic()
+                    else -> {}
+                }
+            }
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // 3. Media Shortcuts (Manhua, Manga, Series, Book, Channel, Favorite)
+        // 3. Media Shortcuts (Manhua, Manga, Series, Book, Channel, Music, Favorite)
         MediaShortcutsSection(
             manhuaCount = manhuaCount,
             mangaCount = mangaCount,
             seriesCount = seriesCount,
             bookCount = bookCount,
             channelCount = channelCount,
+            musicCount = musicCount,
             favoriteCount = favoriteCount,
-            onShortcutClick = onMediaShortcutClick
+            onShortcutClick = onMediaShortcutClick,
+            onMusicClick = onOpenMusic
         )
 
         Spacer(modifier = Modifier.height(28.dp))
@@ -311,7 +326,8 @@ private fun DashboardTopHeader(
 @Composable
 private fun BannerCarouselSection(
     banners: List<String>,
-    glowColor: Color
+    glowColor: Color,
+    onBannerClick: (Int) -> Unit = {}
 ) {
     val pagerState = rememberPagerState(pageCount = { banners.size })
     var scrollForward by remember { mutableStateOf(true) }
@@ -368,7 +384,8 @@ private fun BannerCarouselSection(
                         elevation = 12.dp,
                         shape = RoundedCornerShape(18.dp),
                         spotColor = glowColor.copy(alpha = 0.25f)
-                    ),
+                    )
+                    .clickable { onBannerClick(page) },
                 shape = RoundedCornerShape(18.dp),
                 color = Color(0xFF10151C),
                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
@@ -424,8 +441,10 @@ private fun MediaShortcutsSection(
     seriesCount: Int,
     bookCount: Int,
     channelCount: Int,
+    musicCount: Int,
     favoriteCount: Int,
-    onShortcutClick: (tag: String) -> Unit
+    onShortcutClick: (tag: String) -> Unit,
+    onMusicClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -450,6 +469,15 @@ private fun MediaShortcutsSection(
             count = mangaCount,
             accentColor = Color(0xFF81C784),
             onClick = { onShortcutClick("Manga") }
+        )
+
+        // Music
+        ShortcutCard(
+            icon = Icons.Rounded.MusicNote,
+            title = "Music",
+            count = musicCount,
+            accentColor = Color(0xFFEC407A),
+            onClick = onMusicClick
         )
 
         // Series

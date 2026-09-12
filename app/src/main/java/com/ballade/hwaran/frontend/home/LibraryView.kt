@@ -52,18 +52,21 @@ fun LibraryView(
     isLibraryLocked: Boolean = false,
     libraryPassword: String = "",
     glowColor: Color = Color(0xFF9C27B0),
+    onOpenMusic: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
     val tags = remember {
-        listOf("All", "Favorite", "Book", "Manhua", "Manga", "Series", "Channel")
+        listOf("All", "Favorite", "Music", "Book", "Manhua", "Manga", "Series", "Channel")
     }
 
-    var selectedTag by remember(initialTag) { mutableStateOf(initialTag) }
+    var selectedTag by remember(initialTag) { mutableStateOf(if (initialTag == "Music") "All" else initialTag) }
     val tagListState = rememberLazyListState()
 
     LaunchedEffect(initialTag) {
-        if (initialTag.isNotBlank()) {
+        if (initialTag == "Music") {
+            onOpenMusic()
+        } else if (initialTag.isNotBlank()) {
             selectedTag = initialTag
         }
     }
@@ -83,7 +86,7 @@ fun LibraryView(
 
     // Filter items based on selected tag
     val filteredManga = remember(allManga, selectedTag) {
-        val nonNsfw = allManga.filter { !it.isNsfw }
+        val nonNsfw = allManga.filter { !it.isNsfw && it.contentType != 3 }
         when (selectedTag) {
             "All" -> nonNsfw
             "Favorite" -> nonNsfw.filter { it.isFavorite || it.genre?.contains("favorite", ignoreCase = true) == true }
@@ -223,7 +226,11 @@ fun LibraryView(
                             .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                selectedTag = tag
+                                if (tag == "Music") {
+                                    onOpenMusic()
+                                } else {
+                                    selectedTag = tag
+                                }
                             }
                             .then(
                                 if (isSelected) Modifier.shadow(

@@ -8,6 +8,24 @@ All notable changes, architectural milestones, and structural refactors to this 
 
 ## [Current] - 2026-09-12
 
+### 🎵 Music Integration in Home & Library Screens
+- **Music Window Transitions (`HomeScreen.kt`)**:
+  - Integrated the existing `MusicScreen` architecture as a dedicated window within `HomeScreen`, maintaining unified navigation and full lifecycle compatibility.
+  - Tapping on Music from the Home dashboard shortcut or from the Library top pill bar smoothly opens the dedicated Music window (`activeDockTab = 4`).
+  - Seamlessly syncs with `settingsViewModel.activeTab` to automatically position the floating `MiniPlayer` above the navigation dock when audio is playing.
+  - Added back navigation handling via system back button (`BackHandler`) and an in-screen frosted back button returning to the previous screen (Home or Library).
+- **Home Dashboard Music Shortcut (`HomeDashboard.kt`)**:
+  - Added "Music" card to `MediaShortcutsSection` displaying total music playlists with `Icons.Rounded.MusicNote` and a vibrant accent color (`Color(0xFFEC407A)`).
+  - Tapping the Music shortcut immediately opens the Music window.
+  - Made Promo Banner 5 (Music) clickable to open the Music window directly.
+- **Library Top Pill Bar Integration (`LibraryView.kt`)**:
+  - Added a "Music" pill to the top tags row (`tags = ["All", "Favorite", "Music", "Book", "Manhua", "Manga", "Series", "Channel"]`).
+  - Tapping the "Music" pill opens the Music window instead of filtering the comic/book grid.
+  - Isolated music playlists (`contentType == 3`) from the poster/cover grid in `LibraryView` to maintain a pristine comic and book browsing experience.
+- **Music Screen Back Navigation & Mascot Quick Import (`MusicHomeScreen.kt`)**:
+  - Added a camera-safe, frosted circular Back button at `TopStart` (`52.dp` matching the action trigger at `TopEnd`).
+  - Tapping the mascot button in the bottom dock while in the Music window directly triggers the music folder picker.
+
 ### 📚 PDF & Book Reading Suite Overhaul
 - **Book Description Screen 3-Dot Menu (`BookDescriptionView.kt`)**:
   - Replaced side-by-side Edit and Delete buttons with the standard, elegant frosted 3-dot `MoreVert` button and `DropdownMenu` (Edit Information, Change Cover, Delete Book), matching the unified design of `ToonDescriptionView.kt`.

@@ -104,6 +104,7 @@ fun HomeScreen(
     onNavigateToHistory: () -> Unit = {}
 ) {
     var activeDockTab by remember { mutableIntStateOf(0) }
+    var previousDockTab by remember { mutableIntStateOf(0) }
     var libraryInitialTag by remember { mutableStateOf("All") }
     val isLibraryLocked by settingsViewModel.isLibraryLocked.collectAsState()
     val libraryPassword by settingsViewModel.libraryPassword.collectAsState()
@@ -113,6 +114,19 @@ fun HomeScreen(
     val importProgress by libraryViewModel.importProgress.collectAsState()
     val isMegaImporting by libraryViewModel.isMegaImporting.collectAsState()
     val megaImportProgress by libraryViewModel.megaImportProgress.collectAsState()
+
+    fun openMusicWindow() {
+        if (activeDockTab != 4) {
+            previousDockTab = activeDockTab
+            activeDockTab = 4
+            settingsViewModel.setActiveTab(1)
+        }
+    }
+
+    fun closeMusicWindow() {
+        activeDockTab = previousDockTab
+        settingsViewModel.setActiveTab(0)
+    }
 
     val storageMode by settingsViewModel.storageMode.collectAsState()
     val mediaMode by settingsViewModel.mediaMode.collectAsState()
@@ -147,11 +161,23 @@ fun HomeScreen(
     val database = remember(context) { AppDatabase.getDatabase(context) }
     val historyEvents by database.historyDao().getAllHistoryEventsFlow().collectAsState(initial = emptyList())
 
-    BackHandler(enabled = activeDockTab != 0) {
-        if (activeDockTab == 1) {
-            libraryInitialTag = "All"
+    LaunchedEffect(activeTab) {
+        if (activeTab == 1 && activeDockTab != 4) {
+            openMusicWindow()
+        } else if (activeTab == 0 && activeDockTab == 4) {
+            closeMusicWindow()
         }
-        activeDockTab = 0
+    }
+
+    BackHandler(enabled = activeDockTab != 0) {
+        if (activeDockTab == 4) {
+            closeMusicWindow()
+        } else {
+            if (activeDockTab == 1) {
+                libraryInitialTag = "All"
+            }
+            activeDockTab = 0
+        }
     }
     
     var showGenreDialog by remember { mutableStateOf(false) }
@@ -259,6 +285,14 @@ fun HomeScreen(
         }
     }
 
+    val musicFolderPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        uri?.let {
+            libraryViewModel.importMusicFolder(it, null)
+        }
+    }
+
     Scaffold(
         containerColor = Color.Transparent
     ) { padding ->
@@ -276,9 +310,14 @@ fun HomeScreen(
                             onNavigateToHistory = onNavigateToHistory,
                             onNavigateToSearch = { activeDockTab = 2 },
                             onMediaShortcutClick = { targetTag ->
-                                libraryInitialTag = targetTag
-                                activeDockTab = 1
+                                if (targetTag == "Music") {
+                                    openMusicWindow()
+                                } else {
+                                    libraryInitialTag = targetTag
+                                    activeDockTab = 1
+                                }
                             },
+                            onOpenMusic = { openMusicWindow() },
                             glowColor = Color(glowColor)
                         )
                     }
@@ -289,7 +328,8 @@ fun HomeScreen(
                             initialTag = libraryInitialTag,
                             isLibraryLocked = isLibraryLocked,
                             libraryPassword = libraryPassword,
-                            glowColor = Color(glowColor)
+                            glowColor = Color(glowColor),
+                            onOpenMusic = { openMusicWindow() }
                         )
                     }
                     2 -> {
@@ -298,6 +338,33 @@ fun HomeScreen(
                             onNavigateToDescription = onNavigateToDescription,
                             onBack = { activeDockTab = 0 },
                             glowColor = Color(glowColor)
+                        )
+                    }
+                    4 -> {
+                        val pillGradient = remember(glowColor) {
+                            val colors = when (glowColor) {
+                                0xFFD481D2L -> listOf(Color(0xFFD481D2), Color(0xFFBE74BE), Color(0xFF703B94))
+                                0xFFC3A6FEL -> listOf(Color(0xFFC3A6FE), Color(0xFF383852), Color(0xFF161622))
+                                0xFFFDE4E6L -> listOf(Color(0xFFFDE4E6), Color(0xFFE56A72), Color(0xFF992A31), Color(0xFF410C11))
+                                0xFF8EB69BL -> listOf(Color(0xFF8EB69B), Color(0xFF235347), Color(0xFF163832), Color(0xFF051F20))
+                                0xFFD6D3E5L -> listOf(Color(0xFFD6D3E5), Color(0xFFACA5B9), Color(0xFF8F85BE), Color(0xFF666A90), Color(0xFF433D6B))
+                                0xFF5C9FD9L -> listOf(Color(0xFF5C9FD9), Color(0xFF255DAC), Color(0xFF15326D), Color(0xFF111523))
+                                0xFFBDC6CDL -> listOf(Color(0xFFBDC6CD), Color(0xFF6A757E), Color(0xFF404C55), Color(0xFF111A22))
+                                0xFF7A6284L -> listOf(Color(0xFF7A6284), Color(0xFF52425C), Color(0xFF382B3F), Color(0xFF1F1823), Color(0xFF0C080D))
+                                else -> listOf(Color(glowColor), Color(glowColor))
+                            }
+                            Brush.linearGradient(colors)
+                        }
+                        MusicScreen(
+                            libraryViewModel = libraryViewModel,
+                            settingsViewModel = settingsViewModel,
+                            musicViewModel = musicViewModel,
+                            onNavigateToPlaylistDetail = onNavigateToDescription,
+                            onImportMusic = {
+                                musicFolderPickerLauncher.launch(null)
+                            },
+                            pillGradient = pillGradient,
+                            onBack = { closeMusicWindow() }
                         )
                     }
                 }
@@ -312,11 +379,14 @@ fun HomeScreen(
             ) {
                 Box(modifier = Modifier.graphicsLayer { alpha = homeUiTransparency }) {
                     HomeNavDock(
-                        selectedTab = activeDockTab,
+                        selectedTab = if (activeDockTab == 4) -1 else activeDockTab,
                         onTabSelected = { tab ->
                             if (tab == 3) {
                                 onNavigateToSettings()
                             } else {
+                                if (activeDockTab == 4) {
+                                    settingsViewModel.setActiveTab(0)
+                                }
                                 if (tab == 1 && activeDockTab != 1) {
                                     libraryInitialTag = "All"
                                 }
@@ -334,7 +404,9 @@ fun HomeScreen(
                                     android.widget.Toast.makeText(context, "Canceling… finishing current import", android.widget.Toast.LENGTH_SHORT).show()
                                 }
                             } else {
-                                if (mediaMode == 0 || mediaMode == 1 || mediaMode == 2) {
+                                if (activeDockTab == 4) {
+                                    musicFolderPickerLauncher.launch(null)
+                                } else if (mediaMode == 0 || mediaMode == 1 || mediaMode == 2) {
                                     showImportTypeDialog = true
                                 } else {
                                     folderPickerLauncher.launch(null)

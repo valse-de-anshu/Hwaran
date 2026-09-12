@@ -79,9 +79,10 @@ fun MusicHomeScreen(
     musicViewModel: MusicViewModel = viewModel(),
     onNavigateToPlaylistDetail: (Long) -> Unit,
     onImportMusic: () -> Unit,
-    pillGradient: Brush
+    pillGradient: Brush,
+    onBack: (() -> Unit)? = null
 ) {
-    MusicScreen(libraryViewModel, settingsViewModel, musicViewModel, onNavigateToPlaylistDetail, onImportMusic, pillGradient)
+    MusicScreen(libraryViewModel, settingsViewModel, musicViewModel, onNavigateToPlaylistDetail, onImportMusic, pillGradient, onBack)
 }
 
 @Composable
@@ -91,7 +92,8 @@ fun MusicScreen(
     musicViewModel: MusicViewModel = viewModel(),
     onNavigateToPlaylistDetail: (Long) -> Unit,
     onImportMusic: () -> Unit,
-    pillGradient: Brush
+    pillGradient: Brush,
+    onBack: (() -> Unit)? = null
 ) {
     val allManga by libraryViewModel.allMangaState.collectAsState()
     val isLoading by libraryViewModel.isLoading.collectAsState()
@@ -378,6 +380,34 @@ fun MusicScreen(
                             indication = null
                         ) { isMenuExpanded = false }
                 )
+            }
+
+            // Back Button at TopStart
+            if (onBack != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = if (isLandscape) 24.dp else 64.dp, start = 24.dp),
+                    contentAlignment = Alignment.TopStart
+                ) {
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onBack()
+                        },
+                        modifier = Modifier
+                            .size(52.dp)
+                            .background(Color.White.copy(alpha = 0.08f), CircleShape)
+                            .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
             }
 
             // Action Menu & Trigger - Repositioned to TopEnd with Horizontal Animation
