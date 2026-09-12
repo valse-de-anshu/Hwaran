@@ -19,6 +19,8 @@ import androidx.compose.foundation.border
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -291,7 +293,7 @@ fun BookPlayerScreen(
     val undoStack = remember { mutableStateListOf<PdfAnnotationAction>() }
     val redoStack = remember { mutableStateListOf<PdfAnnotationAction>() }
     val textNotes = remember { mutableStateListOf<PdfTextNote>() }
-    var showAddNoteDialog by remember { mutableStateOf(false) }
+    var showNotesDialog by remember { mutableStateOf(false) }
     var noteInputText by remember { mutableStateOf("") }
     var noteForDetailDialog by remember { mutableStateOf<PdfTextNote?>(null) }
 
@@ -320,8 +322,9 @@ fun BookPlayerScreen(
                 redoStack.add(action)
             }
             is PdfAnnotationAction.DeleteMarker -> {
-                pdfViewModel.addMarker(action.marker)
-                redoStack.add(action)
+                pdfViewModel.addMarker(action.marker) { inserted ->
+                    redoStack.add(PdfAnnotationAction.DeleteMarker(inserted))
+                }
             }
             is PdfAnnotationAction.AddNote -> {
                 textNotes.removeAll { it.id == action.note.id }
@@ -342,8 +345,9 @@ fun BookPlayerScreen(
         val action = redoStack.removeAt(redoStack.lastIndex)
         when (action) {
             is PdfAnnotationAction.AddMarker -> {
-                pdfViewModel.addMarker(action.marker)
-                undoStack.add(action)
+                pdfViewModel.addMarker(action.marker) { inserted ->
+                    undoStack.add(PdfAnnotationAction.AddMarker(inserted))
+                }
             }
             is PdfAnnotationAction.DeleteMarker -> {
                 pdfViewModel.deleteMarker(action.marker)
@@ -399,7 +403,7 @@ fun BookPlayerScreen(
         undoStack.add(PdfAnnotationAction.AddNote(note))
         redoStack.clear()
         noteInputText = ""
-        showAddNoteDialog = false
+        showNotesDialog = false
     }
 
     fun deleteNote(note: PdfTextNote) {
@@ -408,6 +412,22 @@ fun BookPlayerScreen(
         undoStack.add(PdfAnnotationAction.DeleteNote(note))
         redoStack.clear()
         noteForDetailDialog = null
+    }
+
+    fun deleteLatestHighlightOnCurrentPage() {
+        val currentMarkers = markers.filter { it.page == currentPage + 1 }
+        val currentNotes = textNotes.filter { it.page == currentPage + 1 }
+        if (currentMarkers.isNotEmpty()) {
+            val latestMarker = currentMarkers.last()
+            pdfViewModel.deleteMarker(latestMarker)
+            undoStack.add(PdfAnnotationAction.DeleteMarker(latestMarker))
+            redoStack.clear()
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        } else if (currentNotes.isNotEmpty()) {
+            val latestNote = currentNotes.last()
+            deleteNote(latestNote)
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
     }
 
     LaunchedEffect(currentPage, pageCount) {
@@ -912,12 +932,13 @@ fun BookPlayerScreen(
                                             isMarkerMode = isMarkerMode,
                                             activeColor = activeColor,
                                             markers = markers,
-                                            notes = textNotes,
+                                            notes = textNotes.toList(),
                                             eyeCareMode = eyeCareMode,
                                             onAddMarker = { marker ->
-                                                pdfViewModel.addMarker(marker)
-                                                undoStack.add(PdfAnnotationAction.AddMarker(marker))
-                                                redoStack.clear()
+                                                pdfViewModel.addMarker(marker) { inserted ->
+                                                    undoStack.add(PdfAnnotationAction.AddMarker(inserted))
+                                                    redoStack.clear()
+                                                }
                                             },
                                             onDeleteMarker = { marker ->
                                                 pdfViewModel.deleteMarker(marker)
@@ -926,6 +947,9 @@ fun BookPlayerScreen(
                                             },
                                             onSelectNote = { note ->
                                                 noteForDetailDialog = note
+                                            },
+                                            onDeleteNote = { note ->
+                                                deleteNote(note)
                                             },
                                             onScrollToPage = { targetPage ->
                                                 coroutineScope.launch {
@@ -1324,29 +1348,22 @@ fun BookPlayerScreen(
                                         shadowElevation = 14.dp
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                                             verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
-                                            // 1. Highlighter Button
+                                            // 1. Highlighter Toggle (Pure On/Off - NO popup!)
                                             Surface(
                                                 shape = CircleShape,
                                                 color = if (isMarkerMode) Color(activeColor).copy(alpha = 0.25f) else Color.Transparent,
                                                 border = if (isMarkerMode) BorderStroke(1.dp, Color(activeColor)) else null,
                                                 modifier = Modifier
-                                                    .size(42.dp)
+                                                    .size(38.dp)
                                                     .clip(CircleShape)
                                                     .clickable {
-                                                        if (isMarkerMode) {
-                                                            if (activeBottomPanel == PdfBottomPanel.HIGHLIGHTER) {
-                                                                isMarkerMode = false
-                                                                activeBottomPanel = null
-                                                            } else {
-                                                                activeBottomPanel = PdfBottomPanel.HIGHLIGHTER
-                                                            }
-                                                        } else {
-                                                            isMarkerMode = true
-                                                            activeBottomPanel = PdfBottomPanel.HIGHLIGHTER
+                                                        isMarkerMode = !isMarkerMode
+                                                        if (!isMarkerMode && activeBottomPanel == PdfBottomPanel.HIGHLIGHTER) {
+                                                            activeBottomPanel = null
                                                         }
                                                     }
                                             ) {
@@ -1355,40 +1372,86 @@ fun BookPlayerScreen(
                                                         imageVector = Icons.Rounded.Brush,
                                                         contentDescription = "Highlighter",
                                                         tint = if (isMarkerMode) Color(activeColor) else Color.White,
-                                                        modifier = Modifier.size(20.dp)
+                                                        modifier = Modifier.size(19.dp)
                                                     )
                                                 }
                                             }
 
-                                            // 2. Text Note / Text Tool Button
+                                            // 2. Color Palette / Section Button (Toggles Color Picker card)
                                             Surface(
                                                 shape = CircleShape,
-                                                color = Color.Transparent,
+                                                color = if (activeBottomPanel == PdfBottomPanel.HIGHLIGHTER) Color(activeColor).copy(alpha = 0.25f) else Color.Transparent,
+                                                border = if (activeBottomPanel == PdfBottomPanel.HIGHLIGHTER) BorderStroke(1.dp, Color(activeColor)) else null,
                                                 modifier = Modifier
-                                                    .size(42.dp)
+                                                    .size(38.dp)
                                                     .clip(CircleShape)
                                                     .clickable {
-                                                        noteInputText = ""
-                                                        showAddNoteDialog = true
+                                                        activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.HIGHLIGHTER) null else PdfBottomPanel.HIGHLIGHTER
                                                     }
                                             ) {
                                                 Box(contentAlignment = Alignment.Center) {
                                                     Icon(
-                                                        imageVector = Icons.Rounded.TextFields,
-                                                        contentDescription = "Add Text Note",
-                                                        tint = Color.White,
-                                                        modifier = Modifier.size(20.dp)
+                                                        imageVector = Icons.Rounded.Palette,
+                                                        contentDescription = "Color Palette",
+                                                        tint = Color(activeColor),
+                                                        modifier = Modifier.size(19.dp)
                                                     )
                                                 }
                                             }
 
-                                            // 3. Eye Care Tint Button
+                                            // 3. Delete Button (Deletes latest highlight/note on current page)
+                                            val canDeleteOnCurrentPage = markers.any { it.page == currentPage + 1 } || textNotes.any { it.page == currentPage + 1 }
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = Color.Transparent,
+                                                modifier = Modifier
+                                                    .size(38.dp)
+                                                    .clip(CircleShape)
+                                                    .clickable(enabled = canDeleteOnCurrentPage) {
+                                                        deleteLatestHighlightOnCurrentPage()
+                                                    }
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.DeleteOutline,
+                                                        contentDescription = "Delete Annotation",
+                                                        tint = if (canDeleteOnCurrentPage) Color.White else Color.White.copy(alpha = 0.3f),
+                                                        modifier = Modifier.size(19.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            // 4. Notes Button (Opens Page Notes dialog)
+                                            val hasPageNotes = textNotes.any { it.page == currentPage + 1 }
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (hasPageNotes) Color(0xFFFFD54F).copy(alpha = 0.2f) else Color.Transparent,
+                                                border = if (hasPageNotes) BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.6f)) else null,
+                                                modifier = Modifier
+                                                    .size(38.dp)
+                                                    .clip(CircleShape)
+                                                    .clickable {
+                                                        noteInputText = ""
+                                                        showNotesDialog = true
+                                                    }
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = Icons.AutoMirrored.Rounded.StickyNote2,
+                                                        contentDescription = "Notes",
+                                                        tint = if (hasPageNotes) Color(0xFFFFD54F) else Color.White,
+                                                        modifier = Modifier.size(19.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            // 5. Eye Care Tint Button
                                             Surface(
                                                 shape = CircleShape,
                                                 color = if (eyeCareMode != EyeCareMode.OFF) Color.White.copy(alpha = 0.2f) else Color.Transparent,
                                                 border = if (eyeCareMode != EyeCareMode.OFF) BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)) else null,
                                                 modifier = Modifier
-                                                    .size(42.dp)
+                                                    .size(38.dp)
                                                     .clip(CircleShape)
                                                     .clickable {
                                                         activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.EYE_CARE) null else PdfBottomPanel.EYE_CARE
@@ -1404,18 +1467,18 @@ fun BookPlayerScreen(
                                                             EyeCareMode.MINT -> Color(0xFFA7F3D0)
                                                             EyeCareMode.NIGHT -> Color(0xFFB0BEC5)
                                                         },
-                                                        modifier = Modifier.size(20.dp)
+                                                        modifier = Modifier.size(19.dp)
                                                     )
                                                 }
                                             }
 
-                                            // 4. Undo Button (Ctrl+Z)
+                                            // 6. Undo Button (Ctrl+Z)
                                             val canUndo = undoStack.isNotEmpty()
                                             Surface(
                                                 shape = CircleShape,
                                                 color = Color.Transparent,
                                                 modifier = Modifier
-                                                    .size(42.dp)
+                                                    .size(38.dp)
                                                     .clip(CircleShape)
                                                     .clickable(enabled = canUndo) {
                                                         performUndo()
@@ -1426,18 +1489,18 @@ fun BookPlayerScreen(
                                                         imageVector = Icons.AutoMirrored.Rounded.Undo,
                                                         contentDescription = "Undo",
                                                         tint = if (canUndo) Color.White else Color.White.copy(alpha = 0.3f),
-                                                        modifier = Modifier.size(20.dp)
+                                                        modifier = Modifier.size(19.dp)
                                                     )
                                                 }
                                             }
 
-                                            // 5. Redo Button (Ctrl+Y)
+                                            // 7. Redo Button (Ctrl+Y)
                                             val canRedo = redoStack.isNotEmpty()
                                             Surface(
                                                 shape = CircleShape,
                                                 color = Color.Transparent,
                                                 modifier = Modifier
-                                                    .size(42.dp)
+                                                    .size(38.dp)
                                                     .clip(CircleShape)
                                                     .clickable(enabled = canRedo) {
                                                         performRedo()
@@ -1448,7 +1511,7 @@ fun BookPlayerScreen(
                                                         imageVector = Icons.AutoMirrored.Rounded.Redo,
                                                         contentDescription = "Redo",
                                                         tint = if (canRedo) Color.White else Color.White.copy(alpha = 0.3f),
-                                                        modifier = Modifier.size(20.dp)
+                                                        modifier = Modifier.size(19.dp)
                                                     )
                                                 }
                                             }
@@ -1463,36 +1526,116 @@ fun BookPlayerScreen(
         }
     }
 
-    if (showAddNoteDialog) {
+    if (showNotesDialog) {
         AlertDialog(
-            onDismissRequest = { showAddNoteDialog = false },
+            onDismissRequest = {
+                showNotesDialog = false
+                noteInputText = ""
+            },
             containerColor = Color(0xFF14131E),
             shape = RoundedCornerShape(24.dp),
             titleContentColor = Color.White,
             textContentColor = Color.White.copy(alpha = 0.85f),
             title = {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.NoteAdd,
-                        contentDescription = null,
-                        tint = Color(0xFFFFD54F),
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text("Add Note • Page ${currentPage + 1}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.StickyNote2,
+                            contentDescription = null,
+                            tint = Color(0xFFFFD54F),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text("Page Notes • Page ${currentPage + 1}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    }
+                    IconButton(
+                        onClick = {
+                            showNotesDialog = false
+                            noteInputText = ""
+                        },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Close",
+                            tint = Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                val currentPageNotes = textNotes.filter { it.page == currentPage + 1 }
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (currentPageNotes.isNotEmpty()) {
+                        Text(
+                            text = "Notes on this page:",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 150.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            for (note in currentPageNotes) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color.White.copy(alpha = 0.08f),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = note.text,
+                                            color = Color.White,
+                                            fontSize = 13.sp,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(end = 8.dp)
+                                        )
+                                        IconButton(
+                                            onClick = { deleteNote(note) },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.DeleteOutline,
+                                                contentDescription = "Delete Note",
+                                                tint = Color(0xFFE57373),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     OutlinedTextField(
                         value = noteInputText,
                         onValueChange = { noteInputText = it },
-                        placeholder = { Text("Write note or annotation...", color = Color.White.copy(alpha = 0.4f), fontSize = 13.sp) },
+                        placeholder = { Text("Write a new note or annotation...", color = Color.White.copy(alpha = 0.4f), fontSize = 13.sp) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 90.dp, max = 150.dp),
+                            .heightIn(min = 80.dp, max = 130.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
@@ -1516,12 +1659,15 @@ fun BookPlayerScreen(
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Save Note", fontWeight = FontWeight.Bold)
+                    Text("Add Note", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showAddNoteDialog = false }) {
-                    Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+                TextButton(onClick = {
+                    showNotesDialog = false
+                    noteInputText = ""
+                }) {
+                    Text("Done", color = Color.White.copy(alpha = 0.7f))
                 }
             }
         )
@@ -1592,6 +1738,7 @@ fun PdfPage(
     onAddMarker: (com.ballade.hwaran.core.database.entity.PdfMarkerEntity) -> Unit,
     onDeleteMarker: (com.ballade.hwaran.core.database.entity.PdfMarkerEntity) -> Unit,
     onSelectNote: (PdfTextNote) -> Unit = {},
+    onDeleteNote: (PdfTextNote) -> Unit = {},
     onScrollToPage: (Int) -> Unit
 ) {
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -1599,8 +1746,8 @@ fun PdfPage(
 
     val context = LocalContext.current
     var pdfLinks by remember { mutableStateOf<List<PdfLinkData>>(emptyList()) }
-    val pageMarkers = remember(markers) { markers.filter { it.page == pageIndex + 1 } }
-    val pageNotes = remember(notes) { notes.filter { it.page == pageIndex + 1 } }
+    val pageMarkers = markers.filter { it.page == pageIndex + 1 }
+    val pageNotes = notes.filter { it.page == pageIndex + 1 }
 
     var dragStart by remember { mutableStateOf<Offset?>(null) }
     var dragCurrent by remember { mutableStateOf<Offset?>(null) }
@@ -1689,6 +1836,16 @@ fun PdfPage(
                                             color = activeColor
                                         )
                                     )
+                                } else if (dx <= 20f && dy <= 20f) {
+                                    // Tap detected while in highlighter mode! Check if user tapped an existing highlight
+                                    val tapPos = start
+                                    val marker = pageMarkers.find {
+                                        val rect = RectF(it.x1 * size.width, it.y1 * size.height, it.x2 * size.width, it.y2 * size.height)
+                                        rect.contains(tapPos.x, tapPos.y)
+                                    }
+                                    if (marker != null) {
+                                        showDeleteDialog = marker
+                                    }
                                 }
                             }
                             dragStart = null
@@ -1841,17 +1998,17 @@ fun PdfPage(
                 for (note in pageNotes) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF14131E).copy(alpha = 0.88f),
-                        border = BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.45f)),
+                        color = Color(0xFF14131E).copy(alpha = 0.92f),
+                        border = BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.55f)),
                         shadowElevation = 6.dp,
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
                             .clickable { onSelectNote(note) }
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                            modifier = Modifier.padding(start = 8.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.StickyNote2,
@@ -1868,6 +2025,20 @@ fun PdfPage(
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.widthIn(max = 160.dp)
                             )
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .clickable { onDeleteNote(note) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Delete Note",
+                                    tint = Color.White.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
                         }
                     }
                 }

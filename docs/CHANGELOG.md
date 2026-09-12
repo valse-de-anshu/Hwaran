@@ -23,16 +23,28 @@ All notable changes, architectural milestones, and structural refactors to this 
   - Added the ability to attach external text notes and commentary to pages via the Text Tool (`Icons.Rounded.TextFields`).
   - Stored persistently per book (`notes_${mangaId}.json`) with zero Room migration risks.
   - Displayed on pages as sleek frosted sticky note badges (`Icons.AutoMirrored.Rounded.StickyNote2`) with interactive full-text detail and deletion dialogs.
-- **Full Undo / Redo Engine (Ctrl+Z & Ctrl+Y) (`BookPlayerScreen.kt`)**:
-  - Implemented responsive Undo (`Icons.AutoMirrored.Rounded.Undo`) and Redo (`Icons.AutoMirrored.Rounded.Redo`) for all highlights and text annotations with haptic feedback and dynamic enabled/disabled states.
-- **Revamped 5-Feature Bottom Dock Pill (`BookPlayerScreen.kt`)**:
-  - Streamlined dock pill into 5 focused tools:
-    1. **Highlighter** (`Icons.Rounded.Brush`)
-    2. **Text Note** (`Icons.Rounded.TextFields`)
-    3. **Eye Protection** (`Icons.Rounded.Visibility`)
-    4. **Undo** (`Icons.AutoMirrored.Rounded.Undo`)
-    5. **Redo** (`Icons.AutoMirrored.Rounded.Redo`)
-  - Preserved right-side vertical fast-scroll page pill with page counter badge and drag handle.
+- **Full Undo / Redo Engine (Ctrl+Z & Ctrl+Y) (`BookPlayerScreen.kt`, `AnnotationDao.kt`, `PdfViewModel.kt`)**:
+  - Fixed Undo and Redo operations by properly tracking generated Room database IDs upon insertion (`addMarker` returning inserted entity with ID).
+  - Undo/Redo actions now reliably delete and re-insert highlights and text notes with proper database persistence.
+- **Immediate Note Display & Interactive Management (`BookPlayerScreen.kt`)**:
+  - Fixed issue where saved notes were not visible by removing stale memoization on snapshot list state and passing fresh list instances.
+  - Page notes appear immediately as badges on the PDF page with one-tap detail views and quick-delete `X` buttons.
+  - Notes button in the dock pill opens a comprehensive Page Notes dialog showing all notes on the active page with deletion controls and input field.
+- **Dedicated Highlighter Toggle & Color Palette Separation (`BookPlayerScreen.kt`)**:
+  - Tapping the Highlighter button (`Icons.Rounded.Brush`) in the bottom dock now cleanly toggles highlight mode ON/OFF without opening any popup cards.
+  - Added a dedicated Color Palette button (`Icons.Rounded.Palette`) in the dock pill to open the pastel color picker floating card.
+- **Direct Highlight Deletion & Dock Delete Button (`BookPlayerScreen.kt`)**:
+  - Tapping an existing highlight in highlighter mode now instantly prompts to delete it.
+  - Added a one-tap Delete button (`Icons.Rounded.DeleteOutline`) in the bottom dock pill that deletes the latest highlight or note on the current page with full Undo support.
+- **Revamped 7-Tool Bottom Dock Pill (`BookPlayerScreen.kt`)**:
+  - Restructured bottom dock into 7 focused, compact tools:
+    1. **Highlighter** (`Icons.Rounded.Brush`): Pure toggle ON/OFF.
+    2. **Color Palette** (`Icons.Rounded.Palette`): Opens pastel color selector card.
+    3. **Delete** (`Icons.Rounded.DeleteOutline`): Deletes latest highlight/note on current page with undo support.
+    4. **Notes** (`Icons.AutoMirrored.Rounded.StickyNote2`): Page Notes dialog with list & add controls.
+    5. **Eye Care** (`Icons.Rounded.Visibility`): Toggles Reading Comfort & Eye Protection card.
+    6. **Undo** (`Icons.AutoMirrored.Rounded.Undo`): Reverts last highlight or note action.
+    7. **Redo** (`Icons.AutoMirrored.Rounded.Redo`): Re-applies reverted action.
 - **Lag-Free Document Loading Transition (`BookPlayerScreen.kt`)**:
   - Replaced the stuttering, laggy `CircularProgressIndicator` with a smooth 220ms `Crossfade` loading layout.
   - Displays frosted book icon, document title, "Preparing pages & annotations..." status, and sleek slim progress bar.

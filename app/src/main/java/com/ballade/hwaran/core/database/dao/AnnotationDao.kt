@@ -18,4 +18,10 @@ interface AnnotationDao {
 
     @Delete
     suspend fun deleteMarker(marker: PdfMarkerEntity): Int
+
+    @Query("DELETE FROM pdf_marker WHERE id = :id")
+    suspend fun deleteMarkerById(id: Long): Int
+
+    @Query("DELETE FROM pdf_marker WHERE mangaId = :mangaId AND page = :page")
+    suspend fun deleteMarkersForPage(mangaId: Long, page: Int): Int
 }
