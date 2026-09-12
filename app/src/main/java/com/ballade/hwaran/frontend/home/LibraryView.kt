@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -21,12 +22,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -54,6 +60,21 @@ fun LibraryView(
     }
 
     var selectedTag by remember(initialTag) { mutableStateOf(initialTag) }
+    val tagListState = rememberLazyListState()
+
+    LaunchedEffect(initialTag) {
+        if (initialTag.isNotBlank()) {
+            selectedTag = initialTag
+        }
+    }
+
+    LaunchedEffect(selectedTag) {
+        val index = tags.indexOf(selectedTag)
+        if (index >= 0) {
+            val targetIndex = if (index <= 1) 0 else index - 1
+            tagListState.animateScrollToItem(targetIndex)
+        }
+    }
 
     // Password unlock state for locked media
     var mangaToUnlock by remember { mutableStateOf<MangaEntity?>(null) }
@@ -97,76 +118,22 @@ fun LibraryView(
     val gestureBottom = WindowInsets.systemGestures.asPaddingValues().calculateBottomPadding()
     val bottomDockClearance = maxOf(navBarBottom + 16.dp, maxOf(gestureBottom + 12.dp, 32.dp)) + 68.dp + 24.dp
 
-    Column(
+    val density = LocalDensity.current
+    val fadeStartPx = with(density) { 50.dp.toPx() }
+    val fadeEndPx = with(density) { 92.dp.toPx() }
+
+    Box(
         modifier = modifier
             .fillMaxSize()
             .statusBarsPadding()
             .displayCutoutPadding()
     ) {
-        // 1. Top Tags Bar (repositioned lower with comfortable breathing space)
-        Spacer(modifier = Modifier.height(30.dp))
-
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(tags, key = { it }) { tag ->
-                val isSelected = selectedTag == tag
-                val bgColor by animateColorAsState(
-                    targetValue = if (isSelected) glowColor.copy(alpha = 0.85f) else Color(0xDD181622),
-                    animationSpec = tween(250),
-                    label = "tagBgColor"
-                )
-                val textColor by animateColorAsState(
-                    targetValue = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
-                    animationSpec = tween(250),
-                    label = "tagTextColor"
-                )
-                val borderColor by animateColorAsState(
-                    targetValue = if (isSelected) glowColor.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.12f),
-                    animationSpec = tween(250),
-                    label = "tagBorderColor"
-                )
-
-                Surface(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            selectedTag = tag
-                        }
-                        .then(
-                            if (isSelected) Modifier.shadow(
-                                elevation = 8.dp,
-                                shape = RoundedCornerShape(20.dp),
-                                spotColor = glowColor.copy(alpha = 0.5f)
-                            ) else Modifier
-                        ),
-                    shape = RoundedCornerShape(20.dp),
-                    color = bgColor,
-                    border = BorderStroke(1.dp, borderColor)
-                ) {
-                    Text(
-                        text = tag,
-                        color = textColor,
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // 2. Clean 3-Column Material Grid (Zero dark shadow vignettes covering covers)
+        // 1. Clean 3-Column Material Grid (Offscreen alpha mask gives smooth fading under pills without opaque color blocks)
         if (filteredManga.isEmpty()) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(bottom = bottomDockClearance),
+                    .fillMaxSize()
+                    .padding(top = 96.dp, bottom = bottomDockClearance),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -179,10 +146,28 @@ fun LibraryView(
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = bottomDockClearance),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 88.dp,
+                    bottom = bottomDockClearance
+                ),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black),
+                                startY = fadeStartPx,
+                                endY = fadeEndPx
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
             ) {
                 items(filteredManga, key = { it.id }) { manga ->
                     LibraryMaterialCard(
@@ -197,6 +182,68 @@ fun LibraryView(
                             }
                         }
                     )
+                }
+            }
+        }
+
+        // 2. Floating Top Tags Bar
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .padding(top = 18.dp, bottom = 8.dp)
+        ) {
+            LazyRow(
+                state = tagListState,
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(tags, key = { it }) { tag ->
+                    val isSelected = selectedTag == tag
+                    val themeSurface = MaterialTheme.colorScheme.surface
+                    val bgColor by animateColorAsState(
+                        targetValue = if (isSelected) glowColor.copy(alpha = 0.85f) else themeSurface.copy(alpha = 0.55f),
+                        animationSpec = tween(250),
+                        label = "tagBgColor"
+                    )
+                    val textColor by animateColorAsState(
+                        targetValue = if (isSelected) Color.White else Color.White.copy(alpha = 0.70f),
+                        animationSpec = tween(250),
+                        label = "tagTextColor"
+                    )
+                    val borderColor by animateColorAsState(
+                        targetValue = if (isSelected) glowColor.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.12f),
+                        animationSpec = tween(250),
+                        label = "tagBorderColor"
+                    )
+
+                    Surface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                selectedTag = tag
+                            }
+                            .then(
+                                if (isSelected) Modifier.shadow(
+                                    elevation = 8.dp,
+                                    shape = RoundedCornerShape(20.dp),
+                                    spotColor = glowColor.copy(alpha = 0.5f)
+                                ) else Modifier
+                            ),
+                        shape = RoundedCornerShape(20.dp),
+                        color = bgColor,
+                        border = BorderStroke(1.dp, borderColor)
+                    ) {
+                        Text(
+                            text = tag,
+                            color = textColor,
+                            fontSize = 13.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
+                        )
+                    }
                 }
             }
         }

@@ -148,6 +148,9 @@ fun HomeScreen(
     val historyEvents by database.historyDao().getAllHistoryEventsFlow().collectAsState(initial = emptyList())
 
     BackHandler(enabled = activeDockTab != 0) {
+        if (activeDockTab == 1) {
+            libraryInitialTag = "All"
+        }
         activeDockTab = 0
     }
     
@@ -272,17 +275,8 @@ fun HomeScreen(
                             onNavigateToSettings = onNavigateToSettings,
                             onNavigateToHistory = onNavigateToHistory,
                             onNavigateToSearch = { activeDockTab = 2 },
-                            onMediaShortcutClick = { mode, layoutMode ->
-                                settingsViewModel.setMediaMode(mode)
-                                settingsViewModel.setVideoLayoutMode(layoutMode)
-                                libraryInitialTag = when {
-                                    mode == 0 -> "Manga"
-                                    mode == 1 -> "Book"
-                                    mode == 2 && layoutMode == 0 -> "Series Video"
-                                    mode == 2 && layoutMode == 1 -> "Channel Video"
-                                    mode == 3 -> "Music"
-                                    else -> "All"
-                                }
+                            onMediaShortcutClick = { targetTag ->
+                                libraryInitialTag = targetTag
                                 activeDockTab = 1
                             },
                             glowColor = Color(glowColor)

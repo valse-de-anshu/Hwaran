@@ -7,6 +7,9 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -35,11 +38,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.ballade.hwaran.core.database.AppDatabase
+import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.HistoryEventEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.core.util.CoverArtResolver
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeDashboard(
     allManga: List<MangaEntity>,
@@ -48,12 +56,14 @@ fun HomeDashboard(
     onNavigateToMedia: (Long, Int) -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToHistory: () -> Unit,
-    onNavigateToSearch: () -> Unit,
-    onMediaShortcutClick: (mediaMode: Int, videoLayoutMode: Int) -> Unit,
+    onNavigateToSearch: () -> Unit = {},
+    onMediaShortcutClick: (tag: String) -> Unit,
     glowColor: Color = Color(0xFF9C27B0),
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
+    val database = remember(context) { AppDatabase.getDatabase(context) }
 
     // Promo banner assets
     val promoBanners = remember {
@@ -69,12 +79,44 @@ fun HomeDashboard(
         )
     }
 
-    // Counts for shortcuts & stats
-    val toonCount = remember(allManga) { allManga.count { it.contentType == 0 && !it.isNsfw } }
-    val bookCount = remember(allManga) { allManga.count { it.contentType == 1 && !it.isNsfw } }
-    val seriesCount = remember(allManga) { allManga.count { it.contentType == 2 && it.boxPurpose == "series" && !it.isNsfw } }
-    val channelCount = remember(allManga) { allManga.count { it.contentType == 2 && it.boxPurpose == "channel" && !it.isNsfw } }
-    val musicCount = remember(allManga) { allManga.count { it.contentType == 3 } }
+    // Accurate Counts for shortcuts matching LibraryView filters
+    val manhuaCount = remember(allManga) {
+        allManga.count {
+            !it.isNsfw && (
+                (it.contentType == 0 || it.boxPurpose == "manhua") && (
+                    it.boxPurpose == "manhua" ||
+                    it.genre?.contains("manhua", ignoreCase = true) == true ||
+                    it.genre?.contains("manhwa", ignoreCase = true) == true ||
+                    it.genre?.contains("webtoon", ignoreCase = true) == true ||
+                    it.title.contains("manhua", ignoreCase = true) ||
+                    it.title.contains("manhwa", ignoreCase = true)
+                )
+            )
+        }
+    }
+    val mangaCount = remember(allManga) {
+        allManga.count {
+            !it.isNsfw && it.contentType == 0 && it.boxPurpose != "manhua" && it.boxPurpose != "book" && (
+                it.genre == null || (
+                    !it.genre.contains("manhua", ignoreCase = true) &&
+                    !it.genre.contains("manhwa", ignoreCase = true) &&
+                    !it.genre.contains("webtoon", ignoreCase = true)
+                )
+            )
+        }
+    }
+    val seriesCount = remember(allManga) {
+        allManga.count { !it.isNsfw && (it.contentType == 2 || it.boxPurpose == "series") && it.boxPurpose != "channel" }
+    }
+    val bookCount = remember(allManga) {
+        allManga.count { !it.isNsfw && (it.contentType == 1 || it.boxPurpose == "book") }
+    }
+    val channelCount = remember(allManga) {
+        allManga.count { !it.isNsfw && (it.contentType == 2 || it.boxPurpose == "channel") && it.boxPurpose == "channel" }
+    }
+    val favoriteCount = remember(allManga) {
+        allManga.count { !it.isNsfw && (it.isFavorite || it.genre?.contains("favorite", ignoreCase = true) == true) }
+    }
 
     // Continue watching / in progress covers
     val inProgressItems = remember(allManga, historyEvents) {
@@ -84,10 +126,47 @@ fun HomeDashboard(
         else allManga.take(4)
     }
 
+    // Real progress map computed asynchronously from database
+    var itemProgressMap by remember { mutableStateOf<Map<Long, Float>>(emptyMap()) }
+    LaunchedEffect(inProgressItems) {
+        withContext(Dispatchers.IO) {
+            val map = mutableMapOf<Long, Float>()
+            for (manga in inProgressItems) {
+                val chapters = database.trackDao().getChaptersForMangaList(manga.id)
+                if (chapters.isNotEmpty()) {
+                    val target = chapters.firstOrNull { it.title == manga.lastReadTitle }
+                        ?: chapters.firstOrNull { it.position > 0 }
+                        ?: chapters.first()
+                    if (manga.contentType == 2) {
+                        if (target.duration > 0) {
+                            map[manga.id] = (target.position.toFloat() / target.duration.toFloat()).coerceIn(0.02f, 1f)
+                        } else if (target.position > 0) {
+                            map[manga.id] = 0.2f
+                        } else {
+                            map[manga.id] = 0f
+                        }
+                    } else {
+                        val idx = chapters.indexOfFirst { it.title == manga.lastReadTitle }.takeIf { it >= 0 } ?: 0
+                        map[manga.id] = ((idx + 1).toFloat() / chapters.size.toFloat()).coerceIn(0.05f, 1f)
+                    }
+                } else {
+                    if (manga.lastReadPage != null && manga.lastReadPage > 0) {
+                        map[manga.id] = 0.3f
+                    } else {
+                        map[manga.id] = 0f
+                    }
+                }
+            }
+            itemProgressMap = map
+        }
+    }
+
     // Recently added covers
     val recentlyAdded = remember(allManga) {
-        allManga.filter { !it.isNsfw }.sortedByDescending { it.id }.take(12)
+        allManga.filter { !it.isNsfw }.sortedByDescending { it.id }
     }
+
+    var showRecentlyAddedSheet by remember { mutableStateOf(false) }
 
     val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val gestureBottom = WindowInsets.systemGestures.asPaddingValues().calculateBottomPadding()
@@ -101,9 +180,8 @@ fun HomeDashboard(
             .displayCutoutPadding()
             .padding(bottom = bottomDockClearance)
     ) {
-        // 1. Clean Top Header (Compact Search + 3-dot overflow only; no logo, no tagline)
+        // 1. Clean Top Header (3-dot overflow only; redundant top search removed)
         DashboardTopHeader(
-            onSearchClick = onNavigateToSearch,
             onSettingsClick = onNavigateToSettings,
             onHistoryClick = onNavigateToHistory
         )
@@ -118,13 +196,14 @@ fun HomeDashboard(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // 3. Media Shortcuts (Toon, Books, Series Video, Channel Video, Music)
+        // 3. Media Shortcuts (Manhua, Manga, Series, Book, Channel, Favorite)
         MediaShortcutsSection(
-            toonCount = toonCount,
-            bookCount = bookCount,
+            manhuaCount = manhuaCount,
+            mangaCount = mangaCount,
             seriesCount = seriesCount,
+            bookCount = bookCount,
             channelCount = channelCount,
-            musicCount = musicCount,
+            favoriteCount = favoriteCount,
             onShortcutClick = onMediaShortcutClick
         )
 
@@ -135,27 +214,38 @@ fun HomeDashboard(
             ContinueWatchingSection(
                 items = inProgressItems,
                 onItemClick = { manga -> onNavigateToDescription(manga.id) },
+                onViewAllClick = onNavigateToHistory,
+                itemProgressMap = itemProgressMap,
                 glowColor = glowColor
             )
 
             Spacer(modifier = Modifier.height(28.dp))
         }
 
-        // Recently Added Covers
+        // 5. Recently Added Covers
         if (recentlyAdded.isNotEmpty()) {
             RecentlyAddedSection(
-                items = recentlyAdded,
-                onItemClick = { manga -> onNavigateToDescription(manga.id) }
+                items = recentlyAdded.take(12),
+                onItemClick = { manga -> onNavigateToDescription(manga.id) },
+                onViewAllClick = { showRecentlyAddedSheet = true }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
+
+    // Full Recently Added Window (Modal Bottom Sheet)
+    if (showRecentlyAddedSheet) {
+        RecentlyAddedSheet(
+            allRecentlyAdded = recentlyAdded,
+            onDismiss = { showRecentlyAddedSheet = false },
+            onItemClick = { manga -> onNavigateToDescription(manga.id) }
+        )
+    }
 }
 
 @Composable
 private fun DashboardTopHeader(
-    onSearchClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onHistoryClick: () -> Unit
 ) {
@@ -169,35 +259,13 @@ private fun DashboardTopHeader(
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Compact Circular Search Button
-        Surface(
-            modifier = Modifier
-                .size(42.dp)
-                .clip(CircleShape)
-                .clickable(onClick = onSearchClick),
-            shape = CircleShape,
-            color = Color.White.copy(alpha = 0.08f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Rounded.Search,
-                    contentDescription = "Search",
-                    tint = Color.White.copy(alpha = 0.9f),
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.width(10.dp))
-
         // Three-Dot Overflow Menu Button
         Box {
             Surface(
                 modifier = Modifier
                     .size(42.dp)
-                .clip(CircleShape)
-                .clickable { showMenu = !showMenu },
+                    .clip(CircleShape)
+                    .clickable { showMenu = !showMenu },
                 shape = CircleShape,
                 color = Color.White.copy(alpha = 0.08f),
                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
@@ -351,12 +419,13 @@ private fun BannerCarouselSection(
 
 @Composable
 private fun MediaShortcutsSection(
-    toonCount: Int,
-    bookCount: Int,
+    manhuaCount: Int,
+    mangaCount: Int,
     seriesCount: Int,
+    bookCount: Int,
     channelCount: Int,
-    musicCount: Int,
-    onShortcutClick: (mediaMode: Int, videoLayoutMode: Int) -> Unit
+    favoriteCount: Int,
+    onShortcutClick: (tag: String) -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -365,50 +434,61 @@ private fun MediaShortcutsSection(
             .padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Toon
+        // Manhua
         ShortcutCard(
             icon = Icons.AutoMirrored.Rounded.MenuBook,
-            title = "Toon",
-            count = toonCount,
+            title = "Manhua",
+            count = manhuaCount,
             accentColor = Color(0xFFBA68C8),
-            onClick = { onShortcutClick(0, 0) }
+            onClick = { onShortcutClick("Manhua") }
         )
 
-        // Books
+        // Manga
         ShortcutCard(
-            icon = Icons.Rounded.Book,
-            title = "Books",
-            count = bookCount,
-            accentColor = Color(0xFFFFB74D),
-            onClick = { onShortcutClick(1, 0) }
+            icon = Icons.Rounded.AutoStories,
+            title = "Manga",
+            count = mangaCount,
+            accentColor = Color(0xFF81C784),
+            onClick = { onShortcutClick("Manga") }
         )
 
-        // Series Video
+        // Series
         ShortcutCard(
             icon = Icons.Rounded.PlayCircle,
-            title = "Series Video",
+            title = "Series",
             count = seriesCount,
-            accentColor = Color(0xFF8EB69B),
-            onClick = { onShortcutClick(2, 0) }
+            accentColor = Color(0xFF64B5F6),
+            onClick = { onShortcutClick("Series") }
         )
 
-        // Channel Video
+        // Book
+        ShortcutCard(
+            icon = Icons.Rounded.Book,
+            title = "Book",
+            count = bookCount,
+            accentColor = Color(0xFFFFB74D),
+            onClick = { onShortcutClick("Book") }
+        )
+
+        // Channel
         ShortcutCard(
             icon = Icons.Rounded.Subscriptions,
-            title = "Channel Video",
+            title = "Channel",
             count = channelCount,
             accentColor = Color(0xFFFF7043),
-            onClick = { onShortcutClick(2, 1) }
+            onClick = { onShortcutClick("Channel") }
         )
 
-        // Music
-        ShortcutCard(
-            icon = Icons.Rounded.MusicNote,
-            title = "Music",
-            count = musicCount,
-            accentColor = Color(0xFF7986CB),
-            onClick = { onShortcutClick(3, 0) }
-        )
+        // Favorite
+        if (favoriteCount > 0) {
+            ShortcutCard(
+                icon = Icons.Rounded.Star,
+                title = "Favorite",
+                count = favoriteCount,
+                accentColor = Color(0xFFFFD54F),
+                onClick = { onShortcutClick("Favorite") }
+            )
+        }
     }
 }
 
@@ -471,12 +551,17 @@ private fun ShortcutCard(
 private fun ContinueWatchingSection(
     items: List<MangaEntity>,
     onItemClick: (MangaEntity) -> Unit,
+    onViewAllClick: () -> Unit,
+    itemProgressMap: Map<Long, Float>,
     glowColor: Color
 ) {
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        SectionHeader(title = "Continue Watching")
+        SectionHeader(
+            title = "Continue Watching",
+            onClick = onViewAllClick
+        )
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -485,6 +570,8 @@ private fun ContinueWatchingSection(
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             items(items, key = { it.id }) { manga ->
+                val progress = itemProgressMap[manga.id] ?: 0f
+
                 Surface(
                     modifier = Modifier
                         .width(220.dp)
@@ -542,7 +629,7 @@ private fun ContinueWatchingSection(
                             )
                         }
 
-                        // Bottom Text & Progress
+                        // Bottom Text & Accurate Progress
                         Column(
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
@@ -573,19 +660,21 @@ private fun ContinueWatchingSection(
 
                             Spacer(modifier = Modifier.height(4.dp))
 
-                            // Subtle progress bar
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(3.dp)
-                                    .background(Color.White.copy(alpha = 0.2f), CircleShape)
-                            ) {
+                            // Accurate Progress bar
+                            if (progress > 0f) {
                                 Box(
                                     modifier = Modifier
-                                        .fillMaxWidth(0.55f)
-                                        .fillMaxHeight()
-                                        .background(glowColor, CircleShape)
-                                )
+                                        .fillMaxWidth()
+                                        .height(3.dp)
+                                        .background(Color.White.copy(alpha = 0.2f), CircleShape)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth(progress.coerceIn(0.04f, 1f))
+                                            .fillMaxHeight()
+                                            .background(glowColor, CircleShape)
+                                    )
+                                }
                             }
                         }
                     }
@@ -598,12 +687,16 @@ private fun ContinueWatchingSection(
 @Composable
 private fun RecentlyAddedSection(
     items: List<MangaEntity>,
-    onItemClick: (MangaEntity) -> Unit
+    onItemClick: (MangaEntity) -> Unit,
+    onViewAllClick: () -> Unit
 ) {
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        SectionHeader(title = "Recently Added")
+        SectionHeader(
+            title = "Recently Added",
+            onClick = onViewAllClick
+        )
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -653,7 +746,7 @@ private fun RecentlyAddedSection(
                     )
 
                     val typeLabel = when (manga.contentType) {
-                        0 -> "Manga"
+                        0 -> if (manga.genre?.contains("manhua", ignoreCase = true) == true) "Manhua" else "Manga"
                         1 -> "Book • PDF"
                         2 -> if (manga.boxPurpose == "channel") "Video • Channel" else "Video • Series"
                         3 -> "Music"
@@ -673,11 +766,10 @@ private fun RecentlyAddedSection(
     }
 }
 
-
-
 @Composable
 private fun SectionHeader(
-    title: String
+    title: String,
+    onClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
@@ -686,7 +778,16 @@ private fun SectionHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .then(
+                    if (onClick != null) Modifier.clickable(onClick = onClick)
+                    else Modifier
+                )
+                .padding(vertical = 4.dp, horizontal = 2.dp)
+        ) {
             Text(
                 text = title,
                 color = Color.White,
@@ -696,10 +797,183 @@ private fun SectionHeader(
             Spacer(modifier = Modifier.width(4.dp))
             Icon(
                 imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.4f),
+                contentDescription = "View all $title",
+                tint = if (onClick != null) Color.White.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.4f),
                 modifier = Modifier.size(18.dp)
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RecentlyAddedSheet(
+    allRecentlyAdded: List<MangaEntity>,
+    onDismiss: () -> Unit,
+    onItemClick: (MangaEntity) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var selectedFilter by remember { mutableStateOf("All") }
+    val filters = remember { listOf("All", "Manhua", "Manga", "Series", "Book", "Channel") }
+    val context = LocalContext.current
+
+    val filtered = remember(allRecentlyAdded, selectedFilter) {
+        when (selectedFilter) {
+            "Manhua" -> allRecentlyAdded.filter {
+                (it.contentType == 0 || it.boxPurpose == "manhua") && (
+                    it.boxPurpose == "manhua" ||
+                    it.genre?.contains("manhua", ignoreCase = true) == true ||
+                    it.genre?.contains("manhwa", ignoreCase = true) == true ||
+                    it.genre?.contains("webtoon", ignoreCase = true) == true ||
+                    it.title.contains("manhua", ignoreCase = true) ||
+                    it.title.contains("manhwa", ignoreCase = true)
+                )
+            }
+            "Manga" -> allRecentlyAdded.filter {
+                it.contentType == 0 && it.boxPurpose != "manhua" && it.boxPurpose != "book" && (
+                    it.genre == null || (
+                        !it.genre.contains("manhua", ignoreCase = true) &&
+                        !it.genre.contains("manhwa", ignoreCase = true) &&
+                        !it.genre.contains("webtoon", ignoreCase = true)
+                    )
+                )
+            }
+            "Series" -> allRecentlyAdded.filter { (it.contentType == 2 || it.boxPurpose == "series") && it.boxPurpose != "channel" }
+            "Book" -> allRecentlyAdded.filter { it.contentType == 1 || it.boxPurpose == "book" }
+            "Channel" -> allRecentlyAdded.filter { (it.contentType == 2 || it.boxPurpose == "channel") && it.boxPurpose == "channel" }
+            else -> allRecentlyAdded
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color(0xFF14121A),
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 36.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Recently Added",
+                        color = Color.White,
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${allRecentlyAdded.size} items in library • newest first",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 12.sp
+                    )
+                }
+                IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Rounded.Close, contentDescription = "Close", tint = Color.White.copy(alpha = 0.7f))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Filter pills
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(filters) { filter ->
+                    val isSel = selectedFilter == filter
+                    Surface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { selectedFilter = filter },
+                        color = if (isSel) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
+                        border = BorderStroke(1.dp, if (isSel) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.1f)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = filter,
+                            color = if (isSel) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.8f),
+                            fontSize = 12.sp,
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 3-Column Grid of Recent Items
+            if (filtered.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No items found in $selectedFilter", color = Color.White.copy(alpha = 0.4f), fontSize = 14.sp)
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 480.dp)
+                ) {
+                    items(filtered, key = { it.id }) { manga ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable {
+                                    onDismiss()
+                                    onItemClick(manga)
+                                }
+                        ) {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(0.68f),
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFF161520),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+                            ) {
+                                val coverModel = remember(manga.coverPath, manga.parentUri) {
+                                    CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
+                                }
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data(coverModel)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = manga.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = manga.title,
+                                color = Color.White,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
