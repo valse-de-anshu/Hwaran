@@ -54,6 +54,7 @@ Every piece of media in Hwaran follows a consistent 3-stage journey:
    - **Music & Audio**: Media3 playback engine, playlists, lock screen controls, and background playback.
 3. **Fluid Handcrafted UI & Color Themes** — Material 3 + Custom Canvas shaders (Liquid, Celestial, Drunk Stars, Jellyfish, Kaleidoscope, Flower, Poker) with adaptive color schemes (Blueberry, Grape, Snowfall, PureDark) and offscreen alpha blending.
 4. **Workspaces & Vault Organization** — Group content into custom workspaces (e.g. "Favorites", "Current", "Archive") without needing to duplicate files on disk.
+5. **Advanced Search & Discovery** — Instant cross-library search with scope targeting (Name/Title, Tags/Genre, or All Fields), media category filtering (Book, Manhua, Manga, Series, Channel, Favorite), multi-tag filter with AND/OR logic, and dynamic sorting.
 
 ---
 

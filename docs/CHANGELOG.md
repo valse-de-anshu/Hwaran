@@ -8,6 +8,16 @@ All notable changes, architectural milestones, and structural refactors to this 
 
 ## [Current] - 2026-09-12
 
+### 🔍 Advanced Search Engine
+- **Media Format Filtering**: Instant filter chips for all media classes (`All`, `Book`, `Manhua`, `Manga`, `Series`, `Channel`, `Favorite`) with thematic color accents and icons.
+- **Search Scope Selector**: Switch query matching between `All Fields`, `Name / Title`, and `Tags / Genre`.
+- **Dynamic Multi-Tag Filter**:
+  - Automatically extracts all unique tags from library items.
+  - Multi-selection chips with quick-removal (✕) badges and a live tag suggestion picker with search filtering.
+  - Match mode toggle between `Match Any (OR)` and `Match All (AND)`.
+- **Sorting Engine**: Sort live query results by `Newest Added`, `Title (A-Z)`, `Title (Z-A)`, and `Recently Read`.
+- **Media Result Cards**: Redesigned cards with top-left format pills (`Book`, `Manhua`, `Manga`, `Series`, `Channel`), favorite status badges, reliable cover art loading via `CoverArtResolver`, and direct navigation to domain-specific descriptions.
+
 ### 🎨 Description Suite & Media Domain Isolation
 - **Domain-Isolated Description Views**:
   - `frontend/description/book/BookDescriptionView.kt`: Dedicated view for Books, Novels, and PDFs with single-volume vs multi-chapter awareness, "Read / Resume (p. X)" action, and book-specific metadata (Author, Publisher, Published Year, Language, Status, Pages).
