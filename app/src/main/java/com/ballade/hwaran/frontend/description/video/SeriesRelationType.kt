@@ -1,4 +1,4 @@
-package com.ballade.hwaran.frontend.description
+package com.ballade.hwaran.frontend.description.video
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*

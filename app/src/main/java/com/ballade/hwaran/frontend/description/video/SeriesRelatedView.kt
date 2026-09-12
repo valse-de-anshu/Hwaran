@@ -1,4 +1,4 @@
-package com.ballade.hwaran.frontend.description
+package com.ballade.hwaran.frontend.description.video
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler

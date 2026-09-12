@@ -1,4 +1,4 @@
-package com.ballade.hwaran.frontend.description
+package com.ballade.hwaran.frontend.description.toon
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility

@@ -14,6 +14,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ballade.hwaran.frontend.description.toon.ToonChaptersView
+import com.ballade.hwaran.frontend.description.toon.ToonDescriptionView
+import com.ballade.hwaran.frontend.description.video.ChannelDescriptionView
+import com.ballade.hwaran.frontend.description.video.ChannelVideosView
+import com.ballade.hwaran.frontend.description.video.SeriesDescriptionView
+import com.ballade.hwaran.frontend.description.video.SeriesRelatedView
 import com.ballade.hwaran.ui.viewmodels.DescriptionViewModel
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
 

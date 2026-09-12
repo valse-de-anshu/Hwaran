@@ -1,4 +1,4 @@
-package com.ballade.hwaran.frontend.description
+package com.ballade.hwaran.frontend.description.video
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -30,7 +30,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,9 +43,10 @@ import com.ballade.hwaran.core.util.CoverArtResolver
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ChannelDescriptionView(
+fun SeriesDescriptionView(
     manga: MangaEntity,
     chapters: List<ChapterEntity>,
+    childBoxes: List<MangaEntity>,
     entryMetadata: EntryMetadata,
     assignedTags: List<String>,
     isEditMode: Boolean,
@@ -72,14 +72,14 @@ fun ChannelDescriptionView(
     onSaveManga: () -> Unit,
     onNavigateBack: () -> Unit,
     onNavigateToMedia: (Long, Int) -> Unit,
-    onOpenVideos: () -> Unit,
+    onOpenRelated: (String) -> Unit = {},
     onToggleFavorite: () -> Unit,
     onAddTag: (String) -> Unit,
     onRemoveTag: (String) -> Unit,
     onSetTagQuery: (String) -> Unit,
     onToggleTagSearchVisible: () -> Unit,
     onPickCover: () -> Unit,
-    onPickVideos: () -> Unit,
+    onPickEpisodes: () -> Unit,
     onSetMaterialTag: (String) -> Unit,
     onUpdateDraftTitle: (String) -> Unit,
     onUpdateDraftAltTitle: (String) -> Unit,
@@ -99,7 +99,7 @@ fun ChannelDescriptionView(
     val PrimaryPurple = MaterialTheme.colorScheme.primary
     val TextMuted = MaterialTheme.colorScheme.onSurfaceVariant
 
-    var isAboutExpanded by remember { mutableStateOf(false) }
+    var isSynopsisExpanded by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
 
     val resolvedCoverModel = remember(manga.coverPath, draftCover, isEditMode) {
@@ -108,7 +108,7 @@ fun ChannelDescriptionView(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // ── 1. Scrollable Channel Content ──
+        // ── 1. Scrollable Description & Metadata Content ──
         LazyColumn(
             state = scrollState,
             modifier = Modifier
@@ -121,82 +121,82 @@ fun ChannelDescriptionView(
                 Spacer(modifier = Modifier.statusBarsPadding().displayCutoutPadding().height(64.dp))
             }
 
-            // ── Hero Channel Profile Card ──
+            // ── Hero Series Card ──
             item {
-                Surface(
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    color = CardBg,
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.Top
                 ) {
-                    Column(
+                    // 2:3 Cover Art Card with luxury glass border
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                            .width(136.dp)
+                            .height(196.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(CardBg)
+                            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), RoundedCornerShape(18.dp))
+                            .shadow(10.dp, RoundedCornerShape(18.dp))
+                            .clickable(enabled = isEditMode) { onPickCover() },
+                        contentAlignment = Alignment.Center
                     ) {
-                        // Channel Circular Avatar with glowing border
-                        Box(
-                            modifier = Modifier
-                                .size(96.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF1E1A29))
-                                .border(BorderStroke(2.dp, PrimaryPurple.copy(alpha = 0.6f)), CircleShape)
-                                .shadow(8.dp, CircleShape)
-                                .clickable(enabled = isEditMode) { onPickCover() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (resolvedCoverModel != null) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(context)
-                                        .data(resolvedCoverModel)
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = "Channel Avatar",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Rounded.AccountBox,
-                                    contentDescription = null,
-                                    tint = PrimaryPurple,
-                                    modifier = Modifier.size(48.dp)
-                                )
-                            }
+                        if (resolvedCoverModel != null) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(resolvedCoverModel)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = "Series Cover",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Rounded.Movie,
+                                contentDescription = null,
+                                tint = TextMuted,
+                                modifier = Modifier.size(40.dp)
+                            )
+                        }
 
-                            if (isEditMode) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color.Black.copy(alpha = 0.55f)),
-                                    contentAlignment = Alignment.Center
+                        if (isEditMode) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.55f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.CameraAlt,
-                                            contentDescription = "Change Avatar",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                        Text(
-                                            text = "Edit",
-                                            color = Color.White,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Rounded.Image,
+                                        contentDescription = "Change Cover",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                    Text(
+                                        text = "Change",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
+                    }
 
-                        // Tag 1: Material Type Pill (Channel) & Favorite Badge
+                    // Metadata Column
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(top = 2.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Tag 1: Material Type Pill (Series) & Favorite Badge
                         val effectiveType = if (isEditMode) draftMaterialTag else {
-                            entryMetadata.type.ifBlank { "Channel" }
+                            entryMetadata.type.ifBlank { "Series" }
                         }
 
                         if (isEditMode) {
@@ -227,13 +227,13 @@ fun ChannelDescriptionView(
                             }
                         } else {
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = PrimaryPurple.copy(alpha = 0.18f),
-                                    border = BorderStroke(1.dp, PrimaryPurple.copy(alpha = 0.4f))
+                                    color = Color(0xFF673AB7).copy(alpha = 0.20f),
+                                    border = BorderStroke(1.dp, Color(0xFF9575CD).copy(alpha = 0.45f))
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -244,30 +244,16 @@ fun ChannelDescriptionView(
                                             modifier = Modifier
                                                 .size(6.dp)
                                                 .clip(CircleShape)
-                                                .background(PrimaryPurple)
+                                                .background(Color(0xFF9575CD))
                                         )
                                         Text(
                                             text = effectiveType.uppercase(),
-                                            color = PrimaryPurple,
+                                            color = Color(0xFFD1C4E9),
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             letterSpacing = 0.8.sp
                                         )
                                     }
-                                }
-
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = Color.White.copy(alpha = 0.07f),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
-                                ) {
-                                    Text(
-                                        text = "${chapters.size} Videos",
-                                        color = TextMuted,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                    )
                                 }
 
                                 if (draftIsFavorite || manga.isFavorite) {
@@ -300,12 +286,12 @@ fun ChannelDescriptionView(
                             }
                         }
 
-                        // Channel Title
+                        // Title
                         if (isEditMode) {
                             TextField(
                                 value = draftTitle,
                                 onValueChange = onUpdateDraftTitle,
-                                placeholder = { Text("Channel Name", color = TextMuted, fontSize = 18.sp) },
+                                placeholder = { Text("Series / Anime Title", color = TextMuted, fontSize = 16.sp) },
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
                                     unfocusedContainerColor = Color.Transparent,
@@ -319,24 +305,19 @@ fun ChannelDescriptionView(
                             Text(
                                 text = manga.title,
                                 color = Color.White,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                textAlign = TextAlign.Center,
-                                lineHeight = 28.sp
+                                fontSize = 19.sp,
+                                fontWeight = FontWeight.Bold,
+                                lineHeight = 24.sp
                             )
                         }
 
-                        // Channel Handle / Subtitle
-                        val handle = if (isEditMode) draftAltTitle else {
-                            if (entryMetadata.altTitle.isNotBlank()) entryMetadata.altTitle
-                            else "@${manga.title.lowercase().replace("\\s+".toRegex(), "")}"
-                        }
-
+                        // Alternative Title / Japanese Title
+                        val alt = if (isEditMode) draftAltTitle else entryMetadata.altTitle
                         if (isEditMode) {
                             TextField(
                                 value = draftAltTitle,
                                 onValueChange = onUpdateDraftAltTitle,
-                                placeholder = { Text("@channel_handle", color = TextMuted, fontSize = 13.sp) },
+                                placeholder = { Text("Alt / Romaji Title", color = TextMuted, fontSize = 12.sp) },
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
                                     unfocusedContainerColor = Color.Transparent,
@@ -346,121 +327,92 @@ fun ChannelDescriptionView(
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             )
-                        } else {
+                        } else if (alt.isNotBlank()) {
                             Text(
-                                text = handle,
+                                text = alt,
                                 color = TextMuted,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
+                                fontSize = 13.sp,
+                                lineHeight = 17.sp
                             )
                         }
-                    }
-                }
-            }
 
-            // ── Action Row (Watch, Videos Window, Bookmark) - Hidden during Edit Mode ──
-            if (!isEditMode) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // 1. Primary "Watch" Button -> Plays First/Latest Video immediately
-                        val firstVideo = chapters.firstOrNull { it.title == manga.lastReadTitle }
-                            ?: chapters.firstOrNull()
+                        // Status & Rating Line
+                        val status = if (isEditMode) draftStatus else entryMetadata.status.ifBlank { "Completed" }
+                        val rating = if (isEditMode) draftRating else entryMetadata.rating.ifBlank { "8.8 (120K)" }
 
-                        Button(
-                            onClick = {
-                                if (firstVideo != null) {
-                                    onNavigateToMedia(firstVideo.id, 2)
-                                } else {
-                                    onPickVideos()
-                                }
-                            },
-                            modifier = Modifier
-                                .weight(1.2f)
-                                .height(48.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
-                        ) {
+                        if (isEditMode) {
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.PlayArrow,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
+                                TextField(
+                                    value = draftStatus,
+                                    onValueChange = onUpdateDraftStatus,
+                                    placeholder = { Text("Status", fontSize = 11.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White
+                                    )
                                 )
-                                Text(
-                                    text = if (firstVideo != null) {
-                                        if (manga.lastReadTitle != null) "Resume" else "Watch"
-                                    } else "Add Videos",
-                                    color = Color.White,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
+                                TextField(
+                                    value = draftRating,
+                                    onValueChange = onUpdateDraftRating,
+                                    placeholder = { Text("Rating", fontSize = 11.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White
+                                    )
                                 )
                             }
-                        }
-
-                        // 2. "Videos" Button -> Opens Dedicated Channel Videos List
-                        FilledTonalButton(
-                            onClick = onOpenVideos,
-                            modifier = Modifier
-                                .weight(1.1f)
-                                .height(48.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = CardBg,
-                                contentColor = Color.White
-                            ),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
-                        ) {
+                        } else {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(top = 2.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Rounded.VideoLibrary,
+                                    imageVector = Icons.Rounded.Star,
                                     contentDescription = null,
-                                    tint = PrimaryPurple,
-                                    modifier = Modifier.size(18.dp)
+                                    tint = Color(0xFFFFB800),
+                                    modifier = Modifier.size(16.dp)
                                 )
                                 Text(
-                                    text = "Videos (${chapters.size})",
-                                    fontSize = 13.sp,
+                                    text = rating,
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text("•", color = TextMuted, fontSize = 12.sp)
+                                Text(
+                                    text = status,
+                                    color = if (status.contains("ongoing", ignoreCase = true) || status.contains("airing", ignoreCase = true)) Color(0xFF4CAF50) else PrimaryPurple,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }
 
-                        // 3. Bookmark / Favorite Button
-                        val isFavorite = draftIsFavorite || manga.isFavorite
-
-                        OutlinedButton(
-                            onClick = onToggleFavorite,
-                            modifier = Modifier.size(48.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            contentPadding = PaddingValues(0.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (isFavorite) PrimaryPurple.copy(alpha = 0.18f) else Color.Transparent
-                            ),
-                            border = BorderStroke(1.dp, if (isFavorite) PrimaryPurple else Color.White.copy(alpha = 0.12f))
-                        ) {
-                            Icon(
-                                imageVector = if (isFavorite) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
-                                contentDescription = "Favorite",
-                                tint = if (isFavorite) PrimaryPurple else Color.White.copy(alpha = 0.6f),
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
+                        // Episodes & Franchise Badge
+                        val episodeText = if (chapters.isNotEmpty()) "${chapters.size} Episodes available" else "No episodes imported yet"
+                        Text(
+                            text = episodeText,
+                            color = TextMuted,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
                     }
                 }
             }
 
-            // ── Tags Section (Tag 2 - Topics & Categories with ✕ cut buttons) ──
+            // ── Tags Section (Tag 2 - Master Tags with ✕ cut buttons) ──
             item {
                 Column(
                     modifier = Modifier
@@ -485,7 +437,7 @@ fun ChannelDescriptionView(
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
-                                text = "CHANNEL TOPICS & TAGS",
+                                text = "GENRES & TAGS",
                                 color = TextMuted,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.ExtraBold,
@@ -514,7 +466,7 @@ fun ChannelDescriptionView(
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Text(
-                                        text = if (isTagSearchVisible) "Close Search" else "Add Topics",
+                                        text = if (isTagSearchVisible) "Close Tag Search" else "Add Tags",
                                         color = if (isTagSearchVisible) PrimaryPurple else Color.White,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
@@ -560,7 +512,7 @@ fun ChannelDescriptionView(
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Rounded.Close,
-                                                    contentDescription = "Remove topic",
+                                                    contentDescription = "Remove tag",
                                                     tint = TextMuted,
                                                     modifier = Modifier.size(13.dp)
                                                 )
@@ -572,7 +524,7 @@ fun ChannelDescriptionView(
                         }
                     } else {
                         Text(
-                            text = "No topics assigned.",
+                            text = "No tags assigned.",
                             color = TextMuted,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(vertical = 4.dp)
@@ -598,7 +550,7 @@ fun ChannelDescriptionView(
                                     value = tagQuery,
                                     onValueChange = onSetTagQuery,
                                     modifier = Modifier.fillMaxWidth(),
-                                    placeholder = { Text("Search tags (Tech, Gaming, Vlogs...)", color = TextMuted, fontSize = 12.sp) },
+                                    placeholder = { Text("Search 4,000+ tags (Action, Shounen, Sci-Fi...)", color = TextMuted, fontSize = 12.sp) },
                                     leadingIcon = {
                                         Icon(Icons.Rounded.Search, contentDescription = null, tint = PrimaryPurple, modifier = Modifier.size(18.dp))
                                     },
@@ -620,6 +572,14 @@ fun ChannelDescriptionView(
                                 )
 
                                 Spacer(modifier = Modifier.height(10.dp))
+
+                                Text(
+                                    text = if (tagQuery.isBlank()) "Popular Master Tags" else "Matching Master Tags",
+                                    color = TextMuted,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(bottom = 6.dp)
+                                )
 
                                 FlowRow(
                                     modifier = Modifier.fillMaxWidth(),
@@ -692,7 +652,7 @@ fun ChannelDescriptionView(
                 }
             }
 
-            // ── About Channel Section (Synopsis Card) ──
+            // ── Synopsis Section (Description Card) ──
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -702,7 +662,7 @@ fun ChannelDescriptionView(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "About Channel",
+                            text = "Synopsis",
                             color = Color.White,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
@@ -713,7 +673,7 @@ fun ChannelDescriptionView(
                             OutlinedTextField(
                                 value = draftDesc,
                                 onValueChange = onUpdateDraftDesc,
-                                placeholder = { Text("Enter channel description / bio...", color = TextMuted, fontSize = 13.sp) },
+                                placeholder = { Text("Enter series synopsis / plot...", color = TextMuted, fontSize = 13.sp) },
                                 modifier = Modifier.fillMaxWidth(),
                                 minLines = 4,
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -725,7 +685,7 @@ fun ChannelDescriptionView(
                                 shape = RoundedCornerShape(12.dp)
                             )
                         } else {
-                            val descriptionText = manga.description.ifBlank { "No channel description added yet." }
+                            val descriptionText = manga.description.ifBlank { "No synopsis added yet." }
                             val isLong = descriptionText.length > 160
 
                             Text(
@@ -733,7 +693,7 @@ fun ChannelDescriptionView(
                                 color = Color.White.copy(alpha = 0.85f),
                                 fontSize = 13.sp,
                                 lineHeight = 19.sp,
-                                maxLines = if (!isAboutExpanded && isLong) 4 else Int.MAX_VALUE,
+                                maxLines = if (!isSynopsisExpanded && isLong) 4 else Int.MAX_VALUE,
                                 overflow = TextOverflow.Ellipsis
                             )
 
@@ -744,18 +704,18 @@ fun ChannelDescriptionView(
                                         .clickable(
                                             interactionSource = remember { MutableInteractionSource() },
                                             indication = null
-                                        ) { isAboutExpanded = !isAboutExpanded },
+                                        ) { isSynopsisExpanded = !isSynopsisExpanded },
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Text(
-                                        text = if (isAboutExpanded) "Show less" else "Read more",
+                                        text = if (isSynopsisExpanded) "Show less" else "Read more",
                                         color = PrimaryPurple,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Icon(
-                                        imageVector = if (isAboutExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                                        imageVector = if (isSynopsisExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
                                         contentDescription = null,
                                         tint = PrimaryPurple,
                                         modifier = Modifier.size(16.dp)
@@ -767,7 +727,109 @@ fun ChannelDescriptionView(
                 }
             }
 
-            // ── Additional Channel Info Card ──
+            // ── Action Row (Watch, Related Window, Bookmark) - Hidden during Edit Mode ──
+            if (!isEditMode) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 1. Primary "Watch" Button -> Starts/Resumes Episode 1 or Last Watched
+                        val targetEpisode = chapters.firstOrNull { it.title == manga.lastReadTitle }
+                            ?: chapters.firstOrNull()
+
+                        Button(
+                            onClick = {
+                                if (targetEpisode != null) {
+                                    onNavigateToMedia(targetEpisode.id, 2)
+                                } else {
+                                    onPickEpisodes()
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.PlayArrow,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = if (targetEpisode != null) {
+                                        if (manga.lastReadTitle != null) "Resume" else "Watch"
+                                    } else "Add Episodes",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        // 2. "Videos" Button -> Opens Videos / Related Media Window (Default: Videos)
+                        FilledTonalButton(
+                            onClick = { onOpenRelated("Videos") },
+                            modifier = Modifier
+                                .weight(1.1f)
+                                .height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = CardBg,
+                                contentColor = Color.White
+                            ),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.VideoLibrary,
+                                    contentDescription = null,
+                                    tint = PrimaryPurple,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = if (chapters.isNotEmpty()) "Videos (${chapters.size})" else "Videos",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+                        // 3. Bookmark / Favorite Button
+                        val isFavorite = draftIsFavorite || manga.isFavorite
+
+                        OutlinedButton(
+                            onClick = onToggleFavorite,
+                            modifier = Modifier.size(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(0.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (isFavorite) PrimaryPurple.copy(alpha = 0.18f) else Color.Transparent
+                            ),
+                            border = BorderStroke(1.dp, if (isFavorite) PrimaryPurple else Color.White.copy(alpha = 0.12f))
+                        ) {
+                            Icon(
+                                imageVector = if (isFavorite) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
+                                contentDescription = "Favorite",
+                                tint = if (isFavorite) PrimaryPurple else Color.White.copy(alpha = 0.6f),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Additional Series Details Card ──
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -780,25 +842,25 @@ fun ChannelDescriptionView(
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         Text(
-                            text = "Channel Details",
+                            text = "Series Details",
                             color = Color.White,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
                         )
 
-                        // Row 1: Creator & Platform / Source
+                        // Row 1: Studio & Network / Broadcast
                         Row(modifier = Modifier.fillMaxWidth()) {
                             MetadataItemView(
                                 modifier = Modifier.weight(1f),
-                                label = "Creator / Host",
-                                value = if (isEditMode) draftAuthor else entryMetadata.author.ifBlank { "Creator" },
+                                label = "Studio / Director",
+                                value = if (isEditMode) draftArtist else entryMetadata.artist.ifBlank { "Unknown Studio" },
                                 isEditMode = isEditMode,
-                                onValueChange = onUpdateDraftAuthor
+                                onValueChange = onUpdateDraftArtist
                             )
                             MetadataItemView(
                                 modifier = Modifier.weight(1f),
-                                label = "Platform / Source",
-                                value = if (isEditMode) draftSerialization else entryMetadata.serialization.ifBlank { "Local" },
+                                label = "Network / Platform",
+                                value = if (isEditMode) draftSerialization else entryMetadata.serialization.ifBlank { "Original" },
                                 isEditMode = isEditMode,
                                 onValueChange = onUpdateDraftSerialization
                             )
@@ -810,15 +872,15 @@ fun ChannelDescriptionView(
                         Row(modifier = Modifier.fillMaxWidth()) {
                             MetadataItemView(
                                 modifier = Modifier.weight(1f),
-                                label = "Started / Year",
+                                label = "Release Year",
                                 value = if (isEditMode) draftYear else entryMetadata.year.ifBlank { "2024" },
                                 isEditMode = isEditMode,
                                 onValueChange = onUpdateDraftYear
                             )
                             MetadataItemView(
                                 modifier = Modifier.weight(1f),
-                                label = "Primary Language",
-                                value = if (isEditMode) draftLanguage else entryMetadata.language.ifBlank { "English" },
+                                label = "Audio / Subtitles",
+                                value = if (isEditMode) draftLanguage else entryMetadata.language.ifBlank { "Japanese / Sub" },
                                 isEditMode = isEditMode,
                                 onValueChange = onUpdateDraftLanguage
                             )
@@ -826,12 +888,19 @@ fun ChannelDescriptionView(
 
                         HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
 
-                        // Row 3: Total Videos
+                        // Row 3: Status & Total Episodes
                         Row(modifier = Modifier.fillMaxWidth()) {
                             MetadataItemView(
                                 modifier = Modifier.weight(1f),
-                                label = "Total Videos",
-                                value = "${chapters.size} items",
+                                label = "Status",
+                                value = if (isEditMode) draftStatus else entryMetadata.status.ifBlank { "Completed" },
+                                isEditMode = isEditMode,
+                                onValueChange = onUpdateDraftStatus
+                            )
+                            MetadataItemView(
+                                modifier = Modifier.weight(1f),
+                                label = "Total Episodes",
+                                value = "${chapters.size}",
                                 isEditMode = false,
                                 onValueChange = {}
                             )
@@ -903,7 +972,7 @@ fun ChannelDescriptionView(
                         onDismissRequest = { showMoreMenu = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Edit Channel") },
+                            text = { Text("Edit Description") },
                             onClick = {
                                 showMoreMenu = false
                                 onToggleEditMode()
@@ -913,7 +982,7 @@ fun ChannelDescriptionView(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Change Avatar / Cover") },
+                            text = { Text("Change Cover") },
                             onClick = {
                                 showMoreMenu = false
                                 onPickCover()
@@ -923,28 +992,38 @@ fun ChannelDescriptionView(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Add / Import Videos") },
+                            text = { Text("Add / Import Episodes") },
                             onClick = {
                                 showMoreMenu = false
-                                onPickVideos()
+                                onPickEpisodes()
                             },
                             leadingIcon = {
                                 Icon(Icons.Rounded.VideoFile, contentDescription = null)
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Open Videos (${chapters.size})") },
+                            text = { Text("Videos (${chapters.size})") },
                             onClick = {
                                 showMoreMenu = false
-                                onOpenVideos()
+                                onOpenRelated("Videos")
                             },
                             leadingIcon = {
                                 Icon(Icons.Rounded.VideoLibrary, contentDescription = null)
                             }
                         )
+                        DropdownMenuItem(
+                            text = { Text("Franchise & Related (${childBoxes.size})") },
+                            onClick = {
+                                showMoreMenu = false
+                                onOpenRelated("Seasons")
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Rounded.Hub, contentDescription = null)
+                            }
+                        )
                         HorizontalDivider()
                         DropdownMenuItem(
-                            text = { Text("Delete Channel", color = Color(0xFFE57373)) },
+                            text = { Text("Delete Series", color = Color(0xFFE57373)) },
                             onClick = {
                                 showMoreMenu = false
                                 onDeleteManga()
