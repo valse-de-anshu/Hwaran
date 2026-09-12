@@ -31,9 +31,10 @@ All notable changes, architectural milestones, and structural refactors to this 
   - Applied `displayCutoutPadding()` and extended `statusBarsPadding()` with safe vertical spacing, moving the top Back and Settings buttons completely out of the camera punch hole danger zone.
 - **Rapid Scroll Stability Fix**:
   - Fixed rapid scrolling stutter/freeze by eliminating per-item crossfade animations, providing stable minimum item dimensions to prevent LazyColumn measurement jumps, and throttling preloads during scroll motion.
-- **Sleek Reader Settings Sheet (`ToonReaderSettingsSheet`)**:
-  - Glassmorphic modal sheet with reading layout toggle, reading direction selector, margin cropping slider, 4 canvas background tones (Theme, OLED Black, Deep Slate, Pure White), screen brightness override slider, and keep screen awake toggle.
-  - Quick page scrubbing slider with live page preview.
+- **Vertical Settings Pill & Live Transparent Popups (`ToonReaderSettingsPill`)**:
+  - Replaced the intrusive full-screen bottom sheet with a floating vertical pill dock matching the signature Hwaran pill design.
+  - 4 dedicated category icons: **Display Screen**, **Crop Size Margin & Zoom**, **Reading Layout**, and **Canvas Background**.
+  - Tapping an icon spawns a compact floating card with a **100% transparent screen background**, allowing the reader to see live, immediate visual changes on the comic page as they adjust crop margins, background tones, brightness, or layout modes.
   - All reader preferences persisted in `GlobalSettings` via DataStore.
 
 ### 🔍 Advanced Search Engine

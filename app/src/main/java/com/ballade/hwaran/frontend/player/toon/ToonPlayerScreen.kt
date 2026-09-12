@@ -93,7 +93,7 @@ fun ToonPlayerScreen(
     val keepScreenOn by globalSettings.readerKeepScreenOnFlow.collectAsState(initial = true)
 
     var brightnessOverride by remember { mutableStateOf<Float?>(null) }
-    var showSettingsSheet by remember { mutableStateOf(false) }
+    var activeSettingTab by remember { mutableStateOf<ReaderSettingTab?>(null) }
     var showChapterList by remember { mutableStateOf(false) }
 
     // Screen is 100% clean by default; controls appear only when requested
@@ -166,8 +166,8 @@ fun ToonPlayerScreen(
 
     // Back handler
     BackHandler {
-        if (showSettingsSheet) {
-            showSettingsSheet = false
+        if (activeSettingTab != null) {
+            activeSettingTab = null
         } else if (showChapterList) {
             showChapterList = false
         } else if (showControls) {
@@ -233,19 +233,6 @@ fun ToonPlayerScreen(
             lifecycleOwner.lifecycle.removeObserver(observer)
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             readerViewModel.saveLastPage(activePageIndex + 1)
-        }
-    }
-
-    // Jump helper
-    val jumpToPage: (Int) -> Unit = { targetPage ->
-        val safePage = targetPage.coerceIn(0, (images.size - 1).coerceAtLeast(0))
-        coroutineScope.launch {
-            if (readerMode == 0) {
-                listState.scrollToItem(safePage)
-            } else {
-                pagerState.scrollToPage(safePage)
-            }
-            readerViewModel.saveLastPage(safePage + 1)
         }
     }
 
@@ -361,8 +348,12 @@ fun ToonPlayerScreen(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
                             ) {
-                                // If controls are visible, tapping anywhere on strip dismisses them
-                                if (showControls) showControls = false
+                                // If controls or setting popup are open, tapping strip dismisses them
+                                if (activeSettingTab != null) {
+                                    activeSettingTab = null
+                                } else if (showControls) {
+                                    showControls = false
+                                }
                             }
                     ) {
                         val containerWidth = maxWidth
@@ -425,9 +416,14 @@ fun ToonPlayerScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .pointerInput(isRtl, pagerState.currentPage, images.size, showControls) {
+                            .pointerInput(isRtl, pagerState.currentPage, images.size, showControls, activeSettingTab) {
                                 detectTapGestures(
                                     onTap = { offset ->
+                                        if (activeSettingTab != null) {
+                                            activeSettingTab = null
+                                            return@detectTapGestures
+                                        }
+
                                         val w = size.width
                                         val leftThreshold = w * 0.28f
                                         val rightThreshold = w * 0.72f
@@ -548,42 +544,22 @@ fun ToonPlayerScreen(
                                 )
                             }
 
-                            // Top Right: Setting Pill with Settings Icon and Page Counter
+                            // Top Right: Live Page Counter Pill
                             Surface(
                                 shape = RoundedCornerShape(24.dp),
                                 color = OverlayBg,
                                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-                                modifier = Modifier
-                                    .height(44.dp)
-                                    .clip(RoundedCornerShape(24.dp))
-                                    .clickable {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        showSettingsSheet = true
-                                    }
+                                modifier = Modifier.height(40.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.padding(horizontal = 14.dp)
                                 ) {
                                     Text(
-                                        text = "${activePageIndex + 1}/${images.size}",
+                                        text = "p. ${activePageIndex + 1}/${images.size}",
                                         color = Color.White,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
-                                    )
-
-                                    Box(
-                                        modifier = Modifier
-                                            .size(4.dp)
-                                            .background(Color.White.copy(alpha = 0.35f), CircleShape)
-                                    )
-
-                                    Icon(
-                                        imageVector = Icons.Rounded.Tune,
-                                        contentDescription = "Settings",
-                                        tint = PrimaryPurple,
-                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
                             }
@@ -688,46 +664,42 @@ fun ToonPlayerScreen(
                                 )
                             }
                         }
+
+                        // ═════════════════════════════════════════════════════════════════
+                        // VERTICAL SETTINGS PILL & LIVE TRANSPARENT POPUP
+                        // ═════════════════════════════════════════════════════════════════
+                        ToonReaderSettingsPill(
+                            activeTab = activeSettingTab,
+                            onTabSelected = { activeSettingTab = it },
+                            readerMode = readerMode,
+                            onReaderModeChange = { newMode ->
+                                coroutineScope.launch { globalSettings.setReaderMode(newMode) }
+                            },
+                            readerDirection = readerDirection,
+                            onReaderDirectionChange = { newDir ->
+                                coroutineScope.launch { globalSettings.setReaderDirection(newDir) }
+                            },
+                            cropZoom = cropZoom,
+                            onCropZoomChange = { newCrop ->
+                                coroutineScope.launch { globalSettings.setReaderCropZoom(newCrop) }
+                            },
+                            readerBgColor = readerBgColor,
+                            onReaderBgColorChange = { newBg ->
+                                coroutineScope.launch { globalSettings.setReaderBgColor(newBg) }
+                            },
+                            keepScreenOn = keepScreenOn,
+                            onKeepScreenOnChange = { newKeep ->
+                                coroutineScope.launch { globalSettings.setReaderKeepScreenOn(newKeep) }
+                            },
+                            brightnessOverride = brightnessOverride,
+                            onBrightnessOverrideChange = { brightnessOverride = it },
+                            glowColor = PrimaryPurple,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
                 }
             }
         }
-
-        // ═════════════════════════════════════════════════════════════════════════
-        // SLEEK READER SETTINGS BOTTOM SHEET
-        // ═════════════════════════════════════════════════════════════════════════
-        ToonReaderSettingsSheet(
-            show = showSettingsSheet,
-            onDismiss = { showSettingsSheet = false },
-            readerMode = readerMode,
-            onReaderModeChange = { newMode ->
-                coroutineScope.launch { globalSettings.setReaderMode(newMode) }
-            },
-            readerDirection = readerDirection,
-            onReaderDirectionChange = { newDirection ->
-                coroutineScope.launch { globalSettings.setReaderDirection(newDirection) }
-            },
-            cropZoom = cropZoom,
-            onCropZoomChange = { newCrop ->
-                coroutineScope.launch { globalSettings.setReaderCropZoom(newCrop) }
-            },
-            readerBgColor = readerBgColor,
-            onReaderBgColorChange = { newBg ->
-                coroutineScope.launch { globalSettings.setReaderBgColor(newBg) }
-            },
-            keepScreenOn = keepScreenOn,
-            onKeepScreenOnChange = { newKeep ->
-                coroutineScope.launch { globalSettings.setReaderKeepScreenOn(newKeep) }
-            },
-            brightnessOverride = brightnessOverride,
-            onBrightnessOverrideChange = { brightnessOverride = it },
-            currentPage = activePageIndex,
-            totalPages = images.size,
-            onJumpToPage = jumpToPage,
-            mangaTitle = mangaTitle,
-            chapterTitle = chapter?.title,
-            glowColor = PrimaryPurple
-        )
 
         // ═════════════════════════════════════════════════════════════════════════
         // CHAPTER PICKER MODAL BOTTOM SHEET
@@ -760,7 +732,7 @@ fun ToonPlayerScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 16.dp, start = 8.dp, end = 8.dp),
+                            .padding(bottom = 16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
