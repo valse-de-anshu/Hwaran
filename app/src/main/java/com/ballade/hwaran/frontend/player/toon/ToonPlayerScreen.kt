@@ -483,16 +483,13 @@ fun ToonPlayerScreen(
                 }
 
                 // ═════════════════════════════════════════════════════════════════════════
-                // INVISIBLE TOP-RIGHT TAP TRIGGER (Keeps Reader 100% Clean)
+                // INVISIBLE TOP-RIGHT TAP TRIGGER (Large, effortless corner zone)
                 // ═════════════════════════════════════════════════════════════════════════
-                if (!showControls) {
+                if (!showControls && !showChapterList) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .statusBarsPadding()
-                            .displayCutoutPadding()
-                            .padding(top = 12.dp, end = 12.dp)
-                            .size(width = 80.dp, height = 64.dp)
+                            .size(width = 160.dp, height = 140.dp)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
@@ -504,10 +501,10 @@ fun ToonPlayerScreen(
                 }
 
                 // ═════════════════════════════════════════════════════════════════════════
-                // OVERLAY CONTROLS (Appears ONLY when top-right area or center is pressed)
+                // OVERLAY CONTROLS (Hidden during chapter picker to eliminate interference)
                 // ═════════════════════════════════════════════════════════════════════════
                 AnimatedVisibility(
-                    visible = showControls,
+                    visible = showControls && !showChapterList,
                     enter = fadeIn(tween(180)),
                     exit = fadeOut(tween(180))
                 ) {
@@ -534,6 +531,7 @@ fun ToonPlayerScreen(
                                 modifier = Modifier
                                     .size(44.dp)
                                     .background(OverlayBg, CircleShape)
+                                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), CircleShape)
                                     .clip(CircleShape)
                             ) {
                                 Icon(
@@ -565,7 +563,7 @@ fun ToonPlayerScreen(
                             }
                         }
 
-                        // ── REVIVED CLASSIC BOTTOM NAVIGATION PILL & TOP BUTTON ──
+                        // ── REVIVED CLASSIC BOTTOM NAVIGATION PILL & TOP BUTTON (Clean White, No Purple Blooming) ──
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -578,6 +576,7 @@ fun ToonPlayerScreen(
                                 modifier = Modifier
                                     .align(Alignment.Center)
                                     .background(OverlayBg, RoundedCornerShape(50))
+                                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), RoundedCornerShape(50))
                                     .padding(horizontal = 8.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -592,22 +591,27 @@ fun ToonPlayerScreen(
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                                         contentDescription = "Prev Chapter",
-                                        tint = if (prevChapterId != null) PrimaryPurple else TextMuted,
+                                        tint = if (prevChapterId != null) Color.White else Color.White.copy(alpha = 0.25f),
                                         modifier = Modifier.size(28.dp)
                                     )
                                 }
 
                                 Box(
                                     modifier = Modifier
-                                        .background(BgSurfaceVariant, RoundedCornerShape(24.dp))
+                                        .background(Color.White.copy(alpha = 0.10f), RoundedCornerShape(24.dp))
+                                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), RoundedCornerShape(24.dp))
                                         .clip(RoundedCornerShape(24.dp))
-                                        .clickable { showChapterList = true }
+                                        .clickable {
+                                            activeSettingTab = null
+                                            showChapterList = true
+                                        }
                                         .padding(horizontal = 20.dp, vertical = 10.dp)
                                 ) {
                                     Text(
                                         text = chapter?.title ?: "Select Chapter",
-                                        color = PrimaryPurple,
+                                        color = Color.White,
                                         style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
                                         maxLines = 1
                                     )
                                 }
@@ -623,7 +627,7 @@ fun ToonPlayerScreen(
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                         contentDescription = "Next Chapter",
-                                        tint = if (nextChapterId != null) PrimaryPurple else TextMuted,
+                                        tint = if (nextChapterId != null) Color.White else Color.White.copy(alpha = 0.25f),
                                         modifier = Modifier.size(28.dp)
                                     )
                                 }
@@ -636,6 +640,7 @@ fun ToonPlayerScreen(
                                     .padding(end = 16.dp)
                                     .size(44.dp)
                                     .background(OverlayBg, CircleShape)
+                                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), CircleShape)
                                     .clip(CircleShape)
                                     .clickable {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)

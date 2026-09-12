@@ -21,11 +21,12 @@ All notable changes, architectural milestones, and structural refactors to this 
   - **Crop Side Margins / Horizontal Scale Slider**: Eliminates annoying white gutters/letterboxing in manhua by expanding width from 100% to 150% with clean edge clipping.
   - Native 120fps scrolling physics are 100% preserved even when zoomed/cropped—completely fixing the "stuck in glue" resistance issue.
   - Quick preset chips: `Fit (100%)`, `Crop 15%`, `Crop 30%`, and one-tap Reset.
-- **Pristine Distraction-Free Canvas & Top-Right Trigger**:
+- **Pristine Distraction-Free Canvas & Expanded Top-Right Trigger**:
   - Reader screen is 100% clean by default with zero visible overlay buttons obstructing reading.
-  - Tapping the dedicated top-right corner zone smoothly toggles the controls overlay on demand.
-- **Revived Classic Bottom Navigation Pill**:
-  - Restored the beloved classic bottom pill with `< Prev Chapter`, centered purple `Chapter Title` (tappable to open chapter picker), and `Next Chapter >`.
+  - Substantially enlarged the top-right corner touch trigger zone (160dp x 140dp) for effortless, reliable thumb taps.
+- **Revived Classic Bottom Navigation Pill (Crisp White Styling)**:
+  - Restored the classic bottom pill using crisp white iconography and text on dark neutral slate, eliminating all unwanted purple theme blooming.
+  - Automatically hides all background overlay controls (Back, Page counter, Vertical Pill, and Bottom Pill) whenever the chapter picker modal sheet is opened, completely preventing UI interference and visual overlap.
   - Restored the separate circular `^` Scroll to Top button with instant snap to Page 1.
 - **Camera Cutout & Notch Safe Insets**:
   - Applied `displayCutoutPadding()` and extended `statusBarsPadding()` with safe vertical spacing, moving the top Back and Settings buttons completely out of the camera punch hole danger zone.
