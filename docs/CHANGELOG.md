@@ -9,35 +9,35 @@ All notable changes, architectural milestones, and structural refactors to this 
 ## [Current] - 2026-09-12
 
 ### 📚 PDF & Book Reading Suite Overhaul
+- **Book Description Screen 3-Dot Menu (`BookDescriptionView.kt`)**:
+  - Replaced side-by-side Edit and Delete buttons with the standard, elegant frosted 3-dot `MoreVert` button and `DropdownMenu` (Edit Information, Change Cover, Delete Book), matching the unified design of `ToonDescriptionView.kt`.
 - **Camera Cutout & Notch Safe Insets (`BookDescriptionView.kt`)**:
-  - Moved the top floating bar (Back, Edit, Delete) completely out of the camera punch hole/cutout danger zone using `.statusBarsPadding()`, `.displayCutoutPadding()`, and 28dp clearance with frosted circular surfaces.
+  - Moved the top floating bar (Back and 3-dot menu) completely out of the camera punch hole/cutout danger zone using `.statusBarsPadding()`, `.displayCutoutPadding()`, and 28dp clearance with frosted circular surfaces.
   - Added a 92dp top safe spacer to the scrollable `LazyColumn`, ensuring header covers and metadata never overlap with camera cutouts or status icons.
+- **Reading Comfort & Eye Protection Popup Card (`BookPlayerScreen.kt`)**:
+  - Fixed the letter-by-letter text wrapping bug by restructuring the card with symmetrical 25% width distribution (`Modifier.weight(1f)`), vertical preview dot + label layout, and concise labels (`Default`, `Sepia`, `Mint`, `Dark`) with `softWrap = false`.
+- **Soft Aesthetic Pastel Watercolor Highlighter (`BookPlayerScreen.kt`)**:
+  - Highlights now render as smooth translucent watercolor washes using `drawRoundRect`, `CornerRadius(6.dp)`, `alpha = 0.28f`, and `BlendMode.Multiply`.
+  - Replaced harsh solid neon markers with soft pastel tones: Pastel Lemon (`#FFF59D`), Pastel Mint (`#A7F3D0`), Pastel Rose (`#FBCFE8`), Pastel Sky (`#BAE6FD`), Pastel Lavender (`#DDD6FE`), and Pastel Peach (`#FED7AA`).
+- **External Text Notes & Annotations (`BookPlayerScreen.kt`)**:
+  - Added the ability to attach external text notes and commentary to pages via the Text Tool (`Icons.Rounded.TextFields`).
+  - Stored persistently per book (`notes_${mangaId}.json`) with zero Room migration risks.
+  - Displayed on pages as sleek frosted sticky note badges (`Icons.AutoMirrored.Rounded.StickyNote2`) with interactive full-text detail and deletion dialogs.
+- **Full Undo / Redo Engine (Ctrl+Z & Ctrl+Y) (`BookPlayerScreen.kt`)**:
+  - Implemented responsive Undo (`Icons.AutoMirrored.Rounded.Undo`) and Redo (`Icons.AutoMirrored.Rounded.Redo`) for all highlights and text annotations with haptic feedback and dynamic enabled/disabled states.
+- **Revamped 5-Feature Bottom Dock Pill (`BookPlayerScreen.kt`)**:
+  - Streamlined dock pill into 5 focused tools:
+    1. **Highlighter** (`Icons.Rounded.Brush`)
+    2. **Text Note** (`Icons.Rounded.TextFields`)
+    3. **Eye Protection** (`Icons.Rounded.Visibility`)
+    4. **Undo** (`Icons.AutoMirrored.Rounded.Undo`)
+    5. **Redo** (`Icons.AutoMirrored.Rounded.Redo`)
+  - Preserved right-side vertical fast-scroll page pill with page counter badge and drag handle.
 - **Lag-Free Document Loading Transition (`BookPlayerScreen.kt`)**:
   - Replaced the stuttering, laggy `CircularProgressIndicator` with a smooth 220ms `Crossfade` loading layout.
   - Displays frosted book icon, document title, "Preparing pages & annotations..." status, and sleek slim progress bar.
 - **Top Bar Camera Safety Clearance (`BookPlayerScreen.kt`)**:
   - Added `.statusBarsPadding().displayCutoutPadding().padding(top = 24.dp)` with frosted glass back button, document title capsule, and reading progress badge.
-- **Preserved Vertical Fast-Scroll Page Pill**:
-  - Maintained the right-side vertical fast-scroll page indicator (`currentPage + 1 / pageCount`) and dot handle exactly as requested.
-- **Aesthetic Bottom Dock Pill with 5 Rich Features**:
-  - Positioned safely above Android's 3-button navigation bar and gesture bar using `.navigationBarsPadding().padding(bottom = 28.dp)`.
-  - Built with signature glassmorphic dark styling (`Color(0xFF14131E).copy(alpha = 0.94f)`) and frosted border.
-  - **1. Aesthetic Multi-Color Highlighter**:
-    - 6 rich modern colors: Neon Sun Yellow (`#FFF176`), Mint Pastel Green (`#A7F3D0`), Sakura Pink (`#F472B6`), Sky Cyan Blue (`#60A5FA`), Lavender Purple (`#C084FC`), and Warm Amber Glow (`#FFB74D`).
-    - Expandable floating palette card with active color indicator dot and selection rings.
-    - Quick highlight deletion on tap with dark frosted confirmation dialog.
-  - **2. Eye Protection & Reading Comfort Tint**:
-    - Four real-time paper rendering modes:
-      - **Original**: Crisp clean white PDF display.
-      - **Warm Sepia Paper**: Classic `#FAF0D7` tone with `BlendMode.Multiply` for comfortable long-session reading.
-      - **Paper Green**: Eye-ease mint `#E8F5E9` with `BlendMode.Multiply` to reduce blue-light fatigue.
-      - **OLED Night Mode**: Negative color matrix inversion converting harsh white backgrounds to deep OLED dark with crisp readable text.
-  - **3. Screen Rotation Quick Lock**:
-    - One-tap toggle between Landscape and Portrait orientation directly from the dock.
-  - **4. Instant Zoom & Fit Mode**:
-    - Quick 1-tap toggle between Fit Screen (1.0x) and Enhanced Reading Zoom (1.6x) with reset capability.
-  - **5. Page Navigator & Scrubber**:
-    - Scrub slider across the entire document (`1..pageCount`) with previous/next page step buttons and instant jump to Start / End.
 
 ### 📖 Premium Manga & Manhua Reading Suite
 - **Lag-Free Reader Transition**:

@@ -28,11 +28,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
-import androidx.compose.material.icons.filled.ScreenRotation
+import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.automirrored.rounded.Redo
+import androidx.compose.material.icons.automirrored.rounded.NoteAdd
+import androidx.compose.material.icons.automirrored.rounded.StickyNote2
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -148,20 +152,19 @@ private fun Offset.distance(other: Offset): Float {
 private fun centroid(a: Offset, b: Offset) = Offset((a.x + b.x) / 2f, (a.y + b.y) / 2f)
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Eye Care and Bottom Panel Models
+// Eye Care, Annotations & Panel Models
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum class EyeCareMode(val label: String) {
-    OFF("Original"),
-    SEPIA("Warm Sepia"),
-    MINT("Paper Green"),
-    NIGHT("OLED Dark")
+    OFF("Default"),
+    SEPIA("Sepia"),
+    MINT("Mint"),
+    NIGHT("Dark")
 }
 
 enum class PdfBottomPanel {
     HIGHLIGHTER,
-    EYE_CARE,
-    PAGE_NAV
+    EYE_CARE
 }
 
 data class HighlightColorOption(
@@ -171,13 +174,76 @@ data class HighlightColorOption(
 )
 
 val HighlighterColors = listOf(
-    HighlightColorOption("Neon Yellow", 0xFFFFEB3B.toInt(), Color(0xFFFFEB3B)),
-    HighlightColorOption("Mint Green", 0xFFA7F3D0.toInt(), Color(0xFFA7F3D0)),
-    HighlightColorOption("Sakura Pink", 0xFFF472B6.toInt(), Color(0xFFF472B6)),
-    HighlightColorOption("Sky Cyan", 0xFF60A5FA.toInt(), Color(0xFF60A5FA)),
-    HighlightColorOption("Lavender", 0xFFC084FC.toInt(), Color(0xFFC084FC)),
-    HighlightColorOption("Warm Amber", 0xFFFFB74D.toInt(), Color(0xFFFFB74D))
+    HighlightColorOption("Lemon Pastel", 0xFFFFF59D.toInt(), Color(0xFFFFF59D)),
+    HighlightColorOption("Mint Pastel", 0xFFA7F3D0.toInt(), Color(0xFFA7F3D0)),
+    HighlightColorOption("Rose Pastel", 0xFFFBCFE8.toInt(), Color(0xFFFBCFE8)),
+    HighlightColorOption("Sky Pastel", 0xFFBAE6FD.toInt(), Color(0xFFBAE6FD)),
+    HighlightColorOption("Lavender Pastel", 0xFFDDD6FE.toInt(), Color(0xFFDDD6FE)),
+    HighlightColorOption("Peach Pastel", 0xFFFED7AA.toInt(), Color(0xFFFED7AA))
 )
+
+data class PdfTextNote(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val mangaId: Long,
+    val page: Int, // 1-indexed
+    val text: String,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+object PdfNotesManager {
+    fun loadNotes(context: android.content.Context, mangaId: Long): List<PdfTextNote> {
+        val file = File(context.filesDir, "pdf_notes/notes_${mangaId}.json")
+        if (!file.exists()) return emptyList()
+        return try {
+            val jsonStr = file.readText()
+            val array = org.json.JSONArray(jsonStr)
+            val list = mutableListOf<PdfTextNote>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    PdfTextNote(
+                        id = obj.getString("id"),
+                        mangaId = obj.getLong("mangaId"),
+                        page = obj.getInt("page"),
+                        text = obj.getString("text"),
+                        createdAt = obj.optLong("createdAt", System.currentTimeMillis())
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun saveNotes(context: android.content.Context, mangaId: Long, notes: List<PdfTextNote>) {
+        try {
+            val dir = File(context.filesDir, "pdf_notes")
+            if (!dir.exists()) dir.mkdirs()
+            val file = File(dir, "notes_${mangaId}.json")
+            val array = org.json.JSONArray()
+            for (note in notes) {
+                val obj = org.json.JSONObject()
+                obj.put("id", note.id)
+                obj.put("mangaId", note.mangaId)
+                obj.put("page", note.page)
+                obj.put("text", note.text)
+                obj.put("createdAt", note.createdAt)
+                array.put(obj)
+            }
+            file.writeText(array.toString())
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+}
+
+sealed interface PdfAnnotationAction {
+    data class AddMarker(val marker: com.ballade.hwaran.core.database.entity.PdfMarkerEntity) : PdfAnnotationAction
+    data class DeleteMarker(val marker: com.ballade.hwaran.core.database.entity.PdfMarkerEntity) : PdfAnnotationAction
+    data class AddNote(val note: PdfTextNote) : PdfAnnotationAction
+    data class DeleteNote(val note: PdfTextNote) : PdfAnnotationAction
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BookPlayerScreen (formerly PdfReaderScreen)
@@ -215,12 +281,86 @@ fun BookPlayerScreen(
     var isLoading by remember { mutableStateOf(true) }
 
     var isMarkerMode by remember { mutableStateOf(false) }
-    var activeColor by remember { mutableIntStateOf(0xFFFFEB3B.toInt()) }
+    var activeColor by remember { mutableIntStateOf(0xFFFFF59D.toInt()) }
     val markers by pdfViewModel.getMarkers(mangaId).collectAsState(initial = emptyList())
     var eyeCareMode by remember { mutableStateOf(EyeCareMode.OFF) }
     var activeBottomPanel by remember { mutableStateOf<PdfBottomPanel?>(null) }
     var viewWidthPx by remember { mutableIntStateOf(1080) }
     var viewHeightPx by remember { mutableIntStateOf(1920) }
+
+    val undoStack = remember { mutableStateListOf<PdfAnnotationAction>() }
+    val redoStack = remember { mutableStateListOf<PdfAnnotationAction>() }
+    val textNotes = remember { mutableStateListOf<PdfTextNote>() }
+    var showAddNoteDialog by remember { mutableStateOf(false) }
+    var noteInputText by remember { mutableStateOf("") }
+    var noteForDetailDialog by remember { mutableStateOf<PdfTextNote?>(null) }
+
+    LaunchedEffect(mangaId) {
+        val loaded = withContext(Dispatchers.IO) {
+            PdfNotesManager.loadNotes(context, mangaId)
+        }
+        textNotes.clear()
+        textNotes.addAll(loaded)
+    }
+
+    fun persistNotes() {
+        val currentList = textNotes.toList()
+        coroutineScope.launch(Dispatchers.IO) {
+            PdfNotesManager.saveNotes(context, mangaId, currentList)
+        }
+    }
+
+    fun performUndo() {
+        if (undoStack.isEmpty()) return
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        val action = undoStack.removeAt(undoStack.lastIndex)
+        when (action) {
+            is PdfAnnotationAction.AddMarker -> {
+                pdfViewModel.deleteMarker(action.marker)
+                redoStack.add(action)
+            }
+            is PdfAnnotationAction.DeleteMarker -> {
+                pdfViewModel.addMarker(action.marker)
+                redoStack.add(action)
+            }
+            is PdfAnnotationAction.AddNote -> {
+                textNotes.removeAll { it.id == action.note.id }
+                persistNotes()
+                redoStack.add(action)
+            }
+            is PdfAnnotationAction.DeleteNote -> {
+                textNotes.add(action.note)
+                persistNotes()
+                redoStack.add(action)
+            }
+        }
+    }
+
+    fun performRedo() {
+        if (redoStack.isEmpty()) return
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        val action = redoStack.removeAt(redoStack.lastIndex)
+        when (action) {
+            is PdfAnnotationAction.AddMarker -> {
+                pdfViewModel.addMarker(action.marker)
+                undoStack.add(action)
+            }
+            is PdfAnnotationAction.DeleteMarker -> {
+                pdfViewModel.deleteMarker(action.marker)
+                undoStack.add(action)
+            }
+            is PdfAnnotationAction.AddNote -> {
+                textNotes.add(action.note)
+                persistNotes()
+                undoStack.add(action)
+            }
+            is PdfAnnotationAction.DeleteNote -> {
+                textNotes.removeAll { it.id == action.note.id }
+                persistNotes()
+                undoStack.add(action)
+            }
+        }
+    }
 
     var manga by remember { mutableStateOf<MangaEntity?>(null) }
     var startPage by remember { mutableIntStateOf(1) }
@@ -245,6 +385,29 @@ fun BookPlayerScreen(
                 }
             }
         }
+    }
+
+    fun addNoteToCurrentPage(text: String) {
+        if (text.isBlank()) return
+        val note = PdfTextNote(
+            mangaId = mangaId,
+            page = currentPage + 1,
+            text = text.trim()
+        )
+        textNotes.add(note)
+        persistNotes()
+        undoStack.add(PdfAnnotationAction.AddNote(note))
+        redoStack.clear()
+        noteInputText = ""
+        showAddNoteDialog = false
+    }
+
+    fun deleteNote(note: PdfTextNote) {
+        textNotes.removeAll { it.id == note.id }
+        persistNotes()
+        undoStack.add(PdfAnnotationAction.DeleteNote(note))
+        redoStack.clear()
+        noteForDetailDialog = null
     }
 
     LaunchedEffect(currentPage, pageCount) {
@@ -749,9 +912,21 @@ fun BookPlayerScreen(
                                             isMarkerMode = isMarkerMode,
                                             activeColor = activeColor,
                                             markers = markers,
+                                            notes = textNotes,
                                             eyeCareMode = eyeCareMode,
-                                            onAddMarker = { pdfViewModel.addMarker(it) },
-                                            onDeleteMarker = { pdfViewModel.deleteMarker(it) },
+                                            onAddMarker = { marker ->
+                                                pdfViewModel.addMarker(marker)
+                                                undoStack.add(PdfAnnotationAction.AddMarker(marker))
+                                                redoStack.clear()
+                                            },
+                                            onDeleteMarker = { marker ->
+                                                pdfViewModel.deleteMarker(marker)
+                                                undoStack.add(PdfAnnotationAction.DeleteMarker(marker))
+                                                redoStack.clear()
+                                            },
+                                            onSelectNote = { note ->
+                                                noteForDetailDialog = note
+                                            },
                                             onScrollToPage = { targetPage ->
                                                 coroutineScope.launch {
                                                     listState.animateScrollToItem(targetPage)
@@ -1062,16 +1237,18 @@ fun BookPlayerScreen(
                                             }
 
                                             PdfBottomPanel.EYE_CARE -> {
-                                                // Eye Protection Floating Card
+                                                // Eye Protection Floating Card (Symmetrical 4-mode layout, no text wrapping)
                                                 Surface(
                                                     shape = RoundedCornerShape(24.dp),
                                                     color = Color(0xFF14131E).copy(alpha = 0.96f),
                                                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
                                                     shadowElevation = 16.dp,
-                                                    modifier = Modifier.padding(horizontal = 20.dp)
+                                                    modifier = Modifier
+                                                        .fillMaxWidth(0.92f)
+                                                        .padding(horizontal = 12.dp)
                                                 ) {
                                                     Column(
-                                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                                                         verticalArrangement = Arrangement.spacedBy(10.dp),
                                                         horizontalAlignment = Alignment.CenterHorizontally
                                                     ) {
@@ -1083,24 +1260,28 @@ fun BookPlayerScreen(
                                                         )
 
                                                         Row(
-                                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                                                             verticalAlignment = Alignment.CenterVertically
                                                         ) {
                                                             EyeCareMode.values().forEach { mode ->
                                                                 val isSelected = eyeCareMode == mode
                                                                 Surface(
-                                                                    shape = RoundedCornerShape(16.dp),
-                                                                    color = if (isSelected) Color.White.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.06f),
+                                                                    shape = RoundedCornerShape(14.dp),
+                                                                    color = if (isSelected) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.06f),
                                                                     border = BorderStroke(
                                                                         1.dp,
                                                                         if (isSelected) Color.White else Color.White.copy(alpha = 0.12f)
                                                                     ),
-                                                                    modifier = Modifier.clickable { eyeCareMode = mode }
+                                                                    modifier = Modifier
+                                                                        .weight(1f)
+                                                                        .clip(RoundedCornerShape(14.dp))
+                                                                        .clickable { eyeCareMode = mode }
                                                                 ) {
-                                                                    Row(
-                                                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                                                        verticalAlignment = Alignment.CenterVertically,
-                                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                                    Column(
+                                                                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 2.dp),
+                                                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                                                        verticalArrangement = Arrangement.spacedBy(5.dp)
                                                                     ) {
                                                                         val previewColor = when (mode) {
                                                                             EyeCareMode.OFF -> Color.White
@@ -1110,117 +1291,21 @@ fun BookPlayerScreen(
                                                                         }
                                                                         Box(
                                                                             modifier = Modifier
-                                                                                .size(12.dp)
+                                                                                .size(14.dp)
                                                                                 .clip(CircleShape)
                                                                                 .background(previewColor)
-                                                                                .border(0.5.dp, Color.White.copy(alpha = 0.3f), CircleShape)
+                                                                                .border(0.8.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.35f), CircleShape)
                                                                         )
                                                                         Text(
                                                                             text = mode.label,
-                                                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
+                                                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.75f),
                                                                             fontSize = 11.sp,
-                                                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                                            maxLines = 1,
+                                                                            softWrap = false
                                                                         )
                                                                     }
                                                                 }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            PdfBottomPanel.PAGE_NAV -> {
-                                                // Quick Page Navigator / Scrub Floating Card
-                                                Surface(
-                                                    shape = RoundedCornerShape(24.dp),
-                                                    color = Color(0xFF14131E).copy(alpha = 0.96f),
-                                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                                                    shadowElevation = 16.dp,
-                                                    modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth(0.92f)
-                                                ) {
-                                                    Column(
-                                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                                                        horizontalAlignment = Alignment.CenterHorizontally
-                                                    ) {
-                                                        Row(
-                                                            modifier = Modifier.fillMaxWidth(),
-                                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                                            verticalAlignment = Alignment.CenterVertically
-                                                        ) {
-                                                            TextButton(
-                                                                onClick = { coroutineScope.launch { listState.scrollToItem(0) } },
-                                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                                                            ) {
-                                                                Text("Page 1", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
-                                                            }
-
-                                                            Text(
-                                                                text = "Page ${currentPage + 1} of $pageCount",
-                                                                color = Color.White,
-                                                                fontSize = 13.sp,
-                                                                fontWeight = FontWeight.Bold
-                                                            )
-
-                                                            TextButton(
-                                                                onClick = { coroutineScope.launch { listState.scrollToItem(pageCount - 1) } },
-                                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                                                            ) {
-                                                                Text("Page $pageCount", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
-                                                            }
-                                                        }
-
-                                                        Row(
-                                                            modifier = Modifier.fillMaxWidth(),
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                                        ) {
-                                                            IconButton(
-                                                                onClick = {
-                                                                    if (currentPage > 0) {
-                                                                        coroutineScope.launch { listState.scrollToItem(currentPage - 1) }
-                                                                    }
-                                                                },
-                                                                modifier = Modifier.size(36.dp)
-                                                            ) {
-                                                                Icon(
-                                                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                                                    contentDescription = "Previous Page",
-                                                                    tint = Color.White,
-                                                                    modifier = Modifier.size(18.dp)
-                                                                )
-                                                            }
-
-                                                            Slider(
-                                                                value = currentPage.toFloat().coerceIn(0f, (pageCount - 1).coerceAtLeast(1).toFloat()),
-                                                                onValueChange = { newVal ->
-                                                                    coroutineScope.launch {
-                                                                        listState.scrollToItem(newVal.toInt().coerceIn(0, pageCount - 1))
-                                                                    }
-                                                                },
-                                                                valueRange = 0f..(pageCount - 1).coerceAtLeast(1).toFloat(),
-                                                                modifier = Modifier.weight(1f),
-                                                                colors = SliderDefaults.colors(
-                                                                    thumbColor = Color.White,
-                                                                    activeTrackColor = Color.White,
-                                                                    inactiveTrackColor = Color.White.copy(alpha = 0.2f)
-                                                                )
-                                                            )
-
-                                                            IconButton(
-                                                                onClick = {
-                                                                    if (currentPage < pageCount - 1) {
-                                                                        coroutineScope.launch { listState.scrollToItem(currentPage + 1) }
-                                                                    }
-                                                                },
-                                                                modifier = Modifier.size(36.dp)
-                                                            ) {
-                                                                Icon(
-                                                                    imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                                                                    contentDescription = "Next Page",
-                                                                    tint = Color.White,
-                                                                    modifier = Modifier.size(18.dp)
-                                                                )
                                                             }
                                                         }
                                                     }
@@ -1275,7 +1360,29 @@ fun BookPlayerScreen(
                                                 }
                                             }
 
-                                            // 2. Eye Care Tint Button
+                                            // 2. Text Note / Text Tool Button
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = Color.Transparent,
+                                                modifier = Modifier
+                                                    .size(42.dp)
+                                                    .clip(CircleShape)
+                                                    .clickable {
+                                                        noteInputText = ""
+                                                        showAddNoteDialog = true
+                                                    }
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.TextFields,
+                                                        contentDescription = "Add Text Note",
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            // 3. Eye Care Tint Button
                                             Surface(
                                                 shape = CircleShape,
                                                 color = if (eyeCareMode != EyeCareMode.OFF) Color.White.copy(alpha = 0.2f) else Color.Transparent,
@@ -1302,75 +1409,45 @@ fun BookPlayerScreen(
                                                 }
                                             }
 
-                                            // 3. Screen Rotation Button
+                                            // 4. Undo Button (Ctrl+Z)
+                                            val canUndo = undoStack.isNotEmpty()
                                             Surface(
                                                 shape = CircleShape,
                                                 color = Color.Transparent,
                                                 modifier = Modifier
                                                     .size(42.dp)
                                                     .clip(CircleShape)
-                                                    .clickable {
-                                                        activity?.let { act ->
-                                                            val isLand = act.requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                                                            act.requestedOrientation = if (isLand) ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED else ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                                                        }
+                                                    .clickable(enabled = canUndo) {
+                                                        performUndo()
                                                     }
                                             ) {
                                                 Box(contentAlignment = Alignment.Center) {
                                                     Icon(
-                                                        imageVector = Icons.Filled.ScreenRotation,
-                                                        contentDescription = "Rotate",
-                                                        tint = Color.White,
+                                                        imageVector = Icons.AutoMirrored.Rounded.Undo,
+                                                        contentDescription = "Undo",
+                                                        tint = if (canUndo) Color.White else Color.White.copy(alpha = 0.3f),
                                                         modifier = Modifier.size(20.dp)
                                                     )
                                                 }
                                             }
 
-                                            // 4. Zoom & Fit Button
+                                            // 5. Redo Button (Ctrl+Y)
+                                            val canRedo = redoStack.isNotEmpty()
                                             Surface(
                                                 shape = CircleShape,
-                                                color = if (liveScale > 1.05f) Color.White.copy(alpha = 0.2f) else Color.Transparent,
-                                                border = if (liveScale > 1.05f) BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)) else null,
+                                                color = Color.Transparent,
                                                 modifier = Modifier
                                                     .size(42.dp)
                                                     .clip(CircleShape)
-                                                    .clickable {
-                                                        coroutineScope.launch {
-                                                            if (liveScale > 1.05f || liveScale < 0.95f) {
-                                                                smoothReset()
-                                                            } else {
-                                                                smoothZoomIn(viewWidthPx / 2f, viewHeightPx / 2f, viewWidthPx, viewHeightPx)
-                                                            }
-                                                        }
+                                                    .clickable(enabled = canRedo) {
+                                                        performRedo()
                                                     }
                                             ) {
                                                 Box(contentAlignment = Alignment.Center) {
                                                     Icon(
-                                                        imageVector = if (liveScale > 1.05f) Icons.Rounded.RestartAlt else Icons.Rounded.ZoomIn,
-                                                        contentDescription = "Zoom",
-                                                        tint = Color.White,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
-                                            }
-
-                                            // 5. Page Navigator Button
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = if (activeBottomPanel == PdfBottomPanel.PAGE_NAV) Color.White.copy(alpha = 0.2f) else Color.Transparent,
-                                                border = if (activeBottomPanel == PdfBottomPanel.PAGE_NAV) BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)) else null,
-                                                modifier = Modifier
-                                                    .size(42.dp)
-                                                    .clip(CircleShape)
-                                                    .clickable {
-                                                        activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.PAGE_NAV) null else PdfBottomPanel.PAGE_NAV
-                                                    }
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        imageVector = Icons.Rounded.AutoStories,
-                                                        contentDescription = "Page Navigator",
-                                                        tint = Color.White,
+                                                        imageVector = Icons.AutoMirrored.Rounded.Redo,
+                                                        contentDescription = "Redo",
+                                                        tint = if (canRedo) Color.White else Color.White.copy(alpha = 0.3f),
                                                         modifier = Modifier.size(20.dp)
                                                     )
                                                 }
@@ -1384,6 +1461,117 @@ fun BookPlayerScreen(
                 }
             }
         }
+    }
+
+    if (showAddNoteDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddNoteDialog = false },
+            containerColor = Color(0xFF14131E),
+            shape = RoundedCornerShape(24.dp),
+            titleContentColor = Color.White,
+            textContentColor = Color.White.copy(alpha = 0.85f),
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.NoteAdd,
+                        contentDescription = null,
+                        tint = Color(0xFFFFD54F),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text("Add Note • Page ${currentPage + 1}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = noteInputText,
+                        onValueChange = { noteInputText = it },
+                        placeholder = { Text("Write note or annotation...", color = Color.White.copy(alpha = 0.4f), fontSize = 13.sp) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 90.dp, max = 150.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(0xFFFFD54F),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
+                            cursorColor = Color(0xFFFFD54F)
+                        ),
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { addNoteToCurrentPage(noteInputText) },
+                    enabled = noteInputText.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFD54F),
+                        contentColor = Color(0xFF14131E),
+                        disabledContainerColor = Color.White.copy(alpha = 0.1f),
+                        disabledContentColor = Color.White.copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Save Note", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddNoteDialog = false }) {
+                    Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+                }
+            }
+        )
+    }
+
+    if (noteForDetailDialog != null) {
+        val currentNote = noteForDetailDialog!!
+        AlertDialog(
+            onDismissRequest = { noteForDetailDialog = null },
+            containerColor = Color(0xFF14131E),
+            shape = RoundedCornerShape(24.dp),
+            titleContentColor = Color.White,
+            textContentColor = Color.White.copy(alpha = 0.85f),
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.StickyNote2,
+                        contentDescription = null,
+                        tint = Color(0xFFFFD54F),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text("Note • Page ${currentNote.page}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            },
+            text = {
+                SelectionContainer {
+                    Text(
+                        text = currentNote.text,
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { deleteNote(currentNote) }
+                ) {
+                    Text("Delete Note", color = Color(0xFFE57373), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { noteForDetailDialog = null }) {
+                    Text("Close", color = Color.White.copy(alpha = 0.7f))
+                }
+            }
+        )
     }
 }
 
@@ -1399,9 +1587,11 @@ fun PdfPage(
     isMarkerMode: Boolean,
     activeColor: Int,
     markers: List<com.ballade.hwaran.core.database.entity.PdfMarkerEntity>,
+    notes: List<PdfTextNote> = emptyList(),
     eyeCareMode: EyeCareMode = EyeCareMode.OFF,
     onAddMarker: (com.ballade.hwaran.core.database.entity.PdfMarkerEntity) -> Unit,
     onDeleteMarker: (com.ballade.hwaran.core.database.entity.PdfMarkerEntity) -> Unit,
+    onSelectNote: (PdfTextNote) -> Unit = {},
     onScrollToPage: (Int) -> Unit
 ) {
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -1410,6 +1600,7 @@ fun PdfPage(
     val context = LocalContext.current
     var pdfLinks by remember { mutableStateOf<List<PdfLinkData>>(emptyList()) }
     val pageMarkers = remember(markers) { markers.filter { it.page == pageIndex + 1 } }
+    val pageNotes = remember(notes) { notes.filter { it.page == pageIndex + 1 } }
 
     var dragStart by remember { mutableStateOf<Offset?>(null) }
     var dragCurrent by remember { mutableStateOf<Offset?>(null) }
@@ -1586,15 +1777,16 @@ fun PdfPage(
                     )
                 }
 
-                // Draw highlight markers
+                // Draw highlight markers (soft, rounded, watercolor wash)
                 for (marker in pageMarkers) {
-                    drawRect(
-                        color = Color(marker.color).copy(alpha = 0.45f),
+                    drawRoundRect(
+                        color = Color(marker.color).copy(alpha = 0.28f),
                         topLeft = Offset(marker.x1 * size.width, marker.y1 * size.height),
                         size = androidx.compose.ui.geometry.Size(
                             (marker.x2 - marker.x1) * size.width,
                             (marker.y2 - marker.y1) * size.height
                         ),
+                        cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx()),
                         blendMode = BlendMode.Multiply
                     )
                 }
@@ -1620,13 +1812,14 @@ fun PdfPage(
                 val start = dragStart
                 val end = dragCurrent
                 if (start != null && end != null && isMarkerMode) {
-                    drawRect(
-                        color = Color(activeColor).copy(alpha = 0.45f),
+                    drawRoundRect(
+                        color = Color(activeColor).copy(alpha = 0.28f),
                         topLeft = Offset(minOf(start.x, end.x), minOf(start.y, end.y)),
                         size = androidx.compose.ui.geometry.Size(
                             abs(start.x - end.x),
                             abs(start.y - end.y)
                         ),
+                        cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx()),
                         blendMode = BlendMode.Multiply
                     )
                 }
@@ -1634,6 +1827,50 @@ fun PdfPage(
         } else {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Color.LightGray, strokeWidth = 2.dp)
+            }
+        }
+
+        // Display page text notes badges
+        if (pageNotes.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                for (note in pageNotes) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF14131E).copy(alpha = 0.88f),
+                        border = BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.45f)),
+                        shadowElevation = 6.dp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onSelectNote(note) }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.StickyNote2,
+                                contentDescription = null,
+                                tint = Color(0xFFFFD54F),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = note.text,
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.widthIn(max = 160.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
 

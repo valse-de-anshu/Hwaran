@@ -768,47 +768,73 @@ fun BookDescriptionView(
                 }
             }
 
+            var showMoreMenu by remember { mutableStateOf(false) }
+
             if (!isEditMode) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
+                Box {
                     Surface(
                         modifier = Modifier
                             .size(42.dp)
                             .clip(CircleShape)
-                            .clickable { onToggleEditMode() },
+                            .clickable { showMoreMenu = true },
                         shape = CircleShape,
                         color = Color(0xFF14131E).copy(alpha = 0.88f),
                         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Rounded.Edit,
-                                contentDescription = "Edit",
+                                imageVector = Icons.Rounded.MoreVert,
+                                contentDescription = "More Options",
                                 tint = Color.White,
-                                modifier = Modifier.size(19.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
 
-                    Surface(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .clickable { onDeleteManga() },
-                        shape = CircleShape,
-                        color = Color(0xFF14131E).copy(alpha = 0.88f),
-                        border = BorderStroke(1.dp, Color(0xFFE57373).copy(alpha = 0.35f))
+                    DropdownMenu(
+                        expanded = showMoreMenu,
+                        onDismissRequest = { showMoreMenu = false }
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Rounded.DeleteOutline,
-                                contentDescription = "Delete",
-                                tint = Color(0xFFE57373),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        DropdownMenuItem(
+                            text = { Text("Edit Information") },
+                            onClick = {
+                                showMoreMenu = false
+                                onToggleEditMode()
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Edit,
+                                    contentDescription = null
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Change Cover") },
+                            onClick = {
+                                showMoreMenu = false
+                                onPickCover()
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Image,
+                                    contentDescription = null
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Delete Book", color = Color(0xFFE57373)) },
+                            onClick = {
+                                showMoreMenu = false
+                                onDeleteManga()
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.DeleteOutline,
+                                    contentDescription = null,
+                                    tint = Color(0xFFE57373)
+                                )
+                            }
+                        )
                     }
                 }
             }
