@@ -36,6 +36,19 @@ All notable changes, architectural milestones, and structural refactors to this 
 - **Direct Highlight Deletion & Dock Delete Button (`BookPlayerScreen.kt`)**:
   - Tapping an existing highlight in highlighter mode now instantly prompts to delete it.
   - Added a one-tap Delete button (`Icons.Rounded.DeleteOutline`) in the bottom dock pill that deletes the latest highlight or note on the current page with full Undo support.
+- **Accurate Viewport Page Tracking (`BookPlayerScreen.kt`)**:
+  - Replaced faulty 80% scroll fraction check with a robust visible viewport intersection algorithm (`maxByOrNull { visiblePixels }`), accurately detecting the page currently occupying the reader screen.
+  - Notes added now always target the exact page being read, eliminating the off-by-one bug where notes attached to page 22 while on page 23.
+- **Non-Intrusive Golden Sticky Ribbon Tabs (`BookPlayerScreen.kt`)**:
+  - Completely removed intrusive, opaque text cards that covered document text in the top-left area.
+  - Replaced with a sleek, minimalist golden bookmark ribbon (`Alignment.TopEnd`) resting in the blank top-right margin like a physical sticky flag. Tapping it opens the full note detail or page notes view without obscuring body text.
+- **Interactive Page Stepper in Notes Modal (`BookPlayerScreen.kt`)**:
+  - Added an interactive `< Page X >` stepper in the Page Notes dialog, allowing readers to view, switch, and add notes to any page with unambiguous confirmation.
+- **3-Button Android Navigation Bar Clearance (`BookPlayerScreen.kt`)**:
+  - Replaced generic `.navigationBarsPadding()` with an explicit safe inset calculator (`maxOf(navigationBars, systemBars) + 16.dp`, with a 60dp fallback).
+  - Lifts the bottom dock pill gracefully above Android's 3-button navigation bar (Back, Home, Recents) on all devices, completely eliminating touch overlap.
+- **Frosted Dark Fast-Scroll Pill (`BookPlayerScreen.kt`)**:
+  - Converted the right-side vertical fast-scroll indicator from stark white to a frosted translucent slate pill with crisp typography and a tactile grab handle synchronized with the active page.
 - **Revamped 7-Tool Bottom Dock Pill (`BookPlayerScreen.kt`)**:
   - Restructured bottom dock into 7 focused, compact tools:
     1. **Highlighter** (`Icons.Rounded.Brush`): Pure toggle ON/OFF.

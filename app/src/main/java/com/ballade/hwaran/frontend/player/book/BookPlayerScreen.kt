@@ -294,6 +294,7 @@ fun BookPlayerScreen(
     val redoStack = remember { mutableStateListOf<PdfAnnotationAction>() }
     val textNotes = remember { mutableStateListOf<PdfTextNote>() }
     var showNotesDialog by remember { mutableStateOf(false) }
+    var selectedNotePage by remember { mutableIntStateOf(1) }
     var noteInputText by remember { mutableStateOf("") }
     var noteForDetailDialog by remember { mutableStateOf<PdfTextNote?>(null) }
 
@@ -377,25 +378,25 @@ fun BookPlayerScreen(
             if (visibleItems.isEmpty()) {
                 0
             } else {
-                val firstItem = visibleItems.first()
-                val firstItemScrolledFraction = if (firstItem.size > 0) {
-                    (-firstItem.offset.toFloat() / firstItem.size.toFloat()).coerceIn(0f, 1f)
-                } else 0f
-
-                if (firstItemScrolledFraction >= 0.8f && visibleItems.size > 1) {
-                    visibleItems[1].index
-                } else {
-                    firstItem.index
+                val vStart = layoutInfo.viewportStartOffset
+                val vEnd = layoutInfo.viewportEndOffset
+                // The page occupying the most vertical space in the viewport
+                val mostVisibleItem = visibleItems.maxByOrNull { item ->
+                    val top = maxOf(item.offset, vStart)
+                    val bottom = minOf(item.offset + item.size, vEnd)
+                    (bottom - top).coerceAtLeast(0)
                 }
+                mostVisibleItem?.index ?: visibleItems.first().index
             }
         }
     }
 
-    fun addNoteToCurrentPage(text: String) {
+    fun addNoteToPage(page: Int, text: String) {
         if (text.isBlank()) return
+        val targetPage = page.coerceIn(1, maxOf(1, pageCount))
         val note = PdfTextNote(
             mangaId = mangaId,
-            page = currentPage + 1,
+            page = targetPage,
             text = text.trim()
         )
         textNotes.add(note)
@@ -404,6 +405,10 @@ fun BookPlayerScreen(
         redoStack.clear()
         noteInputText = ""
         showNotesDialog = false
+    }
+
+    fun addNoteToCurrentPage(text: String) {
+        addNoteToPage(currentPage + 1, text)
     }
 
     fun deleteNote(note: PdfTextNote) {
@@ -951,6 +956,10 @@ fun BookPlayerScreen(
                                             onDeleteNote = { note ->
                                                 deleteNote(note)
                                             },
+                                            onOpenPageNotes = { pageNum ->
+                                                selectedNotePage = pageNum
+                                                showNotesDialog = true
+                                            },
                                             onScrollToPage = { targetPage ->
                                                 coroutineScope.launch {
                                                     listState.animateScrollToItem(targetPage)
@@ -1072,14 +1081,8 @@ fun BookPlayerScreen(
 
                                 val scrollFraction by remember {
                                     derivedStateOf {
-                                        val layoutInfo = listState.layoutInfo
-                                        val visibleItems = layoutInfo.visibleItemsInfo
-                                        if (visibleItems.isEmpty() || pageCount <= 1) 0f
-                                        else {
-                                            val firstItem = visibleItems.first()
-                                            val itemFraction = if (firstItem.size > 0) (-firstItem.offset.toFloat() / firstItem.size.toFloat()).coerceIn(0f, 1f) else 0f
-                                            (firstItem.index.toFloat() + itemFraction) / (pageCount - 1).toFloat()
-                                        }
+                                        if (pageCount <= 1) 0f
+                                        else (currentPage.toFloat() / (pageCount - 1).toFloat()).coerceIn(0f, 1f)
                                     }
                                 }
 
@@ -1120,27 +1123,29 @@ fun BookPlayerScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    // Page Counter Pill
+                                    // Page Counter Pill - Sleek frosted dark styling
                                     Surface(
                                         shape = RoundedCornerShape(50),
-                                        color = Color.White,
-                                        shadowElevation = 4.dp
+                                        color = Color(0xFF14131E).copy(alpha = 0.94f),
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+                                        shadowElevation = 8.dp
                                     ) {
                                         Text(
-                                            text = "${currentPage + 1}/$pageCount",
-                                            color = Color.Black,
+                                            text = "${currentPage + 1} / $pageCount",
+                                            color = Color.White,
                                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                            fontWeight = FontWeight.ExtraBold,
+                                            fontWeight = FontWeight.Bold,
                                             fontSize = 12.sp
                                         )
                                     }
 
-                                    // Dot Handle
+                                    // Dot Handle - Sleek frosted handle
                                     Surface(
-                                        shape = RoundedCornerShape(topStartPercent = 50, bottomStartPercent = 50),
-                                        color = Color.White,
-                                        modifier = Modifier.width(32.dp).height(52.dp),
-                                        shadowElevation = 6.dp
+                                        shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+                                        color = Color(0xFF14131E).copy(alpha = 0.94f),
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+                                        modifier = Modifier.width(28.dp).height(48.dp),
+                                        shadowElevation = 8.dp
                                     ) {
                                         Column(
                                             modifier = Modifier.fillMaxSize(),
@@ -1150,7 +1155,7 @@ fun BookPlayerScreen(
                                             repeat(3) {
                                                 Row {
                                                     repeat(2) {
-                                                        Box(modifier = Modifier.padding(2.dp).size(4.dp).background(Color.LightGray, CircleShape))
+                                                        Box(modifier = Modifier.padding(1.5.dp).size(3.5.dp).background(Color.White.copy(alpha = 0.5f), CircleShape))
                                                     }
                                                 }
                                             }
@@ -1160,12 +1165,16 @@ fun BookPlayerScreen(
                             }
 
                             // ── Bottom Navigation & Feature Pill (Safely above Android 3-button / gesture bar) ──
+                            val navBarsBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                            val systemBarsBottom = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
+                            val maxBottomInset = maxOf(navBarsBottom, systemBarsBottom)
+                            val dockBottomPadding = if (maxBottomInset > 20.dp) maxBottomInset + 16.dp else 60.dp
+
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .align(Alignment.BottomCenter)
-                                    .navigationBarsPadding()
-                                    .padding(bottom = 28.dp),
+                                    .padding(bottom = dockBottomPadding),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(
@@ -1544,7 +1553,7 @@ fun BookPlayerScreen(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.StickyNote2,
@@ -1552,33 +1561,80 @@ fun BookPlayerScreen(
                             tint = Color(0xFFFFD54F),
                             modifier = Modifier.size(20.dp)
                         )
-                        Text("Page Notes • Page ${currentPage + 1}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("Notes", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
                     }
-                    IconButton(
-                        onClick = {
-                            showNotesDialog = false
-                            noteInputText = ""
-                        },
-                        modifier = Modifier.size(28.dp)
+
+                    // Interactive Page Stepper
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = "Close",
-                            tint = Color.White.copy(alpha = 0.6f),
-                            modifier = Modifier.size(18.dp)
-                        )
+                        IconButton(
+                            onClick = { if (selectedNotePage > 1) selectedNotePage-- },
+                            enabled = selectedNotePage > 1,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Previous Page",
+                                tint = if (selectedNotePage > 1) Color.White else Color.White.copy(alpha = 0.25f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFFFD54F).copy(alpha = 0.16f),
+                            border = BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.45f))
+                        ) {
+                            Text(
+                                text = "Page $selectedNotePage",
+                                color = Color(0xFFFFD54F),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { if (selectedNotePage < pageCount) selectedNotePage++ },
+                            enabled = selectedNotePage < pageCount,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                                contentDescription = "Next Page",
+                                tint = if (selectedNotePage < pageCount) Color.White else Color.White.copy(alpha = 0.25f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                showNotesDialog = false
+                                noteInputText = ""
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Close",
+                                tint = Color.White.copy(alpha = 0.6f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             },
             text = {
-                val currentPageNotes = textNotes.filter { it.page == currentPage + 1 }
+                val currentPageNotes = textNotes.filter { it.page == selectedNotePage }
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     if (currentPageNotes.isNotEmpty()) {
                         Text(
-                            text = "Notes on this page:",
+                            text = "Notes on Page $selectedNotePage:",
                             color = Color.White.copy(alpha = 0.7f),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
@@ -1632,7 +1688,7 @@ fun BookPlayerScreen(
                     OutlinedTextField(
                         value = noteInputText,
                         onValueChange = { noteInputText = it },
-                        placeholder = { Text("Write a new note or annotation...", color = Color.White.copy(alpha = 0.4f), fontSize = 13.sp) },
+                        placeholder = { Text("Write note for Page $selectedNotePage...", color = Color.White.copy(alpha = 0.4f), fontSize = 13.sp) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 80.dp, max = 130.dp),
@@ -1649,7 +1705,7 @@ fun BookPlayerScreen(
             },
             confirmButton = {
                 Button(
-                    onClick = { addNoteToCurrentPage(noteInputText) },
+                    onClick = { addNoteToPage(selectedNotePage, noteInputText) },
                     enabled = noteInputText.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFFFFD54F),
@@ -1659,7 +1715,7 @@ fun BookPlayerScreen(
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Add Note", fontWeight = FontWeight.Bold)
+                    Text("Save to Page $selectedNotePage", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -1739,6 +1795,7 @@ fun PdfPage(
     onDeleteMarker: (com.ballade.hwaran.core.database.entity.PdfMarkerEntity) -> Unit,
     onSelectNote: (PdfTextNote) -> Unit = {},
     onDeleteNote: (PdfTextNote) -> Unit = {},
+    onOpenPageNotes: (Int) -> Unit = {},
     onScrollToPage: (Int) -> Unit
 ) {
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -1987,60 +2044,41 @@ fun PdfPage(
             }
         }
 
-        // Display page text notes badges
+        // Sleek Non-Intrusive Golden Sticky Bookmark Tab (Top-Right Page Edge)
         if (pageNotes.isNotEmpty()) {
-            Column(
+            Surface(
+                shape = RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp),
+                color = Color(0xFFFFD54F),
+                shadowElevation = 5.dp,
                 modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                for (note in pageNotes) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF14131E).copy(alpha = 0.92f),
-                        border = BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.55f)),
-                        shadowElevation = 6.dp,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { onSelectNote(note) }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(start = 8.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.StickyNote2,
-                                contentDescription = null,
-                                tint = Color(0xFFFFD54F),
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Text(
-                                text = note.text,
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.widthIn(max = 160.dp)
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(CircleShape)
-                                    .clickable { onDeleteNote(note) },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Close,
-                                    contentDescription = "Delete Note",
-                                    tint = Color.White.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(12.dp)
-                                )
-                            }
+                    .align(Alignment.TopEnd)
+                    .padding(end = 14.dp)
+                    .clip(RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
+                    .clickable {
+                        if (pageNotes.size == 1) {
+                            onSelectNote(pageNotes.first())
+                        } else {
+                            onOpenPageNotes(pageIndex + 1)
                         }
                     }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.StickyNote2,
+                        contentDescription = "Page Notes",
+                        tint = Color(0xFF14131E),
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Text(
+                        text = if (pageNotes.size == 1) "Note" else "${pageNotes.size}",
+                        color = Color(0xFF14131E),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
                 }
             }
         }
