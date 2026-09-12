@@ -21,11 +21,16 @@ All notable changes, architectural milestones, and structural refactors to this 
   - **Crop Side Margins / Horizontal Scale Slider**: Eliminates annoying white gutters/letterboxing in manhua by expanding width from 100% to 150% with clean edge clipping.
   - Native 120fps scrolling physics are 100% preserved even when zoomed/cropped—completely fixing the "stuck in glue" resistance issue.
   - Quick preset chips: `Fit (100%)`, `Crop 15%`, `Crop 30%`, and one-tap Reset.
-- **Sleek Floating Corner Controls**:
-  - Tapping reading pages no longer triggers jarring full-screen overlay interruptions.
-  - Top-left sleek glass back button.
-  - Top-right floating glass pill with live page counter (`p. X/Y`) and settings trigger.
-  - Bottom floating chapter dock with previous/next chapter buttons, chapter selector bottom sheet, and scroll-to-top action.
+- **Pristine Distraction-Free Canvas & Top-Right Trigger**:
+  - Reader screen is 100% clean by default with zero visible overlay buttons obstructing reading.
+  - Tapping the dedicated top-right corner zone smoothly toggles the controls overlay on demand.
+- **Revived Classic Bottom Navigation Pill**:
+  - Restored the beloved classic bottom pill with `< Prev Chapter`, centered purple `Chapter Title` (tappable to open chapter picker), and `Next Chapter >`.
+  - Restored the separate circular `^` Scroll to Top button with instant snap to Page 1.
+- **Camera Cutout & Notch Safe Insets**:
+  - Applied `displayCutoutPadding()` and extended `statusBarsPadding()` with safe vertical spacing, moving the top Back and Settings buttons completely out of the camera punch hole danger zone.
+- **Rapid Scroll Stability Fix**:
+  - Fixed rapid scrolling stutter/freeze by eliminating per-item crossfade animations, providing stable minimum item dimensions to prevent LazyColumn measurement jumps, and throttling preloads during scroll motion.
 - **Sleek Reader Settings Sheet (`ToonReaderSettingsSheet`)**:
   - Glassmorphic modal sheet with reading layout toggle, reading direction selector, margin cropping slider, 4 canvas background tones (Theme, OLED Black, Deep Slate, Pure White), screen brightness override slider, and keep screen awake toggle.
   - Quick page scrubbing slider with live page preview.

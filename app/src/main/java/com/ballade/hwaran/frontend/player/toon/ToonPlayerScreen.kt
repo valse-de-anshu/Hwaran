@@ -11,7 +11,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -58,7 +58,6 @@ import com.ballade.hwaran.core.datastore.GlobalSettings
 import com.ballade.hwaran.ui.viewmodels.ReaderViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 @Composable
 fun ReaderScreen(
@@ -96,7 +95,9 @@ fun ToonPlayerScreen(
     var brightnessOverride by remember { mutableStateOf<Float?>(null) }
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showChapterList by remember { mutableStateOf(false) }
-    var showFloatingControls by remember { mutableStateOf(true) }
+
+    // Screen is 100% clean by default; controls appear only when requested
+    var showControls by remember { mutableStateOf(false) }
 
     val images by readerViewModel.images.collectAsState()
     val isLoading by readerViewModel.isLoading.collectAsState()
@@ -108,6 +109,9 @@ fun ToonPlayerScreen(
     val prevChapterId by readerViewModel.prevChapterId.collectAsState()
 
     val PrimaryPurple = MaterialTheme.colorScheme.primary
+    val TextMuted = MaterialTheme.colorScheme.onSurfaceVariant
+    val BgSurfaceVariant = MaterialTheme.colorScheme.surfaceVariant
+    val OverlayBg = MaterialTheme.colorScheme.background.copy(alpha = 0.90f)
     val appGradient = com.ballade.hwaran.ui.theme.LocalAppGradient.current
 
     // Background selection
@@ -166,6 +170,8 @@ fun ToonPlayerScreen(
             showSettingsSheet = false
         } else if (showChapterList) {
             showChapterList = false
+        } else if (showControls) {
+            showControls = false
         } else {
             onNavigateBack()
         }
@@ -196,19 +202,22 @@ fun ToonPlayerScreen(
     // Track active page index across modes
     val activePageIndex = if (readerMode == 0) currentStripPage else pagerState.currentPage
 
-    // Preload next images
-    LaunchedEffect(activePageIndex, images) {
-        if (images.isEmpty()) return@LaunchedEffect
-        val startPreload = (activePageIndex - 2).coerceAtLeast(0)
-        val endPreload = (activePageIndex + 6).coerceAtMost(images.size - 1)
-        val imageLoader = context.imageLoader
-        for (i in startPreload..endPreload) {
-            val filePath = images[i]
-            val data = if (filePath.startsWith("content://")) Uri.parse(filePath) else java.io.File(filePath)
-            val request = ImageRequest.Builder(context)
-                .data(data)
-                .build()
-            imageLoader.enqueue(request)
+    // Smooth Preload next images only when scroll is idle to avoid frame drops during rapid scrolling
+    LaunchedEffect(listState.isScrollInProgress, activePageIndex) {
+        if (!listState.isScrollInProgress && images.isNotEmpty()) {
+            delay(150)
+            val current = activePageIndex
+            val end = (current + 5).coerceAtMost(images.size - 1)
+            val imageLoader = context.imageLoader
+            for (i in current..end) {
+                val filePath = images[i]
+                val data = if (filePath.startsWith("content://")) Uri.parse(filePath) else java.io.File(filePath)
+                val request = ImageRequest.Builder(context)
+                    .data(data)
+                    .crossfade(false)
+                    .build()
+                imageLoader.enqueue(request)
+            }
         }
     }
 
@@ -345,38 +354,48 @@ fun ToonPlayerScreen(
                     // ═════════════════════════════════════════════════════════════════════════
                     // MODE 0: SINGLE LONG STRIP (Continuous Webtoon Scroll)
                     // ═════════════════════════════════════════════════════════════════════════
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                            val containerWidth = maxWidth
-                            val targetItemWidth = containerWidth * cropZoom.coerceAtLeast(1.0f)
-
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
                             ) {
-                                itemsIndexed(images, key = { index, path -> "$path-$index" }) { index, filePath ->
-                                    val data = remember(filePath) {
-                                        if (filePath.startsWith("content://")) Uri.parse(filePath) else java.io.File(filePath)
-                                    }
+                                // If controls are visible, tapping anywhere on strip dismisses them
+                                if (showControls) showControls = false
+                            }
+                    ) {
+                        val containerWidth = maxWidth
+                        val targetItemWidth = containerWidth * cropZoom.coerceAtLeast(1.0f)
 
-                                    // Zoom/margin crop container: crops white borders when targetItemWidth > containerWidth
-                                    Box(
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            items(images, key = { it }) { filePath ->
+                                val data = remember(filePath) {
+                                    if (filePath.startsWith("content://")) Uri.parse(filePath) else java.io.File(filePath)
+                                }
+
+                                // Margin crop container: clips white gutters when targetItemWidth > containerWidth
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clipToBounds(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data(data)
+                                            .crossfade(false)
+                                            .build(),
+                                        contentDescription = null,
+                                        contentScale = ContentScale.FillWidth,
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clipToBounds(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        AsyncImage(
-                                            model = ImageRequest.Builder(context)
-                                                .data(data)
-                                                .crossfade(true)
-                                                .build(),
-                                            contentDescription = "Page ${index + 1}",
-                                            contentScale = ContentScale.FillWidth,
-                                            modifier = Modifier.requiredWidth(targetItemWidth)
-                                        )
-                                    }
+                                            .requiredWidth(targetItemWidth)
+                                            .defaultMinSize(minHeight = 200.dp)
+                                    )
                                 }
                             }
                         }
@@ -406,7 +425,7 @@ fun ToonPlayerScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .pointerInput(isRtl, pagerState.currentPage, images.size) {
+                            .pointerInput(isRtl, pagerState.currentPage, images.size, showControls) {
                                 detectTapGestures(
                                     onTap = { offset ->
                                         val w = size.width
@@ -424,7 +443,7 @@ fun ToonPlayerScreen(
                                             }
                                             else -> {
                                                 // Center Tap toggles controls
-                                                showFloatingControls = !showFloatingControls
+                                                showControls = !showControls
                                             }
                                         }
                                     }
@@ -453,7 +472,7 @@ fun ToonPlayerScreen(
                                     AsyncImage(
                                         model = ImageRequest.Builder(context)
                                             .data(data)
-                                            .crossfade(true)
+                                            .crossfade(false)
                                             .build(),
                                         contentDescription = "Page ${pageIndex + 1}",
                                         contentScale = ContentScale.Fit,
@@ -468,53 +487,74 @@ fun ToonPlayerScreen(
                 }
 
                 // ═════════════════════════════════════════════════════════════════════════
-                // SLEEK FLOATING CORNER CONTROLS (Non-intrusive, no accidental full taps)
+                // INVISIBLE TOP-RIGHT TAP TRIGGER (Keeps Reader 100% Clean)
+                // ═════════════════════════════════════════════════════════════════════════
+                if (!showControls) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .statusBarsPadding()
+                            .displayCutoutPadding()
+                            .padding(top = 12.dp, end = 12.dp)
+                            .size(width = 80.dp, height = 64.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                showControls = true
+                            }
+                    )
+                }
+
+                // ═════════════════════════════════════════════════════════════════════════
+                // OVERLAY CONTROLS (Appears ONLY when top-right area or center is pressed)
                 // ═════════════════════════════════════════════════════════════════════════
                 AnimatedVisibility(
-                    visible = showFloatingControls,
+                    visible = showControls,
                     enter = fadeIn(tween(180)),
                     exit = fadeOut(tween(180))
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
-                        // ── Top Bar Container ──
+                        // ── Top Bar Container (Safe from Camera Notch & Cutout) ──
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .align(Alignment.TopCenter)
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(Color.Black.copy(alpha = 0.85f), Color.Transparent)
+                                    )
+                                )
                                 .statusBarsPadding()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                .displayCutoutPadding()
+                                .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 24.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // ── Top-Left: Sleek Back Button ──
-                            Surface(
-                                shape = CircleShape,
-                                color = Color(0xFF14131C).copy(alpha = 0.82f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)),
+                            // Back Button (Safely below cutout)
+                            IconButton(
+                                onClick = onNavigateBack,
                                 modifier = Modifier
-                                    .size(42.dp)
-                                    .shadow(8.dp, CircleShape)
+                                    .size(44.dp)
+                                    .background(OverlayBg, CircleShape)
                                     .clip(CircleShape)
-                                    .clickable { onNavigateBack() }
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = "Back",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
                             }
 
-                            // ── Top-Right: Sleek Settings Pill (Page counter + Settings Icon) ──
+                            // Top Right: Setting Pill with Settings Icon and Page Counter
                             Surface(
                                 shape = RoundedCornerShape(24.dp),
-                                color = Color(0xFF14131C).copy(alpha = 0.85f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)),
+                                color = OverlayBg,
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
                                 modifier = Modifier
-                                    .height(42.dp)
-                                    .shadow(8.dp, RoundedCornerShape(24.dp))
+                                    .height(44.dp)
                                     .clip(RoundedCornerShape(24.dp))
                                     .clickable {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -541,7 +581,7 @@ fun ToonPlayerScreen(
 
                                     Icon(
                                         imageVector = Icons.Rounded.Tune,
-                                        contentDescription = "Reader Settings",
+                                        contentDescription = "Settings",
                                         tint = PrimaryPurple,
                                         modifier = Modifier.size(18.dp)
                                     )
@@ -549,92 +589,103 @@ fun ToonPlayerScreen(
                             }
                         }
 
-                        // ── Bottom Floating Chapter Dock ──
-                        Row(
+                        // ── REVIVED CLASSIC BOTTOM NAVIGATION PILL & TOP BUTTON ──
+                        Box(
                             modifier = Modifier
+                                .fillMaxWidth()
                                 .align(Alignment.BottomCenter)
                                 .navigationBarsPadding()
-                                .padding(bottom = 20.dp, start = 16.dp, end = 16.dp)
-                                .shadow(12.dp, RoundedCornerShape(28.dp))
-                                .background(Color(0xFF14131C).copy(alpha = 0.88f), RoundedCornerShape(28.dp))
-                                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)), RoundedCornerShape(28.dp))
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                .padding(bottom = 36.dp)
                         ) {
-                            // Prev Chapter
-                            IconButton(
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    prevChapterId?.let { onNavigateToChapter(it) }
-                                },
-                                enabled = prevChapterId != null,
-                                modifier = Modifier.size(38.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                                    contentDescription = "Previous Chapter",
-                                    tint = if (prevChapterId != null) PrimaryPurple else Color.White.copy(alpha = 0.25f),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-
-                            // Chapter Title Selector Chip
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = Color.White.copy(alpha = 0.08f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                            // Center Classic Navigation Pill
+                            Row(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .clickable { showChapterList = true }
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                                    .align(Alignment.Center)
+                                    .background(OverlayBg, RoundedCornerShape(50))
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = chapter?.title ?: "Select Chapter",
-                                    color = Color.White,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-
-                            // Next Chapter
-                            IconButton(
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    nextChapterId?.let { onNavigateToChapter(it) }
-                                },
-                                enabled = nextChapterId != null,
-                                modifier = Modifier.size(38.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                    contentDescription = "Next Chapter",
-                                    tint = if (nextChapterId != null) PrimaryPurple else Color.White.copy(alpha = 0.25f),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-
-                            // Scroll to Top (Strip mode only)
-                            if (readerMode == 0) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .clickable {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            coroutineScope.launch { listState.animateScrollToItem(0) }
-                                        },
-                                    contentAlignment = Alignment.Center
+                                IconButton(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        prevChapterId?.let { onNavigateToChapter(it) }
+                                    },
+                                    enabled = prevChapterId != null,
+                                    modifier = Modifier.size(44.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.KeyboardArrowUp,
-                                        contentDescription = "Scroll to Top",
-                                        tint = Color.White.copy(alpha = 0.8f),
-                                        modifier = Modifier.size(20.dp)
+                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                        contentDescription = "Prev Chapter",
+                                        tint = if (prevChapterId != null) PrimaryPurple else TextMuted,
+                                        modifier = Modifier.size(28.dp)
                                     )
                                 }
+
+                                Box(
+                                    modifier = Modifier
+                                        .background(BgSurfaceVariant, RoundedCornerShape(24.dp))
+                                        .clip(RoundedCornerShape(24.dp))
+                                        .clickable { showChapterList = true }
+                                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                                ) {
+                                    Text(
+                                        text = chapter?.title ?: "Select Chapter",
+                                        color = PrimaryPurple,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        nextChapterId?.let { onNavigateToChapter(it) }
+                                    },
+                                    enabled = nextChapterId != null,
+                                    modifier = Modifier.size(44.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = "Next Chapter",
+                                        tint = if (nextChapterId != null) PrimaryPurple else TextMuted,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                            }
+
+                            // Classic Separate Circular "^" Scroll to Top Button
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .padding(end = 16.dp)
+                                    .size(44.dp)
+                                    .background(OverlayBg, CircleShape)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        coroutineScope.launch {
+                                            if (readerMode == 0) {
+                                                // Jump directly to Page 1 with fast snap loop
+                                                var attempts = 0
+                                                while (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0) {
+                                                    listState.scrollToItem(0)
+                                                    delay(30)
+                                                    attempts++
+                                                    if (attempts > 15) break
+                                                }
+                                            } else {
+                                                pagerState.scrollToPage(0)
+                                            }
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowUp,
+                                    contentDescription = "Scroll to Top",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
                             }
                         }
                     }
@@ -689,15 +740,14 @@ fun ToonPlayerScreen(
             ModalBottomSheet(
                 onDismissRequest = { showChapterList = false },
                 sheetState = chapterSheetState,
-                containerColor = Color(0xFF13121B).copy(alpha = 0.95f),
+                containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
                 contentColor = Color.White,
-                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
                 dragHandle = {
                     Box(
                         modifier = Modifier
                             .padding(vertical = 12.dp)
                             .size(40.dp, 4.dp)
-                            .background(Color.White.copy(alpha = 0.25f), RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(2.dp))
                     )
                 }
             ) {
@@ -705,12 +755,12 @@ fun ToonPlayerScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
-                        .padding(bottom = 28.dp, start = 20.dp, end = 20.dp)
+                        .padding(bottom = 32.dp, start = 16.dp, end = 16.dp)
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 16.dp),
+                            .padding(bottom = 16.dp, start = 8.dp, end = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -724,7 +774,7 @@ fun ToonPlayerScreen(
                             text = "${allChapters.size} Total",
                             color = PrimaryPurple,
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.ExtraBold
                         )
                     }
 
@@ -736,7 +786,7 @@ fun ToonPlayerScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(pickerHeight)
-                            .padding(horizontal = 8.dp)
+                            .padding(horizontal = 16.dp)
                     ) {
                         Box(
                             modifier = Modifier
@@ -761,7 +811,7 @@ fun ToonPlayerScreen(
                                 contentPadding = PaddingValues(vertical = 84.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                itemsIndexed(allChapters, key = { _, item -> item.id }) { _, chItem ->
+                                items(allChapters, key = { it.id }) { chItem ->
                                     val isCurrent = chItem.id == chapterId
 
                                     Box(
@@ -780,8 +830,8 @@ fun ToonPlayerScreen(
                                         Text(
                                             text = chItem.title,
                                             color = if (isCurrent) PrimaryPurple else Color.White,
-                                            fontSize = 22.sp,
-                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                            fontSize = 24.sp,
+                                            fontWeight = FontWeight.Bold,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -794,7 +844,7 @@ fun ToonPlayerScreen(
                         Box(
                             modifier = Modifier
                                 .align(Alignment.Center)
-                                .offset(x = (-80).dp)
+                                .offset(x = (-70).dp)
                                 .width(24.dp)
                                 .height(3.dp)
                                 .background(PrimaryPurple, RoundedCornerShape(50))
