@@ -8,6 +8,29 @@ All notable changes, architectural milestones, and structural refactors to this 
 
 ## [Current] - 2026-09-12
 
+### 📖 Premium Manga & Manhua Reading Suite
+- **Lag-Free Reader Transition**:
+  - Replaced the janky 1200ms crossfade and stuttering circular spinner with a silky-smooth, lightweight reader transition (220ms).
+  - Elegant loading layout with glowing book icon, series title, chapter title, and thin indeterminate accent bar that never drops frames.
+- **Dual Reading Layout Engines**:
+  - **Single Long Strip (Webtoon)**: Continuous 120Hz native vertical scrolling without gesture interception or manual scroll delta conflicts.
+  - **Page by Page (Single Page)**: Paged reading mode with smooth horizontal pagination (`HorizontalPager`).
+  - **Reading Direction Toggle**: Full support for Left-to-Right (Western comics / webtoons) and Right-to-Left (Japanese Manga) page ordering.
+  - **Edge-Tap Navigation**: Left 28% and Right 72% tap zones for instant page turning with subtle haptic feedback, while center tap toggles controls.
+- **Margin Cropping & Zoom Architecture**:
+  - **Crop Side Margins / Horizontal Scale Slider**: Eliminates annoying white gutters/letterboxing in manhua by expanding width from 100% to 150% with clean edge clipping.
+  - Native 120fps scrolling physics are 100% preserved even when zoomed/cropped—completely fixing the "stuck in glue" resistance issue.
+  - Quick preset chips: `Fit (100%)`, `Crop 15%`, `Crop 30%`, and one-tap Reset.
+- **Sleek Floating Corner Controls**:
+  - Tapping reading pages no longer triggers jarring full-screen overlay interruptions.
+  - Top-left sleek glass back button.
+  - Top-right floating glass pill with live page counter (`p. X/Y`) and settings trigger.
+  - Bottom floating chapter dock with previous/next chapter buttons, chapter selector bottom sheet, and scroll-to-top action.
+- **Sleek Reader Settings Sheet (`ToonReaderSettingsSheet`)**:
+  - Glassmorphic modal sheet with reading layout toggle, reading direction selector, margin cropping slider, 4 canvas background tones (Theme, OLED Black, Deep Slate, Pure White), screen brightness override slider, and keep screen awake toggle.
+  - Quick page scrubbing slider with live page preview.
+  - All reader preferences persisted in `GlobalSettings` via DataStore.
+
 ### 🔍 Advanced Search Engine
 - **Media Format Filtering**: Instant filter chips for all media classes (`All`, `Book`, `Manhua`, `Manga`, `Series`, `Channel`, `Favorite`) with thematic color accents and icons.
 - **Search Scope Selector**: Switch query matching between `All Fields`, `Name / Title`, and `Tags / Genre`.

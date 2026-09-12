@@ -48,6 +48,11 @@ class GlobalSettings(private val context: Context) {
         val BATTERY_SAVING_MODE = booleanPreferencesKey("battery_saving_mode")
         val STOP_TRACKING = booleanPreferencesKey("stop_tracking")
         val USE_PILL_AS_HIGHLIGHT = booleanPreferencesKey("use_pill_as_highlight")
+        val READER_MODE = intPreferencesKey("reader_mode")
+        val READER_CROP_ZOOM = floatPreferencesKey("reader_crop_zoom")
+        val READER_DIRECTION = intPreferencesKey("reader_direction")
+        val READER_BG_COLOR = intPreferencesKey("reader_bg_color")
+        val READER_KEEP_SCREEN_ON = booleanPreferencesKey("reader_keep_screen_on")
     }
 
     val stopTrackingFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -378,5 +383,30 @@ class GlobalSettings(private val context: Context) {
 
     suspend fun setBatterySavingMode(value: Boolean) {
         context.dataStore.edit { it[BATTERY_SAVING_MODE] = value }
+    }
+
+    val readerModeFlow: Flow<Int> = context.dataStore.data.map { it[READER_MODE] ?: 0 }
+    suspend fun setReaderMode(value: Int) {
+        context.dataStore.edit { it[READER_MODE] = value }
+    }
+
+    val readerCropZoomFlow: Flow<Float> = context.dataStore.data.map { it[READER_CROP_ZOOM] ?: 1.0f }
+    suspend fun setReaderCropZoom(value: Float) {
+        context.dataStore.edit { it[READER_CROP_ZOOM] = value }
+    }
+
+    val readerDirectionFlow: Flow<Int> = context.dataStore.data.map { it[READER_DIRECTION] ?: 0 }
+    suspend fun setReaderDirection(value: Int) {
+        context.dataStore.edit { it[READER_DIRECTION] = value }
+    }
+
+    val readerBgColorFlow: Flow<Int> = context.dataStore.data.map { it[READER_BG_COLOR] ?: 0 }
+    suspend fun setReaderBgColor(value: Int) {
+        context.dataStore.edit { it[READER_BG_COLOR] = value }
+    }
+
+    val readerKeepScreenOnFlow: Flow<Boolean> = context.dataStore.data.map { it[READER_KEEP_SCREEN_ON] ?: true }
+    suspend fun setReaderKeepScreenOn(value: Boolean) {
+        context.dataStore.edit { it[READER_KEEP_SCREEN_ON] = value }
     }
 }
