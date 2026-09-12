@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ballade.hwaran.frontend.description.book.BookDescriptionView
 import com.ballade.hwaran.frontend.description.toon.ToonChaptersView
 import com.ballade.hwaran.frontend.description.toon.ToonDescriptionView
 import com.ballade.hwaran.frontend.description.video.ChannelDescriptionView
@@ -178,19 +179,75 @@ fun DescriptionScreen(
             val scrollState = rememberLazyListState()
 
             when {
-                // ── 1. Manga / Manhua (contentType == 0) & Book / Novel (contentType == 1) ──
-                manga != null && (manga?.contentType == 0 || manga?.contentType == 1) -> {
+                // ── 1. Book / Novel (contentType == 1) ──
+                manga != null && manga?.contentType == 1 -> {
+                    if (showChaptersWindow) {
+                        ToonChaptersView(
+                            manga = manga!!,
+                            chapters = chapters,
+                            onNavigateBack = { showChaptersWindow = false },
+                            onNavigateToChapter = { _ ->
+                                onNavigateToMedia(manga!!.id, 1)
+                            },
+                            onPickChaptersFolder = { folderPickerLauncher.launch(null) },
+                            onDeleteChapters = { chapterIds -> descriptionViewModel.deleteSelectedChapters(chapterIds) }
+                        )
+                    } else {
+                        BookDescriptionView(
+                            manga = manga!!,
+                            chapters = chapters,
+                            entryMetadata = entryMetadata,
+                            assignedTags = assignedTags,
+                            isEditMode = isEditMode,
+                            tagQuery = tagQuery,
+                            tagSuggestions = tagSuggestions,
+                            isTagSearchVisible = isTagSearchVisible,
+                            draftTitle = draftTitle,
+                            draftAuthor = draftAuthor,
+                            draftPublisher = draftPublisher,
+                            draftYear = draftYear,
+                            draftStatus = draftStatus,
+                            draftLanguage = draftLanguage,
+                            draftPages = draftPages,
+                            draftMaterialTag = draftMaterialTag,
+                            draftIsFavorite = draftIsFavorite,
+                            draftDesc = draftDesc,
+                            draftCover = draftCover,
+                            scrollState = scrollState,
+                            onToggleEditMode = { descriptionViewModel.toggleEditMode() },
+                            onSaveManga = { descriptionViewModel.saveManga() },
+                            onNavigateBack = onNavigateBack,
+                            onNavigateToMedia = onNavigateToMedia,
+                            onOpenChapters = { showChaptersWindow = true },
+                            onToggleFavorite = { descriptionViewModel.toggleFavorite() },
+                            onAddTag = { descriptionViewModel.addTag(it) },
+                            onRemoveTag = { descriptionViewModel.removeTag(it) },
+                            onSetTagQuery = { descriptionViewModel.setTagQuery(it) },
+                            onToggleTagSearchVisible = { descriptionViewModel.toggleTagSearchVisible() },
+                            onPickCover = { imagePickerLauncher.launch(arrayOf("image/*")) },
+                            onSetMaterialTag = { descriptionViewModel.setMaterialTag(it) },
+                            onUpdateDraftTitle = { descriptionViewModel.draftTitle.value = it },
+                            onUpdateDraftAuthor = { descriptionViewModel.draftAuthor.value = it },
+                            onUpdateDraftPublisher = { descriptionViewModel.draftPublisher.value = it },
+                            onUpdateDraftYear = { descriptionViewModel.draftYear.value = it },
+                            onUpdateDraftStatus = { descriptionViewModel.draftStatus.value = it },
+                            onUpdateDraftLanguage = { descriptionViewModel.draftLanguage.value = it },
+                            onUpdateDraftPages = { descriptionViewModel.draftPages.value = it },
+                            onUpdateDraftDesc = { descriptionViewModel.draftDescription.value = it },
+                            onDeleteManga = { showDeleteDialog = true }
+                        )
+                    }
+                }
+
+                // ── 2. Manga / Manhua (contentType == 0) ──
+                manga != null && manga?.contentType == 0 -> {
                     if (showChaptersWindow) {
                         ToonChaptersView(
                             manga = manga!!,
                             chapters = chapters,
                             onNavigateBack = { showChaptersWindow = false },
                             onNavigateToChapter = { chapterId ->
-                                if (manga?.contentType == 1) {
-                                    onNavigateToMedia(manga!!.id, 1)
-                                } else {
-                                    onNavigateToMedia(chapterId, 0)
-                                }
+                                onNavigateToMedia(chapterId, 0)
                             },
                             onPickChaptersFolder = { folderPickerLauncher.launch(null) },
                             onDeleteChapters = { chapterIds -> descriptionViewModel.deleteSelectedChapters(chapterIds) }

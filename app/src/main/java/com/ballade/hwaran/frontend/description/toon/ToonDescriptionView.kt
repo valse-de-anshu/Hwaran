@@ -105,8 +105,6 @@ fun ToonDescriptionView(
     var isSynopsisExpanded by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
 
-    val isSingleFileBook = manga.contentType == 1 && chapters.size <= 1
-
     val resolvedCoverModel = remember(manga.coverPath, draftCover, isEditMode) {
         val path = if (isEditMode && draftCover.isNotBlank()) draftCover else manga.coverPath
         CoverArtResolver.resolveCoverModel(path, manga.parentUri, chapters, context)
@@ -157,7 +155,7 @@ fun ToonDescriptionView(
                             )
                         } else {
                             Icon(
-                                imageVector = if (manga.contentType == 1) Icons.Rounded.Book else Icons.AutoMirrored.Rounded.MenuBook,
+                                imageVector = Icons.AutoMirrored.Rounded.MenuBook,
                                 contentDescription = null,
                                 tint = TextMuted,
                                 modifier = Modifier.size(40.dp)
@@ -414,21 +412,12 @@ fun ToonDescriptionView(
                         }
 
                         // Chapters Count Badge
-                        if (!isSingleFileBook) {
-                            Text(
-                                text = "${chapters.size} Chapters available",
-                                color = TextMuted,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
-                        } else if (manga.contentType == 1) {
-                            Text(
-                                text = "Single Document / Volume",
-                                color = TextMuted,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
-                        }
+                        Text(
+                            text = "${chapters.size} Chapters available",
+                            color = TextMuted,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
                     }
                 }
             }
@@ -755,21 +744,17 @@ fun ToonDescriptionView(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Primary "Read" Button -> Opens chapter 1 / book reader directly
+                        // Primary "Read" Button -> Opens chapter 1 / resume chapter
                         Button(
                             onClick = {
-                                if (manga.contentType == 1) {
-                                    onNavigateToMedia(manga.id, 1)
-                                } else {
-                                    val targetChapter = chapters.firstOrNull { it.title == manga.lastReadTitle }
-                                        ?: chapters.firstOrNull()
-                                    if (targetChapter != null) {
-                                        onNavigateToMedia(targetChapter.id, 0)
-                                    }
+                                val targetChapter = chapters.firstOrNull { it.title == manga.lastReadTitle }
+                                    ?: chapters.firstOrNull()
+                                if (targetChapter != null) {
+                                    onNavigateToMedia(targetChapter.id, 0)
                                 }
                             },
                             modifier = Modifier
-                                .weight(if (isSingleFileBook) 1f else 1.2f)
+                                .weight(1.2f)
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
@@ -785,12 +770,7 @@ fun ToonDescriptionView(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Text(
-                                    text = if (manga.contentType == 1) {
-                                        if (manga.lastReadPage != null && manga.lastReadPage!! > 1) "Resume (p. ${manga.lastReadPage})"
-                                        else if (manga.lastReadTitle != null) "Resume" else "Read"
-                                    } else {
-                                        if (manga.lastReadTitle != null) "Resume" else "Read"
-                                    },
+                                    text = if (manga.lastReadTitle != null) "Resume" else "Read",
                                     color = Color.White,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
@@ -798,36 +778,34 @@ fun ToonDescriptionView(
                             }
                         }
 
-                        // "Chapters" Button -> ONLY shown if NOT a single-file book
-                        if (!isSingleFileBook) {
-                            FilledTonalButton(
-                                onClick = onOpenChapters,
-                                modifier = Modifier
-                                    .weight(1.1f)
-                                    .height(48.dp),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = CardBg,
-                                    contentColor = Color.White
-                                ),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                        // "Chapters" Button
+                        FilledTonalButton(
+                            onClick = onOpenChapters,
+                            modifier = Modifier
+                                .weight(1.1f)
+                                .height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = CardBg,
+                                contentColor = Color.White
+                            ),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.MenuBook,
-                                        contentDescription = null,
-                                        tint = PrimaryPurple,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Text(
-                                        text = "Chapters (${chapters.size})",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.MenuBook,
+                                    contentDescription = null,
+                                    tint = PrimaryPurple,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "Chapters (${chapters.size})",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
                         }
 
@@ -874,110 +852,55 @@ fun ToonDescriptionView(
 
                         // 2-Column Key-Value Grid
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            if (manga.contentType == 1) {
-                                // Book additional info: Author, Publisher, Published, Language, Status, Pages
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Author",
-                                        value = if (isEditMode) draftAuthor else entryMetadata.author.ifBlank { "Unknown" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftAuthor
-                                    )
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Publisher",
-                                        value = if (isEditMode) draftPublisher else entryMetadata.publisher.ifBlank { "Unknown" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftPublisher
-                                    )
-                                }
-                                HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Published",
-                                        value = if (isEditMode) draftYear else entryMetadata.year.ifBlank { "Unknown" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftYear
-                                    )
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Language",
-                                        value = if (isEditMode) draftLanguage else entryMetadata.language.ifBlank { "English" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftLanguage
-                                    )
-                                }
-                                HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Status",
-                                        value = if (isEditMode) draftStatus else entryMetadata.status.ifBlank { "Completed" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftStatus
-                                    )
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Pages",
-                                        value = if (isEditMode) draftPages else entryMetadata.pages.ifBlank { "—" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftPages
-                                    )
-                                }
-                            } else {
-                                // Manga / Manhua additional info
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Author",
-                                        value = if (isEditMode) draftAuthor else entryMetadata.author.ifBlank { "Unknown" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftAuthor
-                                    )
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Artist",
-                                        value = if (isEditMode) draftArtist else entryMetadata.artist.ifBlank { "Unknown" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftArtist
-                                    )
-                                }
-                                HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Publisher",
-                                        value = if (isEditMode) draftPublisher else entryMetadata.publisher.ifBlank { "Unknown" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftPublisher
-                                    )
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Serialization",
-                                        value = if (isEditMode) draftSerialization else entryMetadata.serialization.ifBlank { "Unknown" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftSerialization
-                                    )
-                                }
-                                HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Year",
-                                        value = if (isEditMode) draftYear else entryMetadata.year.ifBlank { "Unknown" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftYear
-                                    )
-                                    MetadataItemView(
-                                        modifier = Modifier.weight(1f),
-                                        label = "Status",
-                                        value = if (isEditMode) draftStatus else entryMetadata.status.ifBlank { "Ongoing" },
-                                        isEditMode = isEditMode,
-                                        onValueChange = onUpdateDraftStatus
-                                    )
-                                }
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                MetadataItemView(
+                                    modifier = Modifier.weight(1f),
+                                    label = "Author",
+                                    value = if (isEditMode) draftAuthor else entryMetadata.author.ifBlank { "Unknown" },
+                                    isEditMode = isEditMode,
+                                    onValueChange = onUpdateDraftAuthor
+                                )
+                                MetadataItemView(
+                                    modifier = Modifier.weight(1f),
+                                    label = "Artist",
+                                    value = if (isEditMode) draftArtist else entryMetadata.artist.ifBlank { "Unknown" },
+                                    isEditMode = isEditMode,
+                                    onValueChange = onUpdateDraftArtist
+                                )
+                            }
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                MetadataItemView(
+                                    modifier = Modifier.weight(1f),
+                                    label = "Publisher",
+                                    value = if (isEditMode) draftPublisher else entryMetadata.publisher.ifBlank { "Unknown" },
+                                    isEditMode = isEditMode,
+                                    onValueChange = onUpdateDraftPublisher
+                                )
+                                MetadataItemView(
+                                    modifier = Modifier.weight(1f),
+                                    label = "Serialization",
+                                    value = if (isEditMode) draftSerialization else entryMetadata.serialization.ifBlank { "Unknown" },
+                                    isEditMode = isEditMode,
+                                    onValueChange = onUpdateDraftSerialization
+                                )
+                            }
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                MetadataItemView(
+                                    modifier = Modifier.weight(1f),
+                                    label = "Year",
+                                    value = if (isEditMode) draftYear else entryMetadata.year.ifBlank { "Unknown" },
+                                    isEditMode = isEditMode,
+                                    onValueChange = onUpdateDraftYear
+                                )
+                                MetadataItemView(
+                                    modifier = Modifier.weight(1f),
+                                    label = "Status",
+                                    value = if (isEditMode) draftStatus else entryMetadata.status.ifBlank { "Ongoing" },
+                                    isEditMode = isEditMode,
+                                    onValueChange = onUpdateDraftStatus
+                                )
                             }
                         }
                     }
@@ -1069,18 +992,16 @@ fun ToonDescriptionView(
                                 Icon(Icons.Rounded.Image, contentDescription = null)
                             }
                         )
-                        if (!isSingleFileBook) {
-                            DropdownMenuItem(
-                                text = { Text("Open Chapters") },
-                                onClick = {
-                                    showMoreMenu = false
-                                    onOpenChapters()
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.AutoMirrored.Rounded.MenuBook, contentDescription = null)
-                                }
-                            )
-                        }
+                        DropdownMenuItem(
+                            text = { Text("Open Chapters") },
+                            onClick = {
+                                showMoreMenu = false
+                                onOpenChapters()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.AutoMirrored.Rounded.MenuBook, contentDescription = null)
+                            }
+                        )
                         HorizontalDivider()
                         DropdownMenuItem(
                             text = { Text("Delete Entry", color = Color(0xFFE57373)) },
