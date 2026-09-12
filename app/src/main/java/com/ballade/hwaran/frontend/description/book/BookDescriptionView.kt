@@ -101,57 +101,14 @@ fun BookDescriptionView(
             contentPadding = PaddingValues(
                 start = 16.dp,
                 end = 16.dp,
-                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp,
+                top = 0.dp,
                 bottom = if (isEditMode) bottomFloatingClearance + 80.dp else bottomFloatingClearance + 32.dp
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ── Top Bar (Back, Edit, Delete) ──
+            // Generous Top Spacer ensuring full clearance below camera punch hole/notch
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White
-                        )
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (!isEditMode) {
-                            IconButton(
-                                onClick = onToggleEditMode,
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Edit,
-                                    contentDescription = "Edit",
-                                    tint = Color.White
-                                )
-                            }
-                            IconButton(
-                                onClick = onDeleteManga,
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.DeleteOutline,
-                                    contentDescription = "Delete",
-                                    tint = Color(0xFFE57373)
-                                )
-                            }
-                        }
-                    }
-                }
+                Spacer(modifier = Modifier.statusBarsPadding().displayCutoutPadding().height(92.dp))
             }
 
             // ── Header Card (Cover Art + Title + Metadata) ──
@@ -775,6 +732,82 @@ fun BookDescriptionView(
                                     onValueChange = onUpdateDraftPages
                                 )
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Floating Top Bar (Safely below camera punch hole/cutout) ──
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .displayCutoutPadding()
+                .padding(top = 28.dp, start = 18.dp, end = 18.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .clickable { onNavigateBack() },
+                shape = CircleShape,
+                color = Color(0xFF14131E).copy(alpha = 0.88f),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            if (!isEditMode) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .clickable { onToggleEditMode() },
+                        shape = CircleShape,
+                        color = Color(0xFF14131E).copy(alpha = 0.88f),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = "Edit",
+                                tint = Color.White,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+                    }
+
+                    Surface(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .clickable { onDeleteManga() },
+                        shape = CircleShape,
+                        color = Color(0xFF14131E).copy(alpha = 0.88f),
+                        border = BorderStroke(1.dp, Color(0xFFE57373).copy(alpha = 0.35f))
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Rounded.DeleteOutline,
+                                contentDescription = "Delete",
+                                tint = Color(0xFFE57373),
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
                     }
                 }

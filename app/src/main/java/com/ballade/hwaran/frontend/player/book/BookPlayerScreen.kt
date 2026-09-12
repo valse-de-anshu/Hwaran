@@ -11,13 +11,11 @@ import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -31,17 +29,22 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.filled.ScreenRotation
-import androidx.compose.material.icons.rounded.Brush
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -63,11 +66,13 @@ import kotlinx.coroutines.Job
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -143,6 +148,38 @@ private fun Offset.distance(other: Offset): Float {
 private fun centroid(a: Offset, b: Offset) = Offset((a.x + b.x) / 2f, (a.y + b.y) / 2f)
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Eye Care and Bottom Panel Models
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum class EyeCareMode(val label: String) {
+    OFF("Original"),
+    SEPIA("Warm Sepia"),
+    MINT("Paper Green"),
+    NIGHT("OLED Dark")
+}
+
+enum class PdfBottomPanel {
+    HIGHLIGHTER,
+    EYE_CARE,
+    PAGE_NAV
+}
+
+data class HighlightColorOption(
+    val name: String,
+    val colorInt: Int,
+    val displayColor: Color
+)
+
+val HighlighterColors = listOf(
+    HighlightColorOption("Neon Yellow", 0xFFFFEB3B.toInt(), Color(0xFFFFEB3B)),
+    HighlightColorOption("Mint Green", 0xFFA7F3D0.toInt(), Color(0xFFA7F3D0)),
+    HighlightColorOption("Sakura Pink", 0xFFF472B6.toInt(), Color(0xFFF472B6)),
+    HighlightColorOption("Sky Cyan", 0xFF60A5FA.toInt(), Color(0xFF60A5FA)),
+    HighlightColorOption("Lavender", 0xFFC084FC.toInt(), Color(0xFFC084FC)),
+    HighlightColorOption("Warm Amber", 0xFFFFB74D.toInt(), Color(0xFFFFB74D))
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
 // BookPlayerScreen (formerly PdfReaderScreen)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -178,8 +215,12 @@ fun BookPlayerScreen(
     var isLoading by remember { mutableStateOf(true) }
 
     var isMarkerMode by remember { mutableStateOf(false) }
-    var activeColor by remember { mutableIntStateOf(android.graphics.Color.YELLOW) }
+    var activeColor by remember { mutableIntStateOf(0xFFFFEB3B.toInt()) }
     val markers by pdfViewModel.getMarkers(mangaId).collectAsState(initial = emptyList())
+    var eyeCareMode by remember { mutableStateOf(EyeCareMode.OFF) }
+    var activeBottomPanel by remember { mutableStateOf<PdfBottomPanel?>(null) }
+    var viewWidthPx by remember { mutableIntStateOf(1080) }
+    var viewHeightPx by remember { mutableIntStateOf(1920) }
 
     var manga by remember { mutableStateOf<MangaEntity?>(null) }
     var startPage by remember { mutableIntStateOf(1) }
@@ -412,382 +453,927 @@ fun BookPlayerScreen(
     val appGradient = com.ballade.hwaran.ui.theme.LocalAppGradient.current
     val bgModifier = if (appGradient != null) Modifier.background(appGradient) else Modifier.background(MaterialTheme.colorScheme.background)
 
-    Box(modifier = Modifier.fillMaxSize().then(bgModifier)) {
-        if (pdfManager != null && pageCount > 0) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .then(bgModifier)
+            .onSizeChanged {
+                viewWidthPx = it.width
+                viewHeightPx = it.height
+            }
+    ) {
+        Crossfade(
+            targetState = (pdfManager == null || isLoading) && error == null,
+            animationSpec = tween(220),
+            label = "pdf_loading_crossfade"
+        ) { loading ->
+            if (loading) {
+                // ── Sleek, Lag-Free Minimalist Loading Canvas ──
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(bgModifier),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(32.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.08f),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                            modifier = Modifier.size(68.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.MenuBook,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                        }
 
-            // ── Outer interaction box: handles ALL gestures via one unified coroutine ──
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(isMarkerMode, pageCount) {
-                        if (isMarkerMode) return@pointerInput
+                        Text(
+                            text = manga?.title?.takeIf { it.isNotBlank() } ?: "Opening Document",
+                            color = Color.White,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
 
-                        val viewW = size.width
-                        val viewH = size.height
-                        // Double-tap: 300 ms gap, 80 px radius — MUST be outside awaitEachGesture
-                        val doubleTapTimeoutMs = 300L
-                        val tapSlop = 18f
-                        val longPressTimeout = 350L
+                        Text(
+                            text = "Preparing pages & annotations...",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
 
-                        // Persists across gestures so double-tap works between two awaitEachGesture blocks
-                        var lastTapUpTime = 0L
-                        var lastTapPosition = Offset.Zero
-                        var doubleTapPending = false
-                        // Job that fires the single-tap action after the double-tap window expires
-                        var pendingSingleTapJob: Job? = null
+                        LinearProgressIndicator(
+                            modifier = Modifier
+                                .width(130.dp)
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(2.dp)),
+                            color = Color.White,
+                            trackColor = Color.White.copy(alpha = 0.1f)
+                        )
+                    }
+                }
+            } else if (error != null) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = error ?: "Unknown error",
+                        color = Color(0xFFE57373),
+                        modifier = Modifier.padding(24.dp),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else if (pdfManager != null && pageCount > 0) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // ── Outer interaction box: handles ALL gestures via one unified coroutine ──
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(isMarkerMode, pageCount) {
+                                if (isMarkerMode) return@pointerInput
 
-                        awaitEachGesture {
-                            val firstDown = awaitFirstDown(requireUnconsumed = false)
-                            val downTime = System.currentTimeMillis()
-                            val downPos  = firstDown.position
+                                val viewW = size.width
+                                val viewH = size.height
+                                // Double-tap: 300 ms gap, 80 px radius — MUST be outside awaitEachGesture
+                                val doubleTapTimeoutMs = 300L
+                                val tapSlop = 18f
+                                val longPressTimeout = 350L
 
-                            var pinchActive = false
-                            var prevDist = 0f
-                            var prevCentroid = Offset.Zero
-                            
-                            var movedDistance = 0f
-                            var currentPos = downPos
+                                // Persists across gestures so double-tap works between two awaitEachGesture blocks
+                                var lastTapUpTime = 0L
+                                var lastTapPosition = Offset.Zero
+                                var doubleTapPending = false
+                                // Job that fires the single-tap action after the double-tap window expires
+                                var pendingSingleTapJob: Job? = null
 
-                            do {
-                                val event = awaitPointerEvent()
-                                val pointers = event.changes.filter { it.pressed }
+                                awaitEachGesture {
+                                    val firstDown = awaitFirstDown(requireUnconsumed = false)
+                                    val downTime = System.currentTimeMillis()
+                                    val downPos  = firstDown.position
 
-                                when {
-                                    // ── TWO-FINGER PINCH ─────────────────────────────────────
-                                    pointers.size >= 2 -> {
-                                        if (!pinchActive) {
-                                            pinchActive = true
-                                            isPinching  = true
-                                            // Cancel any pending single-tap action
-                                            pendingSingleTapJob?.cancel()
-                                            doubleTapPending = false
-                                            prevDist     = pointers[0].position.distance(pointers[1].position)
-                                            prevCentroid = centroid(pointers[0].position, pointers[1].position)
+                                    var pinchActive = false
+                                    var prevDist = 0f
+                                    var prevCentroid = Offset.Zero
+                                    
+                                    var movedDistance = 0f
+                                    var currentPos = downPos
+
+                                    do {
+                                        val event = awaitPointerEvent()
+                                        val pointers = event.changes.filter { it.pressed }
+
+                                        when {
+                                            // ── TWO-FINGER PINCH ─────────────────────────────────────
+                                            pointers.size >= 2 -> {
+                                                if (!pinchActive) {
+                                                    pinchActive = true
+                                                    isPinching  = true
+                                                    // Cancel any pending single-tap action
+                                                    pendingSingleTapJob?.cancel()
+                                                    doubleTapPending = false
+
+                                                    prevDist     = pointers[0].position.distance(pointers[1].position)
+                                                    prevCentroid = centroid(pointers[0].position, pointers[1].position)
+                                                } else {
+                                                    val currDist     = pointers[0].position.distance(pointers[1].position)
+                                                    val currCentroid = centroid(pointers[0].position, pointers[1].position)
+
+                                                    if (prevDist > 10f) {
+                                                        val zoomDelta = currDist / prevDist
+                                                        val newScale  = (liveScale * zoomDelta).coerceIn(0.5f, 6f)
+
+                                                        val panX = currCentroid.x - prevCentroid.x
+                                                        val panY = currCentroid.y - prevCentroid.y
+
+                                                        val (cx, cy) = clampOffset(
+                                                            newScale,
+                                                            liveOffsetX + panX,
+                                                            liveOffsetY + panY,
+                                                            viewW, viewH
+                                                        )
+                                                        liveScale   = newScale
+                                                        liveOffsetX = cx
+                                                        liveOffsetY = cy
+                                                    }
+                                                    prevDist     = currDist
+                                                    prevCentroid = currCentroid
+                                                }
+                                                // Consume so LazyColumn does not get pinch moves
+                                                pointers.forEach { it.consume() }
+                                            }
+
+                                            // ── ONE-FINGER DRAG / SCROLL / TAP ───────────────────────
+                                            pointers.size == 1 -> {
+                                                val ptr   = pointers[0]
+                                                val delta = ptr.position - currentPos
+
+                                                if (ptr.positionChanged()) {
+                                                    movedDistance += abs(delta.x) + abs(delta.y)
+                                                    currentPos = ptr.position
+
+                                                    // Pan while zoomed — consume so LazyColumn doesn't interfere
+                                                    if (liveScale > 1.01f && !pinchActive) {
+                                                        ptr.consume()
+                                                        val rawX = liveOffsetX + delta.x
+                                                        val rawY = liveOffsetY + delta.y
+                                                        val (cx, cy) = clampOffset(liveScale, rawX, rawY, viewW, viewH)
+                                                        
+                                                        val consumedY = cy - liveOffsetY
+                                                        val leftoverY = delta.y - consumedY
+                                                        
+                                                        liveOffsetX = cx
+                                                        liveOffsetY = cy
+                                                        
+                                                        if (kotlin.math.abs(leftoverY) > 0f) {
+                                                            listState.dispatchRawDelta(-leftoverY / liveScale)
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
 
-                                        // Consume so LazyColumn never scrolls during pinch
-                                        event.changes.forEach { it.consume() }
-
-                                        val p0 = pointers[0].position
-                                        val p1 = pointers[1].position
-                                        val newDist     = p0.distance(p1)
-                                        val newCentroid = centroid(p0, p1)
-
-                                        if (prevDist > 0f && newDist > 0f) {
-                                            val scaleDelta  = newDist / prevDist
-                                            val newScale    = (liveScale * scaleDelta).coerceIn(0.2f, 5f)
-                                            val panDelta    = newCentroid - prevCentroid
-                                            val scaleChange = newScale / liveScale
-                                            val rawX = (liveOffsetX - newCentroid.x) * scaleChange + newCentroid.x + panDelta.x
-                                            val rawY = (liveOffsetY - newCentroid.y) * scaleChange + newCentroid.y + panDelta.y
-                                            val (cx, cy)    = clampOffset(newScale, rawX, rawY, viewW, viewH)
-
-                                            // Direct mutable state write — no suspend, no restricted scope issue
-                                            liveScale   = newScale
-                                            liveOffsetX = cx
-                                            liveOffsetY = cy
+                                        // If LazyColumn consumed the scroll, it's definitely not a tap
+                                        if (event.changes.any { it.isConsumed }) {
+                                            movedDistance = Float.MAX_VALUE
                                         }
 
-                                        prevDist     = newDist
-                                        prevCentroid = newCentroid
+                                    } while (event.changes.any { it.pressed })
+
+                                    // ── Gesture ended ────────────────────────────────────────────
+                                    if (pinchActive) {
+                                        isPinching = false
+                                        // If pinched almost all the way back to 1×, smooth snap cleanly
+                                        if (liveScale in 0.95f..1.05f) {
+                                            coroutineScope.launch { smoothReset() }
+                                        }
+                                        return@awaitEachGesture
                                     }
 
-                                    // ── SINGLE FINGER ────────────────────────────────────────
-                                    pointers.size == 1 -> {
-                                        val ptr = pointers[0]
-                                        if (ptr.positionChanged()) {
-                                            val delta = ptr.position - currentPos
-                                            movedDistance += abs(delta.x) + abs(delta.y)
-                                            currentPos = ptr.position
+                                    // ── Tap classification ───────────────────────────────────────
+                                    val upTime       = System.currentTimeMillis()
+                                    val pressDuration = upTime - downTime
 
-                                            // Pan while zoomed — consume so LazyColumn doesn't interfere
-                                            if (liveScale > 1.01f && !pinchActive) {
-                                                ptr.consume()
-                                                val rawX = liveOffsetX + delta.x
-                                                val rawY = liveOffsetY + delta.y
-                                                val (cx, cy) = clampOffset(liveScale, rawX, rawY, viewW, viewH)
-                                                
-                                                val consumedY = cy - liveOffsetY
-                                                val leftoverY = delta.y - consumedY
-                                                
-                                                liveOffsetX = cx
-                                                liveOffsetY = cy
-                                                
-                                                if (kotlin.math.abs(leftoverY) > 0f) {
-                                                    listState.dispatchRawDelta(-leftoverY / liveScale)
+                                    if (movedDistance < tapSlop && pressDuration < longPressTimeout) {
+                                        val timeSinceLast = upTime - lastTapUpTime
+                                        val distFromLast  = downPos.distance(lastTapPosition)
+
+                                        if (doubleTapPending
+                                            && timeSinceLast < doubleTapTimeoutMs
+                                            && distFromLast  < 80f
+                                        ) {
+                                            // ── DOUBLE TAP ───────────────────────────────────────
+                                            // Cancel the pending single-tap action (overlay toggle)
+                                            pendingSingleTapJob?.cancel()
+                                            doubleTapPending = false
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+
+                                            if (liveScale > 1.05f || liveScale < 0.95f) {
+                                                // Zoom OUT — calm, smooth
+                                                coroutineScope.launch { smoothReset() }
+                                            } else {
+                                                // Zoom IN to 3× centred on tap position
+                                                coroutineScope.launch { smoothZoomIn(downPos.x, downPos.y, viewW, viewH) }
+                                            }
+                                        } else {
+                                            // ── FIRST TAP (potential first of a double-tap) ───────
+                                            // Record position/time but DON'T act yet.
+                                            // Schedule the actual single-tap action after the double-tap
+                                            // window; cancel it if a second tap arrives first.
+                                            lastTapUpTime  = upTime
+                                            lastTapPosition = downPos
+                                            doubleTapPending = true
+
+                                            pendingSingleTapJob?.cancel()
+                                            pendingSingleTapJob = coroutineScope.launch {
+                                                kotlinx.coroutines.delay(doubleTapTimeoutMs)
+                                                // Only runs if not cancelled by a second tap
+                                                doubleTapPending = false
+                                                showOverlay = !showOverlay
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                    ) {
+                        // ── Zoom/pan transform layer ──────────────────────────────────────────
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    val s  = if (isAnimating) scaleAnim.value   else liveScale
+                                    val tx = if (isAnimating) offsetXAnim.value  else liveOffsetX
+                                    val ty = if (isAnimating) offsetYAnim.value  else liveOffsetY
+                                    scaleX       = s
+                                    scaleY       = s
+                                    translationX = tx
+                                    translationY = ty
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val currentScale = if (isAnimating) scaleAnim.value else liveScale
+                            val boundedScale = currentScale.coerceAtMost(1f).coerceAtLeast(0.1f)
+                            
+                            BoxWithConstraints(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val baseWidth = maxWidth
+                                val baseHeight = maxHeight
+                                
+                                LazyColumn(
+                                    state = listState,
+                                    // Disable scroll only while pinching OR while zoomed in
+                                    userScrollEnabled = !isPinching && liveScale <= 1.01f,
+                                    verticalArrangement = if (pageCount <= 1) Arrangement.Center else Arrangement.Top,
+                                    modifier = Modifier.requiredSize(
+                                        width = baseWidth,
+                                        height = baseHeight / boundedScale
+                                    )
+                                ) {
+                                    items(pageCount) { index ->
+                                        PdfPage(
+                                            pdfManager = pdfManager!!,
+                                            pageIndex = index,
+                                            mangaId = mangaId,
+                                            isMarkerMode = isMarkerMode,
+                                            activeColor = activeColor,
+                                            markers = markers,
+                                            eyeCareMode = eyeCareMode,
+                                            onAddMarker = { pdfViewModel.addMarker(it) },
+                                            onDeleteMarker = { pdfViewModel.deleteMarker(it) },
+                                            onScrollToPage = { targetPage ->
+                                                coroutineScope.launch {
+                                                    listState.animateScrollToItem(targetPage)
+                                                }
+                                            }
+                                        )
+                                        if (index < pageCount - 1) {
+                                            Spacer(
+                                                modifier = Modifier
+                                                    .height(12.dp)
+                                                    .fillMaxWidth()
+                                                    .background(if (eyeCareMode == EyeCareMode.NIGHT) Color(0xFF0D0D0D) else Color(0xFF1A1A1A))
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // ── OVERLAY ───────────────────────────────────────────────────────────
+                    AnimatedVisibility(
+                        visible = showOverlay || isMarkerMode,
+                        enter = fadeIn(tween(180)),
+                        exit = fadeOut(tween(140))
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            // ── Top Bar (Protected with statusBarsPadding & displayCutoutPadding) ──
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .align(Alignment.TopCenter)
+                                    .background(Brush.verticalGradient(colors = listOf(Color.Black.copy(alpha = 0.75f), Color.Transparent)))
+                                    .statusBarsPadding()
+                                    .displayCutoutPadding()
+                                    .padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 18.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                // Frosted Back Button
+                                Surface(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(CircleShape)
+                                        .clickable { handleBack() },
+                                    shape = CircleShape,
+                                    color = Color(0xFF14131E).copy(alpha = 0.88f),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                            contentDescription = "Back",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+
+                                // Document Title Capsule
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = Color(0xFF14131E).copy(alpha = 0.88f),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Rounded.MenuBook,
+                                            contentDescription = null,
+                                            tint = Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Text(
+                                            text = manga?.title ?: "Document",
+                                            color = Color.White,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.widthIn(max = 180.dp)
+                                        )
+                                    }
+                                }
+
+                                // Quick Page Counter badge
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = Color(0xFF14131E).copy(alpha = 0.88f),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                                ) {
+                                    Text(
+                                        text = "${currentPage + 1} / $pageCount",
+                                        color = Color.White.copy(alpha = 0.9f),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+
+                            // ── Vertical Fast-Scroll UI (Right Side) — kept as requested! ──
+                            BoxWithConstraints(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .align(Alignment.CenterEnd)
+                                    .padding(top = 100.dp, bottom = 90.dp)
+                                    .wrapContentWidth()
+                            ) {
+                                val density = LocalDensity.current
+                                val maxHeightPx = with(density) { maxHeight.toPx() }
+                                val thumbHeightPx = with(density) { 52.dp.toPx() }
+
+                                var dragOffset by remember { mutableFloatStateOf(0f) }
+                                var isDragging by remember { mutableStateOf(false) }
+
+                                val scrollFraction by remember {
+                                    derivedStateOf {
+                                        val layoutInfo = listState.layoutInfo
+                                        val visibleItems = layoutInfo.visibleItemsInfo
+                                        if (visibleItems.isEmpty() || pageCount <= 1) 0f
+                                        else {
+                                            val firstItem = visibleItems.first()
+                                            val itemFraction = if (firstItem.size > 0) (-firstItem.offset.toFloat() / firstItem.size.toFloat()).coerceIn(0f, 1f) else 0f
+                                            (firstItem.index.toFloat() + itemFraction) / (pageCount - 1).toFloat()
+                                        }
+                                    }
+                                }
+
+                                val thumbY = if (isDragging) dragOffset else (scrollFraction.coerceIn(0f, 1f) * (maxHeightPx - thumbHeightPx))
+
+                                Row(
+                                    modifier = Modifier
+                                        .offset { IntOffset(0, thumbY.toInt()) }
+                                        .align(Alignment.TopEnd)
+                                        .pointerInput(pageCount) {
+                                            detectDragGestures(
+                                                onDragStart = {
+                                                    isDragging = true
+                                                    dragOffset = (scrollFraction * (maxHeightPx - thumbHeightPx))
+                                                },
+                                                onDragEnd = { isDragging = false },
+                                                onDragCancel = { isDragging = false }
+                                            ) { change, dragAmount ->
+                                                change.consume()
+                                                dragOffset = (dragOffset + dragAmount.y).coerceIn(0f, maxHeightPx - thumbHeightPx)
+                                                val newFraction = dragOffset / (maxHeightPx - thumbHeightPx)
+
+                                                val totalPosition = newFraction * (pageCount - 1)
+                                                val pageIndex = totalPosition.toInt().coerceIn(0, pageCount - 1)
+                                                val pageOffsetFraction = totalPosition - pageIndex
+
+                                                val layoutInfo = listState.layoutInfo
+                                                val pageHeight = layoutInfo.visibleItemsInfo.find { it.index == pageIndex }?.size
+                                                    ?: layoutInfo.visibleItemsInfo.firstOrNull()?.size
+                                                    ?: 1000
+
+                                                val offset = (pageOffsetFraction * pageHeight).toInt()
+                                                coroutineScope.launch {
+                                                    listState.scrollToItem(pageIndex, offset)
+                                                }
+                                            }
+                                        },
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    // Page Counter Pill
+                                    Surface(
+                                        shape = RoundedCornerShape(50),
+                                        color = Color.White,
+                                        shadowElevation = 4.dp
+                                    ) {
+                                        Text(
+                                            text = "${currentPage + 1}/$pageCount",
+                                            color = Color.Black,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+
+                                    // Dot Handle
+                                    Surface(
+                                        shape = RoundedCornerShape(topStartPercent = 50, bottomStartPercent = 50),
+                                        color = Color.White,
+                                        modifier = Modifier.width(32.dp).height(52.dp),
+                                        shadowElevation = 6.dp
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.fillMaxSize(),
+                                            verticalArrangement = Arrangement.Center,
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            repeat(3) {
+                                                Row {
+                                                    repeat(2) {
+                                                        Box(modifier = Modifier.padding(2.dp).size(4.dp).background(Color.LightGray, CircleShape))
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
-
-                                // If LazyColumn consumed the scroll, it's definitely not a tap
-                                if (event.changes.any { it.isConsumed }) {
-                                    movedDistance = Float.MAX_VALUE
-                                }
-
-                            } while (event.changes.any { it.pressed })
-
-                            // ── Gesture ended ────────────────────────────────────────────
-                            if (pinchActive) {
-                                isPinching = false
-                                // If pinched almost all the way back to 1×, smooth snap cleanly
-                                if (liveScale in 0.95f..1.05f) {
-                                    coroutineScope.launch { smoothReset() }
-                                }
-                                return@awaitEachGesture
                             }
 
-                            // ── Tap classification ───────────────────────────────────────
-                            val upTime       = System.currentTimeMillis()
-                            val pressDuration = upTime - downTime
-
-                            if (movedDistance < tapSlop && pressDuration < longPressTimeout) {
-                                val timeSinceLast = upTime - lastTapUpTime
-                                val distFromLast  = downPos.distance(lastTapPosition)
-
-                                if (doubleTapPending
-                                    && timeSinceLast < doubleTapTimeoutMs
-                                    && distFromLast  < 80f
-                                ) {
-                                    // ── DOUBLE TAP ───────────────────────────────────────
-                                    // Cancel the pending single-tap action (overlay toggle)
-                                    pendingSingleTapJob?.cancel()
-                                    doubleTapPending = false
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-
-                                    if (liveScale > 1.05f || liveScale < 0.95f) {
-                                        // Zoom OUT — calm, smooth
-                                        coroutineScope.launch { smoothReset() }
-                                    } else {
-                                        // Zoom IN to 3× centred on tap position
-                                        coroutineScope.launch { smoothZoomIn(downPos.x, downPos.y, viewW, viewH) }
-                                    }
-                                } else {
-                                    // ── FIRST TAP (potential first of a double-tap) ───────
-                                    // Record position/time but DON'T act yet.
-                                    // Schedule the actual single-tap action after the double-tap
-                                    // window; cancel it if a second tap arrives first.
-                                    lastTapUpTime  = upTime
-                                    lastTapPosition = downPos
-                                    doubleTapPending = true
-
-                                    pendingSingleTapJob?.cancel()
-                                    pendingSingleTapJob = coroutineScope.launch {
-                                        kotlinx.coroutines.delay(doubleTapTimeoutMs)
-                                        // Only runs if not cancelled by a second tap
-                                        doubleTapPending = false
-                                        showOverlay = !showOverlay
-                                    }
-                                }
-                            }
-                        }
-                    }
-            ) {
-                // ── Zoom/pan transform layer ──────────────────────────────────────────
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            // During animation: read from Animatable (smooth transition)
-                            // During pinch/pan: read from liveScale/Offset (instant, 1:1 fingers)
-                            val s  = if (isAnimating) scaleAnim.value   else liveScale
-                            val tx = if (isAnimating) offsetXAnim.value  else liveOffsetX
-                            val ty = if (isAnimating) offsetYAnim.value  else liveOffsetY
-                            scaleX       = s
-                            scaleY       = s
-                            translationX = tx
-                            translationY = ty
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    val currentScale = if (isAnimating) scaleAnim.value else liveScale
-                    val boundedScale = currentScale.coerceAtMost(1f).coerceAtLeast(0.1f)
-                    
-                    BoxWithConstraints(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val baseWidth = maxWidth
-                        val baseHeight = maxHeight
-                        
-                        LazyColumn(
-                            state = listState,
-                            // Disable scroll only while pinching OR while zoomed in
-                            userScrollEnabled = !isPinching && liveScale <= 1.01f,
-                            verticalArrangement = if (pageCount <= 1) Arrangement.Center else Arrangement.Top,
-                            modifier = Modifier.requiredSize(
-                                width = baseWidth,
-                                height = baseHeight / boundedScale
-                            )
-                        ) {
-                        items(pageCount) { index ->
-                            PdfPage(
-                                pdfManager = pdfManager!!,
-                                pageIndex = index,
-                                mangaId = mangaId,
-                                isMarkerMode = isMarkerMode,
-                                activeColor = activeColor,
-                                markers = markers,
-                                onAddMarker = { pdfViewModel.addMarker(it) },
-                                onDeleteMarker = { pdfViewModel.deleteMarker(it) },
-                                onScrollToPage = { targetPage ->
-                                    coroutineScope.launch {
-                                        listState.animateScrollToItem(targetPage)
-                                    }
-                                }
-                            )
-                            if (index < pageCount - 1) {
-                                Spacer(modifier = Modifier.height(12.dp).fillMaxWidth().background(Color(0xFF1A1A1A)))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-            // ── OVERLAY ───────────────────────────────────────────────────────────
-            AnimatedVisibility(
-                visible = showOverlay,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    // Top Bar
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.TopCenter)
-                            .background(Brush.verticalGradient(colors = listOf(Color.Black.copy(alpha = 0.8f), Color.Transparent)))
-                            .statusBarsPadding()
-                            .padding(start = 8.dp, end = 8.dp, top = 56.dp, bottom = 24.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        IconButton(
-                            onClick = handleBack,
-                            modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), CircleShape)
-                        ) {
-                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                        }
-
-                        IconButton(
-                            onClick = {
-                                activity?.let { act ->
-                                    val current = act.requestedOrientation
-                                    if (current == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
-                                        act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                                    } else {
-                                        act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                                    }
-                                }
-                            },
-                            modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), CircleShape)
-                        ) {
-                            Icon(
-                                Icons.Filled.ScreenRotation,
-                                contentDescription = "Rotate",
-                                tint = Color.White
-                            )
-                        }
-                    }
-
-                    // Vertical Fast-Scroll UI (Right Side)
-                    BoxWithConstraints(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .align(Alignment.CenterEnd)
-                            .padding(top = 100.dp, bottom = 40.dp)
-                            .wrapContentWidth()
-                    ) {
-                        val density = LocalDensity.current
-                        val maxHeightPx = with(density) { maxHeight.toPx() }
-                        val thumbHeightPx = with(density) { 52.dp.toPx() }
-
-                        var dragOffset by remember { mutableFloatStateOf(0f) }
-                        var isDragging by remember { mutableStateOf(false) }
-
-                        val scrollFraction by remember {
-                            derivedStateOf {
-                                val layoutInfo = listState.layoutInfo
-                                val visibleItems = layoutInfo.visibleItemsInfo
-                                if (visibleItems.isEmpty() || pageCount <= 1) 0f
-                                else {
-                                    val firstItem = visibleItems.first()
-                                    val itemFraction = if (firstItem.size > 0) (-firstItem.offset.toFloat() / firstItem.size.toFloat()).coerceIn(0f, 1f) else 0f
-                                    (firstItem.index.toFloat() + itemFraction) / (pageCount - 1).toFloat()
-                                }
-                            }
-                        }
-
-                        val thumbY = if (isDragging) dragOffset else (scrollFraction.coerceIn(0f, 1f) * (maxHeightPx - thumbHeightPx))
-
-                        Row(
-                            modifier = Modifier
-                                .offset { IntOffset(0, thumbY.toInt()) }
-                                .align(Alignment.TopEnd)
-                                .pointerInput(pageCount) {
-                                    detectDragGestures(
-                                        onDragStart = {
-                                            isDragging = true
-                                            dragOffset = (scrollFraction * (maxHeightPx - thumbHeightPx))
-                                        },
-                                        onDragEnd = { isDragging = false },
-                                        onDragCancel = { isDragging = false }
-                                    ) { change, dragAmount ->
-                                        change.consume()
-                                        dragOffset = (dragOffset + dragAmount.y).coerceIn(0f, maxHeightPx - thumbHeightPx)
-                                        val newFraction = dragOffset / (maxHeightPx - thumbHeightPx)
-
-                                        val totalPosition = newFraction * (pageCount - 1)
-                                        val pageIndex = totalPosition.toInt().coerceIn(0, pageCount - 1)
-                                        val pageOffsetFraction = totalPosition - pageIndex
-
-                                        val layoutInfo = listState.layoutInfo
-                                        val pageHeight = layoutInfo.visibleItemsInfo.find { it.index == pageIndex }?.size
-                                            ?: layoutInfo.visibleItemsInfo.firstOrNull()?.size
-                                            ?: 1000
-
-                                        val offset = (pageOffsetFraction * pageHeight).toInt()
-                                        coroutineScope.launch {
-                                            listState.scrollToItem(pageIndex, offset)
-                                        }
-                                    }
-                                },
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Page Counter Pill
-                            Surface(
-                                shape = RoundedCornerShape(50),
-                                color = Color.White,
-                                shadowElevation = 4.dp
-                            ) {
-                                Text(
-                                    text = "${currentPage + 1}/$pageCount",
-                                    color = Color.Black,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 12.sp
-                                )
-                            }
-
-                            // Dot Handle
-                            Surface(
-                                shape = RoundedCornerShape(topStartPercent = 50, bottomStartPercent = 50),
-                                color = Color.White,
-                                modifier = Modifier.width(32.dp).height(52.dp),
-                                shadowElevation = 6.dp
+                            // ── Bottom Navigation & Feature Pill (Safely above Android 3-button / gesture bar) ──
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .align(Alignment.BottomCenter)
+                                    .navigationBarsPadding()
+                                    .padding(bottom = 28.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.Center,
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    repeat(3) {
-                                        Row {
-                                            repeat(2) {
-                                                Box(modifier = Modifier.padding(2.dp).size(4.dp).background(Color.LightGray, CircleShape))
+                                    // Active Floating Card (Highlighter Palette, Eye Care, or Page Navigator)
+                                    AnimatedVisibility(
+                                        visible = activeBottomPanel != null,
+                                        enter = fadeIn(tween(180)) + slideInVertically(initialOffsetY = { 20 }),
+                                        exit = fadeOut(tween(140)) + slideOutVertically(targetOffsetY = { 20 })
+                                    ) {
+                                        when (activeBottomPanel) {
+                                            PdfBottomPanel.HIGHLIGHTER -> {
+                                                // Highlighter Palette Floating Card
+                                                Surface(
+                                                    shape = RoundedCornerShape(24.dp),
+                                                    color = Color(0xFF14131E).copy(alpha = 0.96f),
+                                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                                    shadowElevation = 16.dp,
+                                                    modifier = Modifier.padding(horizontal = 20.dp)
+                                                ) {
+                                                    Column(
+                                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                                                        horizontalAlignment = Alignment.CenterHorizontally
+                                                    ) {
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(0.9f),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                            ) {
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .size(10.dp)
+                                                                        .background(Color(activeColor), CircleShape)
+                                                                )
+                                                                Text(
+                                                                    text = "Highlighter Active",
+                                                                    color = Color.White,
+                                                                    fontSize = 13.sp,
+                                                                    fontWeight = FontWeight.Bold
+                                                                )
+                                                            }
+
+                                                            Text(
+                                                                text = "Tap highlights to delete",
+                                                                color = Color.White.copy(alpha = 0.5f),
+                                                                fontSize = 11.sp
+                                                            )
+                                                        }
+
+                                                        // Palette Swatches
+                                                        Row(
+                                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            HighlighterColors.forEach { option ->
+                                                                val isSelected = activeColor == option.colorInt
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .size(34.dp)
+                                                                        .clip(CircleShape)
+                                                                        .background(option.displayColor)
+                                                                        .border(
+                                                                            width = if (isSelected) 3.dp else 1.dp,
+                                                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.2f),
+                                                                            shape = CircleShape
+                                                                        )
+                                                                        .clickable {
+                                                                            activeColor = option.colorInt
+                                                                            isMarkerMode = true
+                                                                        },
+                                                                    contentAlignment = Alignment.Center
+                                                                ) {
+                                                                    if (isSelected) {
+                                                                        Icon(
+                                                                            imageVector = Icons.Rounded.Check,
+                                                                            contentDescription = null,
+                                                                            tint = if (option.colorInt == 0xFFFFEB3B.toInt() || option.colorInt == 0xFFA7F3D0.toInt()) Color.Black else Color.White,
+                                                                            modifier = Modifier.size(18.dp)
+                                                                        )
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            PdfBottomPanel.EYE_CARE -> {
+                                                // Eye Protection Floating Card
+                                                Surface(
+                                                    shape = RoundedCornerShape(24.dp),
+                                                    color = Color(0xFF14131E).copy(alpha = 0.96f),
+                                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                                    shadowElevation = 16.dp,
+                                                    modifier = Modifier.padding(horizontal = 20.dp)
+                                                ) {
+                                                    Column(
+                                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                                                        horizontalAlignment = Alignment.CenterHorizontally
+                                                    ) {
+                                                        Text(
+                                                            text = "Reading Comfort & Eye Protection",
+                                                            color = Color.White,
+                                                            fontSize = 13.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+
+                                                        Row(
+                                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            EyeCareMode.values().forEach { mode ->
+                                                                val isSelected = eyeCareMode == mode
+                                                                Surface(
+                                                                    shape = RoundedCornerShape(16.dp),
+                                                                    color = if (isSelected) Color.White.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.06f),
+                                                                    border = BorderStroke(
+                                                                        1.dp,
+                                                                        if (isSelected) Color.White else Color.White.copy(alpha = 0.12f)
+                                                                    ),
+                                                                    modifier = Modifier.clickable { eyeCareMode = mode }
+                                                                ) {
+                                                                    Row(
+                                                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                                                        verticalAlignment = Alignment.CenterVertically,
+                                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                                    ) {
+                                                                        val previewColor = when (mode) {
+                                                                            EyeCareMode.OFF -> Color.White
+                                                                            EyeCareMode.SEPIA -> Color(0xFFFAF0D7)
+                                                                            EyeCareMode.MINT -> Color(0xFFE8F5E9)
+                                                                            EyeCareMode.NIGHT -> Color(0xFF1E1E2E)
+                                                                        }
+                                                                        Box(
+                                                                            modifier = Modifier
+                                                                                .size(12.dp)
+                                                                                .clip(CircleShape)
+                                                                                .background(previewColor)
+                                                                                .border(0.5.dp, Color.White.copy(alpha = 0.3f), CircleShape)
+                                                                        )
+                                                                        Text(
+                                                                            text = mode.label,
+                                                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
+                                                                            fontSize = 11.sp,
+                                                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                                                        )
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            PdfBottomPanel.PAGE_NAV -> {
+                                                // Quick Page Navigator / Scrub Floating Card
+                                                Surface(
+                                                    shape = RoundedCornerShape(24.dp),
+                                                    color = Color(0xFF14131E).copy(alpha = 0.96f),
+                                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                                    shadowElevation = 16.dp,
+                                                    modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth(0.92f)
+                                                ) {
+                                                    Column(
+                                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                                        horizontalAlignment = Alignment.CenterHorizontally
+                                                    ) {
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            TextButton(
+                                                                onClick = { coroutineScope.launch { listState.scrollToItem(0) } },
+                                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                                            ) {
+                                                                Text("Page 1", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
+                                                            }
+
+                                                            Text(
+                                                                text = "Page ${currentPage + 1} of $pageCount",
+                                                                color = Color.White,
+                                                                fontSize = 13.sp,
+                                                                fontWeight = FontWeight.Bold
+                                                            )
+
+                                                            TextButton(
+                                                                onClick = { coroutineScope.launch { listState.scrollToItem(pageCount - 1) } },
+                                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                                            ) {
+                                                                Text("Page $pageCount", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
+                                                            }
+                                                        }
+
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                        ) {
+                                                            IconButton(
+                                                                onClick = {
+                                                                    if (currentPage > 0) {
+                                                                        coroutineScope.launch { listState.scrollToItem(currentPage - 1) }
+                                                                    }
+                                                                },
+                                                                modifier = Modifier.size(36.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                                                    contentDescription = "Previous Page",
+                                                                    tint = Color.White,
+                                                                    modifier = Modifier.size(18.dp)
+                                                                )
+                                                            }
+
+                                                            Slider(
+                                                                value = currentPage.toFloat().coerceIn(0f, (pageCount - 1).coerceAtLeast(1).toFloat()),
+                                                                onValueChange = { newVal ->
+                                                                    coroutineScope.launch {
+                                                                        listState.scrollToItem(newVal.toInt().coerceIn(0, pageCount - 1))
+                                                                    }
+                                                                },
+                                                                valueRange = 0f..(pageCount - 1).coerceAtLeast(1).toFloat(),
+                                                                modifier = Modifier.weight(1f),
+                                                                colors = SliderDefaults.colors(
+                                                                    thumbColor = Color.White,
+                                                                    activeTrackColor = Color.White,
+                                                                    inactiveTrackColor = Color.White.copy(alpha = 0.2f)
+                                                                )
+                                                            )
+
+                                                            IconButton(
+                                                                onClick = {
+                                                                    if (currentPage < pageCount - 1) {
+                                                                        coroutineScope.launch { listState.scrollToItem(currentPage + 1) }
+                                                                    }
+                                                                },
+                                                                modifier = Modifier.size(36.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                                                                    contentDescription = "Next Page",
+                                                                    tint = Color.White,
+                                                                    modifier = Modifier.size(18.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            null -> {}
+                                        }
+                                    }
+
+                                    // Main Aesthetic Dock Pill
+                                    Surface(
+                                        shape = RoundedCornerShape(32.dp),
+                                        color = Color(0xFF14131E).copy(alpha = 0.94f),
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                        shadowElevation = 14.dp
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            // 1. Highlighter Button
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (isMarkerMode) Color(activeColor).copy(alpha = 0.25f) else Color.Transparent,
+                                                border = if (isMarkerMode) BorderStroke(1.dp, Color(activeColor)) else null,
+                                                modifier = Modifier
+                                                    .size(42.dp)
+                                                    .clip(CircleShape)
+                                                    .clickable {
+                                                        if (isMarkerMode) {
+                                                            if (activeBottomPanel == PdfBottomPanel.HIGHLIGHTER) {
+                                                                isMarkerMode = false
+                                                                activeBottomPanel = null
+                                                            } else {
+                                                                activeBottomPanel = PdfBottomPanel.HIGHLIGHTER
+                                                            }
+                                                        } else {
+                                                            isMarkerMode = true
+                                                            activeBottomPanel = PdfBottomPanel.HIGHLIGHTER
+                                                        }
+                                                    }
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.Brush,
+                                                        contentDescription = "Highlighter",
+                                                        tint = if (isMarkerMode) Color(activeColor) else Color.White,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            // 2. Eye Care Tint Button
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (eyeCareMode != EyeCareMode.OFF) Color.White.copy(alpha = 0.2f) else Color.Transparent,
+                                                border = if (eyeCareMode != EyeCareMode.OFF) BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)) else null,
+                                                modifier = Modifier
+                                                    .size(42.dp)
+                                                    .clip(CircleShape)
+                                                    .clickable {
+                                                        activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.EYE_CARE) null else PdfBottomPanel.EYE_CARE
+                                                    }
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.Visibility,
+                                                        contentDescription = "Eye Protection",
+                                                        tint = when (eyeCareMode) {
+                                                            EyeCareMode.OFF -> Color.White
+                                                            EyeCareMode.SEPIA -> Color(0xFFFAF0D7)
+                                                            EyeCareMode.MINT -> Color(0xFFA7F3D0)
+                                                            EyeCareMode.NIGHT -> Color(0xFFB0BEC5)
+                                                        },
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            // 3. Screen Rotation Button
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = Color.Transparent,
+                                                modifier = Modifier
+                                                    .size(42.dp)
+                                                    .clip(CircleShape)
+                                                    .clickable {
+                                                        activity?.let { act ->
+                                                            val isLand = act.requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                                                            act.requestedOrientation = if (isLand) ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED else ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                                                        }
+                                                    }
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.ScreenRotation,
+                                                        contentDescription = "Rotate",
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            // 4. Zoom & Fit Button
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (liveScale > 1.05f) Color.White.copy(alpha = 0.2f) else Color.Transparent,
+                                                border = if (liveScale > 1.05f) BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)) else null,
+                                                modifier = Modifier
+                                                    .size(42.dp)
+                                                    .clip(CircleShape)
+                                                    .clickable {
+                                                        coroutineScope.launch {
+                                                            if (liveScale > 1.05f || liveScale < 0.95f) {
+                                                                smoothReset()
+                                                            } else {
+                                                                smoothZoomIn(viewWidthPx / 2f, viewHeightPx / 2f, viewWidthPx, viewHeightPx)
+                                                            }
+                                                        }
+                                                    }
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = if (liveScale > 1.05f) Icons.Rounded.RestartAlt else Icons.Rounded.ZoomIn,
+                                                        contentDescription = "Zoom",
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            // 5. Page Navigator Button
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (activeBottomPanel == PdfBottomPanel.PAGE_NAV) Color.White.copy(alpha = 0.2f) else Color.Transparent,
+                                                border = if (activeBottomPanel == PdfBottomPanel.PAGE_NAV) BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)) else null,
+                                                modifier = Modifier
+                                                    .size(42.dp)
+                                                    .clip(CircleShape)
+                                                    .clickable {
+                                                        activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.PAGE_NAV) null else PdfBottomPanel.PAGE_NAV
+                                                    }
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.AutoStories,
+                                                        contentDescription = "Page Navigator",
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -795,23 +1381,8 @@ fun BookPlayerScreen(
                             }
                         }
                     }
-
-                    // FAB for Marker Mode
-                    Box(modifier = Modifier.fillMaxSize().padding(bottom = 72.dp, end = 24.dp), contentAlignment = Alignment.BottomEnd) {
-                        AnimatedHighlighterIcon(
-                            isMarkerMode = isMarkerMode,
-                            activeColor = activeColor,
-                            onClick = { isMarkerMode = !isMarkerMode },
-                            modifier = Modifier.padding(16.dp)
-                        )
-                    }
                 }
             }
-
-        } else if (error != null) {
-            Text(error!!, color = Color(0xFFE57373), modifier = Modifier.align(Alignment.Center).padding(24.dp), textAlign = TextAlign.Center)
-        } else if (isLoading) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Color.White)
         }
     }
 }
@@ -828,6 +1399,7 @@ fun PdfPage(
     isMarkerMode: Boolean,
     activeColor: Int,
     markers: List<com.ballade.hwaran.core.database.entity.PdfMarkerEntity>,
+    eyeCareMode: EyeCareMode = EyeCareMode.OFF,
     onAddMarker: (com.ballade.hwaran.core.database.entity.PdfMarkerEntity) -> Unit,
     onDeleteMarker: (com.ballade.hwaran.core.database.entity.PdfMarkerEntity) -> Unit,
     onScrollToPage: (Int) -> Unit
@@ -842,6 +1414,24 @@ fun PdfPage(
     var dragStart by remember { mutableStateOf<Offset?>(null) }
     var dragCurrent by remember { mutableStateOf<Offset?>(null) }
     var showDeleteDialog by remember { mutableStateOf<com.ballade.hwaran.core.database.entity.PdfMarkerEntity?>(null) }
+
+    val pageBgColor = when (eyeCareMode) {
+        EyeCareMode.OFF -> Color.White
+        EyeCareMode.SEPIA -> Color(0xFFFAF0D7)
+        EyeCareMode.MINT -> Color(0xFFE8F5E9)
+        EyeCareMode.NIGHT -> Color(0xFF121212)
+    }
+
+    val nightMatrix = remember {
+        ColorMatrix(
+            floatArrayOf(
+                -1f,  0f,  0f, 0f, 255f,
+                 0f, -1f,  0f, 0f, 255f,
+                 0f,  0f, -1f, 0f, 255f,
+                 0f,  0f,  0f, 1f,   0f
+            )
+        )
+    }
 
     LaunchedEffect(pageIndex, pdfManager) {
         withContext(Dispatchers.IO) {
@@ -879,7 +1469,7 @@ fun PdfPage(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(aspectRatio)
-            .background(Color.White)
+            .background(pageBgColor)
             // Gesture handling: only active in marker mode.
             // Normal tap/double-tap/pinch are handled by the parent Box.
             .pointerInput(isMarkerMode, pageMarkers, pdfLinks) {
@@ -978,20 +1568,34 @@ fun PdfPage(
                 bitmap = bitmap!!.asImageBitmap(),
                 contentDescription = "Page $pageIndex",
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
+                contentScale = ContentScale.Fit,
+                colorFilter = if (eyeCareMode == EyeCareMode.NIGHT) ColorFilter.colorMatrix(nightMatrix) else null
             )
 
             Canvas(modifier = Modifier.fillMaxSize()) {
+                // Eye care tint overlay (Sepia / Mint)
+                if (eyeCareMode == EyeCareMode.SEPIA) {
+                    drawRect(
+                        color = Color(0xFFFAF0D7),
+                        blendMode = BlendMode.Multiply
+                    )
+                } else if (eyeCareMode == EyeCareMode.MINT) {
+                    drawRect(
+                        color = Color(0xFFE8F5E9),
+                        blendMode = BlendMode.Multiply
+                    )
+                }
+
                 // Draw highlight markers
                 for (marker in pageMarkers) {
                     drawRect(
-                        color = Color(marker.color).copy(alpha = 0.4f),
+                        color = Color(marker.color).copy(alpha = 0.45f),
                         topLeft = Offset(marker.x1 * size.width, marker.y1 * size.height),
                         size = androidx.compose.ui.geometry.Size(
                             (marker.x2 - marker.x1) * size.width,
                             (marker.y2 - marker.y1) * size.height
                         ),
-                        blendMode = androidx.compose.ui.graphics.BlendMode.Multiply
+                        blendMode = BlendMode.Multiply
                     )
                 }
 
@@ -1017,13 +1621,13 @@ fun PdfPage(
                 val end = dragCurrent
                 if (start != null && end != null && isMarkerMode) {
                     drawRect(
-                        color = Color(activeColor).copy(alpha = 0.4f),
+                        color = Color(activeColor).copy(alpha = 0.45f),
                         topLeft = Offset(minOf(start.x, end.x), minOf(start.y, end.y)),
                         size = androidx.compose.ui.geometry.Size(
                             abs(start.x - end.x),
                             abs(start.y - end.y)
                         ),
-                        blendMode = androidx.compose.ui.graphics.BlendMode.Multiply
+                        blendMode = BlendMode.Multiply
                     )
                 }
             }
@@ -1036,18 +1640,23 @@ fun PdfPage(
         if (showDeleteDialog != null) {
             AlertDialog(
                 onDismissRequest = { showDeleteDialog = null },
-                title = { Text("Remove Marker") },
-                text = { Text("Are you sure you want to delete this highlight?") },
+                containerColor = Color(0xFF1E1C2E),
+                titleContentColor = Color.White,
+                textContentColor = Color.White.copy(alpha = 0.85f),
+                title = { Text("Remove Highlight", fontWeight = FontWeight.Bold) },
+                text = { Text("Are you sure you want to remove this highlight marker?") },
                 confirmButton = {
                     TextButton(onClick = {
                         onDeleteMarker(showDeleteDialog!!)
                         showDeleteDialog = null
                     }) {
-                        Text("Delete", color = Color.Red)
+                        Text("Delete", color = Color(0xFFE57373), fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeleteDialog = null }) { Text("Cancel") }
+                    TextButton(onClick = { showDeleteDialog = null }) {
+                        Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+                    }
                 }
             )
         }

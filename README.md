@@ -48,7 +48,7 @@ Every piece of media in Hwaran follows a consistent 3-stage journey:
 1. **100% Offline & Private** — No tracking, no accounts, no analytics. Operates strictly on local files and Android Storage Access Framework (SAF).
 2. **Four Specialized Media Engines** — 
    - **Manga & Manhua**: Dual reading engines (Continuous Webtoon Strip & Page-by-Page with LTR/RTL support), edge-tap navigation, white margin crop zoom, lag-free transitions, 4,000+ master tags, and sleek in-reader settings.
-   - **Books & Documents**: Single-document and multi-chapter PDF reader, resume by page number, and publishing details.
+   - **Books & Documents**: Single-document and multi-chapter PDF reader with lag-free loading, multi-color aesthetic highlighter (6 vibrant colors with instant tap-to-erase), eye protection tints (Warm Sepia, Paper Green, OLED Night Mode), screen rotation quick lock, instant zoom/fit reset, and full-document page scrub navigator.
    - **Anime & Structured Series**: Comprehensive franchise relationship linking (Seasons, Movies, OVAs, ONAs, Specials, Blu-rays, Prequels/Sequels) with extra video management.
    - **Channels & Clips**: Video playlists with thumbnail pickers and quick selection.
    - **Music & Audio**: Media3 playback engine, playlists, lock screen controls, and background playback.

@@ -8,6 +8,37 @@ All notable changes, architectural milestones, and structural refactors to this 
 
 ## [Current] - 2026-09-12
 
+### 📚 PDF & Book Reading Suite Overhaul
+- **Camera Cutout & Notch Safe Insets (`BookDescriptionView.kt`)**:
+  - Moved the top floating bar (Back, Edit, Delete) completely out of the camera punch hole/cutout danger zone using `.statusBarsPadding()`, `.displayCutoutPadding()`, and 28dp clearance with frosted circular surfaces.
+  - Added a 92dp top safe spacer to the scrollable `LazyColumn`, ensuring header covers and metadata never overlap with camera cutouts or status icons.
+- **Lag-Free Document Loading Transition (`BookPlayerScreen.kt`)**:
+  - Replaced the stuttering, laggy `CircularProgressIndicator` with a smooth 220ms `Crossfade` loading layout.
+  - Displays frosted book icon, document title, "Preparing pages & annotations..." status, and sleek slim progress bar.
+- **Top Bar Camera Safety Clearance (`BookPlayerScreen.kt`)**:
+  - Added `.statusBarsPadding().displayCutoutPadding().padding(top = 24.dp)` with frosted glass back button, document title capsule, and reading progress badge.
+- **Preserved Vertical Fast-Scroll Page Pill**:
+  - Maintained the right-side vertical fast-scroll page indicator (`currentPage + 1 / pageCount`) and dot handle exactly as requested.
+- **Aesthetic Bottom Dock Pill with 5 Rich Features**:
+  - Positioned safely above Android's 3-button navigation bar and gesture bar using `.navigationBarsPadding().padding(bottom = 28.dp)`.
+  - Built with signature glassmorphic dark styling (`Color(0xFF14131E).copy(alpha = 0.94f)`) and frosted border.
+  - **1. Aesthetic Multi-Color Highlighter**:
+    - 6 rich modern colors: Neon Sun Yellow (`#FFF176`), Mint Pastel Green (`#A7F3D0`), Sakura Pink (`#F472B6`), Sky Cyan Blue (`#60A5FA`), Lavender Purple (`#C084FC`), and Warm Amber Glow (`#FFB74D`).
+    - Expandable floating palette card with active color indicator dot and selection rings.
+    - Quick highlight deletion on tap with dark frosted confirmation dialog.
+  - **2. Eye Protection & Reading Comfort Tint**:
+    - Four real-time paper rendering modes:
+      - **Original**: Crisp clean white PDF display.
+      - **Warm Sepia Paper**: Classic `#FAF0D7` tone with `BlendMode.Multiply` for comfortable long-session reading.
+      - **Paper Green**: Eye-ease mint `#E8F5E9` with `BlendMode.Multiply` to reduce blue-light fatigue.
+      - **OLED Night Mode**: Negative color matrix inversion converting harsh white backgrounds to deep OLED dark with crisp readable text.
+  - **3. Screen Rotation Quick Lock**:
+    - One-tap toggle between Landscape and Portrait orientation directly from the dock.
+  - **4. Instant Zoom & Fit Mode**:
+    - Quick 1-tap toggle between Fit Screen (1.0x) and Enhanced Reading Zoom (1.6x) with reset capability.
+  - **5. Page Navigator & Scrubber**:
+    - Scrub slider across the entire document (`1..pageCount`) with previous/next page step buttons and instant jump to Start / End.
+
 ### 📖 Premium Manga & Manhua Reading Suite
 - **Lag-Free Reader Transition**:
   - Replaced the janky 1200ms crossfade and stuttering circular spinner with a silky-smooth, lightweight reader transition (220ms).
