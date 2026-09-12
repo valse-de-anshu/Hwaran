@@ -6,9 +6,38 @@ All notable changes, architectural milestones, and structural refactors to this 
 
 ---
 
-## [Unreleased / Current] - 2026-09-08
+## [Current] - 2026-09-12
 
-### 🏗️ Major Architecture & Package Restructure
+### 🎨 Description Suite & Media Domain Isolation
+- **Domain-Isolated Description Views**:
+  - `frontend/description/book/BookDescriptionView.kt`: Dedicated view for Books, Novels, and PDFs with single-volume vs multi-chapter awareness, "Read / Resume (p. X)" action, and book-specific metadata (Author, Publisher, Published Year, Language, Status, Pages).
+  - `frontend/description/toon/ToonDescriptionView.kt` & `ToonChaptersView.kt`: Dedicated view for Manga & Manhua stripped of book branching, focused on chapters, chapter deletion/import, and manga metadata (Author, Artist, Publisher, Serialization, Status, Rating).
+  - `frontend/description/video/SeriesDescriptionView.kt`, `SeriesRelatedView.kt`, `SeriesRelationType.kt`: Dedicated Series view with anime/show franchise linking across 9 relationship types (Season, Movie, OVA, ONA, Special, Blu-ray, Prequel, Sequel, Spinoff / Alternate Version), tab filtering, and secondary video repository.
+  - `frontend/description/video/ChannelDescriptionView.kt` & `ChannelVideosView.kt`: Dedicated Channel view with video playlist selector, custom thumbnails, file picker, and sorting controls.
+  - `frontend/description/DescriptionScreen.kt`: Refactored into a lightweight coordinator/router that cleanly routes by `contentType` and `boxPurpose`.
+- **Master Tag System**:
+  - Integrated 4,000+ master tags dataset (`tags/master_tags.json`) with instant search, auto-suggestions, and one-tap ✕ chip removal.
+  - Dynamic material format pills (`Book`, `Manhua`, `Manga`, `Series`, `Channel`) with seamless editing and persistence.
+
+### 🏠 Home Screen & Library Polish
+- **Theme-Agnostic Alpha Fading Mask**:
+  - Removed hardcoded dark slate gradient box (`Color(0xFF0F0E17)`) from `LibraryView`.
+  - Applied compositing alpha mask (`CompositingStrategy.Offscreen` + `BlendMode.DstIn`) directly to the grid, allowing media cards to dissolve smoothly under pills while preserving 100% of user color themes (Grape, Blueberry, Snowfall, PureDark) and dynamic animated canvas backgrounds (Celestial, Drunk Stars, Jellyfish, Liquid).
+- **Auto-Scroll & Focus on Library Tag Pills**:
+  - Attached `rememberLazyListState()` to `LazyRow` with `LaunchedEffect(selectedTag)`.
+  - Home dashboard media shortcut pills (`Manhua`, `Manga`, `Series`, `Book`, `Channel`, `Favorite`) now directly open the Library and automatically scroll the pill row to center and focus the selected category.
+  - Reset `libraryInitialTag = "All"` on back navigation from Library to ensure reliable re-triggering.
+- **Home Dashboard Enhancements**:
+  - Interactive headers: `Continue Watching >` opens History; `Recently Added >` opens full interactive `RecentlyAddedSheet` bottom sheet.
+  - Real progress calculation: replaced hardcoded values with actual chapter count, duration, and read page tracking.
+  - Removed redundant top search icon in favor of the bottom navigation dock search.
+
+### 🧹 Codebase Cleanup
+- Pruned empty ghost directories: `frontend/home/{book, toon, video}` and `frontend/editor/{book, toon, video}`.
+
+---
+
+## [2026-09-08] - Major Architecture & Package Restructure
 - **Feature-Driven Architecture**: Transitioned the entire flat project structure into an organized, domain-isolated directory layout.
 - **DAO Decomposition**:
   - Split the monolithic `LibraryDao` into 4 dedicated, focused DAOs:

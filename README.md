@@ -25,15 +25,19 @@ Every piece of media in Hwaran follows a consistent 3-stage journey:
 
 ```text
 ┌─────────────────────────┐
-│     1. Home Library     │  Workspaces, cover grids, mode toggles, instant search
+│     1. Home Library     │  Workspaces, cover grids, mode toggles, instant search & filter pills
 └───────────┬─────────────┘
             │ Tap card
 ┌───────────▼─────────────┐
-│  2. Description / Hub   │  Overview, seasons/volumes, chapter lists, metadata
+│  2. Description / Hub   │  Domain-tailored hubs:
+│                         │  • Books: Single/multi-chapter reader hubs & publishing metadata
+│                         │  • Toons: Chapter trees, reading status & 4,000+ master tags
+│                         │  • Series: Franchise linking (Seasons, Movies, OVAs, Extras)
+│                         │  • Channels: Video playlists, custom thumbnails & sorting
 └───────────┬─────────────┘
             │ Tap entry
 ┌───────────▼─────────────┐
-│  3. Immersive Consumer  │  Webtoon vertical strip, PDF reader, Video/Music player
+│  3. Immersive Consumer  │  Webtoon vertical strip, PDF reader, ExoPlayer video & Media3 audio
 └─────────────────────────┘
 ```
 
@@ -42,8 +46,13 @@ Every piece of media in Hwaran follows a consistent 3-stage journey:
 ## Core Pillars
 
 1. **100% Offline & Private** — No tracking, no accounts, no analytics. Operates strictly on local files and Android Storage Access Framework (SAF).
-2. **Four Media Engines in One App** — Seamless switching between Toon, Book, Video, and Music with media-tailored controls and UI behaviors.
-3. **Fluid Handcrafted UI** — Material 3 + Custom Canvas shaders (Liquid, Celestial, Drunk Stars, Jellyfish, Kaleidoscope, Flower, Poker).
+2. **Four Specialized Media Engines** — 
+   - **Manga & Manhua**: Continuous vertical strip reader, chapter management, reading status, and 4,000+ master tags.
+   - **Books & Documents**: Single-document and multi-chapter PDF reader, resume by page number, and publishing details.
+   - **Anime & Structured Series**: Comprehensive franchise relationship linking (Seasons, Movies, OVAs, ONAs, Specials, Blu-rays, Prequels/Sequels) with extra video management.
+   - **Channels & Clips**: Video playlists with thumbnail pickers and quick selection.
+   - **Music & Audio**: Media3 playback engine, playlists, lock screen controls, and background playback.
+3. **Fluid Handcrafted UI & Color Themes** — Material 3 + Custom Canvas shaders (Liquid, Celestial, Drunk Stars, Jellyfish, Kaleidoscope, Flower, Poker) with adaptive color schemes (Blueberry, Grape, Snowfall, PureDark) and offscreen alpha blending.
 4. **Workspaces & Vault Organization** — Group content into custom workspaces (e.g. "Favorites", "Current", "Archive") without needing to duplicate files on disk.
 
 ---

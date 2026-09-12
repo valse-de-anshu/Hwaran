@@ -25,8 +25,11 @@ com.ballade.hwaran/
 │   ├── home/                            # Home screen & domain home tabs
 │   │   ├── HomeScreen.kt                # Coordinator hosting bottom nav & mode switcher
 │   │   └── music/MusicHomeScreen.kt     # Dedicated music home screen
-│   ├── description/                     # Item details & chapter management
-│   │   ├── DescriptionScreen.kt         # Content coordinator
+│   ├── description/                     # Item details, chapters, franchise & video management
+│   │   ├── DescriptionScreen.kt         # Content coordinator & media router
+│   │   ├── book/BookDescriptionView.kt  # Dedicated Book/Novel/PDF description view
+│   │   ├── toon/                        # ToonDescriptionView.kt, ToonChaptersView.kt (Manga & Manhua)
+│   │   ├── video/                       # SeriesDescriptionView.kt, SeriesRelatedView.kt, ChannelDescriptionView.kt, ChannelVideosView.kt
 │   │   └── music/PlaylistDetailScreen.kt# Music playlist / album description
 │   ├── player/                          # Media players
 │   │   ├── toon/ToonPlayerScreen.kt     # Webtoon continuous scroll & zoom reader
