@@ -1,6 +1,8 @@
 package com.ballade.hwaran.frontend.home
 
 import android.content.Context
+import android.net.Uri
+import com.ballade.hwaran.data.importer.music.MusicImportUtils
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -59,7 +61,8 @@ fun HomeDashboard(
     onNavigateToSearch: () -> Unit = {},
     onMediaShortcutClick: (tag: String) -> Unit,
     onOpenMusic: () -> Unit = {},
-    glowColor: Color = Color(0xFF9C27B0),
+    onPlaySong: (MangaEntity, List<ChapterEntity>, Int) -> Unit = { _, _, _ -> },
+    glowColor: Color = Color(0xFFE2E8F0),
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -81,6 +84,7 @@ fun HomeDashboard(
     }
 
     // Accurate Counts for shortcuts matching LibraryView filters
+    val allCount = remember(allManga) { allManga.count { !it.isNsfw && it.contentType != 3 } }
     val manhuaCount = remember(allManga) {
         allManga.count {
             !it.isNsfw && (
@@ -109,8 +113,11 @@ fun HomeDashboard(
     val seriesCount = remember(allManga) {
         allManga.count { !it.isNsfw && (it.contentType == 2 || it.boxPurpose == "series") && it.boxPurpose != "channel" }
     }
+    val novelCount = remember(allManga) {
+        allManga.count { !it.isNsfw && (it.contentType == 4 || it.boxPurpose == "novel") }
+    }
     val bookCount = remember(allManga) {
-        allManga.count { !it.isNsfw && (it.contentType == 1 || it.boxPurpose == "book") }
+        allManga.count { !it.isNsfw && (it.contentType == 1 || it.boxPurpose == "book") && it.contentType != 4 && it.boxPurpose != "novel" }
     }
     val channelCount = remember(allManga) {
         allManga.count { !it.isNsfw && (it.contentType == 2 || it.boxPurpose == "channel") && it.boxPurpose == "channel" }
@@ -124,44 +131,172 @@ fun HomeDashboard(
 
     // Continue watching / in progress covers
     val inProgressItems = remember(allManga, historyEvents) {
-        val opened = allManga.filter { it.openCount > 0 || it.lastReadTitle != null }
-            .sortedByDescending { it.lastModified }
+        val opened = allManga.filter { manga ->
+            manga.openCount > 0 || manga.lastReadTitle != null || historyEvents.any { event ->
+                event.details.contains("mangaId:${manga.id}")
+            }
+        }.sortedByDescending { it.lastModified }
         if (opened.isNotEmpty()) opened.take(8)
         else allManga.take(4)
     }
 
-    // Real progress map computed asynchronously from database
-    var itemProgressMap by remember { mutableStateOf<Map<Long, Float>>(emptyMap()) }
-    LaunchedEffect(inProgressItems) {
+    val initialItems = remember(inProgressItems) {
+        inProgressItems.map { manga ->
+            ContinueWatchingItem(
+                manga = manga,
+                displayTitle = manga.title,
+                displaySubtitle = manga.lastReadTitle ?: when (manga.contentType) {
+                    0 -> "Toon"
+                    1 -> "Book"
+                    2 -> "Video"
+                    3 -> "Music"
+                    4 -> "Novel"
+                    else -> "Media"
+                },
+                coverModel = CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context),
+                progress = 0f
+            )
+        }
+    }
+    var continueWatchingItems by remember(inProgressItems) { mutableStateOf(initialItems) }
+
+    LaunchedEffect(inProgressItems, historyEvents) {
         withContext(Dispatchers.IO) {
-            val map = mutableMapOf<Long, Float>()
+            val result = mutableListOf<ContinueWatchingItem>()
             for (manga in inProgressItems) {
                 val chapters = database.trackDao().getChaptersForMangaList(manga.id)
-                if (chapters.isNotEmpty()) {
-                    val target = chapters.firstOrNull { it.title == manga.lastReadTitle }
-                        ?: chapters.firstOrNull { it.position > 0 }
-                        ?: chapters.first()
-                    if (manga.contentType == 2) {
-                        if (target.duration > 0) {
-                            map[manga.id] = (target.position.toFloat() / target.duration.toFloat()).coerceIn(0.02f, 1f)
-                        } else if (target.position > 0) {
-                            map[manga.id] = 0.2f
+                when (manga.contentType) {
+                    3 -> {
+                        // Music item: resolve active or last played song
+                        val target = if (!manga.lastReadTitle.isNullOrBlank()) {
+                            chapters.firstOrNull { it.title == manga.lastReadTitle }
                         } else {
-                            map[manga.id] = 0f
+                            val lastListenEvent = historyEvents.firstOrNull {
+                                it.eventType == "LISTEN" && it.details.contains("mangaId:${manga.id}")
+                            }
+                            if (lastListenEvent != null) {
+                                chapters.firstOrNull { it.title == lastListenEvent.itemName }
+                            } else null
+                        } ?: chapters.firstOrNull { it.position > 0 } ?: chapters.firstOrNull()
+
+                        val targetIdx = if (target != null) chapters.indexOfFirst { it.id == target.id }.coerceAtLeast(0) else 0
+
+                        val songTitle = target?.title?.takeIf { it.isNotBlank() } ?: manga.title
+                        val subtitle = if (!target?.artist.isNullOrBlank()) {
+                            "${target.artist} • ${manga.title}"
+                        } else {
+                            "Music • ${manga.title}"
                         }
-                    } else {
-                        val idx = chapters.indexOfFirst { it.title == manga.lastReadTitle }.takeIf { it >= 0 } ?: 0
-                        map[manga.id] = ((idx + 1).toFloat() / chapters.size.toFloat()).coerceIn(0.05f, 1f)
+
+                        var resolvedThumb: Any? = target?.thumbnailUri?.takeIf { it.isNotBlank() }
+                        if (resolvedThumb == null && target != null && !target.folderUri.isNullOrBlank()) {
+                            try {
+                                val parsedUri = Uri.parse(target.folderUri)
+                                val extracted = MusicImportUtils.extractEmbeddedCover(context, parsedUri, manga.title)
+                                if (extracted != null) {
+                                    resolvedThumb = extracted
+                                    database.trackDao().insertChapter(target.copy(thumbnailUri = extracted))
+                                }
+                            } catch (_: Exception) {}
+                        }
+
+                        val cover = resolvedThumb ?: CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, chapters, context)
+
+                        val prog = if (target != null && target.duration > 0) {
+                            (target.position.toFloat() / target.duration.toFloat()).coerceIn(0.02f, 1f)
+                        } else 0f
+
+                        result.add(
+                            ContinueWatchingItem(
+                                manga = manga,
+                                targetChapter = target,
+                                allChapters = chapters,
+                                targetIndex = targetIdx,
+                                displayTitle = songTitle,
+                                displaySubtitle = subtitle,
+                                coverModel = cover,
+                                progress = prog
+                            )
+                        )
                     }
-                } else {
-                    if (manga.lastReadPage != null && manga.lastReadPage > 0) {
-                        map[manga.id] = 0.3f
-                    } else {
-                        map[manga.id] = 0f
+                    2 -> {
+                        // Video item
+                        val target = chapters.firstOrNull { it.title == manga.lastReadTitle }
+                            ?: chapters.firstOrNull { it.position > 0 }
+                            ?: chapters.firstOrNull()
+                        val targetIdx = if (target != null) chapters.indexOfFirst { it.id == target.id }.coerceAtLeast(0) else 0
+                        val prog = if (target != null && target.duration > 0) {
+                            (target.position.toFloat() / target.duration.toFloat()).coerceIn(0.02f, 1f)
+                        } else if (target != null && target.position > 0) 0.2f else 0f
+                        val cover = CoverArtResolver.resolveCoverModel(target?.thumbnailUri ?: manga.coverPath, manga.parentUri, chapters, context)
+                        result.add(
+                            ContinueWatchingItem(
+                                manga = manga,
+                                targetChapter = target,
+                                allChapters = chapters,
+                                targetIndex = targetIdx,
+                                displayTitle = manga.title,
+                                displaySubtitle = target?.title ?: if (manga.boxPurpose == "channel") "Channel" else "Series",
+                                coverModel = cover,
+                                progress = prog
+                            )
+                        )
+                    }
+                    0 -> {
+                        // Manga / Toon
+                        val target = chapters.firstOrNull { it.title == manga.lastReadTitle } ?: chapters.firstOrNull()
+                        val targetIdx = if (target != null) chapters.indexOfFirst { it.id == target.id }.coerceAtLeast(0) else 0
+                        val prog = if (chapters.isNotEmpty()) {
+                            val idx = chapters.indexOfFirst { it.title == manga.lastReadTitle }.takeIf { it >= 0 } ?: 0
+                            ((idx + 1).toFloat() / chapters.size.toFloat()).coerceIn(0.05f, 1f)
+                        } else 0f
+                        val cover = CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, chapters, context)
+                        result.add(
+                            ContinueWatchingItem(
+                                manga = manga,
+                                targetChapter = target,
+                                allChapters = chapters,
+                                targetIndex = targetIdx,
+                                displayTitle = manga.title,
+                                displaySubtitle = manga.lastReadTitle ?: if (manga.boxPurpose == "manhua") "Manhua" else "Manga",
+                                coverModel = cover,
+                                progress = prog
+                            )
+                        )
+                    }
+                    4 -> {
+                        // Novel (contentType == 4)
+                        val prog = if (manga.lastReadPage != null && manga.lastReadPage > 0) 0.35f else 0f
+                        val cover = CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, chapters, context)
+                        result.add(
+                            ContinueWatchingItem(
+                                manga = manga,
+                                targetChapter = chapters.firstOrNull(),
+                                allChapters = chapters,
+                                displayTitle = manga.title,
+                                displaySubtitle = manga.lastReadTitle ?: "Novel",
+                                coverModel = cover,
+                                progress = prog
+                            )
+                        )
+                    }
+                    else -> {
+                        // Book (contentType == 1)
+                        val prog = if (manga.lastReadPage != null && manga.lastReadPage > 0) 0.3f else 0f
+                        val cover = CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
+                        result.add(
+                            ContinueWatchingItem(
+                                manga = manga,
+                                displayTitle = manga.title,
+                                displaySubtitle = manga.lastReadTitle ?: "Book • PDF",
+                                coverModel = cover,
+                                progress = prog
+                            )
+                        )
                     }
                 }
             }
-            itemProgressMap = map
+            continueWatchingItems = result
         }
     }
 
@@ -209,15 +344,17 @@ fun HomeDashboard(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // 3. Media Shortcuts (Manhua, Manga, Series, Book, Channel, Music, Favorite)
+        // 3. Media Shortcuts (All, Fav, Manhua, Manga, Light Novel, Book, Series, Channel, Music)
         MediaShortcutsSection(
+            allCount = allCount,
+            favoriteCount = favoriteCount,
             manhuaCount = manhuaCount,
             mangaCount = mangaCount,
-            seriesCount = seriesCount,
+            novelCount = novelCount,
             bookCount = bookCount,
+            seriesCount = seriesCount,
             channelCount = channelCount,
             musicCount = musicCount,
-            favoriteCount = favoriteCount,
             onShortcutClick = onMediaShortcutClick,
             onMusicClick = onOpenMusic
         )
@@ -227,10 +364,30 @@ fun HomeDashboard(
         // 4. Continue Watching / Reading
         if (inProgressItems.isNotEmpty()) {
             ContinueWatchingSection(
-                items = inProgressItems,
+                items = continueWatchingItems,
                 onItemClick = { manga -> onNavigateToDescription(manga.id) },
+                onPlayItem = { item ->
+                    if (item.manga.contentType == 3) {
+                        onPlaySong(item.manga, item.allChapters, item.targetIndex)
+                    } else if (item.manga.contentType == 2) {
+                        if (item.targetChapter != null) {
+                            onNavigateToMedia(item.targetChapter.id, 2)
+                        } else {
+                            onNavigateToDescription(item.manga.id)
+                        }
+                    } else if (item.manga.contentType == 4 || item.manga.boxPurpose == "novel") {
+                        onNavigateToMedia(item.manga.id, 4)
+                    } else if (item.manga.contentType == 1) {
+                        onNavigateToMedia(item.manga.id, 1)
+                    } else {
+                        if (item.targetChapter != null) {
+                            onNavigateToMedia(item.targetChapter.id, 0)
+                        } else {
+                            onNavigateToDescription(item.manga.id)
+                        }
+                    }
+                },
                 onViewAllClick = onNavigateToHistory,
-                itemProgressMap = itemProgressMap,
                 glowColor = glowColor
             )
 
@@ -436,13 +593,15 @@ private fun BannerCarouselSection(
 
 @Composable
 private fun MediaShortcutsSection(
+    allCount: Int,
+    favoriteCount: Int,
     manhuaCount: Int,
     mangaCount: Int,
-    seriesCount: Int,
+    novelCount: Int,
     bookCount: Int,
+    seriesCount: Int,
     channelCount: Int,
     musicCount: Int,
-    favoriteCount: Int,
     onShortcutClick: (tag: String) -> Unit,
     onMusicClick: () -> Unit
 ) {
@@ -453,70 +612,77 @@ private fun MediaShortcutsSection(
             .padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Manhua
+        // 1. All
+        ShortcutCard(
+            icon = Icons.Rounded.GridView,
+            title = "All",
+            count = allCount,
+            onClick = { onShortcutClick("All") }
+        )
+
+        // 2. Fav
+        ShortcutCard(
+            icon = Icons.Rounded.Star,
+            title = "Fav",
+            count = favoriteCount,
+            onClick = { onShortcutClick("Fav") }
+        )
+
+        // 3. Manhua
         ShortcutCard(
             icon = Icons.AutoMirrored.Rounded.MenuBook,
             title = "Manhua",
             count = manhuaCount,
-            accentColor = Color(0xFFBA68C8),
             onClick = { onShortcutClick("Manhua") }
         )
 
-        // Manga
+        // 4. Manga
         ShortcutCard(
             icon = Icons.Rounded.AutoStories,
             title = "Manga",
             count = mangaCount,
-            accentColor = Color(0xFF81C784),
             onClick = { onShortcutClick("Manga") }
         )
 
-        // Music
+        // 5. Light Novel
         ShortcutCard(
-            icon = Icons.Rounded.MusicNote,
-            title = "Music",
-            count = musicCount,
-            accentColor = Color(0xFFEC407A),
-            onClick = onMusicClick
+            icon = Icons.Rounded.ImportContacts,
+            title = "Light Novel",
+            count = novelCount,
+            onClick = { onShortcutClick("Light Novel") }
         )
 
-        // Series
-        ShortcutCard(
-            icon = Icons.Rounded.PlayCircle,
-            title = "Series",
-            count = seriesCount,
-            accentColor = Color(0xFF64B5F6),
-            onClick = { onShortcutClick("Series") }
-        )
-
-        // Book
+        // 6. Book
         ShortcutCard(
             icon = Icons.Rounded.Book,
             title = "Book",
             count = bookCount,
-            accentColor = Color(0xFFFFB74D),
             onClick = { onShortcutClick("Book") }
         )
 
-        // Channel
+        // 7. Series
+        ShortcutCard(
+            icon = Icons.Rounded.PlayCircle,
+            title = "Series",
+            count = seriesCount,
+            onClick = { onShortcutClick("Series") }
+        )
+
+        // 8. Channel
         ShortcutCard(
             icon = Icons.Rounded.Subscriptions,
             title = "Channel",
             count = channelCount,
-            accentColor = Color(0xFFFF7043),
             onClick = { onShortcutClick("Channel") }
         )
 
-        // Favorite
-        if (favoriteCount > 0) {
-            ShortcutCard(
-                icon = Icons.Rounded.Star,
-                title = "Favorite",
-                count = favoriteCount,
-                accentColor = Color(0xFFFFD54F),
-                onClick = { onShortcutClick("Favorite") }
-            )
-        }
+        // 9. Music
+        ShortcutCard(
+            icon = Icons.Rounded.MusicNote,
+            title = "Music",
+            count = musicCount,
+            onClick = onMusicClick
+        )
     }
 }
 
@@ -525,7 +691,7 @@ private fun ShortcutCard(
     icon: ImageVector,
     title: String,
     count: Int,
-    accentColor: Color,
+    accentColor: Color = Color(0xFFE2E8F0),
     onClick: () -> Unit
 ) {
     Surface(
@@ -534,7 +700,7 @@ private fun ShortcutCard(
             .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        color = Color(0xDD181622),
+        color = Color(0xD9111318),
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
     ) {
         Row(
@@ -545,13 +711,13 @@ private fun ShortcutCard(
             Box(
                 modifier = Modifier
                     .size(34.dp)
-                    .background(accentColor.copy(alpha = 0.18f), RoundedCornerShape(10.dp)),
+                    .background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = title,
-                    tint = accentColor,
+                    tint = Color.White,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -561,13 +727,13 @@ private fun ShortcutCard(
             Column {
                 Text(
                     text = title,
-                    color = Color.White,
+                    color = Color(0xFFF0F2F5),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
                     text = "$count",
-                    color = Color.White.copy(alpha = 0.5f),
+                    color = Color.White.copy(alpha = 0.45f),
                     fontSize = 11.sp
                 )
             }
@@ -575,12 +741,23 @@ private fun ShortcutCard(
     }
 }
 
+data class ContinueWatchingItem(
+    val manga: MangaEntity,
+    val targetChapter: ChapterEntity? = null,
+    val allChapters: List<ChapterEntity> = emptyList(),
+    val targetIndex: Int = 0,
+    val displayTitle: String = manga.title,
+    val displaySubtitle: String = manga.lastReadTitle ?: "Media",
+    val coverModel: Any? = null,
+    val progress: Float = 0f
+)
+
 @Composable
 private fun ContinueWatchingSection(
-    items: List<MangaEntity>,
+    items: List<ContinueWatchingItem>,
     onItemClick: (MangaEntity) -> Unit,
+    onPlayItem: (ContinueWatchingItem) -> Unit,
     onViewAllClick: () -> Unit,
-    itemProgressMap: Map<Long, Float>,
     glowColor: Color
 ) {
     val context = LocalContext.current
@@ -597,30 +774,25 @@ private fun ContinueWatchingSection(
             contentPadding = PaddingValues(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            items(items, key = { it.id }) { manga ->
-                val progress = itemProgressMap[manga.id] ?: 0f
-
+            items(items, key = { it.manga.id }) { item ->
                 Surface(
                     modifier = Modifier
                         .width(220.dp)
                         .height(130.dp)
                         .clip(RoundedCornerShape(18.dp))
-                        .clickable { onItemClick(manga) },
+                        .clickable { onItemClick(item.manga) },
                     shape = RoundedCornerShape(18.dp),
                     color = Color(0xFF15141E),
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.09f))
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
-                        // Cover background
-                        val coverModel = remember(manga.coverPath, manga.parentUri) {
-                            CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
-                        }
+                        // Cover background (uses resolved track cover for music)
                         AsyncImage(
                             model = ImageRequest.Builder(context)
-                                .data(coverModel)
+                                .data(item.coverModel)
                                 .crossfade(true)
                                 .build(),
-                            contentDescription = manga.title,
+                            contentDescription = item.displayTitle,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -644,16 +816,17 @@ private fun ContinueWatchingSection(
                         Box(
                             modifier = Modifier
                                 .align(Alignment.Center)
-                                .size(38.dp)
-                                .background(Color.Black.copy(alpha = 0.55f), CircleShape)
-                                .border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape),
+                                .size(42.dp)
+                                .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                                .border(1.dp, Color.White.copy(alpha = 0.35f), CircleShape)
+                                .clickable { onPlayItem(item) },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.PlayArrow,
                                 contentDescription = "Play",
                                 tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         }
 
@@ -664,7 +837,7 @@ private fun ContinueWatchingSection(
                                 .padding(12.dp)
                         ) {
                             Text(
-                                text = manga.title,
+                                text = item.displayTitle,
                                 color = Color.White,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
@@ -673,13 +846,7 @@ private fun ContinueWatchingSection(
                             )
 
                             Text(
-                                text = manga.lastReadTitle ?: when (manga.contentType) {
-                                    0 -> "Toon"
-                                    1 -> "Book"
-                                    2 -> "Video"
-                                    3 -> "Music"
-                                    else -> "Media"
-                                },
+                                text = item.displaySubtitle,
                                 color = Color.White.copy(alpha = 0.65f),
                                 fontSize = 11.sp,
                                 maxLines = 1,
@@ -689,7 +856,7 @@ private fun ContinueWatchingSection(
                             Spacer(modifier = Modifier.height(4.dp))
 
                             // Accurate Progress bar
-                            if (progress > 0f) {
+                            if (item.progress > 0f) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -698,7 +865,7 @@ private fun ContinueWatchingSection(
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .fillMaxWidth(progress.coerceIn(0.04f, 1f))
+                                            .fillMaxWidth(item.progress.coerceIn(0.04f, 1f))
                                             .fillMaxHeight()
                                             .background(glowColor, CircleShape)
                                     )
@@ -842,11 +1009,12 @@ private fun RecentlyAddedSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selectedFilter by remember { mutableStateOf("All") }
-    val filters = remember { listOf("All", "Manhua", "Manga", "Series", "Book", "Channel") }
+    val filters = remember { listOf("All", "Fav", "Manhua", "Manga", "Light Novel", "Book", "Series", "Channel", "Music") }
     val context = LocalContext.current
 
     val filtered = remember(allRecentlyAdded, selectedFilter) {
         when (selectedFilter) {
+            "Fav" -> allRecentlyAdded.filter { it.isFavorite || it.genre?.contains("favorite", ignoreCase = true) == true }
             "Manhua" -> allRecentlyAdded.filter {
                 (it.contentType == 0 || it.boxPurpose == "manhua") && (
                     it.boxPurpose == "manhua" ||
@@ -866,9 +1034,11 @@ private fun RecentlyAddedSheet(
                     )
                 )
             }
+            "Light Novel" -> allRecentlyAdded.filter { it.contentType == 4 || it.boxPurpose == "novel" }
+            "Book" -> allRecentlyAdded.filter { (it.contentType == 1 || it.boxPurpose == "book") && it.contentType != 4 && it.boxPurpose != "novel" }
             "Series" -> allRecentlyAdded.filter { (it.contentType == 2 || it.boxPurpose == "series") && it.boxPurpose != "channel" }
-            "Book" -> allRecentlyAdded.filter { it.contentType == 1 || it.boxPurpose == "book" }
             "Channel" -> allRecentlyAdded.filter { (it.contentType == 2 || it.boxPurpose == "channel") && it.boxPurpose == "channel" }
+            "Music" -> allRecentlyAdded.filter { it.contentType == 3 || it.boxPurpose == "music" }
             else -> allRecentlyAdded
         }
     }
@@ -922,13 +1092,13 @@ private fun RecentlyAddedSheet(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
                             .clickable { selectedFilter = filter },
-                        color = if (isSel) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
-                        border = BorderStroke(1.dp, if (isSel) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.1f)),
+                        color = if (isSel) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                        border = BorderStroke(1.dp, if (isSel) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
                             text = filter,
-                            color = if (isSel) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.8f),
+                            color = if (isSel) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.60f),
                             fontSize = 12.sp,
                             fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)

@@ -2,43 +2,82 @@ package com.ballade.hwaran.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val TokyoBackground = Color(0xFF161622)
-val TokyoSurface = Color(0xFF383852)
-val TokyoSurfaceVariant = Color(0xFF2B2B3F)
-val TokyoPrimary = Color(0xFFC3A6FE)
-val TokyoSecondary = Color(0xFFA684FF)
-val TokyoText = Color(0xFFFFFFFF)
-val TokyoTextMuted = Color(0xFF8F8FA6)
-val TokyoBorder = Color(0xFF2B2B3F)
+// ==========================================
+// Hwaran Obsidian Onyx Design System
+// Ultra-luxury, soothing, OLED-friendly dark palette
+// ==========================================
 
-val PureDarkBackground = Color(0xFF000000)
-val PureDarkSurface = Color(0xFF121212)
-val PureDarkSurfaceVariant = Color(0xFF1E1E1E)
-val PureDarkPrimary = Color(0xFF7A6284) // Grape color
-val PureDarkSecondary = Color(0xFF7A6284)
-val PureDarkText = Color(0xFFFFFFFF)
-val PureDarkTextMuted = Color(0xFFAAAAAA)
-val PureDarkBorder = Color(0xFF2C2C2C)
+// Obsidian Onyx (Default / Flagship Theme)
+val ObsidianBackground = Color(0xFF090A0F)
+val ObsidianSurface = Color(0xFF111318)
+val ObsidianSurfaceVariant = Color(0xFF181B22)
+val ObsidianSurfaceElevated = Color(0xFF20232B)
+val ObsidianSurfaceGlass = Color(0xD9111318) // Translucent glass (85% alpha)
 
+// Hairlines & Borders (Soft whisper calmness)
+val ObsidianBorder = Color(0x10FFFFFF) // 6.5% white
+val ObsidianBorderSubtle = Color(0x08FFFFFF) // 3% white
+val ObsidianBorderHighlight = Color(0x22FFFFFF) // 13% soft calm glow
 
+// Typography Tokens (Soothing soft moonlight tones)
+val TextPrimary = Color(0xFFE6E8EC) // Soft calm light (no eye strain)
+val TextSecondary = Color(0xFF8E939D) // Soft graphite
+val TextMuted = Color(0xFF555962) // Subdued metadata
 
-// Blueberry Theme
-val BlueberryBackground = Color(0xFF111523)
-val BlueberrySurface = Color(0xFF0E1E40)
-val BlueberrySurfaceVariant = Color(0xFF15326D)
-val BlueberryPrimary = Color(0xFF5C9FD9)
-val BlueberrySecondary = Color(0xFF255DAC)
+// Signature Neutral Accent (Calm diffused light)
+val AccentTitanium = Color(0xFFD4D8E0)
+val AccentTitaniumDark = Color(0xFF8E95A2)
+val AmbientGlowDefault = Color(0x12FFFFFF) // 7% gentle ambient aura
 
-// Snowfall Theme
-val SnowfallBackground = Color(0xFF111A22)
-val SnowfallSurface = Color(0xFF27323B)
-val SnowfallSurfaceVariant = Color(0xFF404C55)
-val SnowfallPrimary = Color(0xFFBDC6CD)
-val SnowfallSecondary = Color(0xFF6A757E)
+// OLED Pitch Black (Pure contrast)
+val PitchBlackBackground = Color(0xFF000000)
+val PitchBlackSurface = Color(0xFF0C0C0E)
+val PitchBlackSurfaceVariant = Color(0xFF141418)
 
-// Grape Theme
-val GrapeBackground = Color(0xFF0C080D)
-val GrapeSurface = Color(0xFF1F1823)
-val GrapeSurfaceVariant = Color(0xFF382B3F)
-val GrapePrimary = Color(0xFF7A6284)
-val GrapeSecondary = Color(0xFF52425C)
+// Nordic Deep Slate (Architectural)
+val NordicSlateBackground = Color(0xFF0A0D12)
+val NordicSlateSurface = Color(0xFF10151C)
+val NordicSlateSurfaceVariant = Color(0xFF171E28)
+
+// Smoked Charcoal (Analog luxury)
+val SmokedCharcoalBackground = Color(0xFF0D0E11)
+val SmokedCharcoalSurface = Color(0xFF14161A)
+val SmokedCharcoalSurfaceVariant = Color(0xFF1D2026)
+
+// Backward-compatible tokens mapped cleanly to Obsidian Onyx
+val PureDarkBackground = ObsidianBackground
+val PureDarkSurface = ObsidianSurface
+val PureDarkSurfaceVariant = ObsidianSurfaceVariant
+val PureDarkPrimary = AccentTitanium
+val PureDarkSecondary = AccentTitanium
+val PureDarkText = TextPrimary
+val PureDarkTextMuted = TextSecondary
+val PureDarkBorder = ObsidianBorder
+
+// Deprecated legacy tokens mapped cleanly to Obsidian tokens to ensure zero compilation breaks
+val TokyoBackground = ObsidianBackground
+val TokyoSurface = ObsidianSurface
+val TokyoSurfaceVariant = ObsidianSurfaceVariant
+val TokyoPrimary = AccentTitanium
+val TokyoSecondary = AccentTitanium
+val TokyoText = TextPrimary
+val TokyoTextMuted = TextSecondary
+val TokyoBorder = ObsidianBorder
+
+val BlueberryBackground = NordicSlateBackground
+val BlueberrySurface = NordicSlateSurface
+val BlueberrySurfaceVariant = NordicSlateSurfaceVariant
+val BlueberryPrimary = AccentTitanium
+val BlueberrySecondary = AccentTitanium
+
+val SnowfallBackground = SmokedCharcoalBackground
+val SnowfallSurface = SmokedCharcoalSurface
+val SnowfallSurfaceVariant = SmokedCharcoalSurfaceVariant
+val SnowfallPrimary = AccentTitanium
+val SnowfallSecondary = AccentTitanium
+
+val GrapeBackground = ObsidianBackground
+val GrapeSurface = ObsidianSurface
+val GrapeSurfaceVariant = ObsidianSurfaceVariant
+val GrapePrimary = AccentTitanium
+val GrapeSecondary = AccentTitanium

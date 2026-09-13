@@ -49,7 +49,7 @@ fun ToonReaderSettingsPill(
     onKeepScreenOnChange: (Boolean) -> Unit,
     brightnessOverride: Float?,
     onBrightnessOverrideChange: (Float?) -> Unit,
-    glowColor: Color = MaterialTheme.colorScheme.primary,
+    glowColor: Color = Color(0xFFE6E8EC),
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
@@ -153,8 +153,8 @@ fun ToonReaderSettingsPill(
                                             checked = keepScreenOn,
                                             onCheckedChange = onKeepScreenOnChange,
                                             colors = SwitchDefaults.colors(
-                                                checkedThumbColor = Color.White,
-                                                checkedTrackColor = glowColor,
+                                                checkedThumbColor = Color(0xFFE6E8EC),
+                                                checkedTrackColor = Color(0xFF222631),
                                                 uncheckedThumbColor = Color.White.copy(alpha = 0.6f),
                                                 uncheckedTrackColor = Color.White.copy(alpha = 0.12f)
                                             )
@@ -179,8 +179,8 @@ fun ToonReaderSettingsPill(
 
                                             Surface(
                                                 shape = RoundedCornerShape(8.dp),
-                                                color = if (brightnessOverride == null) Color.White.copy(alpha = 0.08f) else glowColor.copy(alpha = 0.18f),
-                                                border = BorderStroke(1.dp, if (brightnessOverride == null) Color.White.copy(alpha = 0.12f) else glowColor.copy(alpha = 0.4f)),
+                                                color = if (brightnessOverride == null) Color.White.copy(alpha = 0.08f) else Color(0xFF222631),
+                                                border = BorderStroke(1.dp, if (brightnessOverride == null) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.20f)),
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(8.dp))
                                                     .clickable {
@@ -207,8 +207,8 @@ fun ToonReaderSettingsPill(
                                                 onValueChange = onBrightnessOverrideChange,
                                                 valueRange = 0.05f..1.0f,
                                                 colors = SliderDefaults.colors(
-                                                    thumbColor = glowColor,
-                                                    activeTrackColor = glowColor,
+                                                    thumbColor = Color(0xFFE6E8EC),
+                                                    activeTrackColor = Color(0xFFE6E8EC),
                                                     inactiveTrackColor = Color.White.copy(alpha = 0.12f)
                                                 )
                                             )
@@ -233,8 +233,8 @@ fun ToonReaderSettingsPill(
 
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
-                                            color = glowColor.copy(alpha = 0.2f),
-                                            border = BorderStroke(1.dp, glowColor.copy(alpha = 0.4f))
+                                            color = Color(0xFF222631),
+                                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
                                         ) {
                                             Text(
                                                 text = "${(cropZoom * 100).roundToInt()}%",
@@ -252,8 +252,8 @@ fun ToonReaderSettingsPill(
                                         valueRange = 1.0f..1.50f,
                                         steps = 9,
                                         colors = SliderDefaults.colors(
-                                            thumbColor = glowColor,
-                                            activeTrackColor = glowColor,
+                                            thumbColor = Color(0xFFE6E8EC),
+                                            activeTrackColor = Color(0xFFE6E8EC),
                                             inactiveTrackColor = Color.White.copy(alpha = 0.12f)
                                         )
                                     )
@@ -488,8 +488,8 @@ private fun VerticalPillIcon(
 ) {
     Surface(
         shape = CircleShape,
-        color = if (isSelected) glowColor.copy(alpha = 0.22f) else Color.Transparent,
-        border = if (isSelected) BorderStroke(1.dp, glowColor.copy(alpha = 0.6f)) else null,
+        color = if (isSelected) Color(0xFF222631) else Color.Transparent,
+        border = if (isSelected) BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)) else null,
         modifier = Modifier
             .size(38.dp)
             .clip(CircleShape)
@@ -499,7 +499,7 @@ private fun VerticalPillIcon(
             Icon(
                 imageVector = icon,
                 contentDescription = contentDescription,
-                tint = if (isSelected) glowColor else Color.White.copy(alpha = 0.70f),
+                tint = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.70f),
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -519,15 +519,15 @@ private fun CompactPresetPill(
             .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        color = if (isSelected) glowColor.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.06f),
+        color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
         border = BorderStroke(
             1.dp,
-            if (isSelected) glowColor else Color.White.copy(alpha = 0.08f)
+            if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)
         )
     ) {
         Text(
             text = label,
-            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
+            color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.60f),
             fontSize = 11.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
             textAlign = TextAlign.Center,
@@ -550,10 +550,10 @@ private fun CompactLayoutModeChip(
             .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(10.dp),
-        color = if (isSelected) glowColor.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
+        color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
         border = BorderStroke(
             1.dp,
-            if (isSelected) glowColor else Color.White.copy(alpha = 0.08f)
+            if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)
         )
     ) {
         Row(
@@ -564,12 +564,12 @@ private fun CompactLayoutModeChip(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (isSelected) glowColor else Color.White.copy(alpha = 0.6f),
+                tint = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.6f),
                 modifier = Modifier.size(16.dp)
             )
             Text(
                 text = title,
-                color = Color.White,
+                color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.8f),
                 fontSize = 12.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
             )
@@ -591,10 +591,10 @@ private fun CompactColorToneChip(
             .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(10.dp),
-        color = if (isSelected) glowColor.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
+        color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
         border = BorderStroke(
             1.dp,
-            if (isSelected) glowColor else Color.White.copy(alpha = 0.08f)
+            if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)
         )
     ) {
         Column(
@@ -612,7 +612,7 @@ private fun CompactColorToneChip(
 
             Text(
                 text = title,
-                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
+                color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.6f),
                 fontSize = 10.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
             )

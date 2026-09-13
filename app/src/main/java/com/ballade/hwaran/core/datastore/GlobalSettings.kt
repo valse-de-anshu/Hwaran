@@ -245,7 +245,7 @@ class GlobalSettings(private val context: Context) {
     }
 
     val glowColorFlow: Flow<Long> = context.dataStore.data.map { preferences ->
-        preferences[GLOW_COLOR] ?: 0xFF7A6284L // Default Grape (Color Preset 2)
+        preferences[GLOW_COLOR] ?: 0xFFE2E8F0L // Default Titanium Platinum
     }
 
     val fabStyleFlow: Flow<Int> = context.dataStore.data.map { preferences ->

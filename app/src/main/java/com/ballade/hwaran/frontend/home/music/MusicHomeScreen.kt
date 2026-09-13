@@ -51,7 +51,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.ballade.hwaran.ui.components.JellyBall
-import com.ballade.hwaran.ui.dialogs.spotlightTarget
 import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.ui.viewmodels.LibraryViewModel
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
@@ -97,7 +96,6 @@ fun MusicScreen(
 ) {
     val allManga by libraryViewModel.allMangaState.collectAsState()
     val isLoading by libraryViewModel.isLoading.collectAsState()
-    val onboardingStep by settingsViewModel.onboardingStep.collectAsState()
     
     val musicPlaylists = remember(allManga) {
         allManga.filter { it.contentType == 3 }
@@ -118,12 +116,6 @@ fun MusicScreen(
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var editingPlaylist by remember { mutableStateOf<MangaEntity?>(null) }
     var isMenuExpanded by remember { mutableStateOf(false) }
-    
-    LaunchedEffect(onboardingStep) {
-        if (onboardingStep == "step_popup_add" || onboardingStep == "step_popup_edit" || onboardingStep == "step_popup_delete") {
-            isMenuExpanded = true
-        }
-    }
 
     val musicFolderPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()
@@ -136,31 +128,32 @@ fun MusicScreen(
     
     val haptic = LocalHapticFeedback.current
 
-    // Trigger color extraction for all playlists for immediate availability
+    // Trigger color extraction for all playlists in batch for immediate availability
     LaunchedEffect(musicPlaylists) {
-        musicPlaylists.forEach { playlist ->
-            musicViewModel.extractPlaylistColor(playlist)
-        }
+        musicViewModel.extractPlaylistColors(musicPlaylists)
     }
 
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        // Background Blur
-        Box(modifier = Modifier.fillMaxSize()) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(currentChapter?.thumbnailUri ?: currentChapter?.folderUri ?: currentManga?.coverPath)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(radius = 100.dp)
-            )
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)))
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Fast background blur from active playing song
+        if (currentChapter != null) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(currentChapter?.thumbnailUri ?: currentChapter?.folderUri ?: currentManga?.coverPath)
+                        .size(128, 128)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .blur(radius = 24.dp)
+                )
+                Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)))
+            }
         }
 
         Box(
@@ -207,7 +200,7 @@ fun MusicScreen(
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        if (onboardingStep == null && !LocalBatterySaving.current) {
+                        if (!LocalBatterySaving.current) {
                             AnimatedContent(
                                 targetState = messages[messageIndex],
                                 transitionSpec = {
@@ -321,9 +314,6 @@ fun MusicScreen(
                             onPlaylistClick = { playlist ->
                                 if (playlist.id == -999L) {
                                     isMenuExpanded = !isMenuExpanded
-                                    if (onboardingStep == "step_wrapper") {
-                                        settingsViewModel.setOnboardingStep("step_popup_add")
-                                    }
                                 } else {
                                     if (isDeleteMode) {
                                         selectedPlaylistIdsForDelete = if (selectedPlaylistIdsForDelete.contains(playlist.id)) {
@@ -338,9 +328,7 @@ fun MusicScreen(
                             },
                             onEditClick = { editingPlaylist = it },
                             onDeleteClick = { /* Handled via selection */ },
-                            modifier = if (index == 0 && onboardingStep == "step_wrapper" && favoritesPlaylist == null) {
-                                Modifier.spotlightTarget("tour_music_card", settingsViewModel)
-                            } else Modifier
+                            modifier = Modifier
                         )
                     }
                 }
@@ -455,14 +443,8 @@ fun MusicScreen(
                                     isMenuExpanded = false
                                 },
                                 enabled = !isEditMode && !isDeleteMode,
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .then(
-                                        if (onboardingStep == "step_popup_add") {
-                                            Modifier.spotlightTarget("tour_add_btn", settingsViewModel)
-                                        } else Modifier
-                                    )
-                             ) {
+                                modifier = Modifier.size(36.dp)
+                            ) {
                                 Icon(
                                     Icons.Rounded.Add, 
                                     contentDescription = "Import", 
@@ -477,13 +459,7 @@ fun MusicScreen(
                                     isMenuExpanded = false
                                     selectedPlaylistIdsForDelete = emptySet()
                                 },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .then(
-                                        if (onboardingStep == "step_popup_edit") {
-                                            Modifier.spotlightTarget("tour_edit_btn", settingsViewModel)
-                                        } else Modifier
-                                    )
+                                modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.AutoFixHigh,
@@ -499,13 +475,7 @@ fun MusicScreen(
                                     isMenuExpanded = false
                                     selectedPlaylistIdsForDelete = emptySet()
                                 },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .then(
-                                        if (onboardingStep == "step_popup_delete") {
-                                            Modifier.spotlightTarget("tour_delete_btn", settingsViewModel)
-                                        } else Modifier
-                                    )
+                                modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
                                     Icons.Rounded.DeleteSweep,
@@ -805,7 +775,7 @@ fun PlaylistCircleItemBackground(
                             drawCircle(
                                 brush = Brush.radialGradient(
                                     colors = listOf(
-                                        targetColors[0].copy(alpha = 0.3f * glowAlpha),
+                                        targetColors[0].copy(alpha = 0.10f * glowAlpha),
                                         Color.Transparent
                                     )
                                 )

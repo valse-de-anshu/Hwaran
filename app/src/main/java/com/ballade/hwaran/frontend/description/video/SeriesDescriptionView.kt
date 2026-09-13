@@ -96,7 +96,6 @@ fun SeriesDescriptionView(
 ) {
     val context = LocalContext.current
     val CardBg = MaterialTheme.colorScheme.surface
-    val PrimaryPurple = MaterialTheme.colorScheme.primary
     val TextMuted = MaterialTheme.colorScheme.onSurfaceVariant
 
     var isSynopsisExpanded by remember { mutableStateOf(false) }
@@ -211,13 +210,13 @@ fun SeriesDescriptionView(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
                                             .clickable { onSetMaterialTag(typeOption) },
-                                        color = if (isSel) PrimaryPurple.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
-                                        border = BorderStroke(1.dp, if (isSel) PrimaryPurple else Color.White.copy(alpha = 0.12f)),
+                                        color = if (isSel) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                                        border = BorderStroke(1.dp, if (isSel) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)),
                                         shape = RoundedCornerShape(8.dp)
                                     ) {
                                         Text(
                                             text = typeOption,
-                                            color = if (isSel) PrimaryPurple else TextMuted,
+                                            color = if (isSel) Color(0xFFE6E8EC) else TextMuted,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -232,8 +231,8 @@ fun SeriesDescriptionView(
                             ) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFF673AB7).copy(alpha = 0.20f),
-                                    border = BorderStroke(1.dp, Color(0xFF9575CD).copy(alpha = 0.45f))
+                                    color = Color(0xFF222631),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -244,13 +243,13 @@ fun SeriesDescriptionView(
                                             modifier = Modifier
                                                 .size(6.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFF9575CD))
+                                                .background(Color(0xFFE6E8EC))
                                         )
                                         Text(
                                             text = effectiveType.uppercase(),
-                                            color = Color(0xFFD1C4E9),
+                                            color = Color(0xFFE6E8EC),
                                             fontSize = 10.sp,
-                                            fontWeight = FontWeight.ExtraBold,
+                                            fontWeight = FontWeight.Bold,
                                             letterSpacing = 0.8.sp
                                         )
                                     }
@@ -295,7 +294,7 @@ fun SeriesDescriptionView(
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
                                     unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = PrimaryPurple,
+                                    focusedIndicatorColor = Color.White.copy(alpha = 0.35f),
                                     focusedTextColor = Color.White,
                                     unfocusedTextColor = Color.White
                                 ),
@@ -321,7 +320,7 @@ fun SeriesDescriptionView(
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
                                     unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = PrimaryPurple,
+                                    focusedIndicatorColor = Color.White.copy(alpha = 0.35f),
                                     focusedTextColor = TextMuted,
                                     unfocusedTextColor = TextMuted
                                 ),
@@ -393,10 +392,46 @@ fun SeriesDescriptionView(
                                 Text("•", color = TextMuted, fontSize = 12.sp)
                                 Text(
                                     text = status,
-                                    color = if (status.contains("ongoing", ignoreCase = true) || status.contains("airing", ignoreCase = true)) Color(0xFF4CAF50) else PrimaryPurple,
+                                    color = if (status.contains("ongoing", ignoreCase = true) || status.contains("airing", ignoreCase = true)) Color(0xFF4CAF50) else Color(0xFFE6E8EC),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
+                            }
+                        }
+
+                        // Studio / Studio Metadata
+                        val studio = if (isEditMode) draftAuthor else entryMetadata.author
+                        if (studio.isNotBlank()) {
+                            Text(
+                                text = "By $studio",
+                                color = TextMuted,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        // Year, Release Date & Airing Status Row
+                        val releaseYear = entryMetadata.year
+                        val airingStatus = entryMetadata.status
+                        if (releaseYear.isNotBlank() || airingStatus.isNotBlank()) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (releaseYear.isNotBlank()) {
+                                    Text(text = releaseYear, color = TextMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    if (airingStatus.isNotBlank()) Text("•", color = TextMuted, fontSize = 12.sp)
+                                }
+                                if (airingStatus.isNotBlank()) {
+                                    Text(
+                                        text = airingStatus,
+                                        color = if (airingStatus.contains("ongoing", ignoreCase = true) || airingStatus.contains("airing", ignoreCase = true)) Color(0xFF4CAF50) else Color(0xFFE6E8EC),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                             }
                         }
 
@@ -433,7 +468,7 @@ fun SeriesDescriptionView(
                             Icon(
                                 imageVector = Icons.Rounded.LocalOffer,
                                 contentDescription = null,
-                                tint = PrimaryPurple,
+                                tint = Color(0xFFE6E8EC),
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
@@ -448,8 +483,8 @@ fun SeriesDescriptionView(
                         if (isEditMode) {
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = if (isTagSearchVisible) PrimaryPurple.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.06f),
-                                border = BorderStroke(1.dp, if (isTagSearchVisible) PrimaryPurple else Color.White.copy(alpha = 0.12f)),
+                                color = if (isTagSearchVisible) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                                border = BorderStroke(1.dp, if (isTagSearchVisible) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable { onToggleTagSearchVisible() }
@@ -462,12 +497,12 @@ fun SeriesDescriptionView(
                                     Icon(
                                         imageVector = if (isTagSearchVisible) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.Add,
                                         contentDescription = null,
-                                        tint = if (isTagSearchVisible) PrimaryPurple else Color.White,
+                                        tint = if (isTagSearchVisible) Color(0xFFE6E8EC) else Color.White,
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Text(
                                         text = if (isTagSearchVisible) "Close Tag Search" else "Add Tags",
-                                        color = if (isTagSearchVisible) PrimaryPurple else Color.White,
+                                        color = if (isTagSearchVisible) Color(0xFFE6E8EC) else Color.White,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -543,7 +578,7 @@ fun SeriesDescriptionView(
                                 .padding(top = 10.dp),
                             shape = RoundedCornerShape(16.dp),
                             color = CardBg,
-                            border = BorderStroke(1.dp, PrimaryPurple.copy(alpha = 0.35f))
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 OutlinedTextField(
@@ -552,7 +587,7 @@ fun SeriesDescriptionView(
                                     modifier = Modifier.fillMaxWidth(),
                                     placeholder = { Text("Search 4,000+ tags (Action, Shounen, Sci-Fi...)", color = TextMuted, fontSize = 12.sp) },
                                     leadingIcon = {
-                                        Icon(Icons.Rounded.Search, contentDescription = null, tint = PrimaryPurple, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Rounded.Search, contentDescription = null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
                                     },
                                     trailingIcon = {
                                         if (tagQuery.isNotEmpty()) {
@@ -564,7 +599,7 @@ fun SeriesDescriptionView(
                                     singleLine = true,
                                     shape = RoundedCornerShape(12.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = PrimaryPurple,
+                                        focusedBorderColor = Color.White.copy(alpha = 0.35f),
                                         unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
                                         focusedTextColor = Color.White,
                                         unfocusedTextColor = Color.White
@@ -595,8 +630,8 @@ fun SeriesDescriptionView(
                                                     onAddTag(item.tag)
                                                 },
                                             shape = RoundedCornerShape(8.dp),
-                                            color = if (isAssigned) Color.White.copy(alpha = 0.05f) else PrimaryPurple.copy(alpha = 0.15f),
-                                            border = BorderStroke(1.dp, if (isAssigned) Color.White.copy(alpha = 0.08f) else PrimaryPurple.copy(alpha = 0.5f))
+                                            color = if (isAssigned) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                                            border = BorderStroke(1.dp, if (isAssigned) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.10f))
                                         ) {
                                             Row(
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -605,14 +640,14 @@ fun SeriesDescriptionView(
                                             ) {
                                                 Text(
                                                     text = item.tag,
-                                                    color = if (isAssigned) TextMuted else Color.White,
+                                                    color = if (isAssigned) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.6f),
                                                     fontSize = 11.sp,
-                                                    fontWeight = if (isAssigned) FontWeight.Normal else FontWeight.SemiBold
+                                                    fontWeight = if (isAssigned) FontWeight.SemiBold else FontWeight.Normal
                                                 )
                                                 if (isAssigned) {
-                                                    Icon(Icons.Rounded.Check, contentDescription = null, tint = TextMuted, modifier = Modifier.size(12.dp))
+                                                    Icon(Icons.Rounded.Check, contentDescription = null, tint = Color(0xFFE6E8EC), modifier = Modifier.size(12.dp))
                                                 } else {
-                                                    Icon(Icons.Rounded.Add, contentDescription = null, tint = PrimaryPurple, modifier = Modifier.size(12.dp))
+                                                    Icon(Icons.Rounded.Add, contentDescription = null, tint = Color(0xFFE6E8EC), modifier = Modifier.size(12.dp))
                                                 }
                                             }
                                         }
@@ -677,7 +712,7 @@ fun SeriesDescriptionView(
                                 modifier = Modifier.fillMaxWidth(),
                                 minLines = 4,
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = PrimaryPurple,
+                                    focusedBorderColor = Color.White.copy(alpha = 0.35f),
                                     unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
                                     focusedTextColor = Color.White,
                                     unfocusedTextColor = Color.White
@@ -710,14 +745,14 @@ fun SeriesDescriptionView(
                                 ) {
                                     Text(
                                         text = if (isSynopsisExpanded) "Show less" else "Read more",
-                                        color = PrimaryPurple,
+                                        color = Color.White.copy(alpha = 0.7f),
                                         fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.SemiBold
                                     )
                                     Icon(
                                         imageVector = if (isSynopsisExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
                                         contentDescription = null,
-                                        tint = PrimaryPurple,
+                                        tint = Color.White.copy(alpha = 0.7f),
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -751,7 +786,11 @@ fun SeriesDescriptionView(
                                 .weight(1.2f)
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF222631),
+                                contentColor = Color(0xFFE6E8EC)
+                            ),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -760,14 +799,14 @@ fun SeriesDescriptionView(
                                 Icon(
                                     imageVector = Icons.Rounded.PlayArrow,
                                     contentDescription = null,
-                                    tint = Color.White,
+                                    tint = Color(0xFFE6E8EC),
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Text(
                                     text = if (targetEpisode != null) {
                                         if (manga.lastReadTitle != null) "Resume" else "Watch"
                                     } else "Add Episodes",
-                                    color = Color.White,
+                                    color = Color(0xFFE6E8EC),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -782,10 +821,10 @@ fun SeriesDescriptionView(
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = CardBg,
-                                contentColor = Color.White
+                                containerColor = Color.White.copy(alpha = 0.04f),
+                                contentColor = Color(0xFFE6E8EC)
                             ),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -794,11 +833,12 @@ fun SeriesDescriptionView(
                                 Icon(
                                     imageVector = Icons.Rounded.VideoLibrary,
                                     contentDescription = null,
-                                    tint = PrimaryPurple,
+                                    tint = Color(0xFFE6E8EC),
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Text(
                                     text = if (chapters.isNotEmpty()) "Videos (${chapters.size})" else "Videos",
+                                    color = Color(0xFFE6E8EC),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -814,14 +854,14 @@ fun SeriesDescriptionView(
                             shape = RoundedCornerShape(14.dp),
                             contentPadding = PaddingValues(0.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (isFavorite) PrimaryPurple.copy(alpha = 0.18f) else Color.Transparent
+                                containerColor = if (isFavorite) Color(0xFF222631) else Color.Transparent
                             ),
-                            border = BorderStroke(1.dp, if (isFavorite) PrimaryPurple else Color.White.copy(alpha = 0.12f))
+                            border = BorderStroke(1.dp, if (isFavorite) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.10f))
                         ) {
                             Icon(
                                 imageVector = if (isFavorite) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
                                 contentDescription = "Favorite",
-                                tint = if (isFavorite) PrimaryPurple else Color.White.copy(alpha = 0.6f),
+                                tint = if (isFavorite) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.6f),
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -1060,16 +1100,7 @@ fun SeriesDescriptionView(
                 Surface(
                     shape = CircleShape,
                     color = Color(0xFF16131F).copy(alpha = 0.95f),
-                    border = BorderStroke(
-                        1.dp,
-                        Brush.horizontalGradient(
-                            listOf(
-                                PrimaryPurple.copy(alpha = 0.5f),
-                                Color.White.copy(alpha = 0.15f),
-                                PrimaryPurple.copy(alpha = 0.5f)
-                            )
-                        )
-                    ),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)),
                     shadowElevation = 16.dp
                 ) {
                     Row(
@@ -1109,7 +1140,8 @@ fun SeriesDescriptionView(
                         // Save Changes Pill
                         Surface(
                             shape = CircleShape,
-                            color = PrimaryPurple,
+                            color = Color(0xFF222631),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)),
                             shadowElevation = 6.dp,
                             modifier = Modifier
                                 .clip(CircleShape)
@@ -1123,12 +1155,12 @@ fun SeriesDescriptionView(
                                 Icon(
                                     imageVector = Icons.Rounded.Check,
                                     contentDescription = null,
-                                    tint = Color.White,
+                                    tint = Color(0xFFE6E8EC),
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Text(
                                     text = "Save Changes",
-                                    color = Color.White,
+                                    color = Color(0xFFE6E8EC),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 0.2.sp

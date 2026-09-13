@@ -34,6 +34,7 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import com.ballade.hwaran.frontend.player.novel.NovelPlayerScreen
 import com.ballade.hwaran.frontend.canvas.CanvasScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -57,6 +58,9 @@ sealed class Screen(val route: String) {
     object VideoPlayer : Screen("video_player/{chapterId}") {
         fun createRoute(chapterId: Long) = "video_player/$chapterId"
     }
+    object NovelReader : Screen("novel_reader/{mangaId}") {
+        fun createRoute(mangaId: Long) = "novel_reader/$mangaId"
+    }
     object PlaylistDetail : Screen("playlist_detail/{mangaId}") {
         fun createRoute(mangaId: Long) = "playlist_detail/$mangaId"
     }
@@ -72,6 +76,9 @@ sealed class Screen(val route: String) {
     }
     object ExternalVideo : Screen("external_video/{uri}") {
         fun createRoute(uri: String) = "external_video/${java.net.URLEncoder.encode(uri, "UTF-8")}"
+    }
+    object ExternalNovel : Screen("external_novel/{uri}") {
+        fun createRoute(uri: String) = "external_novel/${java.net.URLEncoder.encode(uri, "UTF-8")}"
     }
     object ExternalImage : Screen("external_image/{uri}") {
         fun createRoute(uri: String) = "external_image/${java.net.URLEncoder.encode(uri, "UTF-8")}"
@@ -160,7 +167,15 @@ fun AppNavGraph(
                     musicViewModel = musicViewModel,
                     onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                     onNavigateToDescription = { mangaId -> navController.navigate(Screen.Description.createRoute(mangaId)) },
-                    onNavigateToHistory = { navController.navigate(Screen.History.route) }
+                    onNavigateToHistory = { navController.navigate(Screen.History.route) },
+                    onNavigateToMedia = { id, contentType ->
+                        when (contentType) {
+                            1 -> navController.navigate(Screen.PdfReader.createRoute(id))
+                            2 -> navController.navigate(Screen.VideoPlayer.createRoute(id))
+                            4 -> navController.navigate(Screen.NovelReader.createRoute(id))
+                            else -> navController.navigate(Screen.Reader.createRoute(id))
+                        }
+                    }
                 )
             }
         }
@@ -230,7 +245,15 @@ fun AppNavGraph(
                         musicViewModel = musicViewModel,
                         settingsViewModel = settingsViewModel,
                         libraryViewModel = libraryViewModel,
-                        onNavigateBack = { navController.popBackStack(Screen.Home.route, inclusive = false) },
+                        onNavigateBack = { 
+                            val popped = navController.popBackStack()
+                            if (!popped) {
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(0) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                        },
                         onNavigateToNowPlaying = { navController.navigate(Screen.NowPlaying.route) },
                         onNavigateToEditPlaylist = { id -> navController.navigate(Screen.EditPlaylist.createRoute(id)) },
                         onNavigateToEditSong = { id -> navController.navigate(Screen.EditSong.createRoute(id)) }
@@ -252,6 +275,7 @@ fun AppNavGraph(
                             when (contentType) {
                                 1 -> navController.navigate(Screen.PdfReader.createRoute(id))
                                 2 -> navController.navigate(Screen.VideoPlayer.createRoute(id))
+                                4 -> navController.navigate(Screen.NovelReader.createRoute(id))
                                 else -> navController.navigate(Screen.Reader.createRoute(id))
                             }
                         },
@@ -313,14 +337,21 @@ fun AppNavGraph(
                     settingsViewModel = settingsViewModel,
                     libraryViewModel = libraryViewModel,
                     onNavigateBack = { 
-                        val currentChapter = musicViewModel.currentChapter.value
-                        val playlistId = currentChapter?.mangaId
-                        if (playlistId != null) {
-                            navController.navigate(Screen.Description.createRoute(playlistId)) {
-                                popUpTo(Screen.Home.route) { inclusive = false }
+                        val popped = navController.popBackStack()
+                        if (!popped) {
+                            val currentChapter = musicViewModel.currentChapter.value
+                            val playlistId = currentChapter?.mangaId
+                            if (playlistId != null && playlistId > 0L) {
+                                navController.navigate(Screen.Description.createRoute(playlistId)) {
+                                    popUpTo(Screen.Home.route) { inclusive = false }
+                                }
+                            } else {
+                                settingsViewModel.setActiveTab(1)
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(0) { inclusive = true }
+                                    launchSingleTop = true
+                                }
                             }
-                        } else {
-                            navController.popBackStack()
                         }
                     },
                     onNavigateToEditSong = { id -> navController.navigate(Screen.EditSong.createRoute(id)) }
@@ -364,6 +395,25 @@ fun AppNavGraph(
                     onNavigateBack = { 
                         navController.popBackStack()
                     }
+                )
+            }
+        }
+        composable(Screen.NovelReader.route) { backStackEntry ->
+            val mangaId = backStackEntry.arguments?.getString("mangaId")?.toLongOrNull() ?: 0L
+            BlockTouchesWhenExiting {
+                NovelPlayerScreen(
+                    mangaId = mangaId,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+        }
+        composable(Screen.ExternalNovel.route) { backStackEntry ->
+            val uri = backStackEntry.arguments?.getString("uri")?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: ""
+            BlockTouchesWhenExiting {
+                NovelPlayerScreen(
+                    mangaId = -1L,
+                    externalUriString = uri,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }

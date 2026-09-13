@@ -607,8 +607,6 @@ fun VideoPlayerScreen(
                                 }
                             }
 
-                            val aestheticPurpleWhite = androidx.compose.ui.graphics.lerp(Color.White, Color(0xFF7A6284), 0.5f)
-                            
                             com.ballade.hwaran.ui.components.WavyMusicSlider(
                                 value = dragPosition ?: if (duration > 0) currentPosition.toFloat() else 0f,
                                 interactionSource = sliderInteractionSource,
@@ -637,9 +635,9 @@ fun VideoPlayerScreen(
                                 valueRange = 0f..(duration.toFloat().coerceAtLeast(1f)),
                                 modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
                                 isPlaying = isPlaying,
-                                activeTrackColor = aestheticPurpleWhite,
+                                activeTrackColor = Color.White,
                                 inactiveTrackColor = Color.White.copy(alpha = 0.2f),
-                                thumbColor = Color(0xFF7A6284),
+                                thumbColor = Color.White,
                                 trackHeight = 4.dp,
                                 thumbRadius = 6.dp
                             )

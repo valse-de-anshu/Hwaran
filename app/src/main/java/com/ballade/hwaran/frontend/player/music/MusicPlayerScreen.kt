@@ -182,6 +182,20 @@ fun MusicPlayerScreen(
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val controlIconColor = Color.White
 
+    androidx.activity.compose.BackHandler {
+        when {
+            showMenu -> showMenu = false
+            showRepeatMenu -> showRepeatMenu = false
+            showPlaylistDialog -> showPlaylistDialog = false
+            showQueueDialog -> showQueueDialog = false
+            showDeleteDialog -> showDeleteDialog = false
+            showGenreDialog -> showGenreDialog = false
+            showLyricsDialog -> showLyricsDialog = false
+            isLyricsMode -> isLyricsMode = false
+            else -> onNavigateBack()
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // Background Blur
         MusicBackground(
@@ -243,7 +257,9 @@ if (isLandscape) {
                                     onOpenLyricsDialog = { showLyricsDialog = true }
                                 )
                             } else {
-                                val cover = currentChapter?.thumbnailUri ?: currentChapter?.folderUri ?: currentManga?.coverPath
+                                val cover = currentChapter?.thumbnailUri?.takeIf { it.isNotBlank() }
+                                    ?: currentManga?.coverPath?.takeIf { it.isNotBlank() }
+                                    ?: currentChapter?.folderUri?.takeIf { it.endsWith(".jpg", true) || it.endsWith(".jpeg", true) || it.endsWith(".png", true) || it.endsWith(".webp", true) }
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -656,7 +672,9 @@ if (isLandscape) {
                                 onOpenLyricsDialog = { showLyricsDialog = true }
                             )
                         } else {
-                            val cover = currentChapter?.thumbnailUri ?: currentChapter?.folderUri ?: currentManga?.coverPath
+                            val cover = currentChapter?.thumbnailUri?.takeIf { it.isNotBlank() }
+                                ?: currentManga?.coverPath?.takeIf { it.isNotBlank() }
+                                ?: currentChapter?.folderUri?.takeIf { it.endsWith(".jpg", true) || it.endsWith(".jpeg", true) || it.endsWith(".png", true) || it.endsWith(".webp", true) }
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -924,7 +942,10 @@ if (isLandscape) {
 
                 // Heart Button Logic
                 val favoritedUris by libraryViewModel.favoritedUris.collectAsState()
-                val isFavorite = currentChapter?.folderUri?.let { favoritedUris.contains(it) } == true
+                val isFavorite = currentChapter?.let { chapter ->
+                    favoritedUris.contains(chapter.folderUri) ||
+                    (chapter.title.isNotBlank() && favoritedUris.contains(chapter.title))
+                } == true
                 
                 val heartScale by animateFloatAsState(
                     targetValue = if (isFavorite) 1.25f else 1f, 
@@ -1218,10 +1239,14 @@ fun QueueDialog(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
                                     if (isPlaying) {
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                        Color(0xFF222631)
                                     } else {
                                         Color.Transparent
                                     }
+                                )
+                                .then(
+                                    if (isPlaying) Modifier.border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(12.dp))
+                                    else Modifier
                                 )
                                 .clickable {
                                     currentManga?.let { manga ->
@@ -1234,14 +1259,14 @@ fun QueueDialog(
                             Icon(
                                 imageVector = if (isPlaying) Icons.Rounded.PlayArrow else Icons.Rounded.MusicNote,
                                 contentDescription = null,
-                                tint = if (isPlaying) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.4f),
+                                tint = if (isPlaying) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.4f),
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = item.title,
-                                    color = if (isPlaying) MaterialTheme.colorScheme.primary else Color.White,
+                                    color = if (isPlaying) Color(0xFFE6E8EC) else Color.White,
                                     fontSize = 14.sp,
                                     fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal,
                                     maxLines = 1,
@@ -1251,7 +1276,7 @@ fun QueueDialog(
                                     Spacer(modifier = Modifier.height(1.dp))
                                     Text(
                                         text = item.artist,
-                                        color = if (isPlaying) MaterialTheme.colorScheme.primary.copy(alpha = 0.7f) else Color.Gray,
+                                        color = if (isPlaying) Color.White.copy(alpha = 0.7f) else Color.Gray,
                                         fontSize = 11.sp,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -1261,7 +1286,7 @@ fun QueueDialog(
                             if (isPlaying) {
                                 Text(
                                     text = "Playing",
-                                    color = MaterialTheme.colorScheme.primary,
+                                    color = Color(0xFFE6E8EC),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 0.5.sp

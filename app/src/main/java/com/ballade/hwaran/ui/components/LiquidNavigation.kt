@@ -30,7 +30,7 @@ fun LiquidNavigation(
     activeTab: Int,
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    glowColor: Color = Color(0xFF7A6284),
+    glowColor: Color = Color(0xFFE2E8F0),
     isVertical: Boolean = false
 ) {
     val haptic = LocalHapticFeedback.current
@@ -133,15 +133,15 @@ fun LiquidNavigation(
                     
                     val glowPaint = android.graphics.Paint().apply {
                         isAntiAlias = true
-                        color = glowColor.copy(alpha = 0.3f * pulse).toArgb()
-                        maskFilter = android.graphics.BlurMaskFilter(25.dp.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                        color = glowColor.copy(alpha = 0.10f * pulse).toArgb()
+                        maskFilter = android.graphics.BlurMaskFilter(30.dp.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL)
                     }
                     canvas.nativeCanvas.drawCircle(ballCenterX, activeY, haloRadius * 1.1f, glowPaint)
                     
                     val coreGlowPaint = android.graphics.Paint().apply {
                         isAntiAlias = true
-                        color = glowColor.copy(alpha = 0.4f).toArgb()
-                        maskFilter = android.graphics.BlurMaskFilter(12.dp.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                        color = glowColor.copy(alpha = 0.15f).toArgb()
+                        maskFilter = android.graphics.BlurMaskFilter(16.dp.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL)
                     }
                     canvas.nativeCanvas.drawCircle(ballCenterX, activeY, haloRadius * 0.6f, coreGlowPaint)
 
@@ -184,15 +184,15 @@ fun LiquidNavigation(
                     
                     val glowPaint = android.graphics.Paint().apply {
                         isAntiAlias = true
-                        color = glowColor.copy(alpha = 0.3f * pulse).toArgb()
-                        maskFilter = android.graphics.BlurMaskFilter(25.dp.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                        color = glowColor.copy(alpha = 0.10f * pulse).toArgb()
+                        maskFilter = android.graphics.BlurMaskFilter(30.dp.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL)
                     }
                     canvas.nativeCanvas.drawCircle(activeX, ballCenterY, haloRadius * 1.1f, glowPaint)
                     
                     val coreGlowPaint = android.graphics.Paint().apply {
                         isAntiAlias = true
-                        color = glowColor.copy(alpha = 0.4f).toArgb()
-                        maskFilter = android.graphics.BlurMaskFilter(12.dp.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                        color = glowColor.copy(alpha = 0.15f).toArgb()
+                        maskFilter = android.graphics.BlurMaskFilter(16.dp.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL)
                     }
                     canvas.nativeCanvas.drawCircle(activeX, ballCenterY, haloRadius * 0.6f, coreGlowPaint)
 

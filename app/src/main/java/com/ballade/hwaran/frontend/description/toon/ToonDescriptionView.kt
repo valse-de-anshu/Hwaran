@@ -222,13 +222,13 @@ fun ToonDescriptionView(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
                                             .clickable { onSetMaterialTag(typeOption) },
-                                        color = if (isSel) PrimaryPurple.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
-                                        border = BorderStroke(1.dp, if (isSel) PrimaryPurple else Color.White.copy(alpha = 0.12f)),
+                                        color = if (isSel) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                                        border = BorderStroke(1.dp, if (isSel) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
                                         shape = RoundedCornerShape(8.dp)
                                     ) {
                                         Text(
                                             text = typeOption,
-                                            color = if (isSel) PrimaryPurple else TextMuted,
+                                            color = if (isSel) Color(0xFFE6E8EC) else TextMuted,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -243,8 +243,8 @@ fun ToonDescriptionView(
                             ) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = PrimaryPurple.copy(alpha = 0.18f),
-                                    border = BorderStroke(1.dp, PrimaryPurple.copy(alpha = 0.4f))
+                                    color = Color(0xFF222631),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -255,13 +255,13 @@ fun ToonDescriptionView(
                                             modifier = Modifier
                                                 .size(6.dp)
                                                 .clip(CircleShape)
-                                                .background(PrimaryPurple)
+                                                .background(Color(0xFFE6E8EC))
                                         )
                                         Text(
                                             text = effectiveType.uppercase(),
-                                            color = PrimaryPurple,
+                                            color = Color(0xFFE6E8EC),
                                             fontSize = 10.sp,
-                                            fontWeight = FontWeight.ExtraBold,
+                                            fontWeight = FontWeight.Bold,
                                             letterSpacing = 0.8.sp
                                         )
                                     }
@@ -757,7 +757,11 @@ fun ToonDescriptionView(
                                 .weight(1.2f)
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF222631),
+                                contentColor = Color(0xFFE6E8EC)
+                            ),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -766,12 +770,12 @@ fun ToonDescriptionView(
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Rounded.MenuBook,
                                     contentDescription = null,
-                                    tint = Color.White,
+                                    tint = Color(0xFFE6E8EC),
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Text(
                                     text = if (manga.lastReadTitle != null) "Resume" else "Read",
-                                    color = Color.White,
+                                    color = Color(0xFFE6E8EC),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -786,10 +790,10 @@ fun ToonDescriptionView(
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = CardBg,
-                                contentColor = Color.White
+                                containerColor = Color.White.copy(alpha = 0.04f),
+                                contentColor = Color(0xFFE6E8EC)
                             ),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -798,11 +802,12 @@ fun ToonDescriptionView(
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Rounded.MenuBook,
                                     contentDescription = null,
-                                    tint = PrimaryPurple,
+                                    tint = Color(0xFFE6E8EC),
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Text(
                                     text = "Chapters (${chapters.size})",
+                                    color = Color(0xFFE6E8EC),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -818,14 +823,14 @@ fun ToonDescriptionView(
                             shape = RoundedCornerShape(14.dp),
                             contentPadding = PaddingValues(0.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (isFavorite) PrimaryPurple.copy(alpha = 0.18f) else Color.Transparent
+                                containerColor = if (isFavorite) Color(0xFF222631) else Color.Transparent
                             ),
-                            border = BorderStroke(1.dp, if (isFavorite) PrimaryPurple else Color.White.copy(alpha = 0.12f))
+                            border = BorderStroke(1.dp, if (isFavorite) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.10f))
                         ) {
                             Icon(
                                 imageVector = if (isFavorite) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
                                 contentDescription = "Favorite",
-                                tint = if (isFavorite) PrimaryPurple else Color.White.copy(alpha = 0.6f),
+                                tint = if (isFavorite) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.6f),
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -1041,16 +1046,7 @@ fun ToonDescriptionView(
             Surface(
                 shape = CircleShape,
                 color = Color(0xFF16131F).copy(alpha = 0.95f),
-                border = BorderStroke(
-                    1.dp,
-                    Brush.horizontalGradient(
-                        listOf(
-                            PrimaryPurple.copy(alpha = 0.5f),
-                            Color.White.copy(alpha = 0.15f),
-                            PrimaryPurple.copy(alpha = 0.5f)
-                        )
-                    )
-                ),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)),
                 shadowElevation = 16.dp
             ) {
                 Row(
@@ -1087,10 +1083,11 @@ fun ToonDescriptionView(
                         }
                     }
 
-                    // Radiant Glowing Save Changes Pill
+                    // Obsidian Dark Glass Save Changes Pill
                     Surface(
                         shape = CircleShape,
-                        color = PrimaryPurple,
+                        color = Color(0xFF222631),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)),
                         shadowElevation = 6.dp,
                         modifier = Modifier
                             .clip(CircleShape)
@@ -1104,12 +1101,12 @@ fun ToonDescriptionView(
                             Icon(
                                 imageVector = Icons.Rounded.Check,
                                 contentDescription = null,
-                                tint = Color.White,
+                                tint = Color(0xFFE6E8EC),
                                 modifier = Modifier.size(18.dp)
                             )
                             Text(
                                 text = "Save Changes",
-                                color = Color.White,
+                                color = Color(0xFFE6E8EC),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 0.2.sp

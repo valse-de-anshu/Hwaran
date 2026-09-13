@@ -115,31 +115,38 @@ class MainActivity : ComponentActivity() {
 
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color.Black // Keep surface black to avoid flickers during navigation
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     val baseAppGradient = com.ballade.hwaran.ui.theme.LocalAppGradient.current
                     Box(modifier = Modifier.fillMaxSize()) {
-                        // Content Layer - Only composed when ready, but overlay is always here
-                        if (isReady) {
+                        val shouldNavigateToMusic = remember(currentIntent) {
+                            currentIntent?.getBooleanExtra("navigate_to_music", false) == true
+                        }
+
+                        // Content Layer - Composed when ready or immediately when opening external music
+                        if (isReady || shouldNavigateToMusic) {
                             Box(modifier = Modifier.fillMaxSize()) {
                                 // Layer 1: Theme Gradient / Solid Color Background
                                 androidx.compose.animation.AnimatedContent(
                                     targetState = baseAppGradient,
                                     transitionSpec = {
-                                        androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(500)).togetherWith(
-                                            androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(500))
+                                        androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(300)).togetherWith(
+                                            androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(300))
                                         )
                                     },
                                     label = "bg_gradient_animation"
                                 ) { gradient ->
+                                    val bgSolid = MaterialTheme.colorScheme.background
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .then(if (gradient != null) Modifier.background(gradient) else Modifier.background(Color.Black))
+                                            .then(if (gradient != null) Modifier.background(gradient) else Modifier.background(bgSolid))
                                     )
                                 }
 
-                                val startDestination = remember(hasSeenIntro) { if (hasSeenIntro) Screen.Home.route else Screen.Intro.route }
+                                val startDestination = remember { 
+                                    if (hasSeenIntro || shouldNavigateToMusic) Screen.Home.route else Screen.Intro.route 
+                                }
                                 AppNavGraph(
                                     navController = navController,
                                     startDestination = startDestination,
@@ -147,14 +154,32 @@ class MainActivity : ComponentActivity() {
                                     musicViewModel = musicViewModel
                                 )
                                 
-                                // Handle external intents
+                                // Handle external intents and direct music navigation
                                 LaunchedEffect(currentIntent) {
                                     currentIntent?.let { intent ->
-                                        if (intent.action == android.content.Intent.ACTION_VIEW) {
+                                        if (intent.getBooleanExtra("navigate_to_music", false)) {
+                                            musicViewModel.syncExternalAudio(intent.data, this@MainActivity)
+                                            settingsViewModel.setActiveTab(1)
+                                            navController.navigate(Screen.NowPlaying.route) {
+                                                popUpTo(Screen.Home.route) { inclusive = false }
+                                                launchSingleTop = true
+                                            }
+                                            intentState.value = null
+                                        } else if (intent.action == android.content.Intent.ACTION_VIEW) {
                                             intent.data?.let { uri ->
                                                 val mimeType = intent.type ?: contentResolver.getType(uri) ?: ""
                                                 val mimeTypeLower = mimeType.lowercase()
+                                                val uriString = uri.toString().lowercase()
+                                                val isNovel = mimeTypeLower.contains("epub") ||
+                                                        mimeTypeLower == "text/plain" ||
+                                                        mimeTypeLower == "text/markdown" ||
+                                                        uriString.endsWith(".epub") ||
+                                                        uriString.endsWith(".txt") ||
+                                                        uriString.endsWith(".md")
                                                 when {
+                                                    isNovel -> {
+                                                        navController.navigate(Screen.ExternalNovel.createRoute(uri.toString()))
+                                                    }
                                                     mimeTypeLower.startsWith("video/") -> {
                                                         navController.navigate(Screen.ExternalVideo.createRoute(uri.toString()))
                                                     }
@@ -164,8 +189,9 @@ class MainActivity : ComponentActivity() {
                                                     mimeTypeLower.startsWith("audio/") -> {
                                                         musicViewModel.playExternalAudio(uri, this@MainActivity)
                                                         settingsViewModel.setActiveTab(1)
-                                                        navController.navigate(Screen.Home.route) {
-                                                            popUpTo(Screen.Home.route) { inclusive = true }
+                                                        navController.navigate(Screen.NowPlaying.route) {
+                                                            popUpTo(Screen.Home.route) { inclusive = false }
+                                                            launchSingleTop = true
                                                         }
                                                     }
                                                 }
@@ -180,61 +206,60 @@ class MainActivity : ComponentActivity() {
                                 val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
                                 val currentChapter by musicViewModel.currentChapter.collectAsState()
-                                val isMusicSection = remember(currentRoute, activeTab, currentChapter) {
-                                    activeTab == 1 &&
+                                val isMiniPlayerVisible = remember(currentRoute, currentChapter) {
+                                    currentChapter != null &&
                                     currentRoute != Screen.NowPlaying.route && 
                                     currentRoute != Screen.Settings.route &&
+                                    currentRoute != Screen.Canvas.route &&
+                                    currentRoute != Screen.Intro.route &&
+                                    currentRoute?.startsWith("reader") == false &&
+                                    currentRoute?.startsWith("pdf_reader") == false &&
+                                    currentRoute?.startsWith("novel_reader") == false &&
+                                    currentRoute?.startsWith("video_player") == false &&
+                                    currentRoute?.startsWith("external_video") == false &&
+                                    currentRoute?.startsWith("external_pdf") == false &&
+                                    currentRoute?.startsWith("external_novel") == false &&
+                                    currentRoute?.startsWith("external_image") == false &&
                                     currentRoute?.startsWith("edit_song") == false &&
-                                    currentRoute?.startsWith("edit_playlist") == false &&
-                                    currentChapter != null
+                                    currentRoute?.startsWith("edit_playlist") == false
+                                }
+
+                                val isHomeScreen = currentRoute == Screen.Home.route
+                                val isMusicHomeScreen = isHomeScreen && activeTab == 1
+                                val isVerticalCompact = isHomeScreen && !isMusicHomeScreen
+                                val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                                val targetPadding = if (isLandscape) {
+                                    8.dp
+                                } else if (isVerticalCompact) {
+                                    0.dp
+                                } else {
+                                    maxOf(navBarBottom + 16.dp, 32.dp) + 8.dp
                                 }
 
                                 val miniPlayerBottomPadding by animateDpAsState(
-                                    targetValue = if (isLandscape) 8.dp else (if (currentRoute == Screen.Home.route) 140.dp else 64.dp),
+                                    targetValue = targetPadding,
                                     animationSpec = androidx.compose.animation.core.spring(
-                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioLowBouncy,
+                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
                                         stiffness = androidx.compose.animation.core.Spring.StiffnessLow
                                     ),
                                     label = "mini_player_padding"
                                 )
 
+                                val alignment = if (isVerticalCompact) Alignment.CenterEnd else Alignment.BottomCenter
+
                                 Box(
                                     modifier = Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .padding(bottom = miniPlayerBottomPadding) 
+                                        .align(alignment)
+                                        .padding(bottom = miniPlayerBottomPadding.coerceAtLeast(0.dp))
                                 ) {
                                     MiniPlayer(
                                         musicViewModel = musicViewModel,
-                                        isVisible = isMusicSection,
+                                        isVisible = isMiniPlayerVisible,
+                                        isVerticalCompact = isVerticalCompact,
                                         onClick = { navController.navigate(Screen.NowPlaying.route) }
                                     )
                                 }
                             }
-                        }
-
-                        // Seamless cinematic fade-in overlay from Splash screen
-                        val launchAlpha = remember { androidx.compose.animation.core.Animatable(1f) }
-                        LaunchedEffect(isReady) {
-                            if (isReady) {
-                                // Brief buffer so initial Compose layout renders behind the veil
-                                kotlinx.coroutines.delay(60)
-                                launchAlpha.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = androidx.compose.animation.core.tween(
-                                        durationMillis = 450,
-                                        easing = androidx.compose.animation.core.FastOutSlowInEasing
-                                    )
-                                )
-                            }
-                        }
-
-                        if (launchAlpha.value > 0f) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .graphicsLayer { alpha = launchAlpha.value }
-                                    .background(Color.Black)
-                            )
                         }
                     }
                 }

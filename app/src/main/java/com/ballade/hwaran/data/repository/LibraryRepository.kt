@@ -262,6 +262,21 @@ class LibraryRepository(private val context: Context, private val database: AppD
         return null
     }
 
+    private suspend fun extractNovelCover(context: Context, novelUri: Uri, destinationFile: File): String? = withContext(Dispatchers.IO) {
+        try {
+            val novelBook = com.ballade.hwaran.backend.novel.NovelParser.parseNovel(context, novelUri)
+            if (novelBook.coverBitmap != null) {
+                destinationFile.outputStream().use { out ->
+                    novelBook.coverBitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                }
+                return@withContext destinationFile.absolutePath
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        null
+    }
+
     private fun extractVideoTitle(context: Context, videoUri: Uri, fallbackName: String): String {
         val retriever = android.media.MediaMetadataRetriever()
         return try {
@@ -362,14 +377,24 @@ class LibraryRepository(private val context: Context, private val database: AppD
         val videoExtensions = listOf(".mp4", ".mkv", ".avi", ".webm", ".m4v", ".3gp", ".mov", ".flv")
         val imageExtensions = listOf(".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif")
         val audioExtensions = listOf(".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a")
+        val novelExtensions = listOf(".epub", ".txt", ".md", ".markdown")
 
         var computedContentType = 0
         if (isFile) {
             val name = rootDoc.name?.lowercase() ?: ""
-            if (name.endsWith(".pdf")) computedContentType = 1
+            if (novelExtensions.any { name.endsWith(it) }) computedContentType = 4
+            else if (name.endsWith(".pdf")) computedContentType = 1
             else if (videoExtensions.any { name.endsWith(it) }) computedContentType = 2
             else if (audioExtensions.any { name.endsWith(it) }) computedContentType = 3
         } else {
+            val hasNovel = if (isLocalMode) {
+                importResult!!.copiedLooseFiles.any { novelExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }
+            } else {
+                getRootDocFiles().any { item ->
+                    val itemName = item.name
+                    itemName != null && novelExtensions.any { itemName.lowercase().endsWith(it) }
+                }
+            }
             val hasPdf = if (isLocalMode) {
                 importResult!!.copiedLooseFiles.any { it.name.lowercase().endsWith(".pdf") }
             } else {
@@ -405,6 +430,7 @@ class LibraryRepository(private val context: Context, private val database: AppD
 
             if (hasAudio) computedContentType = 3
             else if (hasVideo) computedContentType = 2
+            else if (hasNovel) computedContentType = 4
             else if (hasPdf) computedContentType = 1
             else if (hasImages) computedContentType = 0
             else computedContentType = 0 // Default to manga/subfolder mode
@@ -429,7 +455,25 @@ class LibraryRepository(private val context: Context, private val database: AppD
         }
 
         if (coverPath.isEmpty() || existingManga == null) {
-            if (computedContentType == 1) {
+            if (computedContentType == 4) {
+                val novelUriToExtract = if (isLocalMode) {
+                    val novelF = importResult!!.copiedLooseFiles.find { it.name.lowercase().endsWith(".epub") }
+                    if (novelF != null && novelF.isFile) Uri.fromFile(novelF) else null
+                } else {
+                    if (isFile) {
+                        rootUri
+                    } else {
+                        getRootDocFiles().find { it.name?.lowercase()?.endsWith(".epub") == true }?.uri
+                    }
+                }
+                if (novelUriToExtract != null) {
+                    val coverDest = File(context.filesDir, "novel_cover_${System.currentTimeMillis()}.jpg")
+                    val generatedCover = extractNovelCover(context, novelUriToExtract, coverDest)
+                    if (generatedCover != null) {
+                        coverPath = generatedCover
+                    }
+                }
+            } else if (computedContentType == 1) {
                 val pdfUriToExtract = if (isLocalMode) {
                     val pdfF = importResult!!.copiedLooseFiles.find { it.name.lowercase().endsWith(".pdf") }
                     if (pdfF != null && pdfF.isFile) Uri.fromFile(pdfF) else null
@@ -494,8 +538,8 @@ class LibraryRepository(private val context: Context, private val database: AppD
         val mangaId = libraryDao.insertManga(mangaToInsert)
 
         if (isLocalMode) {
-            if (isFile && computedContentType == 1) {
-                // No chapters for standalone PDF
+            if (isFile && (computedContentType == 1 || computedContentType == 4)) {
+                // No chapters for standalone PDF or Novel
             } else {
                 val chaptersToInsert = if (computedContentType == 2) {
                     if (importResult!!.copiedLooseFiles.any { videoExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }) {
@@ -569,8 +613,8 @@ class LibraryRepository(private val context: Context, private val database: AppD
             }
         } else {
             // EXTERNAL MODE IMPROVEMENTS
-            if (isFile && computedContentType == 1) {
-                // No chapters
+            if (isFile && (computedContentType == 1 || computedContentType == 4)) {
+                // No chapters for standalone PDF or Novel
             } else if (isFile && (computedContentType == 2 || computedContentType == 3)) {
                 val uriStr = rootDoc.uri.toString()
                 val existingChapter = libraryDao.getChapterByUri(uriStr)

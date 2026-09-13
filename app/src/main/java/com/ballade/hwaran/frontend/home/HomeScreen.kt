@@ -11,16 +11,12 @@ import com.ballade.hwaran.ui.dialogs.HolographicCloverPanel
 import com.ballade.hwaran.ui.dialogs.PremiumGlassPanel
 import com.ballade.hwaran.ui.dialogs.PremiumSlider
 import com.ballade.hwaran.ui.dialogs.SidebarIcon
+import com.ballade.hwaran.frontend.home.importer.ImportStudioSheet
 import com.ballade.hwaran.frontend.home.music.MusicScreen
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateContentSize
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,8 +35,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import com.ballade.hwaran.ui.components.JellyToggle
 import com.ballade.hwaran.ui.components.JellyToggle3
 import com.ballade.hwaran.ui.components.MediaModeIndicator
-import com.ballade.hwaran.ui.components.JellyBall
-import com.ballade.hwaran.ui.dialogs.spotlightTarget
 import com.ballade.hwaran.ui.components.WobblySnakeRing
 import com.ballade.hwaran.ui.components.LiquidNavigation
 import androidx.compose.ui.platform.LocalDensity
@@ -100,11 +94,12 @@ fun HomeScreen(
     musicViewModel: MusicViewModel = viewModel(),
     onNavigateToSettings: () -> Unit,
     onNavigateToDescription: (Long) -> Unit,
-    onNavigateToHistory: () -> Unit = {}
+    onNavigateToHistory: () -> Unit = {},
+    onNavigateToMedia: (Long, Int) -> Unit = { _, _ -> }
 ) {
-    var activeDockTab by remember { mutableIntStateOf(0) }
-    var previousDockTab by remember { mutableIntStateOf(0) }
-    var libraryInitialTag by remember { mutableStateOf("All") }
+    var activeDockTab by rememberSaveable { mutableIntStateOf(if (settingsViewModel.activeTab.value == 1) 4 else 0) }
+    var previousDockTab by rememberSaveable { mutableIntStateOf(0) }
+    var libraryInitialTag by rememberSaveable { mutableStateOf("All") }
     val isLibraryLocked by settingsViewModel.isLibraryLocked.collectAsState()
     val libraryPassword by settingsViewModel.libraryPassword.collectAsState()
     val activeTab by settingsViewModel.activeTab.collectAsState()
@@ -176,18 +171,22 @@ fun HomeScreen(
                 libraryInitialTag = "All"
             }
             activeDockTab = 0
+            settingsViewModel.setActiveTab(0)
         }
     }
     
     var showGenreDialog by remember { mutableStateOf(false) }
     var lastImportedMangaId by remember { mutableStateOf<Long?>(null) }
-    
-    var showImportTypeDialog by remember { mutableStateOf(false) }
+    var showImportStudio by remember { mutableStateOf(false) }
+    var importConfigMediaMode by remember { mutableStateOf<Int?>(null) }
+    var importConfigStorageMode by remember { mutableStateOf<Int?>(null) }
+    var importConfigBoxPurpose by remember { mutableStateOf<String?>(null) }
+    var importConfigWorkspace by remember { mutableStateOf<String?>(null) }
+    var importConfigIsNsfw by remember { mutableStateOf<Boolean?>(null) }
+
+    val availableWorkspaces by database.mediaDao().getAllDistinctWorkspaces().collectAsState(initial = emptyList())
     var chosenStorageModeForImport by remember { mutableStateOf<Int?>(null) }
     var chosenVideoLayoutModeForImport by remember { mutableStateOf<Int?>(null) }
-    // Track which media mode was active when the batch import was kicked off.
-    // This prevents the mega-import LaunchedEffect from redirecting to video mode
-    // when the user does a PDF/Toon batch import (Bug: mode redirect on non-video batch imports).
     var mediaModeForImport by remember { mutableStateOf<Int?>(null) }
     val isCancelArmed by libraryViewModel.isCancelArmed.collectAsState()
 
@@ -215,21 +214,28 @@ fun HomeScreen(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         uri?.let { 
-            // Fix: Pass explicit boxPurpose to prevent "Channel" mode imports from shifting to "Series"
-            val purpose = if (currentMediaModeState == 2) {
+            val targetMode = importConfigMediaMode ?: currentMediaModeState
+            val targetStorage = importConfigStorageMode ?: chosenStorageModeForImport
+            val targetPurpose = importConfigBoxPurpose ?: if (targetMode == 2) {
                 if ((chosenVideoLayoutModeForImport ?: currentVideoLayoutState) == 1) "channel" else "series"
             } else null
-            
-            if (purpose != null) {
+            val targetWorkspace = importConfigWorkspace ?: (if (currentScreenState.isNullOrBlank()) null else currentScreenState)
+            val targetNsfw = importConfigIsNsfw ?: isNsfwFilter
+
+            if (targetPurpose != null && targetMode == 2) {
                 settingsViewModel.setMediaMode(2)
-                settingsViewModel.setVideoLayoutMode(if (purpose == "channel") 1 else 0)
+                settingsViewModel.setVideoLayoutMode(if (targetPurpose == "channel") 1 else 0)
             }
             
-            // Pass the current active workspace so imported items belong to it.
-            // A null/blank activeScreen means "default unnamed workspace" — pass null so the
-            // item gets workspace=null, which is exactly what updateDefaultWorkspace targets later.
-            val targetWorkspace = if (currentScreenState.isNullOrBlank()) null else currentScreenState
-            libraryViewModel.importFolder(it, false, purpose, targetWorkspace, isNsfwOverride = isNsfwFilter, storageModeOverride = chosenStorageModeForImport) { mangaId ->
+            libraryViewModel.importFolder(
+                uri = it,
+                isFile = false,
+                boxPurposeOverride = targetPurpose,
+                workspace = targetWorkspace,
+                isNsfwOverride = targetNsfw,
+                storageModeOverride = targetStorage,
+                mediaModeOverride = targetMode
+            ) { mangaId ->
                 if (activeTab == 1) {
                     lastImportedMangaId = mangaId
                     showGenreDialog = true
@@ -244,17 +250,28 @@ fun HomeScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let { 
-            val purpose = if (currentMediaModeState == 2) {
+            val targetMode = importConfigMediaMode ?: currentMediaModeState
+            val targetStorage = importConfigStorageMode ?: chosenStorageModeForImport
+            val targetPurpose = importConfigBoxPurpose ?: if (targetMode == 2) {
                 if ((chosenVideoLayoutModeForImport ?: currentVideoLayoutState) == 1) "channel" else "series"
             } else null
-            
-            if (purpose != null) {
+            val targetWorkspace = importConfigWorkspace ?: (if (currentScreenState.isNullOrBlank()) null else currentScreenState)
+            val targetNsfw = importConfigIsNsfw ?: isNsfwFilter
+
+            if (targetPurpose != null && targetMode == 2) {
                 settingsViewModel.setMediaMode(2)
-                settingsViewModel.setVideoLayoutMode(if (purpose == "channel") 1 else 0)
+                settingsViewModel.setVideoLayoutMode(if (targetPurpose == "channel") 1 else 0)
             }
             
-            val targetWorkspace = if (currentScreenState.isNullOrBlank()) null else currentScreenState
-            libraryViewModel.importFolder(it, true, purpose, targetWorkspace, isNsfwOverride = isNsfwFilter, storageModeOverride = chosenStorageModeForImport) { mangaId ->
+            libraryViewModel.importFolder(
+                uri = it,
+                isFile = true,
+                boxPurposeOverride = targetPurpose,
+                workspace = targetWorkspace,
+                isNsfwOverride = targetNsfw,
+                storageModeOverride = targetStorage,
+                mediaModeOverride = targetMode
+            ) { mangaId ->
                 if (activeTab == 1) {
                     lastImportedMangaId = mangaId
                     showGenreDialog = true
@@ -266,21 +283,30 @@ fun HomeScreen(
     }
 
     val megaFolderPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree(
-        )
+        contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         uri?.let { 
-            val purpose = if (currentMediaModeState == 2) {
+            val targetMode = importConfigMediaMode ?: currentMediaModeState
+            val targetStorage = importConfigStorageMode ?: chosenStorageModeForImport
+            val targetPurpose = importConfigBoxPurpose ?: if (targetMode == 2) {
                 if ((chosenVideoLayoutModeForImport ?: currentVideoLayoutState) == 1) "channel" else "series"
             } else null
-            
-            if (purpose != null) {
+            val targetWorkspace = importConfigWorkspace ?: (if (currentScreenState.isNullOrBlank()) null else currentScreenState)
+            val targetNsfw = importConfigIsNsfw ?: isNsfwFilter
+
+            if (targetPurpose != null && targetMode == 2) {
                 settingsViewModel.setMediaMode(2)
-                settingsViewModel.setVideoLayoutMode(if (purpose == "channel") 1 else 0)
+                settingsViewModel.setVideoLayoutMode(if (targetPurpose == "channel") 1 else 0)
             }
             
-            val targetWorkspace = if (currentScreenState.isNullOrBlank()) null else currentScreenState
-            libraryViewModel.megaImportFolder(it, purpose, targetWorkspace, isNsfwOverride = isNsfwFilter, storageModeOverride = chosenStorageModeForImport)
+            libraryViewModel.megaImportFolder(
+                parentUri = it,
+                boxPurposeOverride = targetPurpose,
+                workspace = targetWorkspace,
+                isNsfwOverride = targetNsfw,
+                storageModeOverride = targetStorage,
+                mediaModeOverride = targetMode
+            )
         }
     }
 
@@ -288,7 +314,8 @@ fun HomeScreen(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         uri?.let {
-            libraryViewModel.importMusicFolder(it, null)
+            val targetWorkspace = importConfigWorkspace ?: (if (currentScreenState.isNullOrBlank()) null else currentScreenState)
+            libraryViewModel.importMusicFolder(it, targetWorkspace)
         }
     }
 
@@ -296,15 +323,36 @@ fun HomeScreen(
         containerColor = Color.Transparent
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize()) {
-            // Main Content Area
-            Box(modifier = Modifier.fillMaxSize()) {
-                when (activeDockTab) {
+            // Main Content Area with Smooth Fluid Transitions
+            AnimatedContent(
+                targetState = activeDockTab,
+                transitionSpec = {
+                    if (targetState == 4) {
+                        // Forward transition: Home/Library -> Music
+                        (slideInHorizontally(spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)) { it / 4 } + fadeIn(tween(280)))
+                            .togetherWith(slideOutHorizontally(tween(220)) { -it / 6 } + fadeOut(tween(180)))
+                    } else if (initialState == 4) {
+                        // Backward transition: Music -> Home/Library
+                        (slideInHorizontally(spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)) { -it / 6 } + fadeIn(tween(280)))
+                            .togetherWith(slideOutHorizontally(tween(220)) { it / 4 } + fadeOut(tween(180)))
+                    } else {
+                        // Other transitions (Home <-> Library, Search)
+                        fadeIn(tween(220)).togetherWith(fadeOut(tween(180)))
+                    }
+                },
+                label = "home_content_transition",
+                modifier = Modifier.fillMaxSize()
+            ) { tab ->
+                when (tab) {
                     0 -> {
                         HomeDashboard(
                             allManga = allManga,
                             historyEvents = historyEvents,
                             onNavigateToDescription = onNavigateToDescription,
-                            onNavigateToMedia = { id, _ -> onNavigateToDescription(id) },
+                            onNavigateToMedia = onNavigateToMedia,
+                            onPlaySong = { manga, chapters, index ->
+                                musicViewModel.playPlaylist(manga, chapters, index)
+                            },
                             onNavigateToSettings = onNavigateToSettings,
                             onNavigateToHistory = onNavigateToHistory,
                             onNavigateToSearch = { activeDockTab = 2 },
@@ -344,18 +392,13 @@ fun HomeScreen(
                     }
                     4 -> {
                         val pillGradient = remember(glowColor) {
-                            val colors = when (glowColor) {
-                                0xFFD481D2L -> listOf(Color(0xFFD481D2), Color(0xFFBE74BE), Color(0xFF703B94))
-                                0xFFC3A6FEL -> listOf(Color(0xFFC3A6FE), Color(0xFF383852), Color(0xFF161622))
-                                0xFFFDE4E6L -> listOf(Color(0xFFFDE4E6), Color(0xFFE56A72), Color(0xFF992A31), Color(0xFF410C11))
-                                0xFF8EB69BL -> listOf(Color(0xFF8EB69B), Color(0xFF235347), Color(0xFF163832), Color(0xFF051F20))
-                                0xFFD6D3E5L -> listOf(Color(0xFFD6D3E5), Color(0xFFACA5B9), Color(0xFF8F85BE), Color(0xFF666A90), Color(0xFF433D6B))
-                                0xFF5C9FD9L -> listOf(Color(0xFF5C9FD9), Color(0xFF255DAC), Color(0xFF15326D), Color(0xFF111523))
-                                0xFFBDC6CDL -> listOf(Color(0xFFBDC6CD), Color(0xFF6A757E), Color(0xFF404C55), Color(0xFF111A22))
-                                0xFF7A6284L -> listOf(Color(0xFF7A6284), Color(0xFF52425C), Color(0xFF382B3F), Color(0xFF1F1823), Color(0xFF0C080D))
-                                else -> listOf(Color(glowColor), Color(glowColor))
-                            }
-                            Brush.linearGradient(colors)
+                            val activeColor = Color(glowColor)
+                            Brush.linearGradient(
+                                listOf(
+                                    activeColor.copy(alpha = 0.12f),
+                                    Color(0xFF111318)
+                                )
+                            )
                         }
                         MusicScreen(
                             libraryViewModel = libraryViewModel,
@@ -372,27 +415,25 @@ fun HomeScreen(
                 }
             }
 
-            // Floating Navigation Dock
+            // Floating Navigation Dock - Cleanly hidden during Search (2) and Music (4)
             androidx.compose.animation.AnimatedVisibility(
-                visible = activeDockTab != 2,
+                visible = activeDockTab != 2 && activeDockTab != 4,
                 modifier = Modifier.align(Alignment.BottomCenter),
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
+                enter = fadeIn(tween(240)) + expandVertically(spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)),
+                exit = fadeOut(tween(200)) + shrinkVertically(spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy))
             ) {
                 Box(modifier = Modifier.graphicsLayer { alpha = homeUiTransparency }) {
                     HomeNavDock(
-                        selectedTab = if (activeDockTab == 4) -1 else activeDockTab,
+                        selectedTab = activeDockTab,
                         onTabSelected = { tab ->
                             if (tab == 3) {
                                 onNavigateToSettings()
                             } else {
-                                if (activeDockTab == 4) {
-                                    settingsViewModel.setActiveTab(0)
-                                }
                                 if (tab == 1 && activeDockTab != 1) {
                                     libraryInitialTag = "All"
                                 }
                                 activeDockTab = tab
+                                settingsViewModel.setActiveTab(0)
                             }
                         },
                         onCenterActionClick = {
@@ -406,13 +447,7 @@ fun HomeScreen(
                                     android.widget.Toast.makeText(context, "Canceling… finishing current import", android.widget.Toast.LENGTH_SHORT).show()
                                 }
                             } else {
-                                if (activeDockTab == 4) {
-                                    musicFolderPickerLauncher.launch(null)
-                                } else if (mediaMode == 0 || mediaMode == 1 || mediaMode == 2) {
-                                    showImportTypeDialog = true
-                                } else {
-                                    folderPickerLauncher.launch(null)
-                                }
+                                showImportStudio = true
                             }
                         },
                         onCenterActionLongClick = {
@@ -432,32 +467,55 @@ fun HomeScreen(
         }
     }
 
-    if (showImportTypeDialog) {
-        ImportTypeDialog(
+    if (showImportStudio) {
+        val initialMode = if (activeDockTab == 4) 3 else mediaMode
+        ImportStudioSheet(
+            initialMediaMode = initialMode,
             initialStorageMode = storageMode,
             initialVideoLayoutMode = videoLayoutMode,
-            mediaMode = mediaMode,
+            initialIsNsfw = isNsfwFilter,
+            currentWorkspace = currentActiveScreen,
+            availableWorkspaces = availableWorkspaces,
             glowColor = Color(glowColor),
-            onSingleImport = { mode, videoMode ->
-                showImportTypeDialog = false
-                chosenStorageModeForImport = mode
-                chosenVideoLayoutModeForImport = videoMode
-                mediaModeForImport = mediaMode
-                if (mediaMode == 1) {
-                    filePickerLauncher.launch(arrayOf("application/pdf"))
+            onImportSingleFile = { mode, storage, purpose, workspace, nsfw, mimeTypes ->
+                showImportStudio = false
+                importConfigMediaMode = mode
+                importConfigStorageMode = storage
+                importConfigBoxPurpose = purpose
+                importConfigWorkspace = workspace
+                importConfigIsNsfw = nsfw
+                filePickerLauncher.launch(mimeTypes)
+            },
+            onImportSingleFolder = { mode, storage, purpose, workspace, nsfw ->
+                showImportStudio = false
+                importConfigMediaMode = mode
+                importConfigStorageMode = storage
+                importConfigBoxPurpose = purpose
+                importConfigWorkspace = workspace
+                importConfigIsNsfw = nsfw
+                if (mode == 3) {
+                    musicFolderPickerLauncher.launch(null)
                 } else {
                     folderPickerLauncher.launch(null)
                 }
             },
-            onMegaImport = { mode, videoMode ->
-                showImportTypeDialog = false
-                chosenStorageModeForImport = mode
-                chosenVideoLayoutModeForImport = videoMode
-                mediaModeForImport = mediaMode
-                megaFolderPickerLauncher.launch(null)
+            onImportBatchFolder = { mode, storage, purpose, workspace, nsfw ->
+                showImportStudio = false
+                importConfigMediaMode = mode
+                importConfigStorageMode = storage
+                importConfigBoxPurpose = purpose
+                importConfigWorkspace = workspace
+                importConfigIsNsfw = nsfw
+                mediaModeForImport = mode
+                chosenVideoLayoutModeForImport = if (purpose == "channel") 1 else 0
+                if (mode == 3) {
+                    musicFolderPickerLauncher.launch(null)
+                } else {
+                    megaFolderPickerLauncher.launch(null)
+                }
             },
             onDismiss = {
-                showImportTypeDialog = false
+                showImportStudio = false
             }
         )
     }
@@ -489,221 +547,6 @@ fun HomeScreen(
 }
 
 
-@Composable
-fun ImportTypeDialog(
-    initialStorageMode: Int,
-    initialVideoLayoutMode: Int,
-    mediaMode: Int,
-    glowColor: Color,
-    onSingleImport: (Int, Int) -> Unit,
-    onMegaImport: (Int, Int) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-    var selectedStorageMode by remember { mutableStateOf(initialStorageMode) }
-    var selectedVideoLayoutMode by remember { mutableStateOf(initialVideoLayoutMode) }
-
-    val dialogTitle = when (mediaMode) {
-        0 -> "Add Comics"
-        1 -> "Add Books"
-        2 -> "Add Videos"
-        3 -> "Add Music"
-        else -> "Add Content"
-    }
-    
-    val singleTitle = when {
-        mediaMode == 1 -> "Add a Single Book"
-        mediaMode == 2 && selectedVideoLayoutMode == 1 -> "Add a Single Channel"
-        mediaMode == 2 -> "Add a Single Series"
-        mediaMode == 3 -> "Add a Single Album"
-        else -> "Add a Single Comic"
-    }
-    
-    val singleDesc = when {
-        mediaMode == 1 -> "Pick one or more PDF files directly (e.g. 'Harry Potter.pdf')."
-        mediaMode == 2 && selectedVideoLayoutMode == 1 -> "Pick a folder with videos from one creator (e.g. 'MrBeast' folder)."
-        mediaMode == 2 -> "Pick a folder containing an anime or show (e.g. 'Attack on Titan' folder)."
-        mediaMode == 3 -> "Pick a folder containing an album or playlist (e.g. 'Cyberpunk OST' folder)."
-        else -> "Pick a folder containing comic chapters (e.g. 'Solo Leveling' folder)."
-    }
-    
-    val megaTitle = "Batch Import (Add Many)"
-    val megaDesc = when {
-        mediaMode == 1 -> "Pick a big folder full of PDFs, and we'll add them all (e.g. 'My Book Library')."
-        mediaMode == 2 && selectedVideoLayoutMode == 1 -> "Pick a big folder full of different creators, to add them all at once (e.g. 'YouTube Archive')."
-        mediaMode == 2 -> "Pick a big folder full of different shows, to add them all at once (e.g. 'My Anime Collection')."
-        mediaMode == 3 -> "Pick a big folder full of different albums, to add them all at once (e.g. 'My Music Library')."
-        else -> "Pick a big folder full of different comics, to add them all at once (e.g. 'My Manga Downloads')."
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier
-            .fillMaxWidth(if (isLandscape) 0.45f else 0.9f)
-            .clip(RoundedCornerShape(32.dp))
-            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(32.dp)),
-        title = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    dialogTitle,
-                    color = Color.White,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 20.sp,
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    "Select how you want to add content to your library",
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Mode Indicator
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                ) {
-                    Text(
-                        "Importing to",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    MediaModeIndicator(
-                        mediaMode = mediaMode,
-                        videoLayoutMode = selectedVideoLayoutMode
-                    )
-                }
-                // Storage Mode Toggle
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                ) {
-                    Text(
-                        "Storage Mode",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    JellyToggle(
-                        option1 = "Local",
-                        option2 = "External",
-                        isOption2 = selectedStorageMode == 1,
-                        onToggle = { isExternal ->
-                            selectedStorageMode = if (isExternal) 1 else 0
-                        },
-                        glowColorOverride = glowColor
-                    )
-                }
-
-                // Shelf Toggle (only for Video mode)
-                if (mediaMode == 2) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                    ) {
-                        Text(
-                            "Shelf",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        JellyToggle(
-                            option1 = "Series",
-                            option2 = "Channel",
-                            isOption2 = selectedVideoLayoutMode == 1,
-                            onToggle = { isChannel ->
-                                selectedVideoLayoutMode = if (isChannel) 1 else 0
-                            },
-                            glowColorOverride = glowColor
-                        )
-                    }
-                }
-
-                // Option 1: Single Import
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White.copy(alpha = 0.05f))
-                        .clickable {
-                            onSingleImport(selectedStorageMode, selectedVideoLayoutMode)
-                        }
-                        .padding(16.dp)
-                ) {
-                    Column {
-                        Text(
-                            text = singleTitle,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = singleDesc,
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-
-                // Option 2: Mega Import
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White.copy(alpha = 0.05f))
-                        .clickable {
-                            onMegaImport(selectedStorageMode, selectedVideoLayoutMode)
-                        }
-                        .padding(16.dp)
-                ) {
-                    Column {
-                        Text(
-                            text = megaTitle,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = megaDesc,
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(contentColor = Color.White.copy(alpha = 0.6f)),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-            ) {
-                Text("Cancel", fontWeight = FontWeight.Bold)
-            }
-        },
-        containerColor = Color(0xFF0D0D0D),
-        shape = RoundedCornerShape(32.dp)
-    )
-}
 
 @Composable
 fun MegaImportSummaryDialog(

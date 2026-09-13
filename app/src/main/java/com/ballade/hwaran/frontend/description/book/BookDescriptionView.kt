@@ -88,7 +88,6 @@ fun BookDescriptionView(
 
     val CardBg = MaterialTheme.colorScheme.surface
     val TextMuted = MaterialTheme.colorScheme.onSurfaceVariant
-    val PrimaryPurple = MaterialTheme.colorScheme.primary
 
     val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val gestureBottom = WindowInsets.systemGestures.asPaddingValues().calculateBottomPadding()
@@ -207,12 +206,12 @@ fun BookDescriptionView(
                                             .clip(RoundedCornerShape(12.dp))
                                             .clickable { onSetMaterialTag(pill) },
                                         shape = RoundedCornerShape(12.dp),
-                                        color = if (isSelected) PrimaryPurple.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.08f),
-                                        border = BorderStroke(1.dp, if (isSelected) PrimaryPurple else Color.White.copy(alpha = 0.12f))
+                                        color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                                        border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f))
                                     ) {
                                         Text(
                                             text = pill,
-                                            color = if (isSelected) Color.White else TextMuted,
+                                            color = if (isSelected) Color(0xFFE6E8EC) else TextMuted,
                                             fontSize = 11.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -223,12 +222,12 @@ fun BookDescriptionView(
                         } else {
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = PrimaryPurple.copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, PrimaryPurple.copy(alpha = 0.4f))
+                                color = Color(0xFF222631),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
                             ) {
                                 Text(
                                     text = "Book / Novel",
-                                    color = PrimaryPurple,
+                                    color = Color(0xFFE6E8EC),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
@@ -245,7 +244,7 @@ fun BookDescriptionView(
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = PrimaryPurple,
+                                    focusedBorderColor = Color.White.copy(alpha = 0.35f),
                                     unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
                                     focusedTextColor = Color.White,
                                     unfocusedTextColor = Color.White
@@ -329,9 +328,9 @@ fun BookDescriptionView(
                                 onClick = onToggleTagSearchVisible,
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                             ) {
-                                Icon(Icons.Rounded.Add, contentDescription = null, tint = PrimaryPurple, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Rounded.Add, contentDescription = null, tint = Color(0xFFE6E8EC), modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("+ Add Tag", color = PrimaryPurple, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("+ Add Tag", color = Color(0xFFE6E8EC), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -396,7 +395,7 @@ fun BookDescriptionView(
                                 .padding(top = 10.dp),
                             shape = RoundedCornerShape(16.dp),
                             color = CardBg,
-                            border = BorderStroke(1.dp, PrimaryPurple.copy(alpha = 0.35f))
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 OutlinedTextField(
@@ -405,7 +404,7 @@ fun BookDescriptionView(
                                     modifier = Modifier.fillMaxWidth(),
                                     placeholder = { Text("Search tags (Fiction, Mystery, Sci-Fi...)", color = TextMuted, fontSize = 12.sp) },
                                     leadingIcon = {
-                                        Icon(Icons.Rounded.Search, contentDescription = null, tint = PrimaryPurple, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Rounded.Search, contentDescription = null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
                                     },
                                     trailingIcon = {
                                         if (tagQuery.isNotEmpty()) {
@@ -417,7 +416,7 @@ fun BookDescriptionView(
                                     singleLine = true,
                                     shape = RoundedCornerShape(12.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = PrimaryPurple,
+                                        focusedBorderColor = Color.White.copy(alpha = 0.35f),
                                         unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
                                         focusedTextColor = Color.White,
                                         unfocusedTextColor = Color.White
@@ -441,8 +440,8 @@ fun BookDescriptionView(
                                                     else onAddTag(item.tag)
                                                 },
                                             shape = RoundedCornerShape(8.dp),
-                                            color = if (isAssigned) PrimaryPurple.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.06f),
-                                            border = BorderStroke(1.dp, if (isAssigned) PrimaryPurple else Color.White.copy(alpha = 0.12f))
+                                            color = if (isAssigned) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                                            border = BorderStroke(1.dp, if (isAssigned) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.10f))
                                         ) {
                                             Row(
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -451,14 +450,14 @@ fun BookDescriptionView(
                                             ) {
                                                 Text(
                                                     text = item.tag,
-                                                    color = if (isAssigned) TextMuted else Color.White,
+                                                    color = if (isAssigned) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.6f),
                                                     fontSize = 11.sp,
-                                                    fontWeight = if (isAssigned) FontWeight.Normal else FontWeight.SemiBold
+                                                    fontWeight = if (isAssigned) FontWeight.SemiBold else FontWeight.Normal
                                                 )
                                                 if (isAssigned) {
-                                                    Icon(Icons.Rounded.Check, contentDescription = null, tint = TextMuted, modifier = Modifier.size(12.dp))
+                                                    Icon(Icons.Rounded.Check, contentDescription = null, tint = Color(0xFFE6E8EC), modifier = Modifier.size(12.dp))
                                                 } else {
-                                                    Icon(Icons.Rounded.Add, contentDescription = null, tint = PrimaryPurple, modifier = Modifier.size(12.dp))
+                                                    Icon(Icons.Rounded.Add, contentDescription = null, tint = Color(0xFFE6E8EC), modifier = Modifier.size(12.dp))
                                                 }
                                             }
                                         }
@@ -523,7 +522,7 @@ fun BookDescriptionView(
                                 modifier = Modifier.fillMaxWidth(),
                                 minLines = 4,
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = PrimaryPurple,
+                                    focusedBorderColor = Color.White.copy(alpha = 0.35f),
                                     unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
                                     focusedTextColor = Color.White,
                                     unfocusedTextColor = Color.White
@@ -556,14 +555,14 @@ fun BookDescriptionView(
                                 ) {
                                     Text(
                                         text = if (isSynopsisExpanded) "Show less" else "Read more",
-                                        color = PrimaryPurple,
+                                        color = Color.White.copy(alpha = 0.7f),
                                         fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.SemiBold
                                     )
                                     Icon(
                                         imageVector = if (isSynopsisExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
                                         contentDescription = null,
-                                        tint = PrimaryPurple,
+                                        tint = Color.White.copy(alpha = 0.7f),
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -587,7 +586,11 @@ fun BookDescriptionView(
                                 .weight(if (isSingleFileBook) 1f else 1.2f)
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF222631),
+                                contentColor = Color(0xFFE6E8EC)
+                            ),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -596,13 +599,13 @@ fun BookDescriptionView(
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Rounded.MenuBook,
                                     contentDescription = null,
-                                    tint = Color.White,
+                                    tint = Color(0xFFE6E8EC),
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Text(
                                     text = if (manga.lastReadPage != null && manga.lastReadPage!! > 1) "Resume (p. ${manga.lastReadPage})"
                                            else if (manga.lastReadTitle != null) "Resume" else "Read",
-                                    color = Color.White,
+                                    color = Color(0xFFE6E8EC),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -617,10 +620,10 @@ fun BookDescriptionView(
                                     .height(48.dp),
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = CardBg,
-                                    contentColor = Color.White
+                                    containerColor = Color.White.copy(alpha = 0.04f),
+                                    contentColor = Color(0xFFE6E8EC)
                                 ),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -629,11 +632,12 @@ fun BookDescriptionView(
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Rounded.MenuBook,
                                         contentDescription = null,
-                                        tint = PrimaryPurple,
+                                        tint = Color(0xFFE6E8EC),
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Text(
                                         text = "Chapters (${chapters.size})",
+                                        color = Color(0xFFE6E8EC),
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -649,14 +653,14 @@ fun BookDescriptionView(
                             shape = RoundedCornerShape(14.dp),
                             contentPadding = PaddingValues(0.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (isFavorite) PrimaryPurple.copy(alpha = 0.18f) else Color.Transparent
+                                containerColor = if (isFavorite) Color(0xFF222631) else Color.Transparent
                             ),
-                            border = BorderStroke(1.dp, if (isFavorite) PrimaryPurple else Color.White.copy(alpha = 0.12f))
+                            border = BorderStroke(1.dp, if (isFavorite) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.10f))
                         ) {
                             Icon(
                                 imageVector = if (isFavorite) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
                                 contentDescription = "Favorite",
-                                tint = if (isFavorite) PrimaryPurple else Color.White.copy(alpha = 0.6f),
+                                tint = if (isFavorite) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.6f),
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -847,10 +851,10 @@ fun BookDescriptionView(
                     .align(Alignment.BottomCenter)
                     .padding(bottom = bottomFloatingClearance)
                     .padding(horizontal = 24.dp)
-                    .shadow(elevation = 16.dp, shape = RoundedCornerShape(32.dp), spotColor = PrimaryPurple.copy(alpha = 0.5f)),
+                    .shadow(elevation = 16.dp, shape = RoundedCornerShape(32.dp), spotColor = Color.Black.copy(alpha = 0.5f)),
                 shape = RoundedCornerShape(32.dp),
                 color = CardBg,
-                border = BorderStroke(1.dp, PrimaryPurple.copy(alpha = 0.4f))
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -861,7 +865,7 @@ fun BookDescriptionView(
                         onClick = onToggleEditMode,
                         shape = RoundedCornerShape(20.dp)
                     ) {
-                        Text("Cancel", color = TextMuted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Cancel", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
 
                     Button(
@@ -870,11 +874,15 @@ fun BookDescriptionView(
                             onToggleEditMode()
                         },
                         shape = RoundedCornerShape(20.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF222631),
+                            contentColor = Color(0xFFE6E8EC)
+                        ),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
                     ) {
-                        Icon(Icons.Rounded.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Rounded.Check, contentDescription = null, tint = Color(0xFFE6E8EC), modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Save Changes", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text("Save Changes", color = Color(0xFFE6E8EC), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -891,7 +899,6 @@ private fun BookMetadataItemView(
     modifier: Modifier = Modifier
 ) {
     val TextMuted = MaterialTheme.colorScheme.onSurfaceVariant
-    val PrimaryPurple = MaterialTheme.colorScheme.primary
 
     Column(modifier = modifier.padding(horizontal = 4.dp)) {
         Text(
@@ -908,7 +915,7 @@ private fun BookMetadataItemView(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = PrimaryPurple,
+                    focusedBorderColor = Color.White.copy(alpha = 0.35f),
                     unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
                     focusedTextColor = Color.White,
                     unfocusedTextColor = Color.White

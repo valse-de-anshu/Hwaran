@@ -26,7 +26,11 @@ fun MusicBackground(
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
-                .data(currentChapter?.thumbnailUri ?: currentChapter?.folderUri ?: currentManga?.coverPath)
+                .data(
+                    currentChapter?.thumbnailUri?.takeIf { it.isNotBlank() }
+                        ?: currentManga?.coverPath?.takeIf { it.isNotBlank() }
+                        ?: currentChapter?.folderUri?.takeIf { it.endsWith(".jpg", true) || it.endsWith(".jpeg", true) || it.endsWith(".png", true) || it.endsWith(".webp", true) }
+                )
                 .crossfade(true)
                 .build(),
             contentDescription = null,

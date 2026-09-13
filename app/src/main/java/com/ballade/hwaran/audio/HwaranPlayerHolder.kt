@@ -32,6 +32,12 @@ object HwaranPlayerHolder {
     @Volatile
     private var player: ExoPlayer? = null
 
+    @Volatile
+    var activeExternalChapter: com.ballade.hwaran.core.database.entity.ChapterEntity? = null
+
+    @Volatile
+    var activeExternalManga: com.ballade.hwaran.core.database.entity.MangaEntity? = null
+
     /** Returns the existing player, or creates a fresh one with music audio attributes. */
     @Synchronized
     fun getOrCreate(context: Context): ExoPlayer {

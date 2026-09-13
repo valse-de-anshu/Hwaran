@@ -67,7 +67,6 @@ fun SeriesRelatedView(
 ) {
     val context = LocalContext.current
     val CardBg = MaterialTheme.colorScheme.surface
-    val PrimaryPurple = MaterialTheme.colorScheme.primary
     val TextMuted = MaterialTheme.colorScheme.onSurfaceVariant
     val DangerRed = Color(0xFFE57373)
 
@@ -240,7 +239,7 @@ fun SeriesRelatedView(
                                 Icon(
                                     imageVector = Icons.Rounded.SwapVert,
                                     contentDescription = "Filter and Sort",
-                                    tint = PrimaryPurple,
+                                    tint = Color.White.copy(alpha = 0.85f),
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -285,14 +284,14 @@ fun SeriesRelatedView(
                                     .clip(CircleShape)
                                     .clickable { showAddDialog = true },
                                 shape = CircleShape,
-                                color = PrimaryPurple.copy(alpha = 0.2f),
-                                border = BorderStroke(1.dp, PrimaryPurple.copy(alpha = 0.5f))
+                                color = Color(0xFF222631),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
                                         imageVector = Icons.Rounded.Add,
                                         contentDescription = "Add Videos",
-                                        tint = PrimaryPurple,
+                                        tint = Color(0xFFE6E8EC),
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -308,7 +307,8 @@ fun SeriesRelatedView(
                                 onRefreshAvailableMedia()
                                 showLinkSheet = true
                             },
-                        color = PrimaryPurple,
+                        color = Color(0xFF222631),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Row(
@@ -316,8 +316,8 @@ fun SeriesRelatedView(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(Icons.Rounded.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                            Text("Link Media", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Rounded.Add, contentDescription = null, tint = Color(0xFFE6E8EC), modifier = Modifier.size(16.dp))
+                            Text("Link Media", color = Color(0xFFE6E8EC), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -367,13 +367,13 @@ fun SeriesRelatedView(
                                 }
                                 selectedFilterCategory = tab
                             },
-                        color = if (isSel) PrimaryPurple.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
-                        border = BorderStroke(1.dp, if (isSel) PrimaryPurple else Color.White.copy(alpha = 0.1f)),
+                        color = if (isSel) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                        border = BorderStroke(1.dp, if (isSel) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
                             text = tabLabel,
-                            color = if (isSel) PrimaryPurple else Color.White.copy(alpha = 0.8f),
+                            color = if (isSel) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.6f),
                             fontSize = 12.sp,
                             fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
@@ -406,13 +406,13 @@ fun SeriesRelatedView(
                                     modifier = Modifier
                                         .size(64.dp)
                                         .clip(CircleShape)
-                                        .background(PrimaryPurple.copy(alpha = 0.15f)),
+                                        .background(Color.White.copy(alpha = 0.06f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.VideoLibrary,
                                         contentDescription = null,
-                                        tint = PrimaryPurple,
+                                        tint = Color(0xFFE6E8EC),
                                         modifier = Modifier.size(32.dp)
                                     )
                                 }
@@ -433,7 +433,11 @@ fun SeriesRelatedView(
                                 Button(
                                     onClick = { showAddDialog = true },
                                     shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF222631),
+                                        contentColor = Color(0xFFE6E8EC)
+                                    ),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -495,7 +499,7 @@ fun SeriesRelatedView(
                                 color = CardBg,
                                 border = BorderStroke(
                                     1.dp,
-                                    if (isSelected) PrimaryPurple else Color.White.copy(alpha = 0.08f)
+                                    if (isSelected) Color.White.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f)
                                 )
                             ) {
                                 Column(modifier = Modifier.padding(10.dp)) {
@@ -554,7 +558,8 @@ fun SeriesRelatedView(
                                                         else selectedVideoIds.remove(video.id)
                                                     },
                                                     colors = CheckboxDefaults.colors(
-                                                        checkedColor = PrimaryPurple,
+                                                        checkedColor = Color(0xFFE6E8EC),
+                                                        checkmarkColor = Color.Black,
                                                         uncheckedColor = Color.White.copy(alpha = 0.7f)
                                                     )
                                                 )
@@ -573,7 +578,7 @@ fun SeriesRelatedView(
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
                                                 text = video.title,
-                                                color = if (isSelected) PrimaryPurple else Color.White,
+                                                color = Color.White,
                                                 fontSize = 14.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 maxLines = 2,
@@ -659,13 +664,13 @@ fun SeriesRelatedView(
                                     modifier = Modifier
                                         .size(64.dp)
                                         .clip(CircleShape)
-                                        .background(PrimaryPurple.copy(alpha = 0.15f)),
+                                        .background(Color.White.copy(alpha = 0.06f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.AccountTree,
                                         contentDescription = null,
-                                        tint = PrimaryPurple,
+                                        tint = Color(0xFFE6E8EC),
                                         modifier = Modifier.size(32.dp)
                                     )
                                 }
@@ -689,7 +694,11 @@ fun SeriesRelatedView(
                                         showLinkSheet = true
                                     },
                                     shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF222631),
+                                        contentColor = Color(0xFFE6E8EC)
+                                    ),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -771,8 +780,8 @@ fun SeriesRelatedView(
                                         // Relation Tag Pill
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
-                                            color = relationType.color.copy(alpha = 0.18f),
-                                            border = BorderStroke(1.dp, relationType.color.copy(alpha = 0.45f))
+                                            color = Color(0xFF222631),
+                                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f))
                                         ) {
                                             Row(
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -782,14 +791,14 @@ fun SeriesRelatedView(
                                                 Icon(
                                                     imageVector = relationType.icon,
                                                     contentDescription = null,
-                                                    tint = relationType.color,
+                                                    tint = Color(0xFFE6E8EC),
                                                     modifier = Modifier.size(12.dp)
                                                 )
                                                 Text(
                                                     text = relationType.displayName.uppercase(),
-                                                    color = relationType.color,
+                                                    color = Color(0xFFE6E8EC),
                                                     fontSize = 9.5.sp,
-                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontWeight = FontWeight.Bold,
                                                     letterSpacing = 0.6.sp
                                                 )
                                             }
@@ -910,10 +919,10 @@ fun SeriesRelatedView(
                                 showSortSheet = false
                             },
                         shape = RoundedCornerShape(14.dp),
-                        color = if (isSelected) PrimaryPurple.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.03f),
+                        color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.03f),
                         border = BorderStroke(
                             1.dp,
-                            if (isSelected) PrimaryPurple.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.06f)
+                            if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f)
                         )
                     ) {
                         Row(
@@ -926,7 +935,7 @@ fun SeriesRelatedView(
                             Column {
                                 Text(
                                     text = option.displayName,
-                                    color = if (isSelected) PrimaryPurple else Color.White,
+                                    color = if (isSelected) Color(0xFFE6E8EC) else Color.White,
                                     fontSize = 14.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                 )
@@ -940,7 +949,7 @@ fun SeriesRelatedView(
                                 Icon(
                                     imageVector = Icons.Rounded.Check,
                                     contentDescription = null,
-                                    tint = PrimaryPurple,
+                                    tint = Color(0xFFE6E8EC),
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -1026,7 +1035,7 @@ fun SeriesRelatedView(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(Icons.Rounded.VideoFile, contentDescription = null, tint = PrimaryPurple)
+                            Icon(Icons.Rounded.VideoFile, contentDescription = null, tint = Color(0xFFE6E8EC))
                             Text("Select Video Files", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
@@ -1048,7 +1057,7 @@ fun SeriesRelatedView(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(Icons.Rounded.Folder, contentDescription = null, tint = PrimaryPurple)
+                            Icon(Icons.Rounded.Folder, contentDescription = null, tint = Color(0xFFE6E8EC))
                             Text("Select Folder", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
@@ -1119,7 +1128,7 @@ fun SeriesRelatedView(
                     onValueChange = { searchQuery = it },
                     placeholder = { Text("Search library anime, movies, series...", color = TextMuted, fontSize = 13.sp) },
                     leadingIcon = {
-                        Icon(Icons.Rounded.Search, contentDescription = null, tint = PrimaryPurple, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Rounded.Search, contentDescription = null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
                     },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
@@ -1131,7 +1140,7 @@ fun SeriesRelatedView(
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = PrimaryPurple,
+                        focusedBorderColor = Color.White.copy(alpha = 0.25f),
                         unfocusedBorderColor = Color.White.copy(alpha = 0.12f),
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White
@@ -1150,13 +1159,13 @@ fun SeriesRelatedView(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
                                 .clickable { typeFilter = filter },
-                            color = if (isSel) PrimaryPurple.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.05f),
-                            border = BorderStroke(1.dp, if (isSel) PrimaryPurple else Color.White.copy(alpha = 0.10f)),
+                            color = if (isSel) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                            border = BorderStroke(1.dp, if (isSel) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)),
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Text(
                                 text = filter,
-                                color = if (isSel) PrimaryPurple else TextMuted,
+                                color = if (isSel) Color(0xFFE6E8EC) else TextMuted,
                                 fontSize = 11.5.sp,
                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
@@ -1225,10 +1234,10 @@ fun SeriesRelatedView(
                                             customLabel = candidate.title
                                         }
                                     },
-                                color = if (isSelected) PrimaryPurple.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.04f),
+                                color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
                                 border = BorderStroke(
                                     1.dp,
-                                    if (isSelected) PrimaryPurple else Color.White.copy(alpha = 0.08f)
+                                    if (isSelected) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.08f)
                                 ),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
@@ -1285,11 +1294,12 @@ fun SeriesRelatedView(
                                     if (isSelected) {
                                         Surface(
                                             shape = CircleShape,
-                                            color = PrimaryPurple,
+                                            color = Color(0xFF222631),
+                                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)),
                                             modifier = Modifier.size(22.dp)
                                         ) {
                                             Box(contentAlignment = Alignment.Center) {
-                                                Icon(Icons.Rounded.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                                Icon(Icons.Rounded.Check, contentDescription = null, tint = Color(0xFFE6E8EC), modifier = Modifier.size(14.dp))
                                             }
                                         }
                                     }
@@ -1363,8 +1373,8 @@ fun SeriesRelatedView(
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = PrimaryPurple,
-                            focusedLabelColor = PrimaryPurple,
+                            focusedBorderColor = Color.White.copy(alpha = 0.25f),
+                            focusedLabelColor = Color(0xFFE6E8EC),
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White
                         )
@@ -1387,17 +1397,23 @@ fun SeriesRelatedView(
                         .fillMaxWidth()
                         .height(50.dp),
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF222631),
+                        contentColor = Color(0xFFE6E8EC),
+                        disabledContainerColor = Color.White.copy(alpha = 0.05f),
+                        disabledContentColor = Color.White.copy(alpha = 0.3f)
+                    ),
+                    border = BorderStroke(1.dp, if (selectedExistingMedia != null) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.08f)),
                     enabled = selectedExistingMedia != null
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Rounded.Link, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Rounded.Link, contentDescription = null, tint = if (selectedExistingMedia != null) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.3f), modifier = Modifier.size(18.dp))
                         Text(
                             text = if (selectedExistingMedia != null) "Link \"${selectedExistingMedia!!.title}\"" else "Select Media from Library",
-                            color = Color.White,
+                            color = if (selectedExistingMedia != null) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.3f),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
@@ -1420,7 +1436,7 @@ fun SeriesRelatedView(
                     onUnlinkRelated(item.id)
                     itemToUnlink = null
                 }) {
-                    Text("Unlink", color = PrimaryPurple, fontWeight = FontWeight.Bold)
+                    Text("Unlink", color = Color(0xFFE6E8EC), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

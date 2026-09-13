@@ -61,7 +61,6 @@ fun ChannelVideosView(
 ) {
     val context = LocalContext.current
     val CardBg = MaterialTheme.colorScheme.surface
-    val PrimaryPurple = MaterialTheme.colorScheme.primary
     val TextMuted = MaterialTheme.colorScheme.onSurfaceVariant
     val DangerRed = Color(0xFFE57373)
 
@@ -169,7 +168,7 @@ fun ChannelVideosView(
                             Icon(
                                 imageVector = Icons.Rounded.SwapVert,
                                 contentDescription = "Filter and Sort",
-                                tint = PrimaryPurple,
+                                tint = Color.White.copy(alpha = 0.85f),
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -214,14 +213,14 @@ fun ChannelVideosView(
                                 .clip(CircleShape)
                                 .clickable { showAddDialog = true },
                             shape = CircleShape,
-                            color = PrimaryPurple.copy(alpha = 0.2f),
-                            border = BorderStroke(1.dp, PrimaryPurple.copy(alpha = 0.5f))
+                            color = Color(0xFF222631),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Rounded.Add,
                                     contentDescription = "Add Videos",
-                                    tint = PrimaryPurple,
+                                    tint = Color(0xFFE6E8EC),
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -303,7 +302,7 @@ fun ChannelVideosView(
                             color = CardBg,
                             border = BorderStroke(
                                 1.dp,
-                                if (isSelected) PrimaryPurple else Color.White.copy(alpha = 0.08f)
+                                if (isSelected) Color.White.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f)
                             )
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
@@ -354,7 +353,7 @@ fun ChannelVideosView(
                                             modifier = Modifier
                                                 .align(Alignment.TopStart)
                                                 .padding(6.dp)
-                                        ) {
+                                            ) {
                                             Checkbox(
                                                 checked = isSelected,
                                                 onCheckedChange = { checked ->
@@ -362,7 +361,8 @@ fun ChannelVideosView(
                                                     else selectedVideoIds.remove(video.id)
                                                 },
                                                 colors = CheckboxDefaults.colors(
-                                                    checkedColor = PrimaryPurple,
+                                                    checkedColor = Color(0xFFE6E8EC),
+                                                    checkmarkColor = Color.Black,
                                                     uncheckedColor = Color.White.copy(alpha = 0.7f)
                                                 )
                                             )
@@ -381,7 +381,7 @@ fun ChannelVideosView(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = video.title,
-                                            color = if (isSelected) PrimaryPurple else Color.White,
+                                            color = Color.White,
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 2,
@@ -479,10 +479,10 @@ fun ChannelVideosView(
                                 showSortSheet = false
                             },
                         shape = RoundedCornerShape(14.dp),
-                        color = if (isSelected) PrimaryPurple.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.03f),
+                        color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.03f),
                         border = BorderStroke(
                             1.dp,
-                            if (isSelected) PrimaryPurple.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.06f)
+                            if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f)
                         )
                     ) {
                         Row(
@@ -495,7 +495,7 @@ fun ChannelVideosView(
                             Column {
                                 Text(
                                     text = option.displayName,
-                                    color = if (isSelected) PrimaryPurple else Color.White,
+                                    color = if (isSelected) Color(0xFFE6E8EC) else Color.White,
                                     fontSize = 14.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                 )
@@ -509,7 +509,7 @@ fun ChannelVideosView(
                                 Icon(
                                     imageVector = Icons.Rounded.Check,
                                     contentDescription = null,
-                                    tint = PrimaryPurple,
+                                    tint = Color(0xFFE6E8EC),
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -595,7 +595,7 @@ fun ChannelVideosView(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(Icons.Rounded.VideoFile, contentDescription = null, tint = PrimaryPurple)
+                            Icon(Icons.Rounded.VideoFile, contentDescription = null, tint = Color(0xFFE6E8EC))
                             Text("Select Video Files", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
@@ -617,7 +617,7 @@ fun ChannelVideosView(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(Icons.Rounded.Folder, contentDescription = null, tint = PrimaryPurple)
+                            Icon(Icons.Rounded.Folder, contentDescription = null, tint = Color(0xFFE6E8EC))
                             Text("Select Folder", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }

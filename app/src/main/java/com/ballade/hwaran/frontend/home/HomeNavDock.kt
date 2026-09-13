@@ -46,7 +46,7 @@ fun HomeNavDock(
     isImporting: Boolean = false,
     importProgress: Float = 0f,
     modifier: Modifier = Modifier,
-    glowColor: Color = Color(0xFF9C27B0),
+    glowColor: Color = Color(0xFFE2E8F0),
     fabStyle: Int = 1
 ) {
     val haptic = LocalHapticFeedback.current
@@ -201,13 +201,13 @@ private fun DockItem(
     onClick: () -> Unit
 ) {
     val iconColor by animateColorAsState(
-        targetValue = if (isSelected) Color.White else Color.White.copy(alpha = 0.45f),
+        targetValue = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.40f),
         animationSpec = tween(250),
         label = "iconColor"
     )
 
     val textColor by animateColorAsState(
-        targetValue = if (isSelected) glowColor else Color.White.copy(alpha = 0.45f),
+        targetValue = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.40f),
         animationSpec = tween(250),
         label = "textColor"
     )
@@ -233,14 +233,14 @@ private fun DockItem(
     ) {
         Box(contentAlignment = Alignment.Center) {
             if (isSelected) {
-                // Subtle glow behind active icon
+                // Subtle soft diffused glow behind active icon
                 Box(
                     modifier = Modifier
                         .size(32.dp)
                         .background(
                             brush = Brush.radialGradient(
                                 colors = listOf(
-                                    glowColor.copy(alpha = 0.35f),
+                                    glowColor.copy(alpha = 0.12f),
                                     Color.Transparent
                                 )
                             ),

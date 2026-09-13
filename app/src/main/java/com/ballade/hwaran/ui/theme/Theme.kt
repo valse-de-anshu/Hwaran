@@ -22,63 +22,67 @@ val LocalBatterySaving = staticCompositionLocalOf<Boolean> { false }
 
 
 
-private val PureDarkColorScheme = darkColorScheme(
-    primary = PureDarkPrimary,
-    secondary = PureDarkPrimary, // Reverted from PureDarkSecondary to match primary for UI elements
-    background = PureDarkBackground,
-    surface = PureDarkSurface,
-    surfaceVariant = PureDarkSurfaceVariant,
-    onPrimary = PureDarkBackground,
-    onSecondary = PureDarkBackground,
-    onBackground = PureDarkText,
-    onSurface = PureDarkText,
-    onSurfaceVariant = PureDarkTextMuted,
-    outline = PureDarkBorder
+private val ObsidianColorScheme = darkColorScheme(
+    primary = AccentTitanium,
+    secondary = AccentTitaniumDark,
+    background = ObsidianBackground,
+    surface = ObsidianSurface,
+    surfaceVariant = ObsidianSurfaceVariant,
+    onPrimary = ObsidianBackground,
+    onSecondary = ObsidianBackground,
+    onBackground = TextPrimary,
+    onSurface = TextPrimary,
+    onSurfaceVariant = TextSecondary,
+    outline = ObsidianBorder
 )
 
-
-
-private val BlueberryColorScheme = darkColorScheme(
-    primary = BlueberryPrimary,
-    secondary = BlueberryPrimary,
-    background = BlueberryBackground,
-    surface = BlueberrySurface,
-    surfaceVariant = BlueberrySurfaceVariant,
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onBackground = Color.White,
-    onSurface = Color.White,
-    onSurfaceVariant = Color.White.copy(alpha = 0.7f),
-    outline = BlueberrySurfaceVariant
-)
-
-private val SnowfallColorScheme = darkColorScheme(
-    primary = SnowfallPrimary,
-    secondary = SnowfallPrimary,
-    background = SnowfallBackground,
-    surface = SnowfallSurface,
-    surfaceVariant = SnowfallSurfaceVariant,
+private val PitchBlackColorScheme = darkColorScheme(
+    primary = Color.White,
+    secondary = AccentTitanium,
+    background = PitchBlackBackground,
+    surface = PitchBlackSurface,
+    surfaceVariant = PitchBlackSurfaceVariant,
     onPrimary = Color.Black,
     onSecondary = Color.Black,
     onBackground = Color.White,
     onSurface = Color.White,
     onSurfaceVariant = Color.White.copy(alpha = 0.7f),
-    outline = SnowfallSurfaceVariant
+    outline = Color(0x24FFFFFF)
 )
 
-private val GrapeColorScheme = darkColorScheme(
-    primary = GrapePrimary,
-    secondary = GrapePrimary,
-    background = GrapeBackground,
-    surface = GrapeSurface,
-    surfaceVariant = GrapeSurfaceVariant,
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onBackground = Color.White,
-    onSurface = Color.White,
-    onSurfaceVariant = Color.White.copy(alpha = 0.7f),
-    outline = GrapeSurfaceVariant
+private val NordicSlateColorScheme = darkColorScheme(
+    primary = AccentTitanium,
+    secondary = AccentTitaniumDark,
+    background = NordicSlateBackground,
+    surface = NordicSlateSurface,
+    surfaceVariant = NordicSlateSurfaceVariant,
+    onPrimary = NordicSlateBackground,
+    onSecondary = NordicSlateBackground,
+    onBackground = TextPrimary,
+    onSurface = TextPrimary,
+    onSurfaceVariant = TextSecondary,
+    outline = ObsidianBorder
 )
+
+private val SmokedCharcoalColorScheme = darkColorScheme(
+    primary = Color(0xFFDCD7C9),
+    secondary = Color(0xFFA27B5C),
+    background = SmokedCharcoalBackground,
+    surface = SmokedCharcoalSurface,
+    surfaceVariant = SmokedCharcoalSurfaceVariant,
+    onPrimary = SmokedCharcoalBackground,
+    onSecondary = SmokedCharcoalBackground,
+    onBackground = TextPrimary,
+    onSurface = TextPrimary,
+    onSurfaceVariant = TextSecondary,
+    outline = ObsidianBorder
+)
+
+// Legacy alias
+private val PureDarkColorScheme = ObsidianColorScheme
+private val BlueberryColorScheme = NordicSlateColorScheme
+private val SnowfallColorScheme = SmokedCharcoalColorScheme
+private val GrapeColorScheme = ObsidianColorScheme
 
 @Composable
 fun animateColorScheme(targetColorScheme: androidx.compose.material3.ColorScheme): androidx.compose.material3.ColorScheme {
@@ -120,31 +124,31 @@ data class AppThemeSpec(
 val AVAILABLE_APP_THEMES: List<AppThemeSpec> = listOf(
     AppThemeSpec(
         id = 1,
-        name = "Dark",
-        colorScheme = PureDarkColorScheme,
+        name = "Obsidian Onyx",
+        colorScheme = ObsidianColorScheme,
         gradient = null,
-        previewBrush = androidx.compose.ui.graphics.SolidColor(Color(0xFF14131F))
+        previewBrush = androidx.compose.ui.graphics.SolidColor(ObsidianBackground)
     ),
     AppThemeSpec(
         id = 5,
-        name = "Blueberry",
-        colorScheme = BlueberryColorScheme,
-        gradient = Brush.verticalGradient(listOf(Color(0xFF15326D), Color(0xFF0C1D40), Color(0xFF071126), Color(0xFF030812))),
-        previewBrush = Brush.verticalGradient(listOf(Color(0xFF15326D), Color(0xFF0C1D40), Color(0xFF071126), Color(0xFF030812)))
+        name = "OLED Pitch Black",
+        colorScheme = PitchBlackColorScheme,
+        gradient = null,
+        previewBrush = androidx.compose.ui.graphics.SolidColor(PitchBlackBackground)
     ),
     AppThemeSpec(
         id = 6,
-        name = "Snowfall",
-        colorScheme = SnowfallColorScheme,
-        gradient = Brush.verticalGradient(listOf(Color(0xFF404C55), Color(0xFF27323B), Color(0xFF161C22), Color(0xFF0B0E11))),
-        previewBrush = Brush.verticalGradient(listOf(Color(0xFF404C55), Color(0xFF27323B), Color(0xFF161C22), Color(0xFF0B0E11)))
+        name = "Nordic Slate",
+        colorScheme = NordicSlateColorScheme,
+        gradient = null,
+        previewBrush = androidx.compose.ui.graphics.SolidColor(NordicSlateBackground)
     ),
     AppThemeSpec(
         id = 7,
-        name = "Grape",
-        colorScheme = GrapeColorScheme,
-        gradient = Brush.verticalGradient(listOf(Color(0xFF7A6284), Color(0xFF52425C), Color(0xFF382B3F), Color(0xFF1F1823), Color(0xFF0C080D))),
-        previewBrush = Brush.verticalGradient(listOf(Color(0xFF7A6284), Color(0xFF52425C), Color(0xFF382B3F), Color(0xFF1F1823), Color(0xFF0C080D)))
+        name = "Smoked Charcoal",
+        colorScheme = SmokedCharcoalColorScheme,
+        gradient = null,
+        previewBrush = androidx.compose.ui.graphics.SolidColor(SmokedCharcoalBackground)
     )
 )
 
@@ -155,7 +159,7 @@ fun HwaranTheme(
     dynamicColor: Boolean = false,
     batterySaving: Boolean = false,
     usePillAsHighlight: Boolean = false,
-    pillHighlightColor: Long = 0xFF7A6284L,
+    pillHighlightColor: Long = 0xFFE2E8F0L,
     content: @Composable () -> Unit
 ) {
     val themeSpec = AVAILABLE_APP_THEMES.find { it.id == appTheme } ?: AVAILABLE_APP_THEMES.first()

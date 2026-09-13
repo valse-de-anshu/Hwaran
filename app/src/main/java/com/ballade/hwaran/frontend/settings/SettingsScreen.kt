@@ -356,12 +356,8 @@ fun ConfigContent(vm: SettingsViewModel) {
 @Composable
 fun AppearanceContent(vm: SettingsViewModel) {
     val appTheme by vm.appTheme.collectAsState()
-    val glowColorLong by vm.glowColor.collectAsState()
-    val glowBrightness by vm.glowBrightness.collectAsState()
-    val glowRadius by vm.glowRadius.collectAsState()
-    val usePillAsHighlight by vm.usePillAsHighlight.collectAsState()
 
-    SectionHeader("Appearance", "Colors and themes")
+    SectionHeader("Appearance", "Luxury dark finishes")
 
     Text("App Theme", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
     val themes = AVAILABLE_APP_THEMES.map { it.id to it.name }
@@ -387,8 +383,8 @@ fun AppearanceContent(vm: SettingsViewModel) {
                         .clip(CircleShape)
                         .background(gradientBrush)
                         .border(
-                            if (isSelected) 2.dp else 1.dp,
-                            if (isSelected) Color.White else Color.White.copy(alpha = 0.2f),
+                            if (isSelected) 1.5.dp else 1.dp,
+                            if (isSelected) Color.White.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.12f),
                             CircleShape
                         )
                         .clickable { vm.setAppTheme(themeId) }
@@ -396,7 +392,7 @@ fun AppearanceContent(vm: SettingsViewModel) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     themeName,
-                    color = if (isSelected) Color.White else Color.Gray,
+                    color = if (isSelected) Color(0xFFE6E8EC) else Color.Gray,
                     fontSize = 10.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                     textAlign = TextAlign.Center
@@ -404,94 +400,6 @@ fun AppearanceContent(vm: SettingsViewModel) {
             }
         }
     }
-
-    Spacer(modifier = Modifier.height(24.dp))
-    Text("Pill Accent Colour", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-
-    val glowGradients = listOf(
-        "Dark" to listOf(0xFFC3A6FE, 0xFF383852, 0xFF161622),
-        "Blueberry" to listOf(0xFF5C9FD9, 0xFF255DAC, 0xFF15326D, 0xFF111523),
-        "Snowfall" to listOf(0xFFBDC6CD, 0xFF6A757E, 0xFF404C55, 0xFF111A22),
-        "Grape" to listOf(0xFF7A6284, 0xFF52425C, 0xFF382B3F, 0xFF1F1823, 0xFF0C080D)
-    )
-
-    @OptIn(ExperimentalLayoutApi::class)
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        maxItemsInEachRow = 4
-    ) {
-        glowGradients.forEach { (name, colors) ->
-            val repColor = colors[0]
-            val isSelected = glowColorLong == repColor
-
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.width(60.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(Brush.linearGradient(colors.map { Color(it) }))
-                        .border(
-                            if (isSelected) 2.dp else 1.dp,
-                            if (isSelected) Color.White else Color.White.copy(alpha = 0.2f),
-                            CircleShape
-                        )
-                        .clickable { vm.setGlowColor(repColor) }
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    name,
-                    color = if (isSelected) Color.White else Color.Gray,
-                    fontSize = 10.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.weight(1f).padding(top = 4.dp)
-        ) {
-            Text("Preview", color = Color.White.copy(alpha = 0.5f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(6.dp))
-            JellyToggle(
-                option1 = "On",
-                option2 = "Off",
-                isOption2 = false,
-                onToggle = {},
-                showGlow = true,
-                glowBrightness = glowBrightness,
-                glowRadius = glowRadius,
-                glowColorOverride = Color(glowColorLong),
-                toggleWidth = 140.dp,
-                toggleHeight = 32.dp
-            )
-        }
-    }
-    Spacer(modifier = Modifier.height(16.dp))
-
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
-            Text("Use Pill Accent as Highlighter", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text("Overrides the app's default primary color with your selected pill color.", color = Color.Gray, fontSize = 12.sp)
-        }
-        Switch(
-            checked = usePillAsHighlight,
-            onCheckedChange = { vm.setUsePillAsHighlight(it) },
-            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = MaterialTheme.colorScheme.primary)
-        )
-    }
-
-    Spacer(modifier = Modifier.height(24.dp))
-
-    SectionHeader("Pill Accent Physics", "Fine-tune the glow")
-    PremiumSlider("Glow Brightness", glowBrightness, { vm.setGlowBrightness(it) })
-    PremiumSlider("Glow Radius", glowRadius / 100f, { vm.setGlowRadius(it * 100f) }, formatValue = { "${(it * 100).toInt()}px" })
 }
 
 // ---------------------------------------------------------
@@ -694,7 +602,11 @@ fun EnvironmentContent(vm: SettingsViewModel, onNavigateToCanvas: () -> Unit = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         onNavigateToCanvas()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = primary),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF222631),
+                        contentColor = Color(0xFFE6E8EC)
+                    ),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -706,14 +618,14 @@ fun EnvironmentContent(vm: SettingsViewModel, onNavigateToCanvas: () -> Unit = {
                     ) {
                         Text(
                             text = "Enter Canvas",
-                            color = Color.Black,
+                            color = Color(0xFFE6E8EC),
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         )
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
                             contentDescription = null,
-                            tint = Color.Black,
+                            tint = Color(0xFFE6E8EC),
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -984,9 +896,10 @@ fun SecurityContent(
         Button(
             onClick = onNavigateToHistory,
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                contentColor = MaterialTheme.colorScheme.primary
+                containerColor = Color(0xFF222631),
+                contentColor = Color(0xFFE6E8EC)
             ),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier
                 .weight(1f)
@@ -1000,13 +913,13 @@ fun SecurityContent(
                 Icon(
                     Icons.Rounded.History,
                     contentDescription = "View History",
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = Color(0xFFE6E8EC),
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "View History",
-                    color = MaterialTheme.colorScheme.primary,
+                    color = Color(0xFFE6E8EC),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -1021,9 +934,10 @@ fun SecurityContent(
         Button(
             onClick = { showWipeConfirmation = true },
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color.White.copy(alpha = 0.1f),
+                containerColor = Color.White.copy(alpha = 0.04f),
                 contentColor = Color(0xFFE57373)
             ),
+            border = BorderStroke(1.dp, Color(0xFFE57373).copy(alpha = 0.25f)),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier
                 .weight(1f)
@@ -1147,18 +1061,22 @@ fun AboutContent(scrollState: ScrollState, vm: SettingsViewModel, onNavigateBack
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/+p0nu4Zsk4ZQ3M2Rl"))
                 context.startActivity(intent)
             },
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF222631),
+                contentColor = Color(0xFFE6E8EC)
+            ),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth().height(52.dp)
         ) {
             Icon(
                 painter = painterResource(id = R.drawable.ic_telegram),
                 contentDescription = null,
-                tint = Color.White,
+                tint = Color(0xFFE6E8EC),
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Join our Telegram Community", fontWeight = FontWeight.Bold)
+            Text("Join our Telegram Community", fontWeight = FontWeight.Bold, color = Color(0xFFE6E8EC))
         }
     }
 }

@@ -41,15 +41,17 @@ class MusicNotificationService : MediaSessionService() {
         notificationManager.createNotificationChannel(channel)
 
         val player = HwaranPlayerHolder.getOrCreate(this)
+        player.addListener(playerListener)
 
-        val sessionActivityIntent = packageManager
-            .getLaunchIntentForPackage(packageName)
-            ?.let { intent ->
-                PendingIntent.getActivity(
-                    this, 0, intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-            }
+        val intent = Intent(this, com.ballade.hwaran.MainActivity::class.java).apply {
+            action = Intent.ACTION_MAIN
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("navigate_to_music", true)
+        }
+        val sessionActivityIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
         val closeCommand = SessionCommand("ACTION_CLOSE", android.os.Bundle.EMPTY)
         val closeButton = CommandButton.Builder(CommandButton.ICON_UNDEFINED)
@@ -86,6 +88,10 @@ class MusicNotificationService : MediaSessionService() {
                     )
                 }
 
+                override fun onPostConnect(session: MediaSession, controller: MediaSession.ControllerInfo) {
+                    session.setCustomLayout(controller, listOf(closeButton))
+                }
+
                 override fun onCustomCommand(
                     session: MediaSession,
                     controller: MediaSession.ControllerInfo,
@@ -95,6 +101,11 @@ class MusicNotificationService : MediaSessionService() {
                     if (customCommand.customAction == "ACTION_CLOSE") {
                         player.stop()
                         player.clearMediaItems()
+                        HwaranPlayerHolder.activeExternalChapter = null
+                        HwaranPlayerHolder.activeExternalManga = null
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+                        nm.cancelAll()
                         stopSelf()
                         return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                     }
@@ -102,7 +113,7 @@ class MusicNotificationService : MediaSessionService() {
                 }
             })
             .also { builder ->
-                sessionActivityIntent?.let { builder.setSessionActivity(it) }
+                builder.setSessionActivity(sessionActivityIntent)
             }
             .build()
             
@@ -120,6 +131,45 @@ class MusicNotificationService : MediaSessionService() {
         Log.d("MusicService", "Session built and provider set")
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "ACTION_STOP_SERVICE") {
+            val player = mediaSession?.player
+            player?.stop()
+            player?.clearMediaItems()
+            HwaranPlayerHolder.activeExternalChapter = null
+            HwaranPlayerHolder.activeExternalManga = null
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+            nm.cancelAll()
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+
+    private val playerListener = object : Player.Listener {
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            val player = mediaSession?.player ?: return
+            if (playbackState == Player.STATE_IDLE && player.mediaItemCount == 0) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+                nm.cancelAll()
+            }
+        }
+    }
+
+    @OptIn(UnstableApi::class)
+    override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
+        val player = session.player
+        if (player.mediaItemCount == 0) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+            nm.cancelAll()
+            return
+        }
+        super.onUpdateNotification(session, startInForegroundRequired)
+    }
+
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
         Log.d("MusicService", "onGetSession from ${controllerInfo.packageName}")
         return mediaSession
@@ -127,13 +177,17 @@ class MusicNotificationService : MediaSessionService() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player
-        if (player == null || !player.playWhenReady || player.mediaItemCount == 0 || player.playbackState == Player.STATE_ENDED) {
+        if (player == null || !player.playWhenReady || player.mediaItemCount == 0 || player.playbackState == Player.STATE_ENDED || player.playbackState == Player.STATE_IDLE) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+            nm.cancelAll()
             stopSelf()
         }
     }
 
     override fun onDestroy() {
         Log.d("MusicService", "onDestroy")
+        HwaranPlayerHolder.getOrCreate(this).removeListener(playerListener)
         mediaSession?.let {
             it.release()
             mediaSession = null

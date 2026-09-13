@@ -51,23 +51,30 @@ fun LibraryView(
     initialTag: String = "All",
     isLibraryLocked: Boolean = false,
     libraryPassword: String = "",
-    glowColor: Color = Color(0xFF9C27B0),
+    glowColor: Color = Color(0xFFE2E8F0),
     onOpenMusic: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
     val tags = remember {
-        listOf("All", "Favorite", "Music", "Book", "Manhua", "Manga", "Series", "Channel")
+        listOf("All", "Fav", "Manhua", "Manga", "Light Novel", "Book", "Series", "Channel", "Music")
     }
 
-    var selectedTag by remember(initialTag) { mutableStateOf(if (initialTag == "Music") "All" else initialTag) }
+    val normalizedInitialTag = remember(initialTag) {
+        when (initialTag) {
+            "Favorite" -> "Fav"
+            "Novel" -> "Light Novel"
+            else -> initialTag
+        }
+    }
+    var selectedTag by remember(normalizedInitialTag) { mutableStateOf(if (normalizedInitialTag == "Music") "All" else normalizedInitialTag) }
     val tagListState = rememberLazyListState()
 
-    LaunchedEffect(initialTag) {
-        if (initialTag == "Music") {
+    LaunchedEffect(normalizedInitialTag) {
+        if (normalizedInitialTag == "Music") {
             onOpenMusic()
-        } else if (initialTag.isNotBlank()) {
-            selectedTag = initialTag
+        } else if (normalizedInitialTag.isNotBlank()) {
+            selectedTag = normalizedInitialTag
         }
     }
 
@@ -89,8 +96,7 @@ fun LibraryView(
         val nonNsfw = allManga.filter { !it.isNsfw && it.contentType != 3 }
         when (selectedTag) {
             "All" -> nonNsfw
-            "Favorite" -> nonNsfw.filter { it.isFavorite || it.genre?.contains("favorite", ignoreCase = true) == true }
-            "Book" -> nonNsfw.filter { it.contentType == 1 || it.boxPurpose == "book" }
+            "Fav", "Favorite" -> nonNsfw.filter { it.isFavorite || it.genre?.contains("favorite", ignoreCase = true) == true }
             "Manhua" -> nonNsfw.filter {
                 (it.contentType == 0 || it.boxPurpose == "manhua") && (
                     it.boxPurpose == "manhua" ||
@@ -110,6 +116,8 @@ fun LibraryView(
                     )
                 )
             }
+            "Light Novel", "Novel" -> nonNsfw.filter { it.contentType == 4 || it.boxPurpose == "novel" }
+            "Book" -> nonNsfw.filter { (it.contentType == 1 || it.boxPurpose == "book") && it.contentType != 4 && it.boxPurpose != "novel" }
             "Series" -> nonNsfw.filter { (it.contentType == 2 || it.boxPurpose == "series") && it.boxPurpose != "channel" }
             "Channel" -> nonNsfw.filter { (it.contentType == 2 || it.boxPurpose == "channel") && it.boxPurpose == "channel" }
             else -> nonNsfw
@@ -122,8 +130,8 @@ fun LibraryView(
     val bottomDockClearance = maxOf(navBarBottom + 16.dp, maxOf(gestureBottom + 12.dp, 32.dp)) + 68.dp + 24.dp
 
     val density = LocalDensity.current
-    val fadeStartPx = with(density) { 50.dp.toPx() }
-    val fadeEndPx = with(density) { 92.dp.toPx() }
+    val fadeStartPx = with(density) { 86.dp.toPx() }
+    val fadeEndPx = with(density) { 128.dp.toPx() }
 
     Box(
         modifier = modifier
@@ -136,7 +144,7 @@ fun LibraryView(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = 96.dp, bottom = bottomDockClearance),
+                    .padding(top = 132.dp, bottom = bottomDockClearance),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -152,7 +160,7 @@ fun LibraryView(
                 contentPadding = PaddingValues(
                     start = 16.dp,
                     end = 16.dp,
-                    top = 88.dp,
+                    top = 124.dp,
                     bottom = bottomDockClearance
                 ),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -194,7 +202,7 @@ fun LibraryView(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
-                .padding(top = 18.dp, bottom = 8.dp)
+                .padding(top = 48.dp, bottom = 8.dp)
         ) {
             LazyRow(
                 state = tagListState,
@@ -204,20 +212,19 @@ fun LibraryView(
             ) {
                 items(tags, key = { it }) { tag ->
                     val isSelected = selectedTag == tag
-                    val themeSurface = MaterialTheme.colorScheme.surface
                     val bgColor by animateColorAsState(
-                        targetValue = if (isSelected) glowColor.copy(alpha = 0.85f) else themeSurface.copy(alpha = 0.55f),
-                        animationSpec = tween(250),
+                        targetValue = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                        animationSpec = tween(200),
                         label = "tagBgColor"
                     )
                     val textColor by animateColorAsState(
-                        targetValue = if (isSelected) Color.White else Color.White.copy(alpha = 0.70f),
-                        animationSpec = tween(250),
+                        targetValue = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.60f),
+                        animationSpec = tween(200),
                         label = "tagTextColor"
                     )
                     val borderColor by animateColorAsState(
-                        targetValue = if (isSelected) glowColor.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.12f),
-                        animationSpec = tween(250),
+                        targetValue = if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f),
+                        animationSpec = tween(200),
                         label = "tagBorderColor"
                     )
 
@@ -231,14 +238,7 @@ fun LibraryView(
                                 } else {
                                     selectedTag = tag
                                 }
-                            }
-                            .then(
-                                if (isSelected) Modifier.shadow(
-                                    elevation = 8.dp,
-                                    shape = RoundedCornerShape(20.dp),
-                                    spotColor = glowColor.copy(alpha = 0.5f)
-                                ) else Modifier
-                            ),
+                            },
                         shape = RoundedCornerShape(20.dp),
                         color = bgColor,
                         border = BorderStroke(1.dp, borderColor)

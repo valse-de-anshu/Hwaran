@@ -56,33 +56,33 @@ enum class SearchScope {
         ALL -> "All Fields"
         TITLE -> when (selectedMedia) {
             "Music" -> "Song Title"
-            "Book" -> "Book Title"
+            "Book", "Light Novel" -> "Book Title"
             "Manga", "Manhua" -> "Series Title"
             "Series", "Channel" -> "Video Title"
             else -> "Title / Song"
         }
         CREATOR -> when (selectedMedia) {
             "Music" -> "Artist"
-            "Book" -> "Author"
+            "Book", "Light Novel" -> "Author"
             "Series", "Channel" -> "Creator / Channel"
             else -> "Artist / Author"
         }
         CONTAINER -> when (selectedMedia) {
             "Music" -> "Album / Playlist"
-            "Book" -> "Shelf / Folder"
+            "Book", "Light Novel" -> "Shelf / Folder"
             "Manga", "Manhua" -> "Workspace / Folder"
             "Series", "Channel" -> "Show / Folder"
             else -> "Album / Shelf"
         }
         TAGS -> when (selectedMedia) {
             "Music" -> "Music Genre"
-            "Book" -> "Category"
+            "Book", "Light Novel" -> "Category"
             "Manga", "Manhua" -> "Tropes / Genre"
             else -> "Genre / Tags"
         }
         SECONDARY -> when (selectedMedia) {
             "Music" -> "Song Lyrics"
-            "Book" -> "Synopsis / Notes"
+            "Book", "Light Novel" -> "Synopsis / Notes"
             "Manga", "Manhua" -> "Synopsis"
             "Series", "Channel" -> "Episode Title"
             else -> "Lyrics / Notes"
@@ -130,7 +130,7 @@ enum class SearchSort(val label: String) {
     companion object {
         fun getAvailableSorts(selectedMedia: String): List<SearchSort> = when (selectedMedia) {
             "Music" -> listOf(NEWEST, TITLE_AZ, TITLE_ZA, ARTIST_AZ, DURATION, MOST_PLAYED)
-            "Book" -> listOf(NEWEST, TITLE_AZ, TITLE_ZA, MOST_PLAYED)
+            "Book", "Light Novel" -> listOf(NEWEST, TITLE_AZ, TITLE_ZA, MOST_PLAYED)
             "Manga", "Manhua" -> listOf(NEWEST, TITLE_AZ, TITLE_ZA, CHAPTER_COUNT, MOST_PLAYED)
             "Series", "Channel" -> listOf(NEWEST, TITLE_AZ, TITLE_ZA, DURATION, CHAPTER_COUNT, MOST_PLAYED)
             else -> listOf(NEWEST, TITLE_AZ, TITLE_ZA, MOST_PLAYED)
@@ -168,7 +168,7 @@ fun HomeSearchView(
     onNavigateToDescription: (Long) -> Unit,
     onPlaySong: ((MangaEntity, List<ChapterEntity>, Int) -> Unit)? = null,
     onBack: () -> Unit,
-    glowColor: Color = Color(0xFF9C27B0),
+    glowColor: Color = Color(0xFFE2E8F0),
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -198,7 +198,7 @@ fun HomeSearchView(
     LaunchedEffect(selectedMedia) {
         selectedWorkspace = null
         when (selectedMedia) {
-            "Book" -> {
+            "Book", "Light Novel" -> {
                 selectedArtist = null
                 selectedAlbum = null
                 selectedDuration = DurationFilter.ALL
@@ -229,13 +229,13 @@ fun HomeSearchView(
     val libraryTags = remember(allManga, allChapters, selectedMedia) {
         val filteredManga = when (selectedMedia) {
             "All" -> allManga
-            "Favorite" -> allManga.filter { it.isFavorite }
+            "Fav", "Favorite" -> allManga.filter { it.isFavorite }
             else -> allManga.filter { matchesMediaType(it, selectedMedia) }
         }
         val mangaTags = filteredManga.flatMap { manga ->
             manga.genre?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() && !it.equals("favorite", ignoreCase = true) } ?: emptyList()
         }
-        val chapterTags = if (selectedMedia in listOf("All", "Music", "Favorite")) {
+        val chapterTags = if (selectedMedia in listOf("All", "Music", "Fav", "Favorite")) {
             allChapters.flatMap { chapter ->
                 chapter.genre?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() && !it.equals("favorite", ignoreCase = true) } ?: emptyList()
             }
@@ -246,7 +246,7 @@ fun HomeSearchView(
         if (extracted.isNotEmpty()) extracted
         else when (selectedMedia) {
             "Music" -> listOf("Pop", "Rock", "Lo-Fi", "Classical", "Jazz", "Electronic", "Acoustic", "Hip Hop", "OST", "R&B")
-            "Book" -> listOf("Fiction", "Non-Fiction", "Novel", "Science", "History", "Philosophy", "Biography", "Self-Help", "Tutorial", "Classic")
+            "Book", "Light Novel" -> listOf("Fiction", "Non-Fiction", "Novel", "Science", "History", "Philosophy", "Biography", "Self-Help", "Tutorial", "Classic")
             "Manga", "Manhua" -> listOf("Action", "Romance", "Comedy", "Fantasy", "Sci-Fi", "Mystery", "Horror", "Drama", "Isekai", "Slice of Life")
             "Series", "Channel" -> listOf("Anime", "Documentary", "Educational", "Movie", "Live", "Animation", "Drama", "Tutorial")
             else -> listOf("Action", "Romance", "Comedy", "Fantasy", "Sci-Fi", "Mystery", "Lo-Fi", "Pop", "Documentary")
@@ -272,7 +272,7 @@ fun HomeSearchView(
 
     // Extract shelves / workspaces for the current media category
     val libraryWorkspaces = remember(allManga, selectedMedia) {
-        val relevant = if (selectedMedia in listOf("All", "Favorite")) allManga
+        val relevant = if (selectedMedia in listOf("All", "Fav", "Favorite")) allManga
         else allManga.filter { matchesMediaType(it, selectedMedia) }
 
         relevant.mapNotNull { it.workspace?.trim() }
@@ -282,7 +282,7 @@ fun HomeSearchView(
     }
 
     val mediaTypes = remember {
-        listOf("All", "Music", "Book", "Manhua", "Manga", "Series", "Channel", "Favorite")
+        listOf("All", "Fav", "Manhua", "Manga", "Light Novel", "Book", "Series", "Channel", "Music")
     }
 
     val activeFilterCount = remember(
@@ -345,8 +345,8 @@ fun HomeSearchView(
 
         // Determine if we should evaluate songs
         val shouldEvaluateSongs = when (selectedMedia) {
-            "Book", "Manhua", "Manga", "Series", "Channel" -> false
-            else -> true // "All", "Music", "Favorite"
+            "Book", "Light Novel", "Manhua", "Manga", "Series", "Channel" -> false
+            else -> true // "All", "Music", "Fav", "Favorite"
         }
 
         // 1. Evaluate Songs
@@ -693,40 +693,40 @@ fun HomeSearchView(
                         when (selectedScope) {
                             SearchScope.ALL -> when (selectedMedia) {
                                 "Music" -> "Search all (song, artist, album, lyrics)..."
-                                "Book" -> "Search books (title, author, synopsis, shelf)..."
+                                "Book", "Light Novel" -> "Search books (title, author, synopsis, shelf)..."
                                 "Manga", "Manhua" -> "Search manga (title, synopsis, genre)..."
                                 "Series", "Channel" -> "Search videos (title, creator, episode)..."
                                 else -> "Search vault (song, book, comic, video)..."
                             }
                             SearchScope.TITLE -> when (selectedMedia) {
                                 "Music" -> "Search by song title..."
-                                "Book" -> "Search by book title..."
+                                "Book", "Light Novel" -> "Search by book title..."
                                 "Manga", "Manhua" -> "Search by series title..."
                                 "Series", "Channel" -> "Search by video title..."
                                 else -> "Search by title..."
                             }
                             SearchScope.CREATOR -> when (selectedMedia) {
                                 "Music" -> "Search by artist..."
-                                "Book" -> "Search by author..."
+                                "Book", "Light Novel" -> "Search by author..."
                                 "Series", "Channel" -> "Search by creator or channel..."
                                 else -> "Search by artist or author..."
                             }
                             SearchScope.CONTAINER -> when (selectedMedia) {
                                 "Music" -> "Search by album or playlist..."
-                                "Book" -> "Search by shelf or folder..."
+                                "Book", "Light Novel" -> "Search by shelf or folder..."
                                 "Manga", "Manhua" -> "Search by workspace..."
                                 "Series", "Channel" -> "Search by show or folder..."
                                 else -> "Search by album or shelf..."
                             }
                             SearchScope.TAGS -> when (selectedMedia) {
                                 "Music" -> "Search by music genre..."
-                                "Book" -> "Search by category or genre..."
+                                "Book", "Light Novel" -> "Search by category or genre..."
                                 "Manga", "Manhua" -> "Search by tropes or genre..."
                                 else -> "Search by tags..."
                             }
                             SearchScope.SECONDARY -> when (selectedMedia) {
                                 "Music" -> "Search inside song lyrics..."
-                                "Book" -> "Search inside synopsis & notes..."
+                                "Book", "Light Novel" -> "Search inside synopsis & notes..."
                                 "Manga", "Manhua" -> "Search inside synopsis..."
                                 "Series", "Channel" -> "Search episode titles..."
                                 else -> "Search lyrics or content..."
@@ -779,21 +779,21 @@ fun HomeSearchView(
                     modifier = Modifier
                         .size(42.dp)
                         .background(
-                            if (showAdvancedPanel || activeFilterCount > 0) glowColor.copy(alpha = 0.25f)
-                            else Color.White.copy(alpha = 0.08f),
+                            if (showAdvancedPanel || activeFilterCount > 0) Color(0xFF222631)
+                            else Color.White.copy(alpha = 0.05f),
                             CircleShape
                         )
                         .border(
                             1.dp,
-                            if (showAdvancedPanel || activeFilterCount > 0) glowColor.copy(alpha = 0.6f)
-                            else Color.White.copy(alpha = 0.12f),
+                            if (showAdvancedPanel || activeFilterCount > 0) Color.White.copy(alpha = 0.22f)
+                            else Color.White.copy(alpha = 0.08f),
                             CircleShape
                         )
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Tune,
                         contentDescription = "Advanced Filters",
-                        tint = if (showAdvancedPanel || activeFilterCount > 0) glowColor else Color.White
+                        tint = if (showAdvancedPanel || activeFilterCount > 0) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.7f)
                     )
                 }
 
@@ -803,12 +803,13 @@ fun HomeSearchView(
                             .offset(x = 2.dp, y = (-2).dp)
                             .size(18.dp),
                         shape = CircleShape,
-                        color = glowColor
+                        color = Color(0xFF222631),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = "$activeFilterCount",
-                                color = Color.White,
+                                color = Color(0xFFE6E8EC),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -828,16 +829,16 @@ fun HomeSearchView(
             items(mediaTypes) { media ->
                 val isSelected = selectedMedia == media
                 Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = if (isSelected) glowColor.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.08f),
-                    border = BorderStroke(1.dp, if (isSelected) glowColor else Color.White.copy(alpha = 0.12f)),
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.07f)),
                     modifier = Modifier
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .clickable { selectedMedia = media }
                 ) {
                     Text(
                         text = media,
-                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
+                        color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
                         fontSize = 12.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
@@ -856,10 +857,10 @@ fun HomeSearchView(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp)
-                    .shadow(12.dp, RoundedCornerShape(20.dp), spotColor = glowColor.copy(alpha = 0.3f)),
+                    .shadow(8.dp, RoundedCornerShape(20.dp), spotColor = Color.Black.copy(alpha = 0.5f)),
                 shape = RoundedCornerShape(20.dp),
                 color = CardBg,
-                border = BorderStroke(1.dp, glowColor.copy(alpha = 0.35f))
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
             ) {
                 Column(
                     modifier = Modifier
@@ -869,13 +870,14 @@ fun HomeSearchView(
                     // Header: Advanced Filters Title + Reset Button
                     // Header: Dynamic Title + Reset Button
                     val panelTitle = when (selectedMedia) {
-                        "Music" -> "Music & Audio Filters"
-                        "Book" -> "Books & Documents Filters"
-                        "Manga" -> "Manga & Comics Filters"
+                        "Fav", "Favorite" -> "Favorites Vault Filters"
                         "Manhua" -> "Manhua & Webtoons Filters"
+                        "Manga" -> "Manga & Comics Filters"
+                        "Light Novel" -> "Light Novels Filters"
+                        "Book" -> "Books & Documents Filters"
                         "Series" -> "Video & Series Filters"
                         "Channel" -> "Channels & Streams Filters"
-                        "Favorite" -> "Favorites Vault Filters"
+                        "Music" -> "Music & Audio Filters"
                         else -> "Vault Advanced Filters"
                     }
 
@@ -936,8 +938,8 @@ fun HomeSearchView(
                             val isSelected = selectedScope == scope
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) glowColor.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
-                                border = BorderStroke(1.dp, if (isSelected) glowColor else Color.White.copy(alpha = 0.1f)),
+                                color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                                border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable { selectedScope = scope }
@@ -948,7 +950,7 @@ fun HomeSearchView(
                                 ) {
                                     Text(
                                         text = scope.getLabel(selectedMedia),
-                                        color = if (isSelected) Color.White else TextMuted,
+                                        color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
                                         fontSize = 11.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                     )
@@ -961,7 +963,7 @@ fun HomeSearchView(
                     if (selectedMedia != "Music") {
                         val statusLabel = when (selectedMedia) {
                             "Series", "Channel" -> "Watch Status"
-                            "Book", "Manga", "Manhua" -> "Reading Status"
+                            "Book", "Light Novel", "Manga", "Manhua" -> "Reading Status"
                             else -> "Reading / Watch Status"
                         }
                         Spacer(modifier = Modifier.height(14.dp))
@@ -986,8 +988,8 @@ fun HomeSearchView(
                                 }
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
-                                    color = if (isSelected) glowColor.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
-                                    border = BorderStroke(1.dp, if (isSelected) glowColor else Color.White.copy(alpha = 0.1f)),
+                                    color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(12.dp))
                                         .clickable { selectedProgress = prog }
@@ -998,7 +1000,7 @@ fun HomeSearchView(
                                     ) {
                                         Text(
                                             text = progLabel,
-                                            color = if (isSelected) Color.White else TextMuted,
+                                            color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
                                             fontSize = 11.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                         )
@@ -1009,7 +1011,7 @@ fun HomeSearchView(
                     }
 
                     // ── Chapter / Episode Count Filter ──
-                    if (selectedMedia in listOf("Manga", "Manhua", "Series")) {
+                    if (selectedMedia in listOf("Manga", "Manhua", "Series", "Light Novel")) {
                         val countTitle = if (selectedMedia == "Series") "Episode Count" else "Chapter Count"
                         Spacer(modifier = Modifier.height(14.dp))
                         Text(
@@ -1033,8 +1035,8 @@ fun HomeSearchView(
                                 }
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
-                                    color = if (isSelected) glowColor.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
-                                    border = BorderStroke(1.dp, if (isSelected) glowColor else Color.White.copy(alpha = 0.1f)),
+                                    color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(12.dp))
                                         .clickable { selectedChapterCount = cFilter }
@@ -1045,7 +1047,7 @@ fun HomeSearchView(
                                     ) {
                                         Text(
                                             text = cLabel,
-                                            color = if (isSelected) Color.White else TextMuted,
+                                            color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
                                             fontSize = 11.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                         )
@@ -1094,8 +1096,8 @@ fun HomeSearchView(
                                 val isSelected = selectedWorkspace.equals(ws, ignoreCase = true)
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) Color(0xFF42A5F5).copy(alpha = 0.35f) else Color.White.copy(alpha = 0.06f),
-                                    border = BorderStroke(1.dp, if (isSelected) Color(0xFF42A5F5) else Color.White.copy(alpha = 0.1f)),
+                                    color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(10.dp))
                                         .clickable {
@@ -1110,12 +1112,12 @@ fun HomeSearchView(
                                         Icon(
                                             imageVector = Icons.Rounded.Folder,
                                             contentDescription = null,
-                                            tint = if (isSelected) Color(0xFF42A5F5) else Color.White.copy(alpha = 0.6f),
+                                            tint = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
                                             modifier = Modifier.size(12.dp)
                                         )
                                         Text(
                                             text = ws,
-                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.8f),
+                                            color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.55f),
                                             fontSize = 11.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                         )
@@ -1126,7 +1128,7 @@ fun HomeSearchView(
                     }
 
                     // ── Filter by Artist Section ──
-                    if (selectedMedia in listOf("Music", "All", "Favorite") && libraryArtists.isNotEmpty()) {
+                    if (selectedMedia in listOf("Music", "All", "Fav", "Favorite") && libraryArtists.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(14.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1158,8 +1160,8 @@ fun HomeSearchView(
                                 val isSelected = selectedArtist.equals(artist, ignoreCase = true)
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) Color(0xFFEC407A).copy(alpha = 0.35f) else Color.White.copy(alpha = 0.06f),
-                                    border = BorderStroke(1.dp, if (isSelected) Color(0xFFEC407A) else Color.White.copy(alpha = 0.1f)),
+                                    color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(10.dp))
                                         .clickable {
@@ -1171,10 +1173,10 @@ fun HomeSearchView(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Icon(Icons.Rounded.Person, contentDescription = null, tint = if (isSelected) Color(0xFFEC407A) else Color.White.copy(alpha = 0.6f), modifier = Modifier.size(12.dp))
+                                        Icon(Icons.Rounded.Person, contentDescription = null, tint = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f), modifier = Modifier.size(12.dp))
                                         Text(
                                             text = artist,
-                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.8f),
+                                            color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.55f),
                                             fontSize = 11.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                         )
@@ -1217,8 +1219,8 @@ fun HomeSearchView(
                                 val isSelected = selectedAlbum.equals(album, ignoreCase = true)
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) Color(0xFFEC407A).copy(alpha = 0.35f) else Color.White.copy(alpha = 0.06f),
-                                    border = BorderStroke(1.dp, if (isSelected) Color(0xFFEC407A) else Color.White.copy(alpha = 0.1f)),
+                                    color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(10.dp))
                                         .clickable {
@@ -1230,10 +1232,10 @@ fun HomeSearchView(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Icon(Icons.Rounded.Album, contentDescription = null, tint = if (isSelected) Color(0xFFEC407A) else Color.White.copy(alpha = 0.6f), modifier = Modifier.size(12.dp))
+                                        Icon(Icons.Rounded.Album, contentDescription = null, tint = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f), modifier = Modifier.size(12.dp))
                                         Text(
                                             text = album,
-                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.8f),
+                                            color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.55f),
                                             fontSize = 11.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                         )
@@ -1244,7 +1246,7 @@ fun HomeSearchView(
                     }
 
                     // ── Duration Filter Section ──
-                    if (selectedMedia in listOf("Music", "Series", "Channel", "All", "Favorite")) {
+                    if (selectedMedia in listOf("Music", "Series", "Channel", "All", "Fav", "Favorite")) {
                         val durationTitle = when (selectedMedia) {
                             "Series", "Channel" -> "Video Length"
                             "Music" -> "Track Duration"
@@ -1266,8 +1268,8 @@ fun HomeSearchView(
                                 val isSelected = selectedDuration == dur
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
-                                    color = if (isSelected) glowColor.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
-                                    border = BorderStroke(1.dp, if (isSelected) glowColor else Color.White.copy(alpha = 0.1f)),
+                                    color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(12.dp))
                                         .clickable { selectedDuration = dur }
@@ -1278,7 +1280,7 @@ fun HomeSearchView(
                                     ) {
                                         Text(
                                             text = dur.getLabel(selectedMedia),
-                                            color = if (isSelected) Color.White else TextMuted,
+                                            color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
                                             fontSize = 11.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                         )
@@ -1293,8 +1295,8 @@ fun HomeSearchView(
                         Spacer(modifier = Modifier.height(12.dp))
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = if (onlyFavorites) Color(0xFFFFD54F).copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
-                            border = BorderStroke(1.dp, if (onlyFavorites) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.1f)),
+                            color = if (onlyFavorites) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                            border = BorderStroke(1.dp, if (onlyFavorites) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.07f)),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
                                 .clickable { onlyFavorites = !onlyFavorites }
@@ -1307,12 +1309,12 @@ fun HomeSearchView(
                                 Icon(
                                     imageVector = if (onlyFavorites) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
                                     contentDescription = null,
-                                    tint = if (onlyFavorites) Color(0xFFFFD54F) else TextMuted,
+                                    tint = if (onlyFavorites) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.45f),
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
                                     text = "⭐ Only Favorites",
-                                    color = if (onlyFavorites) Color.White else TextMuted,
+                                    color = if (onlyFavorites) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
                                     fontSize = 11.sp,
                                     fontWeight = if (onlyFavorites) FontWeight.Bold else FontWeight.Medium
                                 )
@@ -1346,7 +1348,7 @@ fun HomeSearchView(
                         if (selectedTags.size > 1) {
                             Text(
                                 text = if (matchAllTags) "Match: ALL (AND)" else "Match: ANY (OR)",
-                                color = glowColor,
+                                color = Color(0xFFE6E8EC),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier
@@ -1368,8 +1370,8 @@ fun HomeSearchView(
                             selectedTags.forEach { tag ->
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = glowColor.copy(alpha = 0.25f),
-                                    border = BorderStroke(1.dp, glowColor.copy(alpha = 0.6f))
+                                    color = Color(0xFF222631),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(start = 8.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
@@ -1378,7 +1380,7 @@ fun HomeSearchView(
                                     ) {
                                         Text(
                                             text = tag,
-                                            color = Color.White,
+                                            color = Color(0xFFE6E8EC),
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.SemiBold
                                         )
@@ -1416,8 +1418,8 @@ fun HomeSearchView(
                         items(availableTagsToPick.take(25)) { tag ->
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = Color.White.copy(alpha = 0.06f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+                                color = Color.White.copy(alpha = 0.04f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.07f)),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable { selectedTags = selectedTags + tag }
@@ -1427,10 +1429,10 @@ fun HomeSearchView(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Icon(Icons.Rounded.Add, contentDescription = null, tint = glowColor, modifier = Modifier.size(12.dp))
+                                    Icon(Icons.Rounded.Add, contentDescription = null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(12.dp))
                                     Text(
                                         text = tag,
-                                        color = Color.White.copy(alpha = 0.85f),
+                                        color = Color.White.copy(alpha = 0.65f),
                                         fontSize = 11.sp
                                     )
                                 }
@@ -1456,15 +1458,15 @@ fun HomeSearchView(
                             val isSelected = selectedSort == sort
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) glowColor.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
-                                border = BorderStroke(1.dp, if (isSelected) glowColor else Color.White.copy(alpha = 0.1f)),
+                                color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                                border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable { selectedSort = sort }
                             ) {
                                 Text(
                                     text = sort.label,
-                                    color = if (isSelected) Color.White else TextMuted,
+                                    color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
                                     fontSize = 11.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
@@ -1547,12 +1549,13 @@ fun HomeSearchView(
                                 searchQuery = ""
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = glowColor.copy(alpha = 0.2f),
-                                contentColor = glowColor
+                                containerColor = Color(0xFF222631),
+                                contentColor = Color(0xFFE6E8EC)
                             ),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("Reset Search & Filters", color = glowColor, fontWeight = FontWeight.Bold)
+                            Text("Reset Search & Filters", color = Color(0xFFE6E8EC), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1636,8 +1639,8 @@ private fun SearchSongItemCard(
                 .aspectRatio(0.68f)
                 .shadow(elevation = 6.dp, shape = RoundedCornerShape(14.dp), spotColor = Color.Black.copy(alpha = 0.5f)),
             shape = RoundedCornerShape(14.dp),
-            color = Color(0xFF14131C),
-            border = BorderStroke(1.dp, Color(0xFFEC407A).copy(alpha = 0.35f))
+            color = Color(0xFF111318),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (coverModel != null) {
@@ -1656,7 +1659,7 @@ private fun SearchSongItemCard(
                             .fillMaxSize()
                             .background(
                                 Brush.linearGradient(
-                                    listOf(Color(0xFF331327), Color(0xFF191122))
+                                    listOf(Color(0xFF181B22), Color(0xFF101216))
                                 )
                             ),
                         contentAlignment = Alignment.Center
@@ -1664,7 +1667,7 @@ private fun SearchSongItemCard(
                         Icon(
                             imageVector = Icons.Rounded.MusicNote,
                             contentDescription = null,
-                            tint = Color(0xFFEC407A).copy(alpha = 0.7f),
+                            tint = Color.White.copy(alpha = 0.35f),
                             modifier = Modifier.size(36.dp)
                         )
                     }
@@ -1691,7 +1694,8 @@ private fun SearchSongItemCard(
                         .padding(6.dp)
                         .align(Alignment.TopStart),
                     shape = RoundedCornerShape(6.dp),
-                    color = Color(0xFFEC407A).copy(alpha = 0.95f)
+                    color = Color(0xD9111318),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -1701,12 +1705,12 @@ private fun SearchSongItemCard(
                         Icon(
                             Icons.Rounded.MusicNote,
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = Color(0xFFE6E8EC),
                             modifier = Modifier.size(10.dp)
                         )
                         Text(
                             text = "Song",
-                            color = Color.White,
+                            color = Color(0xFFE6E8EC),
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -1741,15 +1745,15 @@ private fun SearchSongItemCard(
                         .size(38.dp)
                         .clickable(onClick = onPlay),
                     shape = CircleShape,
-                    color = Color(0xFFEC407A).copy(alpha = 0.88f),
-                    border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.9f)),
-                    shadowElevation = 8.dp
+                    color = Color(0xFF222631),
+                    border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.22f)),
+                    shadowElevation = 6.dp
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Rounded.PlayArrow,
                             contentDescription = "Play ${chapter.title}",
-                            tint = Color.White,
+                            tint = Color(0xFFE6E8EC),
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -1792,7 +1796,7 @@ private fun SearchSongItemCard(
         val subtitle = if (albumName != null) "$artistName • $albumName" else artistName
         Text(
             text = subtitle,
-            color = Color(0xFFF48FB1),
+            color = Color.White.copy(alpha = 0.55f),
             fontSize = 10.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
@@ -1838,15 +1842,8 @@ private fun SearchMediaItemCard(
         }
     }
 
-    val badgeColor = when (mediaType) {
-        "Book" -> Color(0xFF42A5F5)
-        "Manhua" -> Color(0xFFFF9800)
-        "Manga" -> Color(0xFFAB47BC)
-        "Series" -> Color(0xFFEF5350)
-        "Channel" -> Color(0xFF26A69A)
-        "Album" -> Color(0xFFEC407A)
-        else -> glowColor
-    }
+    val badgeBg = Color(0xD9111318)
+    val badgeTextColor = Color(0xFFF0F2F5)
 
     Column(
         modifier = Modifier
@@ -1861,8 +1858,8 @@ private fun SearchMediaItemCard(
                 .aspectRatio(0.68f)
                 .shadow(elevation = 6.dp, shape = RoundedCornerShape(14.dp), spotColor = Color.Black.copy(alpha = 0.5f)),
             shape = RoundedCornerShape(14.dp),
-            color = Color(0xFF14131C),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+            color = Color(0xFF111318),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (coverModel != null) {
@@ -1880,22 +1877,16 @@ private fun SearchMediaItemCard(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(
-                                if (mediaType == "Album") {
-                                    Brush.linearGradient(
-                                        listOf(Color(0xFF2E1C2B), Color(0xFF1B1425))
-                                    )
-                                } else {
-                                    Brush.linearGradient(
-                                        listOf(Color.White.copy(alpha = 0.05f), Color.White.copy(alpha = 0.02f))
-                                    )
-                                }
+                                Brush.linearGradient(
+                                    listOf(Color.White.copy(alpha = 0.05f), Color.White.copy(alpha = 0.02f))
+                                )
                             ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = if (mediaType == "Album") Icons.Rounded.Album else Icons.Rounded.Image,
                             contentDescription = null,
-                            tint = if (mediaType == "Album") Color(0xFFEC407A).copy(alpha = 0.7f) else Color.White.copy(alpha = 0.25f),
+                            tint = Color.White.copy(alpha = 0.35f),
                             modifier = Modifier.size(36.dp)
                         )
                     }
@@ -1907,11 +1898,12 @@ private fun SearchMediaItemCard(
                         .padding(6.dp)
                         .align(Alignment.TopStart),
                     shape = RoundedCornerShape(6.dp),
-                    color = badgeColor.copy(alpha = 0.90f)
+                    color = badgeBg,
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
                 ) {
                     Text(
                         text = mediaType,
-                        color = Color.White,
+                        color = badgeTextColor,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -1988,9 +1980,7 @@ private fun formatDuration(ms: Long): String {
 private fun matchesMediaType(manga: MangaEntity, selectedMedia: String): Boolean {
     return when (selectedMedia) {
         "All" -> true
-        "Favorite" -> manga.isFavorite || manga.genre?.contains("favorite", ignoreCase = true) == true
-        "Music" -> manga.contentType == 3 || manga.boxPurpose == "music"
-        "Book" -> manga.contentType != 3 && (manga.contentType == 1 || manga.boxPurpose == "book")
+        "Fav", "Favorite" -> manga.isFavorite || manga.genre?.contains("favorite", ignoreCase = true) == true
         "Manhua" -> manga.contentType != 3 && (manga.contentType == 0 || manga.boxPurpose == "manhua") && (
             manga.boxPurpose == "manhua" ||
             manga.genre?.contains("manhua", ignoreCase = true) == true ||
@@ -2006,8 +1996,11 @@ private fun matchesMediaType(manga: MangaEntity, selectedMedia: String): Boolean
                 !manga.genre.contains("webtoon", ignoreCase = true)
             )
         )
+        "Light Novel", "Novel" -> manga.contentType == 4 || manga.boxPurpose == "novel"
+        "Book" -> (manga.contentType == 1 || manga.boxPurpose == "book") && manga.contentType != 4 && manga.boxPurpose != "novel"
         "Series" -> manga.contentType != 3 && (manga.contentType == 2 || manga.boxPurpose == "series") && manga.boxPurpose != "channel"
         "Channel" -> manga.contentType != 3 && (manga.contentType == 2 || manga.boxPurpose == "channel") && manga.boxPurpose == "channel"
+        "Music" -> manga.contentType == 3 || manga.boxPurpose == "music"
         else -> true
     }
 }

@@ -37,46 +37,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _activeTab = MutableStateFlow(0)
     val activeTab: StateFlow<Int> = _activeTab
 
-    // Onboarding Spotlight Targets (stored as Rect to be memory-safe and lightweight)
-    val spotlightTargets = mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>()
-
-    fun updateSpotlightTarget(key: String, rect: androidx.compose.ui.geometry.Rect?) {
-        if (rect == null) {
-            spotlightTargets.remove(key)
-        } else {
-            spotlightTargets[key] = rect
-        }
-    }
-
-    private val _onboardingStep = MutableStateFlow<String?>(null)
-    val onboardingStep: StateFlow<String?> = _onboardingStep
-
-    val introSeen: StateFlow<Boolean> = globalSettings.introSeenTourFlow
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-
-    val introAccepted: StateFlow<Boolean> = globalSettings.introAcceptedTourFlow
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-
-    fun setIntroSeen(value: Boolean) {
-        viewModelScope.launch { globalSettings.setIntroSeenTour(value) }
-    }
-
-    fun setIntroAccepted(value: Boolean) {
-        viewModelScope.launch { globalSettings.setIntroAcceptedTour(value) }
-    }
-
-    fun startTour() {
-        _onboardingStep.value = "step_welcome"
-    }
-
-    fun setOnboardingStep(step: String?) {
-        _onboardingStep.value = step
-    }
-
-    fun endTour() {
-        _onboardingStep.value = null
-        spotlightTargets.clear()
-    }
 
     fun loadSplashThumbnails(context: Context, rawVideos: List<Pair<String, Int>>, customVideos: Set<String>) {
         viewModelScope.launch {
@@ -308,7 +268,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         .stateIn(viewModelScope, SharingStarted.Lazily, 23f)
 
     val glowColor: StateFlow<Long> = globalSettings.glowColorFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, 0xFF7A6284L)
+        .stateIn(viewModelScope, SharingStarted.Lazily, 0xFFE2E8F0L)
 
     val fabStyle: StateFlow<Int> = globalSettings.fabStyleFlow
         .stateIn(viewModelScope, SharingStarted.Lazily, 1)
@@ -342,22 +302,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     init {
         viewModelScope.launch {
-            // Read critical launch settings in one go (single DataStore read)
             try {
-                val theme = globalSettings.appThemeFlow.first()
-                val animType = globalSettings.animationTypeFlow.first()
-                val animVis = globalSettings.animationVisibilityFlow.first()
-                val introSeen = globalSettings.hasSeenIntroFlow.first()
-
-                // Wait for the StateFlows to reflect the loaded values using combine —
-                // this is a true suspension (no CPU spin) with a hard 300ms timeout.
-                val settled = kotlinx.coroutines.withTimeoutOrNull(300) {
-                    kotlinx.coroutines.flow.combine(
-                        appTheme, animationType, animationVisibility, hasSeenIntro
-                    ) { t, at, av, hi -> t == theme && at == animType && av == animVis && hi == introSeen }
-                        .first { it }
-                }
-                // settled == null means timeout; we proceed anyway to avoid blocking forever
+                globalSettings.hasSeenIntroFlow.first()
+                globalSettings.appThemeFlow.first()
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "Settings load failed", e)
             } finally {
@@ -416,9 +363,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setAppTheme(value: Int) {
         viewModelScope.launch { 
             globalSettings.setAppTheme(value)
-            // If theme is Pure Dark (1), default the pill/glow color to Preset 2 (Grape)
             if (value == 1) {
-                globalSettings.setGlowColor(0xFF7A6284L)
+                globalSettings.setGlowColor(0xFFE2E8F0L)
             }
             val themeName = when (value) {
                 0 -> "Orchid"

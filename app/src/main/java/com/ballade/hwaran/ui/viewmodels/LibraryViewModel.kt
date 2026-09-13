@@ -23,6 +23,8 @@ import androidx.documentfile.provider.DocumentFile
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 
 class LibraryViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
@@ -54,7 +56,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         .flatMapLatest { favManga ->
             if (favManga == null) kotlinx.coroutines.flow.flowOf(emptySet())
             else database.trackDao().getChaptersForManga(favManga.id)
-                .map { chapters -> chapters.map { it.folderUri }.toSet() }
+                .map { chapters -> 
+                    chapters.flatMap { listOfNotNull(it.folderUri, it.title.takeIf { t -> t.isNotBlank() }) }.toSet() 
+                }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     val allMangaState: StateFlow<List<MangaEntity>> = database.libraryDao().getAllManga()
@@ -127,7 +131,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         boxPurposeOverride: String? = null,
         workspace: String? = null,
         isNsfwOverride: Boolean? = null,
-        storageModeOverride: Int? = null
+        storageModeOverride: Int? = null,
+        mediaModeOverride: Int? = null
     ) {
         if (isImportingGlobal.value) return
         _isMegaImporting.value = true
@@ -140,13 +145,16 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             _megaImportSummary.value = null
 
             val globalSettings = com.ballade.hwaran.core.datastore.GlobalSettings(getApplication())
-            val mediaMode = globalSettings.mediaModeFlow.first()
+            val mediaMode = mediaModeOverride ?: globalSettings.mediaModeFlow.first()
             val isLocalMode = (storageModeOverride ?: globalSettings.storageModeFlow.first()) == 0
             val videoLayoutMode = globalSettings.videoLayoutModeFlow.first()
             val boxPurpose = boxPurposeOverride ?: if (videoLayoutMode == 1) "channel" else "series"
 
             try {
-                if (mediaMode == 1) { // Book Mode
+                if (mediaMode == 3) {
+                    importMusicFolder(parentUri, workspace)
+                    return@launch
+                } else if (mediaMode == 1) { // Book Mode
                     val parentDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(getApplication(), parentUri)
                     if (parentDoc != null) {
                         val mode = com.ballade.hwaran.data.importer.book.BookImportUtils.detectImportMode(parentDoc)
@@ -362,7 +370,16 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun importFolder(uri: Uri, isFile: Boolean = false, boxPurposeOverride: String? = null, workspace: String? = null, isNsfwOverride: Boolean? = null, storageModeOverride: Int? = null, onImported: (Long) -> Unit = {}) {
+    fun importFolder(
+        uri: Uri, 
+        isFile: Boolean = false, 
+        boxPurposeOverride: String? = null, 
+        workspace: String? = null, 
+        isNsfwOverride: Boolean? = null, 
+        storageModeOverride: Int? = null, 
+        mediaModeOverride: Int? = null,
+        onImported: (Long) -> Unit = {}
+    ) {
         if (isImportingGlobal.value) return
         _isImporting.value = true
         _isCancelRequested.value = false
@@ -374,7 +391,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             try {
                 val globalSettings = com.ballade.hwaran.core.datastore.GlobalSettings(getApplication())
                 val isLocalMode = (storageModeOverride ?: globalSettings.storageModeFlow.first()) == 0
-                val mediaMode = globalSettings.mediaModeFlow.first()
+                val mediaMode = mediaModeOverride ?: globalSettings.mediaModeFlow.first()
                 val videoLayoutMode = globalSettings.videoLayoutModeFlow.first()
                 val boxPurpose = boxPurposeOverride ?: if (videoLayoutMode == 1) "channel" else "series"
 
@@ -601,12 +618,71 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    private fun ensurePermanentSong(song: ChapterEntity, targetMangaId: Long): ChapterEntity {
+        var permanentUri = song.folderUri
+        var permanentArtUri = song.thumbnailUri
+
+        if (song.folderUri.startsWith("content://")) {
+            val contentUri = Uri.parse(song.folderUri)
+            var canPersist = false
+            try {
+                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                getApplication<Application>().contentResolver.takePersistableUriPermission(contentUri, takeFlags)
+                canPersist = true
+            } catch (e: Exception) {
+                canPersist = false
+            }
+
+            if (!canPersist) {
+                try {
+                    val targetDir = File(getApplication<Application>().filesDir, "media/saved_tracks").apply { mkdirs() }
+                    val cleanTitle = song.title.replace(Regex("[^a-zA-Z0-9._-]"), "_").take(40)
+                    val targetFile = File(targetDir, "trk_${System.currentTimeMillis()}_${cleanTitle}.mp3")
+                    getApplication<Application>().contentResolver.openInputStream(contentUri)?.use { input ->
+                        FileOutputStream(targetFile).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    if (targetFile.exists() && targetFile.length() > 0) {
+                        permanentUri = Uri.fromFile(targetFile).toString()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("LibraryViewModel", "Failed to copy external audio track", e)
+                }
+            }
+        }
+
+        if (song.thumbnailUri != null && song.thumbnailUri.startsWith("file://") && song.thumbnailUri.contains("/cache/")) {
+            try {
+                val artCacheFile = File(Uri.parse(song.thumbnailUri).path ?: "")
+                if (artCacheFile.exists()) {
+                    val artDir = File(getApplication<Application>().filesDir, "media/saved_art").apply { mkdirs() }
+                    val targetArt = File(artDir, "art_${System.currentTimeMillis()}_${artCacheFile.name}")
+                    artCacheFile.copyTo(targetArt, overwrite = true)
+                    permanentArtUri = Uri.fromFile(targetArt).toString()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("LibraryViewModel", "Failed to persist art", e)
+            }
+        }
+
+        return song.copy(
+            id = 0,
+            mangaId = targetMangaId,
+            folderUri = permanentUri,
+            thumbnailUri = permanentArtUri
+        )
+    }
+
     fun addSongToPlaylist(playlistId: Long, song: ChapterEntity) {
         viewModelScope.launch(Dispatchers.IO) {
             val existingChapters = database.trackDao().getChaptersForMangaList(playlistId)
-            val duplicate = existingChapters.find { it.folderUri == song.folderUri }
+            val duplicate = existingChapters.find { 
+                it.folderUri == song.folderUri || 
+                (it.title.isNotBlank() && it.title == song.title && it.artist == song.artist)
+            }
             if (duplicate == null) {
-                val newSong = song.copy(id = 0, mangaId = playlistId)
+                val newSong = ensurePermanentSong(song, playlistId)
                 database.trackDao().insertChapter(newSong)
             }
         }
@@ -638,12 +714,27 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             // Toggle song in the favorites playlist
             if (favPlaylist != null) {
                 val existingChapters = database.trackDao().getChaptersForMangaList(favPlaylist.id)
-                val duplicate = existingChapters.find { it.folderUri == song.folderUri }
+                val duplicate = existingChapters.find { 
+                    it.folderUri == song.folderUri || 
+                    (it.title.isNotBlank() && it.title == song.title && it.artist == song.artist)
+                }
                 if (duplicate != null) {
+                    if (duplicate.folderUri.contains("media/saved_tracks/")) {
+                        try {
+                            val f = File(Uri.parse(duplicate.folderUri).path ?: "")
+                            if (f.exists()) f.delete()
+                        } catch (e: Exception) {}
+                    }
+                    if (duplicate.thumbnailUri?.contains("media/saved_art/") == true) {
+                        try {
+                            val f = File(Uri.parse(duplicate.thumbnailUri).path ?: "")
+                            if (f.exists()) f.delete()
+                        } catch (e: Exception) {}
+                    }
                     database.trackDao().deleteChapter(duplicate)
                 } else {
-                    val newSong = song.copy(id = 0, mangaId = favPlaylist.id)
-                    database.trackDao().insertChapter(newSong)
+                    val permanentSong = ensurePermanentSong(song, favPlaylist.id)
+                    database.trackDao().insertChapter(permanentSong)
                 }
             }
         }

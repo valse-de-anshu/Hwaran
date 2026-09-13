@@ -37,7 +37,12 @@ import kotlinx.coroutines.withContext
 import androidx.documentfile.provider.DocumentFile
 import com.ballade.hwaran.data.importer.music.MusicImportUtils
 import java.io.File
+import java.io.FileOutputStream
 import java.io.InputStream
+import android.media.MediaMetadataRetriever
+import android.os.ParcelFileDescriptor
+import android.provider.MediaStore
+import android.provider.OpenableColumns
 import android.graphics.Color as AndroidColor
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "music_prefs")
@@ -66,6 +71,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     
     private fun attachListeners(player: ExoPlayer) {
         player.addListener(playerListener)
+        _isPlaying.value = player.isPlaying
     }
 
     private val playerListener = object : Player.Listener {
@@ -114,7 +120,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         }
                         val dbManga = database.libraryDao().getMangaById(dbChapter.mangaId)
                         if (dbManga != null) {
-                            database.libraryDao().insertManga(dbManga.copy(openCount = dbManga.openCount + 1))
+                            database.libraryDao().insertManga(
+                                dbManga.copy(
+                                    openCount = dbManga.openCount + 1,
+                                    lastReadTitle = dbChapter.title,
+                                    lastModified = System.currentTimeMillis()
+                                )
+                            )
                         }
                     }
                 }
@@ -130,11 +142,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Player.STATE_READY) {
                 _totalDuration.value = exoPlayer.duration.coerceAtLeast(0)
+            } else if (playbackState == Player.STATE_ENDED) {
+                _isPlaying.value = false
+                _playbackProgress.value = 1f
             }
         }
     }
-    
-    private var mediaController: androidx.media3.session.MediaController? = null
 
     private val _currentManga = MutableStateFlow<MangaEntity?>(null)
     val currentManga: StateFlow<MangaEntity?> = _currentManga
@@ -192,7 +205,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val bitmap = loadBitmap(playlist.coverPath)
+                val bitmap = loadThumbnailBitmap(playlist.coverPath)
                 if (bitmap != null) {
                     val p = Palette.from(bitmap).generate()
                     
@@ -228,6 +241,54 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun extractPlaylistColors(playlists: List<MangaEntity>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = _playlistPalettes.value.toMutableMap()
+            var changed = false
+            for (playlist in playlists) {
+                val currentEntry = current[playlist.id]
+                if (playlist.coverPath.isEmpty() || (currentEntry != null && currentEntry.first == playlist.coverPath)) continue
+                try {
+                    val bitmap = loadThumbnailBitmap(playlist.coverPath)
+                    if (bitmap != null) {
+                        val p = Palette.from(bitmap).generate()
+                        
+                        var dominantInt = p.getDominantColor(0)
+                        var vibrantInt = p.getVibrantColor(0).let { if (it == 0) p.getLightVibrantColor(0) else it }
+                        var mutedInt = p.getMutedColor(0)
+
+                        if (vibrantInt == 0 && dominantInt != 0) {
+                            val hsv = FloatArray(3)
+                            AndroidColor.colorToHSV(dominantInt, hsv)
+                            hsv[0] = (hsv[0] + 30f) % 360f 
+                            hsv[1] = (hsv[1] * 1.2f).coerceAtMost(1f) 
+                            vibrantInt = AndroidColor.HSVToColor(hsv)
+                        }
+                        
+                        if (mutedInt == 0 && dominantInt != 0) {
+                            val hsv = FloatArray(3)
+                            AndroidColor.colorToHSV(dominantInt, hsv)
+                            hsv[2] = (hsv[2] * 0.5f) 
+                            mutedInt = AndroidColor.HSVToColor(hsv)
+                        }
+
+                        if (dominantInt != 0 || vibrantInt != 0) {
+                            current[playlist.id] = playlist.coverPath to ColorPalette(
+                                dominant = dominantInt.toLong(),
+                                vibrant = vibrantInt.toLong(),
+                                muted = mutedInt.toLong()
+                            )
+                            changed = true
+                        }
+                    }
+                } catch (e: Exception) {}
+            }
+            if (changed) {
+                _playlistPalettes.value = current
+            }
+        }
+    }
+
     init {
         // Accessing exoPlayer here triggers initial listener attachment
         val initialPlayer = exoPlayer
@@ -236,6 +297,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             .setUsage(C.USAGE_MEDIA)
             .build()
         initialPlayer.setAudioAttributes(audioAttributes, true)
+        _isPlaying.value = initialPlayer.isPlaying
+
+        val extChapter = HwaranPlayerHolder.activeExternalChapter
+        if (extChapter != null) {
+            _currentChapter.value = extChapter
+            _currentManga.value = HwaranPlayerHolder.activeExternalManga
+            _currentPlaylist.value = listOf(extChapter)
+            updateDominantColor(extChapter.thumbnailUri ?: extChapter.folderUri)
+        }
 
         viewModelScope.launch {
             var lastSaveTime = 0L
@@ -252,8 +322,59 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         // Still trying to get duration, at least update position if possible
                         _currentPosition.value = pos
                     }
+
+                    // Auto-recover currentChapter if null while player is active
+                    if (_currentChapter.value == null) {
+                        val activeExt = HwaranPlayerHolder.activeExternalChapter
+                        if (activeExt != null) {
+                            _currentChapter.value = activeExt
+                            _currentManga.value = HwaranPlayerHolder.activeExternalManga
+                            _currentPlaylist.value = listOf(activeExt)
+                            updateDominantColor(activeExt.thumbnailUri ?: activeExt.folderUri)
+                        } else {
+                            val mediaItem = exoPlayer.currentMediaItem
+                            if (mediaItem != null) {
+                                val meta = mediaItem.mediaMetadata
+                                val mediaTitle = meta.title?.toString()?.takeIf { it.isNotBlank() }
+                                    ?: meta.displayTitle?.toString()?.takeIf { it.isNotBlank() }
+                                    ?: "External Audio"
+                                val mediaArtist = meta.artist?.toString()?.takeIf { it.isNotBlank() } ?: "Unknown Artist"
+                                val mediaAlbum = meta.albumTitle?.toString()?.takeIf { it.isNotBlank() } ?: "External Audio"
+                                val mediaArt = meta.artworkUri?.toString()
+                                val mediaUri = mediaItem.localConfiguration?.uri?.toString() ?: ""
+
+                                val recoveredChapter = ChapterEntity(
+                                    id = -1L,
+                                    mangaId = -1L,
+                                    title = mediaTitle,
+                                    folderUri = mediaUri,
+                                    thumbnailUri = mediaArt,
+                                    artist = mediaArtist,
+                                    duration = if (dur > 0) dur else 0L
+                                )
+                                val recoveredManga = MangaEntity(
+                                    id = -1L,
+                                    title = mediaAlbum,
+                                    description = "",
+                                    thoughts = "",
+                                    coverPath = mediaArt ?: "",
+                                    isNsfw = false,
+                                    parentUri = mediaUri,
+                                    lastModified = System.currentTimeMillis(),
+                                    contentType = 1
+                                )
+                                HwaranPlayerHolder.activeExternalChapter = recoveredChapter
+                                HwaranPlayerHolder.activeExternalManga = recoveredManga
+                                _currentChapter.value = recoveredChapter
+                                _currentManga.value = recoveredManga
+                                _currentPlaylist.value = listOf(recoveredChapter)
+                                updateDominantColor(mediaArt ?: mediaUri)
+                            }
+                        }
+                    }
                 }
                 val isPlaying = exoPlayer.isPlaying
+                _isPlaying.value = isPlaying
                 val delayMs = if (isPlaying) 50L else 250L
                 delay(delayMs)
                 
@@ -269,23 +390,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             restorePlaybackState()
         }
-        
-        // Connect MediaController to ensure the MediaSessionService is alive and showing notifications
-        viewModelScope.launch {
-            val sessionToken = androidx.media3.session.SessionToken(
-                context, 
-                android.content.ComponentName(context, MusicNotificationService::class.java)
-            )
-            val controllerFuture = androidx.media3.session.MediaController.Builder(context, sessionToken).buildAsync()
-            controllerFuture.addListener({
-                try {
-                    mediaController = controllerFuture.get()
-                    android.util.Log.d("MusicViewModel", "MediaController connected")
-                } catch (e: Exception) {
-                    android.util.Log.e("MusicViewModel", "Failed to connect MediaController", e)
-                }
-            }, androidx.core.content.ContextCompat.getMainExecutor(context))
-        }
+
     }
 
     private fun savePlaybackState() {
@@ -363,6 +468,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun restorePlaybackState() {
+        if (skipRestore || isPopUpActive || exoPlayer.mediaItemCount > 0 || HwaranPlayerHolder.activeExternalChapter != null) return
         try {
             val prefs = context.dataStore.data.first()
             val chapterId = prefs[KEY_LAST_CHAPTER_ID] ?: return
@@ -403,43 +509,294 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun playExternalAudio(uri: Uri, context: Context) {
-        val player = exoPlayer
-        player.stop()
-        player.clearMediaItems()
-        
-        val metadata = MediaMetadata.Builder()
-            .setTitle(uri.lastPathSegment ?: "External Audio")
-            .setArtist("External")
-            .build()
-            
-        val mediaItem = MediaItem.Builder()
-            .setUri(uri)
-            .setMediaMetadata(metadata)
-            .build()
-            
-        player.setMediaItem(mediaItem)
-        player.prepare()
-        player.play()
+        viewModelScope.launch(Dispatchers.IO) {
+            var title: String? = null
+            var artist: String? = null
+            var album: String? = null
+            var duration = 0L
+            var thumbnailUri: String? = null
 
-        // Sync local state
-        _currentChapter.value = ChapterEntity(id = -1L, mangaId = -1L, title = uri.lastPathSegment ?: "External", folderUri = uri.toString())
-        _currentManga.value = null
-        _currentPlaylist.value = emptyList()
+            // 1. Try ContentResolver for display name and MediaStore metadata
+            var displayName: String? = null
+            try {
+                if (uri.scheme == "content") {
+                    try {
+                        val projection = arrayOf(
+                            OpenableColumns.DISPLAY_NAME,
+                            MediaStore.Audio.Media.TITLE,
+                            MediaStore.Audio.Media.ARTIST,
+                            MediaStore.Audio.Media.ALBUM
+                        )
+                        context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                                if (nameIndex != -1) displayName = cursor.getString(nameIndex)
+                                val titleIndex = cursor.getColumnIndex(MediaStore.Audio.Media.TITLE)
+                                if (titleIndex != -1) title = cursor.getString(titleIndex)
+                                val artistIndex = cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST)
+                                if (artistIndex != -1) artist = cursor.getString(artistIndex)
+                                val albumIndex = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM)
+                                if (albumIndex != -1) album = cursor.getString(albumIndex)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        // Fallback to query only OpenableColumns.DISPLAY_NAME if MediaStore columns are unsupported
+                        context.contentResolver.query(
+                            uri,
+                            arrayOf(OpenableColumns.DISPLAY_NAME),
+                            null, null, null
+                        )?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                                if (nameIndex != -1) {
+                                    displayName = cursor.getString(nameIndex)
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("MusicViewModel", "Failed to query displayName", e)
+            }
 
-        // Ensure service is started
-        try {
-            val serviceIntent = Intent(context, MusicNotificationService::class.java)
-            context.startService(serviceIntent)
-        } catch (e: Exception) {
-            android.util.Log.e("MusicViewModel", "Failed to start service for external audio", e)
+            // 2. Try MediaMetadataRetriever (keep file descriptor open until extraction finishes)
+            val retriever = MediaMetadataRetriever()
+            var pfd: ParcelFileDescriptor? = null
+            try {
+                try {
+                    if (uri.scheme == "content") {
+                        pfd = context.contentResolver.openFileDescriptor(uri, "r")
+                        if (pfd != null) {
+                            retriever.setDataSource(pfd.fileDescriptor)
+                        } else {
+                            retriever.setDataSource(context, uri)
+                        }
+                    } else {
+                        retriever.setDataSource(context, uri)
+                    }
+                } catch (e: Exception) {
+                    try {
+                        retriever.setDataSource(context, uri)
+                    } catch (e2: Exception) {
+                        android.util.Log.w("MusicViewModel", "MediaMetadataRetriever setDataSource failed", e2)
+                    }
+                }
+
+                val metaTitle = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
+                if (!metaTitle.isNullOrBlank()) title = metaTitle
+
+                val metaArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                    ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
+                    ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
+                if (!metaArtist.isNullOrBlank()) artist = metaArtist
+
+                val metaAlbum = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
+                if (!metaAlbum.isNullOrBlank()) album = metaAlbum
+
+                val durStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                duration = durStr?.toLongOrNull() ?: 0L
+
+                val pictureBytes = retriever.embeddedPicture
+                if (pictureBytes != null && pictureBytes.isNotEmpty()) {
+                    try {
+                        val artFile = File(context.cacheDir, "ext_art_${uri.toString().hashCode()}.jpg")
+                        FileOutputStream(artFile).use { fos ->
+                            fos.write(pictureBytes)
+                        }
+                        thumbnailUri = Uri.fromFile(artFile).toString()
+                    } catch (e: Exception) {
+                        android.util.Log.w("MusicViewModel", "Failed to cache embedded art", e)
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("MusicViewModel", "MediaMetadataRetriever failed for $uri", e)
+            } finally {
+                try {
+                    retriever.release()
+                } catch (e: Exception) {}
+                try {
+                    pfd?.close()
+                } catch (e: Exception) {}
+            }
+
+            // 3. Fallbacks
+            val cleanFileName = displayName
+                ?: try { Uri.decode(uri.lastPathSegment)?.substringAfterLast('/') } catch (e: Exception) { uri.lastPathSegment }
+            val baseName = cleanFileName?.substringBeforeLast('.')?.trim()?.takeIf { it.isNotBlank() }
+
+            val finalTitle = title?.trim()?.takeIf { it.isNotBlank() }
+                ?: baseName
+                ?: "External Audio"
+
+            val finalArtist = artist?.trim()?.takeIf { it.isNotBlank() } ?: "Unknown Artist"
+            val finalAlbum = album?.trim()?.takeIf { it.isNotBlank() } ?: "External Audio"
+
+            withContext(Dispatchers.Main) {
+                val player = exoPlayer
+                player.stop()
+                player.clearMediaItems()
+
+                val metadata = MediaMetadata.Builder()
+                    .setTitle(finalTitle)
+                    .setDisplayTitle(finalTitle)
+                    .setArtist(finalArtist)
+                    .setAlbumTitle(finalAlbum)
+                    .apply {
+                        if (thumbnailUri != null) {
+                            setArtworkUri(Uri.parse(thumbnailUri))
+                        }
+                    }
+                    .build()
+
+                val mediaItem = MediaItem.Builder()
+                    .setUri(uri)
+                    .setMediaMetadata(metadata)
+                    .build()
+
+                player.setMediaItem(mediaItem)
+                player.prepare()
+                player.play()
+
+                val chapter = ChapterEntity(
+                    id = -1L,
+                    mangaId = -1L,
+                    title = finalTitle,
+                    folderUri = uri.toString(),
+                    thumbnailUri = thumbnailUri,
+                    artist = finalArtist,
+                    duration = duration
+                )
+                val manga = MangaEntity(
+                    id = -1L,
+                    title = finalAlbum,
+                    description = "",
+                    thoughts = "",
+                    coverPath = thumbnailUri ?: "",
+                    isNsfw = false,
+                    parentUri = uri.toString(),
+                    lastModified = System.currentTimeMillis(),
+                    contentType = 1
+                )
+
+                HwaranPlayerHolder.activeExternalChapter = chapter
+                HwaranPlayerHolder.activeExternalManga = manga
+
+                _currentChapter.value = chapter
+                _currentManga.value = manga
+                _currentPlaylist.value = listOf(chapter)
+                _currentPosition.value = 0L
+                _playbackProgress.value = 0f
+                if (duration > 0L) {
+                    _totalDuration.value = duration
+                }
+
+                updateDominantColor(thumbnailUri)
+
+                // Ensure service is started
+                try {
+                    val serviceIntent = Intent(context, MusicNotificationService::class.java)
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        context.startForegroundService(serviceIntent)
+                    } else {
+                        context.startService(serviceIntent)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("MusicViewModel", "Failed to start service for external audio", e)
+                }
+            }
+        }
+    }
+
+    fun syncExternalAudio(uri: Uri?, context: Context) {
+        val extChapter = HwaranPlayerHolder.activeExternalChapter
+        val extManga = HwaranPlayerHolder.activeExternalManga
+
+        if (extChapter != null && (uri == null || extChapter.folderUri == uri.toString())) {
+            _currentChapter.value = extChapter
+            _currentManga.value = extManga
+            _currentPlaylist.value = listOf(extChapter)
+            if (exoPlayer.duration > 0) {
+                _totalDuration.value = exoPlayer.duration
+                _currentPosition.value = exoPlayer.currentPosition
+                _playbackProgress.value = exoPlayer.currentPosition.toFloat() / exoPlayer.duration.toFloat()
+            }
+            _isPlaying.value = exoPlayer.isPlaying
+            updateDominantColor(extChapter.thumbnailUri)
+            return
+        }
+
+        if (uri != null) {
+            playExternalAudio(uri, context)
+            return
+        }
+
+        val mediaItem = exoPlayer.currentMediaItem
+        if (mediaItem != null && exoPlayer.playbackState != Player.STATE_IDLE) {
+            val meta = mediaItem.mediaMetadata
+            val mediaTitle = meta.title?.toString()?.takeIf { it.isNotBlank() }
+                ?: meta.displayTitle?.toString()?.takeIf { it.isNotBlank() }
+                ?: "External Audio"
+            val mediaArtist = meta.artist?.toString()?.takeIf { it.isNotBlank() } ?: "Unknown Artist"
+            val mediaAlbum = meta.albumTitle?.toString()?.takeIf { it.isNotBlank() } ?: "External Audio"
+            val mediaArt = meta.artworkUri?.toString()
+            val mediaUri = mediaItem.localConfiguration?.uri?.toString() ?: ""
+
+            val chapter = ChapterEntity(
+                id = -1L,
+                mangaId = -1L,
+                title = mediaTitle,
+                folderUri = mediaUri,
+                thumbnailUri = mediaArt,
+                artist = mediaArtist,
+                duration = if (exoPlayer.duration > 0) exoPlayer.duration else 0L
+            )
+            val manga = MangaEntity(
+                id = -1L,
+                title = mediaAlbum,
+                description = "",
+                thoughts = "",
+                coverPath = mediaArt ?: "",
+                isNsfw = false,
+                parentUri = mediaUri,
+                lastModified = System.currentTimeMillis(),
+                contentType = 1
+            )
+            HwaranPlayerHolder.activeExternalChapter = chapter
+            HwaranPlayerHolder.activeExternalManga = manga
+            _currentChapter.value = chapter
+            _currentManga.value = manga
+            _currentPlaylist.value = listOf(chapter)
+            if (exoPlayer.duration > 0) {
+                _totalDuration.value = exoPlayer.duration
+                _currentPosition.value = exoPlayer.currentPosition
+                _playbackProgress.value = exoPlayer.currentPosition.toFloat() / exoPlayer.duration.toFloat()
+            }
+            _isPlaying.value = exoPlayer.isPlaying
+            updateDominantColor(mediaArt)
         }
     }
 
     fun playPlaylist(manga: MangaEntity, chapters: List<ChapterEntity>, startIndex: Int = 0) {
+        HwaranPlayerHolder.activeExternalChapter = null
+        HwaranPlayerHolder.activeExternalManga = null
         _currentManga.value = manga
         _currentPlaylist.value = chapters
         val startChapter = chapters.getOrNull(startIndex)
         _currentChapter.value = startChapter
+        if (startChapter != null) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val dbManga = database.libraryDao().getMangaById(manga.id)
+                if (dbManga != null) {
+                    database.libraryDao().insertManga(
+                        dbManga.copy(
+                            openCount = dbManga.openCount + 1,
+                            lastReadTitle = startChapter.title,
+                            lastModified = System.currentTimeMillis()
+                        )
+                    )
+                }
+            }
+        }
         if (startChapter != null && startChapter.lyrics.isNullOrBlank()) {
             viewModelScope.launch(Dispatchers.IO) {
                 val resolved = tryResolveLyrics(startChapter)
@@ -498,6 +855,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             preparePlayerFromState()
             if (player.playbackState == Player.STATE_IDLE) {
                 player.prepare()
+            }
+            if (player.playbackState == Player.STATE_ENDED || (player.duration > 0 && player.currentPosition >= player.duration)) {
+                val targetIndex = if (player.mediaItemCount > 0) player.currentMediaItemIndex.coerceIn(0, player.mediaItemCount - 1) else 0
+                player.seekTo(targetIndex, 0L)
+                _currentPosition.value = 0L
+                _playbackProgress.value = 0f
             }
             player.play()
             
@@ -610,12 +973,28 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun next() {
         if (exoPlayer.hasNextMediaItem()) {
             exoPlayer.seekToNext()
+        } else {
+            val targetIndex = if (exoPlayer.mediaItemCount > 0) exoPlayer.currentMediaItemIndex.coerceIn(0, exoPlayer.mediaItemCount - 1) else 0
+            exoPlayer.seekTo(targetIndex, 0L)
+            _currentPosition.value = 0L
+            _playbackProgress.value = 0f
+            if (!exoPlayer.isPlaying) {
+                exoPlayer.play()
+            }
         }
     }
 
     fun previous() {
         if (exoPlayer.hasPreviousMediaItem()) {
             exoPlayer.seekToPrevious()
+        } else {
+            val targetIndex = if (exoPlayer.mediaItemCount > 0) exoPlayer.currentMediaItemIndex.coerceIn(0, exoPlayer.mediaItemCount - 1) else 0
+            exoPlayer.seekTo(targetIndex, 0L)
+            _currentPosition.value = 0L
+            _playbackProgress.value = 0f
+            if (!exoPlayer.isPlaying) {
+                exoPlayer.play()
+            }
         }
     }
 
@@ -779,11 +1158,34 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun loadThumbnailBitmap(path: String, sampleSize: Int = 4): Bitmap? {
+        return try {
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = sampleSize
+                inPreferredConfig = Bitmap.Config.RGB_565
+            }
+            if (path.startsWith("content://") || path.startsWith("android.resource://")) {
+                val input: InputStream? = getApplication<Application>().contentResolver.openInputStream(Uri.parse(path))
+                BitmapFactory.decodeStream(input, null, options)
+            } else if (path.startsWith("file://")) {
+                val filePath = Uri.parse(path).path
+                if (!filePath.isNullOrEmpty()) BitmapFactory.decodeFile(filePath, options) else null
+            } else {
+                BitmapFactory.decodeFile(path, options)
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private fun loadBitmap(path: String): Bitmap? {
         return try {
             if (path.startsWith("content://") || path.startsWith("android.resource://")) {
                 val input: InputStream? = getApplication<Application>().contentResolver.openInputStream(Uri.parse(path))
                 BitmapFactory.decodeStream(input)
+            } else if (path.startsWith("file://")) {
+                val filePath = Uri.parse(path).path
+                if (!filePath.isNullOrEmpty()) BitmapFactory.decodeFile(filePath) else null
             } else {
                 BitmapFactory.decodeFile(path)
             }
@@ -891,6 +1293,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun stopPlayback() {
         exoPlayer.stop()
+        exoPlayer.clearMediaItems()
+        HwaranPlayerHolder.activeExternalChapter = null
+        HwaranPlayerHolder.activeExternalManga = null
+        try {
+            val stopIntent = Intent(context, MusicNotificationService::class.java).apply {
+                action = "ACTION_STOP_SERVICE"
+            }
+            context.startService(stopIntent)
+        } catch (e: Exception) {}
     }
 
     companion object {

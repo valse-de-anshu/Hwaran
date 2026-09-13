@@ -3,23 +3,24 @@ package com.ballade.hwaran
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,6 +40,7 @@ import com.ballade.hwaran.ui.components.WavyMusicSlider
 import com.ballade.hwaran.ui.theme.HwaranTheme
 import com.ballade.hwaran.ui.viewmodels.MusicViewModel
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
+import java.util.Locale
 
 class PopUpPlayerActivity : ComponentActivity() {
 
@@ -48,10 +51,14 @@ class PopUpPlayerActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        com.ballade.hwaran.ui.viewmodels.MusicViewModel.skipRestore = true
-        com.ballade.hwaran.ui.viewmodels.MusicViewModel.isPopUpActive = true
+        MusicViewModel.skipRestore = true
+        MusicViewModel.isPopUpActive = true
         overridePendingTransition(0, 0)
         super.onCreate(savedInstanceState)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
 
         val uri = intent.data
         if (uri == null) {
@@ -83,6 +90,7 @@ class PopUpPlayerActivity : ComponentActivity() {
                 pillHighlightColor = glowColorLong
             ) {
                 val currentChapter by musicViewModel.currentChapter.collectAsState()
+                val currentManga by musicViewModel.currentManga.collectAsState()
                 val isPlaying by musicViewModel.isPlaying.collectAsState()
                 val playbackProgress by musicViewModel.playbackProgress.collectAsState()
                 val currentPosition by musicViewModel.currentPosition.collectAsState()
@@ -91,24 +99,32 @@ class PopUpPlayerActivity : ComponentActivity() {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .clickable { finish() },
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { finish() },
                     contentAlignment = Alignment.Center
                 ) {
                     Card(
                         modifier = Modifier
-                            .width(300.dp)
-                            .clickable(enabled = false) {}, // Consume clicks
-                        shape = RoundedCornerShape(28.dp),
+                            .fillMaxWidth(0.92f)
+                            .widthIn(max = 380.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                enabled = true
+                            ) {}, // Consume clicks inside the card
+                        shape = RoundedCornerShape(18.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFF16151D)
+                            containerColor = Color(0xFF212121)
                         ),
                         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
+                                .padding(20.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             // Header Row: App icon, Title, Close button
@@ -116,14 +132,15 @@ class PopUpPlayerActivity : ComponentActivity() {
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                AsyncImage(
-                                    model = R.mipmap.ic_launcher,
-                                    contentDescription = "App Icon",
+                                Image(
+                                    painter = painterResource(R.drawable.cover),
+                                    contentDescription = "Hwaran",
+                                    contentScale = ContentScale.Crop,
                                     modifier = Modifier
-                                        .size(32.dp)
+                                        .size(36.dp)
                                         .clip(CircleShape)
                                 )
-                                Spacer(modifier = Modifier.width(10.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = "Hwaran",
                                     color = Color.White,
@@ -133,17 +150,18 @@ class PopUpPlayerActivity : ComponentActivity() {
                                 Spacer(modifier = Modifier.weight(1f))
                                 IconButton(
                                     onClick = { finish() },
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(28.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.Close,
                                         contentDescription = "Close",
-                                        tint = Color.White.copy(alpha = 0.8f)
+                                        tint = Color.White.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(22.dp)
                                     )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(20.dp))
+                            Spacer(modifier = Modifier.height(18.dp))
 
                             // Cover Art and Info Row
                             Row(
@@ -154,8 +172,8 @@ class PopUpPlayerActivity : ComponentActivity() {
                                 val cover = currentChapter?.thumbnailUri
                                 Box(
                                     modifier = Modifier
-                                        .size(72.dp)
-                                        .clip(RoundedCornerShape(16.dp))
+                                        .size(62.dp)
+                                        .clip(RoundedCornerShape(8.dp))
                                         .background(Color.Black.copy(alpha = 0.3f)),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -167,54 +185,88 @@ class PopUpPlayerActivity : ComponentActivity() {
                                             modifier = Modifier.fillMaxSize()
                                         )
                                     } else {
-                                        Icon(
-                                            imageVector = Icons.Rounded.MusicNote,
-                                            contentDescription = "Placeholder",
-                                            tint = Color.White.copy(alpha = 0.2f),
-                                            modifier = Modifier.size(36.dp)
+                                        Image(
+                                            painter = painterResource(R.drawable.cover),
+                                            contentDescription = "Placeholder Cover",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
                                         )
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.width(16.dp))
+                                Spacer(modifier = Modifier.width(14.dp))
 
-                                // Track details
+                                // Track details: Title, Artist, Album
                                 Column(
                                     modifier = Modifier.weight(1f),
                                     verticalArrangement = Arrangement.Center
                                 ) {
                                     Text(
-                                        text = currentChapter?.title ?: "Unknown Song",
+                                        text = currentChapter?.title?.takeIf { it.isNotBlank() } ?: "Audio Track",
                                         color = Color.White,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Spacer(modifier = Modifier.height(3.dp))
                                     Text(
-                                        text = currentChapter?.artist ?: "Unknown Artist",
-                                        color = Color.White.copy(alpha = 0.6f),
+                                        text = currentChapter?.artist?.takeIf { it.isNotBlank() } ?: "Unknown Artist",
+                                        color = Color.White.copy(alpha = 0.7f),
                                         fontSize = 13.sp,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
+                                    val album = currentManga?.title?.takeIf { it.isNotBlank() && it != "External Audio" }
+                                    if (album != null) {
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = album,
+                                            color = Color.White.copy(alpha = 0.45f),
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(20.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
 
-                            // Timeline Row with volume icon on left and WavyMusicSlider
+                            // Time Label (e.g. 0:00/3:42 right-aligned above slider)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(end = 4.dp),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Text(
+                                    text = "${formatTime(currentPosition)}/${formatTime(totalDuration)}",
+                                    color = Color.White.copy(alpha = 0.75f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Normal
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // Controls Row: Play/Pause button on left, Snake/Wavy Slider on right
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.VolumeUp,
-                                    contentDescription = "Volume",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(24.dp)
-                                )
+                                IconButton(
+                                    onClick = { musicViewModel.togglePlayPause() },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                        contentDescription = if (isPlaying) "Pause" else "Play",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                }
+
                                 Spacer(modifier = Modifier.width(8.dp))
 
                                 var isDragging by remember { mutableStateOf(false) }
@@ -236,105 +288,62 @@ class PopUpPlayerActivity : ComponentActivity() {
                                     isPlaying = isPlaying,
                                     activeTrackColor = Color.White,
                                     thumbColor = Color.White,
-                                    inactiveTrackColor = Color.White.copy(alpha = 0.15f),
-                                    trackHeight = 4.dp,
-                                    thumbRadius = 6.dp,
-                                    waveAmplitudeWhenPlaying = 3.dp,
-                                    waveLength = 60.dp,
+                                    inactiveTrackColor = Color.White.copy(alpha = 0.2f),
+                                    trackHeight = 3.dp,
+                                    thumbRadius = 7.dp,
+                                    waveAmplitudeWhenPlaying = 2.5.dp,
+                                    waveLength = 50.dp,
                                     modifier = Modifier.weight(1f)
                                 )
                             }
 
-                            // Time Labels
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = formatTime(currentPosition),
-                                    color = Color.White.copy(alpha = 0.5f),
-                                    fontSize = 11.sp
-                                )
-                                Text(
-                                    text = formatTime(totalDuration),
-                                    color = Color.White.copy(alpha = 0.5f),
-                                    fontSize = 11.sp
-                                )
-                            }
+                            Spacer(modifier = Modifier.height(14.dp))
 
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Center Play/Pause button
-                            IconButton(
-                                onClick = { musicViewModel.togglePlayPause() },
-                                modifier = Modifier
-                                    .size(56.dp)
-                                    .background(Color.White.copy(alpha = 0.1f), CircleShape)
-                                    .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
-                            ) {
-                                Icon(
-                                    imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                    contentDescription = "Play/Pause",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Source URI/Path text
+                            // Source URI / Path text
                             Text(
-                                text = currentChapter?.folderUri ?: "",
-                                color = Color.White.copy(alpha = 0.3f),
-                                fontSize = 9.sp,
+                                text = activeUri?.toString() ?: currentChapter?.folderUri ?: "",
+                                color = Color.White.copy(alpha = 0.45f),
+                                fontSize = 11.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center
+                                textAlign = TextAlign.Start
                             )
 
-                            Spacer(modifier = Modifier.height(20.dp))
+                            Spacer(modifier = Modifier.height(18.dp))
 
                             // Open in main app button
-                            Button(
-                                onClick = {
-                                    openMainAppClicked = true
-                                    val mainIntent = Intent(this@PopUpPlayerActivity, MainActivity::class.java).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                                        putExtra("navigate_to_music", true)
-                                        data = activeUri
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        openMainAppClicked = true
+                                        val mainIntent = Intent(this@PopUpPlayerActivity, MainActivity::class.java).apply {
+                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                                            putExtra("navigate_to_music", true)
+                                            data = activeUri
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        startActivity(mainIntent)
+                                        finish()
                                     }
-                                    startActivity(mainIntent)
-                                    finish()
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.White.copy(alpha = 0.08f),
-                                    contentColor = Color.White
-                                ),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
-                                contentPadding = PaddingValues(vertical = 12.dp)
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
-                                        contentDescription = "Open",
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Open in main app",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
+                                    contentDescription = "Open in main app",
+                                    tint = Color.White.copy(alpha = 0.85f),
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Open in main app",
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
                         }
                     }
@@ -362,13 +371,13 @@ class PopUpPlayerActivity : ComponentActivity() {
         if (isFinishing && !openMainAppClicked) {
             musicViewModel.stopPlayback()
         }
-        com.ballade.hwaran.ui.viewmodels.MusicViewModel.isPopUpActive = false
+        MusicViewModel.isPopUpActive = false
     }
 
     private fun formatTime(ms: Long): String {
-        val totalSeconds = ms / 1000
+        val totalSeconds = (ms / 1000).coerceAtLeast(0)
         val mins = totalSeconds / 60
         val secs = totalSeconds % 60
-        return String.format("%02d:%02d", mins, secs)
+        return String.format(Locale.US, "%d:%02d", mins, secs)
     }
 }

@@ -15,17 +15,17 @@ enum class SeriesRelationType(
     val color: Color,
     val icon: ImageVector
 ) {
-    SEASON("season", "Season", Color(0xFFAB47BC), Icons.Rounded.Layers),
-    SEQUEL("sequel", "Sequel", Color(0xFF7E57C2), Icons.Rounded.FastForward),
-    PREQUEL("prequel", "Prequel", Color(0xFF5C6BC0), Icons.Rounded.FastRewind),
-    MOVIE("movie", "Movie", Color(0xFFEC407A), Icons.Rounded.Movie),
-    OVA("ova", "OVA", Color(0xFF26C6DA), Icons.Rounded.VideoFile),
-    ONA("ona", "ONA", Color(0xFF26A69A), Icons.Rounded.LiveTv),
-    SPECIAL("special", "Special", Color(0xFFFFA726), Icons.Rounded.Stars),
-    BLURAY("bluray", "Blu-ray", Color(0xFF42A5F5), Icons.Rounded.Album),
-    SPINOFF("spinoff", "Spinoff", Color(0xFF9CCC65), Icons.Rounded.Share),
-    SUMMARY("summary", "Recap", Color(0xFF78909C), Icons.Rounded.Summarize),
-    ALT_VERSION("alt_version", "Alt Version", Color(0xFF8D6E63), Icons.Rounded.Transform);
+    SEASON("season", "Season", Color(0xFF9E94AB), Icons.Rounded.Layers),
+    SEQUEL("sequel", "Sequel", Color(0xFF8F9BB3), Icons.Rounded.FastForward),
+    PREQUEL("prequel", "Prequel", Color(0xFF8895A5), Icons.Rounded.FastRewind),
+    MOVIE("movie", "Movie", Color(0xFFA58D9A), Icons.Rounded.Movie),
+    OVA("ova", "OVA", Color(0xFF7E9DA3), Icons.Rounded.VideoFile),
+    ONA("ona", "ONA", Color(0xFF7C9D97), Icons.Rounded.LiveTv),
+    SPECIAL("special", "Special", Color(0xFFAFA384), Icons.Rounded.Stars),
+    BLURAY("bluray", "Blu-ray", Color(0xFF839DB5), Icons.Rounded.Album),
+    SPINOFF("spinoff", "Spinoff", Color(0xFF8F9E83), Icons.Rounded.Share),
+    SUMMARY("summary", "Recap", Color(0xFF848D93), Icons.Rounded.Summarize),
+    ALT_VERSION("alt_version", "Alt Version", Color(0xFF998A84), Icons.Rounded.Transform);
 
     companion object {
         val allOptions = entries.toList()
