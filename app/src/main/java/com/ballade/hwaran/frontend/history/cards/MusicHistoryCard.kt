@@ -1,49 +1,54 @@
 package com.ballade.hwaran.frontend.history.cards
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ballade.hwaran.core.database.entity.MangaEntity
-import com.ballade.hwaran.core.database.entity.ChapterEntity
-import com.ballade.hwaran.frontend.history.models.HistoryTimelineItem
-import com.ballade.hwaran.frontend.history.models.parseDetails
-import com.ballade.hwaran.frontend.history.models.truncateMiddle
+import com.ballade.hwaran.frontend.history.models.*
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
 fun MusicHistoryCard(
-    item: HistoryTimelineItem,
-    allMangaMap: Map<Long, MangaEntity>,
-    allChaptersMap: Map<Long, ChapterEntity>,
+    item: MusicHistoryGroup,
     onNavigateToPlaylist: (Long) -> Unit
 ) {
-    val iconColor = Color(0xFFD391B0)
-    val folderTitle = "Music"
+    val iconColor = Color(0xFFD391B0) // Soft Mauve / Rose accent
+    val workspaceLabel = item.playlistManga.workspace?.takeIf { it.isNotBlank() } ?: "I Love It"
 
-    val chronologicallyOrdered = remember(item.occurrences) { item.occurrences.reversed() }
+    val formattedDateFooter = remember(item.latestTimestamp) {
+        val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(item.latestTimestamp))
+        val dateFull = SimpleDateFormat("d MMMM yyyy", Locale.getDefault()).format(Date(item.latestTimestamp))
+        val listenEstimate = "${(item.tracks.size * 3).coerceAtLeast(3)} mins"
+        "$day • $listenEstimate • $dateFull"
+    }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 6.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
-        shape = RoundedCornerShape(24.dp),
-        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.05f))
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            // Header Row
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -51,18 +56,34 @@ fun MusicHistoryCard(
             ) {
                 Icon(Icons.Rounded.MusicNote, null, tint = iconColor, modifier = Modifier.size(16.dp))
                 Text(
-                    text = "PLAYED TRACKS",
+                    text = "MUSIC",
                     color = iconColor,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
+                Spacer(modifier = Modifier.weight(1f))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFF222631))
+                        .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = workspaceLabel,
+                        color = Color(0xFFE6E8EC),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(6.dp))
 
+            // Playlist Title
             Text(
-                text = folderTitle,
+                text = truncateMiddle(item.playlistManga.title, 32),
                 color = Color.White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
@@ -70,116 +91,70 @@ fun MusicHistoryCard(
                 overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "shelf: playlist / album",
+                color = Color.White.copy(alpha = 0.50f),
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 2.dp, bottom = 10.dp)
+            )
 
-            val tracksByAlbum = remember(chronologicallyOrdered) {
-                chronologicallyOrdered.groupBy { parseDetails(it.details).mangaId }
-                    .toList()
-                    .sortedByDescending { it.second.last().timestamp }
-            }
-
-            tracksByAlbum.forEachIndexed { aIdx, (mId, occs) ->
-                if (mId == null) return@forEachIndexed
-                val albumManga = allMangaMap[mId] ?: return@forEachIndexed
-                val isLastAlbum = aIdx == tracksByAlbum.size - 1
-
-                val tracksByChapter = remember(occs) {
-                    occs.groupBy { parseDetails(it.details).chapterId }
-                        .toList()
-                        .sortedByDescending { it.second.last().timestamp }
-                }
-
-                var visibleCount by remember(mId) { mutableIntStateOf(10) }
+            // Tracks List
+            item.tracks.forEachIndexed { idx, trackItem ->
+                val isLast = idx == item.tracks.size - 1
+                val track = trackItem.chapter
 
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onNavigateToPlaylist(item.playlistManga.id) }
                         .padding(vertical = 4.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = if (isLastAlbum) "└── " else "├── ",
-                            color = Color.White.copy(alpha = 0.15f),
+                            text = if (isLast) "└── " else "├── ",
+                            color = Color.White.copy(alpha = 0.20f),
                             fontFamily = FontFamily.Monospace,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = truncateMiddle(albumManga.title),
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 13.sp,
+                            text = truncateMiddle(track.title, 30),
+                            color = Color(0xFFE6E8EC),
+                            fontSize = 12.5.sp,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    
-                    val albumLinePrefix = if (isLastAlbum) "    " else "│   "
-                    val displayList = tracksByChapter.take(visibleCount)
-                    
-                    displayList.forEachIndexed { tIdx, (cId, _) ->
-                        if (cId == null) return@forEachIndexed
-                        val chapter = allChaptersMap[cId] ?: return@forEachIndexed
-                        val isLastTrack = tIdx == displayList.size - 1 && visibleCount >= tracksByChapter.size
-                        
-                        val trackLinePrefix = albumLinePrefix + if (isLastTrack) "└── " else "├── "
-                        
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .clickable { onNavigateToPlaylist(albumManga.id) }
-                                .padding(vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = trackLinePrefix,
-                                color = Color.White.copy(alpha = 0.15f),
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = truncateMiddle(chapter.title),
-                                color = Color.Gray,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                    
-                    if (tracksByChapter.size > visibleCount) {
-                        val remaining = tracksByChapter.size - visibleCount
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .clickable { visibleCount += 10 }
-                                .padding(vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = albumLinePrefix + "│   ",
-                                color = Color.Transparent,
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Icon(
-                                imageVector = Icons.Rounded.ExpandMore,
-                                contentDescription = "Expand",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp).offset(x = (-4).dp)
-                            )
-                            Text(
-                                text = "$remaining+",
-                                color = MaterialTheme.colorScheme.primary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+
+                    val prefix = if (isLast) "    " else "│   "
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 1.dp)
+                    ) {
+                        Text(text = prefix, color = Color.White.copy(alpha = 0.20f), fontFamily = FontFamily.Monospace, fontSize = 13.sp)
+                        Text(
+                            text = "Played at ${formatTimeOnly(trackItem.lastTimestamp)}",
+                            color = Color.White.copy(alpha = 0.45f),
+                            fontSize = 10.5.sp
+                        )
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = formattedDateFooter,
+                color = Color.White.copy(alpha = 0.40f),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.End
+            )
         }
     }
 }

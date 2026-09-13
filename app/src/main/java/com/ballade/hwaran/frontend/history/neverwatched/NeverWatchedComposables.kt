@@ -11,6 +11,9 @@ import androidx.compose.material.icons.rounded.Book
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,13 +23,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ballade.hwaran.core.database.AppDatabase
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
+import com.ballade.hwaran.frontend.history.models.SeriesNode
 import com.ballade.hwaran.frontend.history.models.UnplayedPlaylist
 import com.ballade.hwaran.frontend.history.models.UnwatchedItem
 import com.ballade.hwaran.frontend.history.models.truncateMiddle
+import com.ballade.hwaran.ui.viewmodels.MusicViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ToonNeverWatched(
@@ -223,6 +233,146 @@ fun ChannelNeverWatched(
 }
 
 @Composable
+fun SeriesNeverWatched(
+    unwatchedSeriesTree: List<SeriesNode>,
+    onNavigateToVideoPlayer: (Long) -> Unit,
+    onClose: () -> Unit
+) {
+    if (unwatchedSeriesTree.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("All series videos have been watched!", color = Color.Gray, fontSize = 13.sp, textAlign = TextAlign.Center)
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(unwatchedSeriesTree) { node ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.03f))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        SeriesNeverWatchedNodeView(
+                            node = node,
+                            indentation = 0,
+                            onVideoClick = { videoId ->
+                                onClose()
+                                onNavigateToVideoPlayer(videoId)
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SeriesNeverWatchedNodeView(
+    node: SeriesNode,
+    indentation: Int = 0,
+    onVideoClick: (Long) -> Unit
+) {
+    var isExpanded by remember(node.manga.id) { mutableStateOf(false) }
+    var visibleCount by remember(node.manga.id) { mutableIntStateOf(10) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { isExpanded = !isExpanded }
+                .padding(vertical = 6.dp, horizontal = (indentation * 12).dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = if (isExpanded) Icons.Rounded.FolderOpen else Icons.Rounded.Folder,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = truncateMiddle(node.manga.title),
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Icon(
+                imageVector = if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                contentDescription = null,
+                tint = Color.Gray,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+
+        if (isExpanded) {
+            node.children.forEach { childNode ->
+                SeriesNeverWatchedNodeView(
+                    node = childNode,
+                    indentation = indentation + 1,
+                    onVideoClick = onVideoClick
+                )
+            }
+
+            val displayItems = node.unwatchedVideos.take(visibleCount)
+            displayItems.forEachIndexed { idx, video ->
+                val isLast = idx == displayItems.size - 1 && visibleCount >= node.unwatchedVideos.size
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { video.chapterId?.let { onVideoClick(it) } }
+                        .padding(vertical = 4.dp, horizontal = ((indentation + 1) * 12 + 8).dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isLast) "└── " else "├── ",
+                        color = Color.White.copy(alpha = 0.15f),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Icon(
+                        imageVector = Icons.Rounded.Movie,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp).padding(end = 4.dp)
+                    )
+                    Text(
+                        text = truncateMiddle(video.title),
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            if (visibleCount < node.unwatchedVideos.size) {
+                val remaining = node.unwatchedVideos.size - visibleCount
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { visibleCount += 10 }.padding(vertical = 4.dp, horizontal = ((indentation + 1) * 12 + 8).dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "└── ",
+                        color = Color.White.copy(alpha = 0.15f),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text("⌄ $remaining", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun BookNeverWatched(
     unreadBooks: List<UnwatchedItem>,
     onNavigateToPdfReader: (Long) -> Unit,
@@ -241,7 +391,7 @@ fun BookNeverWatched(
             items(unreadBooks) { item ->
                 val manga = allMangaMap[item.mangaId]
                 val workspaceLabel = manga?.workspace?.takeIf { it.isNotBlank() } ?: "I Love It"
-                
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -280,19 +430,22 @@ fun BookNeverWatched(
 }
 
 @Composable
-fun MusicNeverWatched(
+fun PlaylistNeverListened(
     neverListenedPlaylists: List<UnplayedPlaylist>,
-    allMangaMap: Map<Long, MangaEntity>,
-    onPlayPlaylist: (Long, ChapterEntity) -> Unit,
+    database: AppDatabase,
+    musicViewModel: MusicViewModel,
+    onNavigateToNowPlaying: () -> Unit,
     onClose: () -> Unit
 ) {
+    val coroutineScope = rememberCoroutineScope()
+
     if (neverListenedPlaylists.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("All playlist tracks have been played!", color = Color.Gray, fontSize = 13.sp, textAlign = TextAlign.Center)
         }
     } else {
         var expandedPlaylistId by remember { mutableStateOf<Long?>(null) }
-        
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -300,8 +453,6 @@ fun MusicNeverWatched(
             items(neverListenedPlaylists) { playlist ->
                 val isExpanded = expandedPlaylistId == playlist.mangaId
                 var visibleCount by remember(isExpanded) { mutableIntStateOf(10) }
-                val manga = allMangaMap[playlist.mangaId]
-                val workspaceLabel = manga?.workspace?.takeIf { it.isNotBlank() } ?: "I Love It"
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -319,11 +470,7 @@ fun MusicNeverWatched(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(truncateMiddle(playlist.title), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text("${playlist.unplayedSongs.size} unplayed tracks", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
-                                    Text("•", color = Color.Gray, fontSize = 11.sp)
-                                    Text("workspace: $workspaceLabel", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp)
-                                }
+                                Text("${playlist.unplayedSongs.size} unplayed tracks", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
                             }
                             Icon(
                                 imageVector = if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
@@ -341,7 +488,17 @@ fun MusicNeverWatched(
                                         .fillMaxWidth()
                                         .clickable {
                                             onClose()
-                                            onPlayPlaylist(playlist.mangaId, song)
+                                            coroutineScope.launch(Dispatchers.IO) {
+                                                val chs = database.trackDao().getChaptersForMangaList(playlist.mangaId)
+                                                val playlistManga = database.libraryDao().getMangaById(playlist.mangaId)
+                                                if (playlistManga != null) {
+                                                    val clickIndex = chs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+                                                    withContext(Dispatchers.Main) {
+                                                        musicViewModel.playPlaylist(playlistManga, chs, clickIndex)
+                                                        onNavigateToNowPlaying()
+                                                    }
+                                                }
+                                            }
                                         }
                                         .padding(vertical = 6.dp, horizontal = 8.dp),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -354,7 +511,8 @@ fun MusicNeverWatched(
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    Text(truncateMiddle(song.title), color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
+                                    Icon(Icons.Rounded.PlayArrow, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                    Text(truncateMiddle(song.title), color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
                                 }
                             }
                             if (visibleCount < playlist.unplayedSongs.size) {

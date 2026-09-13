@@ -16,6 +16,10 @@ class HistoryBackend(private val application: Application) {
 
     val allHistoryFlow: Flow<List<HistoryEventEntity>> = database.historyDao().getAllHistoryEventsFlow()
 
+    val videoHistoryFlow: Flow<List<HistoryEventEntity>> = allHistoryFlow.map { events ->
+        events.filter { it.eventType == "WATCH" }
+    }
+
     val toonHistoryFlow: Flow<List<HistoryEventEntity>> = allHistoryFlow.map { events ->
         events.filter { it.eventType == "READ_TOON" }
     }
@@ -24,22 +28,29 @@ class HistoryBackend(private val application: Application) {
         events.filter { it.eventType == "READ_BOOK" }
     }
 
-    val videoHistoryFlow: Flow<List<HistoryEventEntity>> = allHistoryFlow.map { events ->
-        events.filter { it.eventType == "PLAY_VIDEO" }
+    val musicHistoryFlow: Flow<List<HistoryEventEntity>> = allHistoryFlow.map { events ->
+        events.filter { it.eventType == "LISTEN" }
     }
 
-    val musicHistoryFlow: Flow<List<HistoryEventEntity>> = allHistoryFlow.map { events ->
-        events.filter { it.eventType == "PLAY_MUSIC" }
+    fun logVideoWatch(title: String, mangaId: Long, chapterId: Long) {
+        HistoryTracker.logEvent("WATCH", title, "mangaId:$mangaId|chapterId:$chapterId")
+    }
+
+    fun logToonRead(title: String, mangaId: Long, chapterId: Long, page: Long, totalPages: Long) {
+        HistoryTracker.logEvent("READ_TOON", title, "mangaId:$mangaId|chapterId:$chapterId|pages:$page|totalPages:$totalPages")
+    }
+
+    fun logBookRead(title: String, mangaId: Long, page: Int, totalPages: Int) {
+        HistoryTracker.logEvent("READ_BOOK", title, "mangaId:$mangaId|pages:$page|totalPages:$totalPages")
+    }
+
+    fun logMusicPlay(title: String, mangaId: Long, chapterId: Long) {
+        HistoryTracker.logEvent("LISTEN", title, "mangaId:$mangaId|chapterId:$chapterId")
     }
 
     fun clearAllHistory() {
         scope.launch {
             database.historyDao().clearAllHistoryEvents()
-            HistoryTracker.logEvent("DELETE", "Clear History", "All history cleared")
         }
-    }
-
-    fun logEvent(eventType: String, itemName: String, details: String) {
-        HistoryTracker.logEvent(eventType, itemName, details)
     }
 }
