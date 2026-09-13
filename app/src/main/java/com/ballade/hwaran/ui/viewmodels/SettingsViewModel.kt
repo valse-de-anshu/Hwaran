@@ -342,18 +342,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     init {
         viewModelScope.launch {
-            // Read all three critical settings in one go (single DataStore read)
+            // Read critical launch settings in one go (single DataStore read)
             try {
                 val theme = globalSettings.appThemeFlow.first()
                 val animType = globalSettings.animationTypeFlow.first()
                 val animVis = globalSettings.animationVisibilityFlow.first()
+                val introSeen = globalSettings.hasSeenIntroFlow.first()
 
                 // Wait for the StateFlows to reflect the loaded values using combine —
                 // this is a true suspension (no CPU spin) with a hard 300ms timeout.
                 val settled = kotlinx.coroutines.withTimeoutOrNull(300) {
                     kotlinx.coroutines.flow.combine(
-                        appTheme, animationType, animationVisibility
-                    ) { t, at, av -> t == theme && at == animType && av == animVis }
+                        appTheme, animationType, animationVisibility, hasSeenIntro
+                    ) { t, at, av, hi -> t == theme && at == animType && av == animVis && hi == introSeen }
                         .first { it }
                 }
                 // settled == null means timeout; we proceed anyway to avoid blocking forever

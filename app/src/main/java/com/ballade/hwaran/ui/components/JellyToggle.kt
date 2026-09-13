@@ -214,7 +214,7 @@ fun JellyToggle3(
 
     Box(
         modifier = modifier
-            .widthIn(max = 260.dp)
+            .widthIn(max = if (options.size > 3) 320.dp else 260.dp)
             .fillMaxWidth()
             .height(toggleHeight)
             .graphicsLayer { clip = false }
@@ -244,8 +244,9 @@ fun JellyToggle3(
             .padding(4.dp),
         contentAlignment = Alignment.CenterStart
     ) {
+        val safeIndex = selectedIndex.coerceIn(0, (options.size - 1).coerceAtLeast(0))
         val offsetProgress by animateFloatAsState(
-            targetValue = selectedIndex.toFloat(),
+            targetValue = safeIndex.toFloat(),
             animationSpec = spring(
                 dampingRatio = 0.55f,
                 stiffness = 300f
@@ -257,7 +258,7 @@ fun JellyToggle3(
         val extraWidth = distToCenter * 40f
         
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val actualPillWidth = maxWidth / 3
+            val actualPillWidth = maxWidth / options.size.coerceAtLeast(1)
             Box(
                 modifier = Modifier
                     .width(actualPillWidth + extraWidth.dp)

@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TrackDao {
+    @Query("SELECT * FROM chapter")
+    fun getAllChaptersFlow(): Flow<List<ChapterEntity>>
+
     @Query("SELECT * FROM chapter WHERE folderUri = :uri LIMIT 1")
     suspend fun getChapterByUri(uri: String): ChapterEntity?
 

@@ -19,6 +19,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ShuffleOrder
 import androidx.palette.graphics.Palette
 import com.ballade.hwaran.audio.HwaranPlayerHolder
 import com.ballade.hwaran.audio.MusicNotificationService
@@ -33,6 +34,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.documentfile.provider.DocumentFile
+import com.ballade.hwaran.data.importer.music.MusicImportUtils
 import java.io.File
 import java.io.InputStream
 import android.graphics.Color as AndroidColor
@@ -90,11 +93,25 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 _playbackProgress.value = 0f
                 _totalDuration.value = 0L
                 updateDominantColor(chapter.thumbnailUri ?: chapter.folderUri ?: _currentManga.value?.coverPath)
-                // ADD OPEN COUNT INCREMENT HERE
+                // ADD OPEN COUNT INCREMENT HERE & RESOLVE MISSING LYRICS
                 viewModelScope.launch(Dispatchers.IO) {
-                    val dbChapter = database.trackDao().getChapterById(chapter.id)
+                    var dbChapter = database.trackDao().getChapterById(chapter.id)
                     if (dbChapter != null) {
+                        if (dbChapter.lyrics.isNullOrBlank()) {
+                            val resolvedLyrics = tryResolveLyrics(dbChapter)
+                            if (!resolvedLyrics.isNullOrBlank()) {
+                                dbChapter = dbChapter.copy(lyrics = resolvedLyrics)
+                            }
+                        }
                         database.trackDao().insertChapter(dbChapter.copy(openCount = dbChapter.openCount + 1))
+                        withContext(Dispatchers.Main) {
+                            if (_currentChapter.value?.id == dbChapter.id) {
+                                _currentChapter.value = dbChapter
+                                _currentPlaylist.value = _currentPlaylist.value.map {
+                                    if (it.id == dbChapter.id) dbChapter else it
+                                }
+                            }
+                        }
                         val dbManga = database.libraryDao().getMangaById(dbChapter.mangaId)
                         if (dbManga != null) {
                             database.libraryDao().insertManga(dbManga.copy(openCount = dbManga.openCount + 1))
@@ -139,6 +156,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _totalDuration = MutableStateFlow(0L)
     val totalDuration: StateFlow<Long> = _totalDuration
+
+    enum class ShuffleMode {
+        OFF,
+        NORMAL,
+        SMART,
+        ADVANCE
+    }
+
+    private val _shuffleType = MutableStateFlow(ShuffleMode.OFF)
+    val currentShuffleMode: StateFlow<ShuffleMode> = _shuffleType.asStateFlow()
 
     private val _shuffleMode = MutableStateFlow(false)
     val shuffleMode: StateFlow<Boolean> = _shuffleMode
@@ -211,6 +238,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         initialPlayer.setAudioAttributes(audioAttributes, true)
 
         viewModelScope.launch {
+            var lastSaveTime = 0L
             while (true) {
                 if (exoPlayer.playbackState != Player.STATE_IDLE && exoPlayer.playbackState != Player.STATE_ENDED) {
                     val pos = exoPlayer.currentPosition
@@ -225,8 +253,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         _currentPosition.value = pos
                     }
                 }
-                delay(500) // Faster update for smoother UI
-                if (exoPlayer.playbackState != Player.STATE_IDLE) {
+                val isPlaying = exoPlayer.isPlaying
+                val delayMs = if (isPlaying) 50L else 250L
+                delay(delayMs)
+                
+                val now = System.currentTimeMillis()
+                if (exoPlayer.playbackState != Player.STATE_IDLE && now - lastSaveTime > 5000L) {
+                    lastSaveTime = now
                     savePlaybackState()
                 }
             }
@@ -405,7 +438,25 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun playPlaylist(manga: MangaEntity, chapters: List<ChapterEntity>, startIndex: Int = 0) {
         _currentManga.value = manga
         _currentPlaylist.value = chapters
-        _currentChapter.value = chapters.getOrNull(startIndex)
+        val startChapter = chapters.getOrNull(startIndex)
+        _currentChapter.value = startChapter
+        if (startChapter != null && startChapter.lyrics.isNullOrBlank()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val resolved = tryResolveLyrics(startChapter)
+                if (!resolved.isNullOrBlank()) {
+                    val updated = startChapter.copy(lyrics = resolved)
+                    database.trackDao().insertChapter(updated)
+                    withContext(Dispatchers.Main) {
+                        if (_currentChapter.value?.id == updated.id) {
+                            _currentChapter.value = updated
+                            _currentPlaylist.value = _currentPlaylist.value.map {
+                                if (it.id == updated.id) updated else it
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         exoPlayer.stop()
         exoPlayer.clearMediaItems()
@@ -460,10 +511,85 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    fun setShuffleMode(mode: ShuffleMode) {
+        _shuffleType.value = mode
+        val isEnabled = mode != ShuffleMode.OFF
+        _shuffleMode.value = isEnabled
+        exoPlayer.shuffleModeEnabled = isEnabled
+
+        if (isEnabled) {
+            when (mode) {
+                ShuffleMode.NORMAL -> applyNormalShuffleOrder()
+                ShuffleMode.SMART -> applySmartShuffleOrder()
+                ShuffleMode.ADVANCE -> applyAdvanceShuffleOrder()
+                ShuffleMode.OFF -> {}
+            }
+        }
+    }
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private fun applyNormalShuffleOrder() {
+        val count = exoPlayer.mediaItemCount
+        if (count > 0) {
+            exoPlayer.setShuffleOrder(ShuffleOrder.DefaultShuffleOrder(count))
+        }
+    }
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private fun applySmartShuffleOrder() {
+        val playlist = _currentPlaylist.value
+        val count = exoPlayer.mediaItemCount
+        if (count <= 1 || playlist.size != count) {
+            applyNormalShuffleOrder()
+            return
+        }
+        val currentIndex = exoPlayer.currentMediaItemIndex.coerceIn(0, count - 1)
+        val otherIndices = (0 until count).filter { it != currentIndex }.shuffled().toMutableList()
+        val smartIndices = mutableListOf<Int>()
+        smartIndices.add(currentIndex)
+        while (otherIndices.isNotEmpty()) {
+            val lastTrack = playlist[smartIndices.last()]
+            val nextIdx = otherIndices.firstOrNull {
+                playlist[it].mangaId != lastTrack.mangaId ||
+                (playlist[it].genre != lastTrack.genre && !playlist[it].genre.isNullOrBlank())
+            } ?: otherIndices.first()
+            smartIndices.add(nextIdx)
+            otherIndices.remove(nextIdx)
+        }
+        exoPlayer.setShuffleOrder(
+            ShuffleOrder.DefaultShuffleOrder(
+                smartIndices.toIntArray(),
+                System.currentTimeMillis()
+            )
+        )
+    }
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private fun applyAdvanceShuffleOrder() {
+        val count = exoPlayer.mediaItemCount
+        if (count <= 1) return
+        val currentIndex = exoPlayer.currentMediaItemIndex.coerceIn(0, count - 1)
+        val otherIndices = (0 until count).filter { it != currentIndex }.shuffled()
+        val advanceIndices = mutableListOf<Int>()
+        advanceIndices.add(currentIndex)
+        advanceIndices.addAll(otherIndices)
+        exoPlayer.setShuffleOrder(
+            ShuffleOrder.DefaultShuffleOrder(
+                advanceIndices.toIntArray(),
+                System.currentTimeMillis()
+            )
+        )
+    }
+
     fun toggleShuffle() {
-        val newMode = !_shuffleMode.value
-        _shuffleMode.value = newMode
-        exoPlayer.shuffleModeEnabled = newMode
+        val next = when (_shuffleType.value) {
+            ShuffleMode.OFF -> ShuffleMode.NORMAL
+            ShuffleMode.NORMAL -> ShuffleMode.SMART
+            ShuffleMode.SMART -> ShuffleMode.ADVANCE
+            ShuffleMode.ADVANCE -> ShuffleMode.OFF
+        }
+        setShuffleMode(next)
     }
 
     fun cycleRepeatMode() {
@@ -503,12 +629,111 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun seekToPosition(positionMs: Long) {
+        val duration = exoPlayer.duration
+        val target = if (duration > 0) positionMs.coerceIn(0L, duration) else positionMs.coerceAtLeast(0L)
+        exoPlayer.seekTo(target)
+        _currentPosition.value = target
+        if (duration > 0) {
+            _playbackProgress.value = target.toFloat() / duration.toFloat()
+        }
+    }
+
+    fun updateCurrentChapterLyrics(newLyrics: String?) {
+        val current = _currentChapter.value ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = current.copy(lyrics = newLyrics)
+            database.trackDao().insertChapter(updated)
+            withContext(Dispatchers.Main) {
+                _currentChapter.value = updated
+                _currentPlaylist.value = _currentPlaylist.value.map {
+                    if (it.id == updated.id) updated else it
+                }
+            }
+        }
+    }
+
+    fun updateCurrentChapterGenre(newGenre: String) {
+        val current = _currentChapter.value ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = current.copy(genre = newGenre)
+            database.trackDao().insertChapter(updated)
+            withContext(Dispatchers.Main) {
+                _currentChapter.value = updated
+                _currentPlaylist.value = _currentPlaylist.value.map {
+                    if (it.id == updated.id) updated else it
+                }
+            }
+        }
+    }
+
+    private fun tryResolveLyrics(chapter: ChapterEntity): String? {
+        try {
+            // Case A: SAF Document Tree
+            val manga = _currentManga.value
+            if (manga != null && manga.parentUri.startsWith("content://")) {
+                val folderDoc = try {
+                    DocumentFile.fromTreeUri(context, Uri.parse(manga.parentUri))
+                } catch (e: Exception) {
+                    null
+                }
+                if (folderDoc != null) {
+                    val lyricsDocs = MusicImportUtils.findLyricsFiles(folderDoc)
+                    if (lyricsDocs.isNotEmpty()) {
+                        val decoded = Uri.decode(chapter.folderUri)
+                        val fileName = decoded.substringAfterLast('/').substringAfterLast(':')
+                        val matched = MusicImportUtils.findMatchingLyricsDoc(
+                            fileName,
+                            chapter.title,
+                            lyricsDocs
+                        )
+                        if (matched != null) {
+                            val lyricsContent = MusicImportUtils.readLyrics(context, matched)
+                            if (!lyricsContent.isNullOrBlank()) return lyricsContent
+                        }
+                    }
+                }
+            }
+
+            // Case B: Local File
+            val filePath = if (chapter.folderUri.startsWith("file://")) {
+                chapter.folderUri.removePrefix("file://")
+            } else if (chapter.folderUri.startsWith("/")) {
+                chapter.folderUri
+            } else null
+
+            if (filePath != null) {
+                val audioFile = File(filePath)
+                val parentDir = audioFile.parentFile
+                if (parentDir != null && parentDir.isDirectory) {
+                    val lyricsFiles = MusicImportUtils.findLyricsFiles(parentDir)
+                    if (lyricsFiles.isNotEmpty()) {
+                        val matched = MusicImportUtils.findMatchingLyricsFile(
+                            audioFile.name,
+                            chapter.title,
+                            lyricsFiles
+                        )
+                        if (matched != null) {
+                            val lyricsContent = MusicImportUtils.readLyrics(matched)
+                            if (!lyricsContent.isNullOrBlank()) return lyricsContent
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return null
+    }
+
     fun refreshCurrentChapter() {
         val current = _currentChapter.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
             val updated = database.trackDao().getChapterById(current.id)
             if (updated != null) {
-                _currentChapter.value = updated
+                withContext(Dispatchers.Main) {
+                    _currentChapter.value = updated
+                }
             }
         }
     }

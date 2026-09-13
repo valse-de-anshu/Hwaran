@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Cute Velvet Jelly Devil</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent !important;
+      pointer-events: none !important;
+    }
+
+    #webgl-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+      background: transparent !important;
+      pointer-events: none !important;
+    }
+  </style>
+  <script src="three.min.js"></script>
+</head>
+<body>
+  <div id="webgl-container"></div>
+
+  <script>
+    /* =========================================================================
+       SCENE & CAMERA SETUP
+       ========================================================================= */
+    const container = document.getElementById('webgl-container');
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 50);
+    camera.position.set(0, 0.08, 3.6);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    renderer.setClearColor(0x000000, 0);
+    container.appendChild(renderer.domElement);
+
+    /* =========================================================================
+       GROUND AMBIENT OCCLUSION SHADOW
+       ========================================================================= */
+    const shadowCanvas = document.createElement('canvas');
+    shadowCanvas.width = 128;
+    shadowCanvas.height = 128;
+    const sCtx = shadowCanvas.getContext('2d');
+    const sGrad = sCtx.createRadialGradient(64, 64, 0, 64, 64, 60);
+    sGrad.addColorStop(0, 'rgba(0, 0, 0, 0.48)');
+    sGrad.addColorStop(0.5, 'rgba(10, 4, 15, 0.20)');
+    sGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    sCtx.fillStyle = sGrad;
+    sCtx.fillRect(0, 0, 128, 128);
+
+    const shadowTex = new THREE.CanvasTexture(shadowCanvas);
+    const shadowPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.4, 2.4),
+      new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, opacity: 0.55, depthWrite: false })
+    );
+    shadowPlane.rotation.x = -Math.PI / 2;
+    shadowPlane.position.y = -1.02;
+    scene.add(shadowPlane);
+
+    const creature = new THREE.Group();
+    scene.add(creature);
+
+    /* =========================================================================
+       1. 70% BLACK / 30% POLISHED SILK JELLY BODY
+       ========================================================================= */
+    const BALL_RADIUS = 0.96;
+    const bodyGeometry = new THREE.SphereGeometry(BALL_RADIUS, 48, 48);
+
+    const polishedJellyMaterial = new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          vec4 worldPos = modelViewMatrix * vec4(position, 1.0);
+          vViewDir = normalize(-worldPos.xyz);
+          gl_Position = projectionMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+
+        void main() {
+          vec3 N = normalize(vNormal);
+          vec3 V = normalize(vViewDir);
+
+          vec3 keyLight = normalize(vec3(-0.35, 0.68, 0.65));
+          float wrap = dot(N, keyLight) * 0.5 + 0.5;
+
+          vec3 deepBlack = vec3(0.045, 0.038, 0.065);
+          vec3 midBlack  = vec3(0.115, 0.105, 0.145);
+          vec3 softTone  = vec3(0.240, 0.230, 0.290);
+
+          vec3 col = mix(deepBlack, midBlack, smoothstep(0.12, 0.62, wrap));
+          col = mix(col, softTone, smoothstep(0.62, 0.95, wrap));
+
+          // 30% Polished Sheen: Broad, silky highlight
+          vec3 halfVec = normalize(keyLight + V);
+          float sheen = pow(max(0.0, dot(N, halfVec)), 8.5) * 0.32;
+          col += vec3(0.85, 0.88, 0.98) * sheen;
+
+          // Delicate ethereal violet rim glow
+          float fresnel = pow(1.0 - max(0.0, dot(N, V)), 2.6);
+          vec3 rimColor = vec3(0.65, 0.35, 0.95);
+          col += rimColor * fresnel * 0.46;
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+
+    const bodyMesh = new THREE.Mesh(bodyGeometry, polishedJellyMaterial);
+    creature.add(bodyMesh);
+
+    /* =========================================================================
+       2. CUTE PLUMP CHIBI DEVIL HORNS
+       ========================================================================= */
+    function createCuteChibiHornGeometry(isLeft) {
+      const heightSegments = 24;
+      const radialSegments = 20;
+      const height = 0.44;
+      const baseRadius = 0.17;
+      const sweepSign = isLeft ? -1 : 1;
+
+      const spinePoints = [];
+      const numPts = 6;
+      for (let i = 0; i <= numPts; i++) {
+        const u = i / numPts;
+        const x = sweepSign * Math.sin(u * Math.PI * 0.52) * 0.16;
+        const y = u * height;
+        const z = -Math.pow(u, 1.5) * 0.05;
+        spinePoints.push(new THREE.Vector3(x, y, z));
+      }
+
+      const curve = new THREE.CatmullRomCurve3(spinePoints);
+      const frames = curve.computeFrenetFrames(heightSegments, false);
+
+      const positions = [];
+      const uvs = [];
+      const indices = [];
+
+      for (let i = 0; i <= heightSegments; i++) {
+        const u = i / heightSegments;
+        const center = curve.getPointAt(u);
+        const normal = frames.normals[i];
+        const binormal = frames.binormals[i];
+
+        let r = baseRadius * (1.0 - Math.pow(u, 1.12));
+        r *= (1.0 + Math.sin(u * Math.PI) * 0.16);
+        r = Math.max(r, 0.008);
+
+        for (let j = 0; j <= radialSegments; j++) {
+          const v = j / radialSegments;
+          const theta = v * Math.PI * 2;
+
+          const cx = Math.cos(theta) * r;
+          const cy = Math.sin(theta) * r;
+
+          const px = center.x + normal.x * cx + binormal.x * cy;
+          const py = center.y + normal.y * cx + binormal.y * cy;
+          const pz = center.z + normal.z * cx + binormal.z * cy;
+
+          positions.push(px, py, pz);
+          uvs.push(v, u);
+        }
+      }
+
+      for (let i = 0; i < heightSegments; i++) {
+        for (let j = 0; j < radialSegments; j++) {
+          const a = i * (radialSegments + 1) + j;
+          const b = (i + 1) * (radialSegments + 1) + j;
+          const c = (i + 1) * (radialSegments + 1) + (j + 1);
+          const d = i * (radialSegments + 1) + (j + 1);
+
+          indices.push(a, b, d);
+          indices.push(b, c, d);
+        }
+      }
+
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geom.setIndex(indices);
+      geom.computeVertexNormals();
+      return geom;
+    }
+
+    const hornShaderMat = new THREE.ShaderMaterial({
+      uniforms: {
+        colorBase: { value: new THREE.Color(0xd9267c) }, // Cute warm ruby/magenta
+        colorMid:  { value: new THREE.Color(0xa855f7) }, // Friendly purple
+        colorTip:  { value: new THREE.Color(0xfff2fe) }  // Glowing white-lavender tip
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+
+        void main() {
+          vUv = uv;
+          vNormal = normalize(normalMatrix * normal);
+          vec4 worldPos = modelViewMatrix * vec4(position, 1.0);
+          vViewDir = normalize(-worldPos.xyz);
+          gl_Position = projectionMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+
+        uniform vec3 colorBase;
+        uniform vec3 colorMid;
+        uniform vec3 colorTip;
+
+        void main() {
+          float h = vUv.y;
+
+          vec3 tone = mix(colorBase, colorMid, smoothstep(0.0, 0.48, h));
+          tone = mix(tone, colorTip, smoothstep(0.48, 0.96, h));
+
+          vec3 lightDir = normalize(vec3(-0.35, 0.65, 0.72));
+          float diff = dot(vNormal, lightDir) * 0.25 + 0.75;
+
+          float fresnel = pow(1.0 - max(0.0, dot(vNormal, vViewDir)), 1.8);
+          float tipBloom = pow(h, 2.0) * 0.4;
+
+          vec3 finalColor = (tone * diff) + (colorTip * tipBloom) + (colorMid * fresnel * 0.3);
+          gl_FragColor = vec4(finalColor, 1.0);
+        }
+      `
+    });
+
+    const hornsGroup = new THREE.Group();
+    creature.add(hornsGroup);
+
+    function createHorn(isLeft) {
+      const hGroup = new THREE.Group();
+      const geom = createCuteChibiHornGeometry(isLeft);
+      const mesh = new THREE.Mesh(geom, hornShaderMat);
+
+      mesh.rotation.z = isLeft ? 0.20 : -0.20;
+      mesh.rotation.x = -0.10;
+      hGroup.add(mesh);
+
+      return hGroup;
+    }
+
+    const leftHorn = createHorn(true);
+    leftHorn.position.set(-0.46, 0.72, 0.12);
+    leftHorn.rotation.set(-0.04, 0.08, -0.26);
+    hornsGroup.add(leftHorn);
+
+    const rightHorn = createHorn(false);
+    rightHorn.position.set(0.46, 0.72, 0.12);
+    rightHorn.rotation.set(-0.04, -0.08, 0.26);
+    hornsGroup.add(rightHorn);
+
+    /* =========================================================================
+       3. CRISP GLOWING WHITE CAPSULE EYES
+       ========================================================================= */
+    const faceGroup = new THREE.Group();
+    creature.add(faceGroup);
+
+    function createPillEyeGeometry() {
+      const w = 0.056;
+      const h = 0.155;
+      const r = w;
+      const shape = new THREE.Shape();
+      shape.moveTo(-w, -h + r);
+      shape.lineTo(-w, h - r);
+      shape.absarc(0, h - r, r, Math.PI, 0, true);
+      shape.lineTo(w, -h + r);
+      shape.absarc(0, -h + r, r, 0, Math.PI, true);
+
+      return new THREE.ExtrudeGeometry(shape, {
+        depth: 0.035,
+        bevelEnabled: true,
+        bevelSegments: 3,
+        bevelSize: 0.015,
+        bevelThickness: 0.018
+      });
+    }
+
+    const eyeGeom = createPillEyeGeometry();
+    const eyeMat = new THREE.MeshBasicMaterial({ 
+      color: 0xffffff,
+      toneMapped: false 
+    });
+
+    const leftEyeMesh = new THREE.Mesh(eyeGeom, eyeMat);
+    leftEyeMesh.position.set(-0.28, 0.06, 0.90);
+    leftEyeMesh.rotation.set(0, -0.15, 0.14);
+    faceGroup.add(leftEyeMesh);
+
+    const rightEyeMesh = new THREE.Mesh(eyeGeom, eyeMat);
+    rightEyeMesh.position.set(0.28, 0.06, 0.90);
+    rightEyeMesh.rotation.set(0, 0.15, -0.14);
+    faceGroup.add(rightEyeMesh);
+
+    /* =========================================================================
+       4. SPRING SQUASH & VOLUME-PRESERVING PHYSICS
+       ========================================================================= */
+    const physics = {
+      bodyY:       { current: 0, target: 0, vel: 0, spring: 0.14, friction: 0.74 },
+      scaleX:      { current: 1, target: 1, vel: 0, spring: 0.16, friction: 0.70 },
+      scaleY:      { current: 1, target: 1, vel: 0, spring: 0.16, friction: 0.70 },
+      rotateZ:     { current: 0, target: 0, vel: 0, spring: 0.10, friction: 0.78 },
+      faceX:       { current: 0, target: 0, vel: 0, spring: 0.10, friction: 0.80 },
+      faceY:       { current: 0, target: 0, vel: 0, spring: 0.10, friction: 0.80 },
+      hornInertia: { current: 0, target: 0, vel: 0, spring: 0.14, friction: 0.72 }
+    };
+
+    function updateSpring(p) {
+      const force = (p.target - p.current) * p.spring;
+      p.vel += force;
+      p.vel *= p.friction;
+      p.current += p.vel;
+    }
+
+    function triggerBounce(intensity = 1.0) {
+      physics.scaleY.vel = -0.32 * intensity;
+      physics.scaleX.vel = 0.25 * intensity;
+      physics.bodyY.vel = 0.15 * intensity;
+    }
+
+    window.triggerBounce = triggerBounce;
+
+    let isHappy = false;
+    window.setHappy = function(val) {
+      isHappy = !!val;
+    };
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    });
+
+    /* =========================================================================
+       CUTE DEVIL PERSONALITY ANIMATION LOOP
+       ========================================================================= */
+    const blink = { active: false, progress: 0, nextTime: 2.0, isWink: false };
+    const glance = { targetX: 0, targetY: 0, nextTime: 2.5 };
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const delta = Math.min(clock.getDelta(), 0.05);
+      const time = clock.getElapsedTime();
+
+      // 1. Cute Chibi Breathing & Playful Devil Mood
+      if (isHappy) {
+        // High-energy, joyful bouncy personality when happy
+        const bouncePhase = Math.sin(time * 6.5);
+        physics.scaleY.target = 1.0 + bouncePhase * 0.12;
+        physics.scaleX.target = 1.0 - bouncePhase * 0.10;
+        physics.bodyY.target = Math.abs(bouncePhase) * 0.18;
+        physics.rotateZ.target = Math.sin(time * 4.0) * 0.10;
+        physics.hornInertia.target = Math.cos(time * 6.5) * 0.18;
+      } else {
+        // Idle: Soft rhythmic breathing with a charming gentle head tilt
+        const breathe = Math.sin(time * 2.4);
+        physics.scaleY.target = 1.0 + breathe * 0.035;
+        physics.scaleX.target = 1.0 - breathe * 0.035;
+        physics.bodyY.target = Math.sin(time * 1.6) * 0.04;
+        physics.rotateZ.target = Math.sin(time * 0.8) * 0.05; // Gentle curious tilt
+      }
+
+      // 2. Playful Look-Around Glances
+      if (time > glance.nextTime) {
+        // Random curious glances: looking left, right, up
+        const r = Math.random();
+        if (r < 0.35) {
+          glance.targetX = (Math.random() - 0.5) * 0.22;
+          glance.targetY = (Math.random() - 0.5) * 0.14;
+        } else if (r < 0.70) {
+          glance.targetX = (Math.random() > 0.5 ? 0.16 : -0.16);
+          glance.targetY = 0.04;
+        } else {
+          glance.targetX = 0;
+          glance.targetY = 0;
+        }
+        glance.nextTime = time + 1.8 + Math.random() * 2.5;
+      }
+      physics.faceX.target = glance.targetX;
+      physics.faceY.target = glance.targetY;
+
+      // 3. Physics Step
+      updateSpring(physics.bodyY);
+      updateSpring(physics.scaleX);
+      updateSpring(physics.scaleY);
+      updateSpring(physics.rotateZ);
+      updateSpring(physics.faceX);
+      updateSpring(physics.faceY);
+      updateSpring(physics.hornInertia);
+
+      // Volume conservation
+      const curSX = physics.scaleX.current;
+      const curSY = physics.scaleY.current;
+      const curSZ = 1.0 / Math.sqrt(Math.max(0.1, curSX * curSY));
+
+      creature.scale.set(curSX, curSY, curSZ);
+      creature.position.y = physics.bodyY.current;
+      creature.rotation.z = physics.rotateZ.current;
+
+      // Ground shadow scale sync
+      const shadowScale = (curSX + curSZ) * 0.5 * (1.0 - physics.bodyY.current * 0.35);
+      shadowPlane.scale.set(shadowScale, shadowScale, shadowScale);
+
+      // 4. Face Look-At Parallax
+      faceGroup.position.x = physics.faceX.current;
+      faceGroup.position.y = physics.faceY.current;
+      faceGroup.rotation.y = physics.faceX.current * 0.30;
+      faceGroup.rotation.x = -physics.faceY.current * 0.30;
+
+      // 5. Horn Dynamic Inertia Sway
+      const hornInertiaSway = Math.sin(time * 3.0) * 0.02 + physics.hornInertia.current * 0.25;
+      leftHorn.rotation.z = -0.26 + hornInertiaSway;
+      rightHorn.rotation.z = 0.26 + hornInertiaSway;
+
+      // 6. Mascot Blinking / Cheeky Wink Cycle
+      if (!blink.active) {
+        if (time > blink.nextTime) {
+          blink.active = true;
+          blink.progress = 0;
+          blink.isWink = Math.random() < 0.25; // 25% chance of a cute cheeky devil wink!
+          blink.nextTime = time + 2.2 + Math.random() * 3.5;
+        }
+      } else {
+        blink.progress += delta * 9.5;
+        const blinkPhase = Math.sin(blink.progress * Math.PI);
+        const eyeScaleY = Math.max(0.04, 1.0 - blinkPhase * 0.96);
+
+        if (blink.isWink) {
+          // Cheeky wink: right eye winks while left stays open or squints playfully
+          rightEyeMesh.scale.set(1.0, eyeScaleY, 1.0);
+          leftEyeMesh.scale.set(1.0, Math.max(0.6, 1.0 - blinkPhase * 0.4), 1.0);
+        } else {
+          leftEyeMesh.scale.set(1.0, eyeScaleY, 1.0);
+          rightEyeMesh.scale.set(1.0, eyeScaleY, 1.0);
+        }
+
+        if (blink.progress >= 1.0) {
+          blink.active = false;
+          leftEyeMesh.scale.set(1.0, 1.0, 1.0);
+          rightEyeMesh.scale.set(1.0, 1.0, 1.0);
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+</html>

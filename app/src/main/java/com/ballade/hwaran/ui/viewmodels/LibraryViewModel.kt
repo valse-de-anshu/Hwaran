@@ -659,6 +659,19 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun deleteChaptersOnlyFromDb(chapterIds: List<Long>) {
+        if (chapterIds.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            chapterIds.forEach { chapterId ->
+                val chapter = database.trackDao().getChapterById(chapterId)
+                if (chapter != null) {
+                    com.ballade.hwaran.core.util.HistoryTracker.logEvent("DELETE", chapter.title, "Chapter (DB only)")
+                    database.trackDao().deleteChapter(chapter)
+                }
+            }
+        }
+    }
+
     fun deleteSelectedChapters(chapterIds: List<Long>) {
         if (chapterIds.isEmpty()) return
         viewModelScope.launch {

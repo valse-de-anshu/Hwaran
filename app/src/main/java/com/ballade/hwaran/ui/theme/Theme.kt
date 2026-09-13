@@ -109,6 +109,45 @@ fun animateColorScheme(targetColorScheme: androidx.compose.material3.ColorScheme
     )
 }
 
+data class AppThemeSpec(
+    val id: Int,
+    val name: String,
+    val colorScheme: androidx.compose.material3.ColorScheme,
+    val gradient: Brush?,
+    val previewBrush: Brush
+)
+
+val AVAILABLE_APP_THEMES: List<AppThemeSpec> = listOf(
+    AppThemeSpec(
+        id = 1,
+        name = "Dark",
+        colorScheme = PureDarkColorScheme,
+        gradient = null,
+        previewBrush = androidx.compose.ui.graphics.SolidColor(Color(0xFF14131F))
+    ),
+    AppThemeSpec(
+        id = 5,
+        name = "Blueberry",
+        colorScheme = BlueberryColorScheme,
+        gradient = Brush.verticalGradient(listOf(Color(0xFF15326D), Color(0xFF0C1D40), Color(0xFF071126), Color(0xFF030812))),
+        previewBrush = Brush.verticalGradient(listOf(Color(0xFF15326D), Color(0xFF0C1D40), Color(0xFF071126), Color(0xFF030812)))
+    ),
+    AppThemeSpec(
+        id = 6,
+        name = "Snowfall",
+        colorScheme = SnowfallColorScheme,
+        gradient = Brush.verticalGradient(listOf(Color(0xFF404C55), Color(0xFF27323B), Color(0xFF161C22), Color(0xFF0B0E11))),
+        previewBrush = Brush.verticalGradient(listOf(Color(0xFF404C55), Color(0xFF27323B), Color(0xFF161C22), Color(0xFF0B0E11)))
+    ),
+    AppThemeSpec(
+        id = 7,
+        name = "Grape",
+        colorScheme = GrapeColorScheme,
+        gradient = Brush.verticalGradient(listOf(Color(0xFF7A6284), Color(0xFF52425C), Color(0xFF382B3F), Color(0xFF1F1823), Color(0xFF0C080D))),
+        previewBrush = Brush.verticalGradient(listOf(Color(0xFF7A6284), Color(0xFF52425C), Color(0xFF382B3F), Color(0xFF1F1823), Color(0xFF0C080D)))
+    )
+)
+
 @Composable
 fun HwaranTheme(
     appTheme: Int = 0,
@@ -119,13 +158,9 @@ fun HwaranTheme(
     pillHighlightColor: Long = 0xFF7A6284L,
     content: @Composable () -> Unit
 ) {
-    val baseColorScheme = when (appTheme) {
-        1 -> PureDarkColorScheme
-        5 -> BlueberryColorScheme
-        6 -> SnowfallColorScheme
-        7 -> GrapeColorScheme
-        else -> PureDarkColorScheme
-    }
+    val themeSpec = AVAILABLE_APP_THEMES.find { it.id == appTheme } ?: AVAILABLE_APP_THEMES.first()
+    val baseColorScheme = themeSpec.colorScheme
+
     val colorScheme = if (usePillAsHighlight) {
         baseColorScheme.copy(
             primary = Color(pillHighlightColor),
@@ -136,13 +171,7 @@ fun HwaranTheme(
     }
 
     val animatedColorScheme = animateColorScheme(colorScheme)
-
-    val appGradient = when (appTheme) {
-        5 -> Brush.verticalGradient(listOf(Color(0xFF15326D), Color(0xFF0C1D40), Color(0xFF071126), Color(0xFF030812))) // Blueberry
-        6 -> Brush.verticalGradient(listOf(Color(0xFF404C55), Color(0xFF27323B), Color(0xFF161C22), Color(0xFF0B0E11))) // Snowfall
-        7 -> Brush.verticalGradient(listOf(Color(0xFF7A6284), Color(0xFF52425C), Color(0xFF382B3F), Color(0xFF1F1823), Color(0xFF0C080D))) // Grape
-        else -> null
-    }
+    val appGradient = themeSpec.gradient
 
     CompositionLocalProvider(
         LocalAppGradient provides appGradient,

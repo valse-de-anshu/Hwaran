@@ -31,6 +31,7 @@ import java.io.FileOutputStream
 import com.ballade.hwaran.core.metadata.EntryMetadata
 import com.ballade.hwaran.core.metadata.MasterTagItem
 import com.ballade.hwaran.core.metadata.MediaMetadataManager
+import com.ballade.hwaran.data.importer.music.MusicImportUtils
 import java.util.UUID
 
 val AppImportScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -1120,6 +1121,12 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                 val m = libraryDao.getMangaById(currentMangaId) ?: return@launch
                 val contentResolver = getApplication<Application>().contentResolver
 
+                // Check for lyrics files (Case 1: side-by-side, Case 2: lyrics subfolder)
+                val folderDoc = if (m.parentUri.startsWith("content://")) {
+                    try { DocumentFile.fromTreeUri(getApplication(), Uri.parse(m.parentUri)) } catch (e: Exception) { null }
+                } else null
+                val lyricsDocs = folderDoc?.let { MusicImportUtils.findLyricsFiles(it) } ?: emptyList()
+
                 val total = uris.size
                 uris.forEachIndexed { index, uri ->
                     try {
@@ -1142,6 +1149,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                     var duration = 0L
                     var thumbUri: String? = null
                     var artist: String? = null
+                    var lyrics: String? = null
 
                     if (!isLocalMode) {
                         try {
@@ -1166,6 +1174,9 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                             e.printStackTrace()
                         }
 
+                        val matchingLyricsDoc = MusicImportUtils.findMatchingLyricsDoc(fileName, chapterName, lyricsDocs)
+                        val finalLyrics = matchingLyricsDoc?.let { MusicImportUtils.readLyrics(getApplication(), it) } ?: lyrics
+
                         trackDao.insertChapter(
                             ChapterEntity(
                                 mangaId = currentMangaId,
@@ -1174,7 +1185,8 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                                 position = index,
                                 duration = duration,
                                 thumbnailUri = thumbUri,
-                                artist = artist
+                                artist = artist,
+                                lyrics = finalLyrics
                             )
                         )
                     } else {
@@ -1226,6 +1238,10 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
+
+                        val localLyricsFiles = if (vaultBase.isDirectory) MusicImportUtils.findLyricsFiles(vaultBase) else emptyList()
+                        val matchingLyricsFile = MusicImportUtils.findMatchingLyricsFile(fileName, chapterName, localLyricsFiles)
+                        val finalLyrics = matchingLyricsFile?.let { MusicImportUtils.readLyrics(it) } ?: lyrics
                         
                         trackDao.insertChapter(
                             ChapterEntity(
@@ -1235,7 +1251,8 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                                 position = index,
                                 duration = duration,
                                 thumbnailUri = thumbUri,
-                                artist = artist
+                                artist = artist,
+                                lyrics = finalLyrics
                             )
                         )
                     }

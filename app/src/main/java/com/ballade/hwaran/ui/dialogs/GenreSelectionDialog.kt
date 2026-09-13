@@ -43,14 +43,14 @@ fun GenreSelectionDialog(
         title = { 
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "Select Music Genre", 
+                    "Conductor Animation Based on Genre", 
                     color = Color.White, 
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 20.sp,
+                    fontSize = 18.sp,
                     textAlign = TextAlign.Center
                 )
                 Text(
-                    "Choose the style for JellyBall conductor",
+                    "Choose the animation style for JellyBall conductor",
                     color = Color.White.copy(alpha = 0.5f),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,

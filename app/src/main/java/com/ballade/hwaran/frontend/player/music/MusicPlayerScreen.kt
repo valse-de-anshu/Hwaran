@@ -12,6 +12,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -40,8 +42,12 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import kotlin.math.roundToInt
+import kotlin.math.abs
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -57,39 +63,31 @@ import com.ballade.hwaran.ui.components.WavyMusicSlider
 import com.ballade.hwaran.ui.components.MusicBackground
 import com.ballade.hwaran.ui.dialogs.PlaylistSelectionDialog
 import com.ballade.hwaran.ui.viewmodels.MusicViewModel
+import com.ballade.hwaran.ui.viewmodels.MusicViewModel.ShuffleMode
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
 import com.ballade.hwaran.ui.viewmodels.LibraryViewModel
 import com.ballade.hwaran.ui.theme.LocalBatterySaving
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.TextUnit
+import com.ballade.hwaran.ui.dialogs.GenreSelectionDialog
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.graphics.TransformOrigin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 
-val SequentialPlayIcon: ImageVector
-    get() = ImageVector.Builder(
-        name = "SequentialPlay",
-        defaultWidth = 24.dp,
-        defaultHeight = 24.dp,
-        viewportWidth = 24f,
-        viewportHeight = 24f
-    ).apply {
-        path(
-            fill = null,
-            stroke = SolidColor(Color.White),
-            strokeLineWidth = 2f,
-            strokeLineCap = StrokeCap.Round,
-            strokeLineJoin = StrokeJoin.Round
-        ) {
-            moveTo(4f, 8f)
-            lineTo(20f, 8f)
-            moveTo(16f, 4f)
-            lineTo(20f, 8f)
-            lineTo(16f, 12f)
-            moveTo(4f, 16f)
-            lineTo(20f, 16f)
-            moveTo(16f, 12f)
-            lineTo(20f, 16f)
-            lineTo(16f, 20f)
-        }
-    }.build()
 
 @Composable
 fun NowPlayingScreen(
@@ -124,6 +122,7 @@ fun MusicPlayerScreen(
     val playlists = allManga.filter { it.contentType == 3 }
     
     val shuffleMode by musicViewModel.shuffleMode.collectAsState()
+    val currentShuffleMode by musicViewModel.currentShuffleMode.collectAsState()
     val repeatMode by musicViewModel.repeatMode.collectAsState()
 
     // Boundary Logic for Dimming Controls
@@ -142,11 +141,46 @@ fun MusicPlayerScreen(
     var showPlaylistDialog by rememberSaveable { mutableStateOf(false) }
     var showQueueDialog by rememberSaveable { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    var showGenreDialog by rememberSaveable { mutableStateOf(false) }
+    var showLyricsDialog by rememberSaveable { mutableStateOf(false) }
     var isLyricsMode by rememberSaveable { mutableStateOf(false) }
+
+    val lrcPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) {}
+                context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    val rawBytes = inputStream.readBytes()
+                    val content = try {
+                        String(rawBytes, java.nio.charset.StandardCharsets.UTF_8).removePrefix("\uFEFF")
+                    } catch (e: Exception) {
+                        String(rawBytes, java.nio.charset.StandardCharsets.ISO_8859_1)
+                    }
+                    if (content.isNotBlank()) {
+                        musicViewModel.updateCurrentChapterLyrics(content)
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Lyrics loaded")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                scope.launch {
+                    snackbarHostState.showSnackbar("Failed to read lyrics: ${e.message}")
+                }
+            }
+        }
+    }
 
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-    val controlIconColor = Color(0xFF7A6284)
+    val controlIconColor = Color.White
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Background Blur
@@ -176,43 +210,107 @@ if (isLandscape) {
                     modifier = Modifier
                         .weight(0.7f)
                         .aspectRatio(1f)
-                        .clip(RoundedCornerShape(32.dp))
-                        .shadow(
-                            elevation = 40.dp,
-                            shape = RoundedCornerShape(32.dp),
-                            spotColor = Color(colorPalette.vibrant).copy(alpha = 0.5f),
-                            ambientColor = Color.Transparent
-                        )
-                        .clickable { isLyricsMode = !isLyricsMode }
-                ) {
-                    AnimatedContent(
-                        targetState = isLyricsMode,
-                        transitionSpec = { fadeIn(animationSpec = tween(500)) togetherWith fadeOut(animationSpec = tween(500)) },
-                        label = "lyrics_transition"
-                    ) { targetLyricsMode ->
-                        if (targetLyricsMode) {
-                            Box(modifier = Modifier.fillMaxSize().background(Color.Black).padding(24.dp), contentAlignment = Alignment.Center) {
-                                Text(text = currentChapter?.lyrics ?: "No lyrics found.", color = Color.White, fontSize = 16.sp, textAlign = TextAlign.Center, modifier = Modifier.verticalScroll(rememberScrollState()))
-                            }
-                        } else {
-                            val cover = currentChapter?.thumbnailUri ?: currentChapter?.folderUri ?: currentManga?.coverPath
-                            Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-                                if (!cover.isNullOrEmpty() && cover != "android.resource://android/drawable/ic_menu_gallery") {
-                                    AsyncImage(model = ImageRequest.Builder(context).data(cover).crossfade(true).build(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().then(if (musicMode == 1) Modifier.blur(10.dp).graphicsLayer { alpha = 0.6f } else Modifier))
-                                } else {
-                                    androidx.compose.material3.Icon(
-                                        Icons.Rounded.MusicNote,
-                                        contentDescription = null,
-                                        tint = Color.White.copy(alpha = 0.1f),
-                                        modifier = Modifier.size(100.dp)
+                        .then(
+                            if (!isLyricsMode) {
+                                Modifier
+                                    .shadow(
+                                        elevation = 40.dp,
+                                        shape = RoundedCornerShape(32.dp),
+                                        spotColor = Color(colorPalette.vibrant).copy(alpha = 0.5f),
+                                        ambientColor = Color.Transparent
                                     )
-                                }
-                                if (musicMode == 1) {
-                                    val genre = currentChapter?.genre ?: currentManga?.genre ?: "Skip"
-                                    if (!LocalBatterySaving.current) {
-                                        ConductorAnimation(isPlaying = isPlaying, genre = genre)
+                            } else Modifier
+                        )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { isLyricsMode = !isLyricsMode }
+                    ) {
+                        AnimatedContent(
+                            targetState = isLyricsMode,
+                            transitionSpec = { fadeIn(animationSpec = tween(500)) togetherWith fadeOut(animationSpec = tween(500)) },
+                            label = "lyrics_transition"
+                        ) { targetLyricsMode ->
+                            if (targetLyricsMode) {
+                                SyncedLyricsView(
+                                    lyrics = currentChapter?.lyrics,
+                                    currentPositionMs = currentPosition,
+                                    onSeekTo = { musicViewModel.seekToPosition(it) },
+                                    onOpenLyricsDialog = { showLyricsDialog = true }
+                                )
+                            } else {
+                                val cover = currentChapter?.thumbnailUri ?: currentChapter?.folderUri ?: currentManga?.coverPath
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(32.dp))
+                                        .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(32.dp))
+                                        .background(Color.Black),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (!cover.isNullOrEmpty() && cover != "android.resource://android/drawable/ic_menu_gallery") {
+                                        AsyncImage(model = ImageRequest.Builder(context).data(cover).crossfade(true).build(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().then(if (musicMode == 1) Modifier.blur(10.dp).graphicsLayer { alpha = 0.6f } else Modifier))
+                                    } else {
+                                        androidx.compose.material3.Icon(
+                                            Icons.Rounded.MusicNote,
+                                            contentDescription = null,
+                                            tint = Color.White.copy(alpha = 0.1f),
+                                            modifier = Modifier.size(100.dp)
+                                        )
+                                    }
+                                    if (musicMode == 1) {
+                                        val genre = currentChapter?.genre ?: currentManga?.genre ?: "Skip"
+                                        if (!LocalBatterySaving.current) {
+                                            ConductorAnimation(isPlaying = isPlaying, genre = genre)
+                                        }
                                     }
                                 }
+                            }
+                        }
+                    }
+
+                    // Conductor Style chip (only shown when conductor is enabled and not in lyrics mode)
+                    if (musicMode == 1 && !isLyricsMode) {
+                        Surface(
+                            onClick = { showGenreDialog = true },
+                            shape = CircleShape,
+                            color = Color.Black.copy(alpha = 0.55f),
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(10.dp)
+                                .height(34.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.GraphicEq,
+                                    contentDescription = "Conductor Style",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                val activeGenre = currentChapter?.genre?.takeIf { it.isNotBlank() && it != "Skip" }
+                                    ?: currentManga?.genre?.takeIf { it.isNotBlank() && it != "Skip" }
+                                    ?: "Default"
+                                Text(
+                                    text = activeGenre,
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Icon(
+                                    imageVector = Icons.Rounded.ArrowDropDown,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
                         }
                     }
@@ -227,7 +325,13 @@ if (isLandscape) {
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = currentChapter?.title ?: "No Song Playing", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.horizontalFade().basicMarquee())
+                            MarqueeTextWithFade(
+                                text = currentChapter?.title ?: "No Song Playing",
+                                color = Color.White,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                             Text(text = currentChapter?.artist ?: "Unknown Artist", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
@@ -238,7 +342,16 @@ if (isLandscape) {
                     var isDragging by remember { mutableStateOf(false) }
                     LaunchedEffect(playbackProgress) { if (!isDragging) sliderPosition = playbackProgress }
 
-                    WavyMusicSlider(value = sliderPosition, onValueChange = { isDragging = true; sliderPosition = it }, onValueChangeFinished = { isDragging = false; musicViewModel.seekTo(sliderPosition) }, isPlaying = isPlaying, activeTrackColor = controlIconColor, inactiveTrackColor = controlIconColor.copy(alpha = 0.2f), thumbColor = controlIconColor, modifier = Modifier.fillMaxWidth())
+                    WavyMusicSlider(
+                        value = sliderPosition,
+                        onValueChange = { isDragging = true; sliderPosition = it },
+                        onValueChangeFinished = { isDragging = false; musicViewModel.seekTo(sliderPosition) },
+                        isPlaying = isPlaying,
+                        activeTrackColor = Color.White,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.25f),
+                        thumbColor = Color.White,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(text = formatTime((sliderPosition * totalDuration).toLong()), color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
                         Text(text = "-${formatTime(((1f - sliderPosition) * totalDuration).toLong())}", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
@@ -247,38 +360,33 @@ if (isLandscape) {
                     Spacer(modifier = Modifier.height(20.dp))
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround, verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(modifier = Modifier.shadow(8.dp, CircleShape, ambientColor = Color.Black, spotColor = Color.Black).background(Color.Black.copy(alpha = 0.15f), CircleShape), onClick = { 
-                            musicViewModel.toggleShuffle() 
-                            scope.launch { 
-                                snackbarHostState.currentSnackbarData?.dismiss()
-                                snackbarHostState.showSnackbar(if (!shuffleMode) "Shuffle mode is on" else "Shuffle mode is off") 
-                            }
-                        }) {
-                            Icon(if (shuffleMode) Icons.Rounded.Shuffle else SequentialPlayIcon, contentDescription = null, tint = if (shuffleMode) controlIconColor else controlIconColor.copy(alpha = 0.6f))
-                        }
+                        ShuffleControlMenu(
+                            currentShuffleMode = currentShuffleMode,
+                            onSelectMode = { musicViewModel.setShuffleMode(it) }
+                        )
                         
-                        IconButton(onClick = { musicViewModel.previous() }, enabled = hasPrevious, modifier = Modifier.shadow(8.dp, CircleShape, ambientColor = Color.Black, spotColor = Color.Black).background(Color.Black.copy(alpha = 0.15f), CircleShape)) {
-                            Icon(Icons.Rounded.SkipPrevious, contentDescription = null, tint = if (hasPrevious) controlIconColor else controlIconColor.copy(alpha = 0.2f), modifier = Modifier.size(40.dp))
+                        IconButton(onClick = { musicViewModel.previous() }, enabled = hasPrevious) {
+                            Icon(Icons.Rounded.SkipPrevious, contentDescription = null, tint = if (hasPrevious) Color.White else Color.White.copy(alpha = 0.25f), modifier = Modifier.size(40.dp))
                         }
-                        Surface(onClick = { musicViewModel.togglePlayPause() }, shape = CircleShape, color = controlIconColor, modifier = Modifier.size(60.dp)) {
+                        Surface(onClick = { musicViewModel.togglePlayPause() }, shape = CircleShape, color = Color.White, modifier = Modifier.size(60.dp)) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
+                                Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.Black, modifier = Modifier.size(36.dp))
                             }
                         }
-                        IconButton(onClick = { musicViewModel.next() }, enabled = hasNext, modifier = Modifier.shadow(8.dp, CircleShape, ambientColor = Color.Black, spotColor = Color.Black).background(Color.Black.copy(alpha = 0.15f), CircleShape)) {
-                            Icon(Icons.Rounded.SkipNext, contentDescription = null, tint = if (hasNext) controlIconColor else controlIconColor.copy(alpha = 0.2f), modifier = Modifier.size(40.dp))
+                        IconButton(onClick = { musicViewModel.next() }, enabled = hasNext) {
+                            Icon(Icons.Rounded.SkipNext, contentDescription = null, tint = if (hasNext) Color.White else Color.White.copy(alpha = 0.25f), modifier = Modifier.size(40.dp))
                         }
 
                         Box {
-                            IconButton(onClick = { showRepeatMenu = true }, modifier = Modifier.shadow(8.dp, CircleShape, ambientColor = Color.Black, spotColor = Color.Black).background(Color.Black.copy(alpha = 0.15f), CircleShape)) {
+                            IconButton(onClick = { showRepeatMenu = true }) {
                                 Icon(
                                     imageVector = when(repeatMode) {
                                         androidx.media3.common.Player.REPEAT_MODE_ONE -> Icons.Rounded.RepeatOne
                                         androidx.media3.common.Player.REPEAT_MODE_ALL -> Icons.Rounded.Repeat
-                                        else -> Icons.Rounded.ArrowRightAlt
+                                        else -> Icons.AutoMirrored.Rounded.ArrowRightAlt
                                     }, 
                                     contentDescription = null, 
-                                    tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) controlIconColor else controlIconColor.copy(alpha = 0.6f)
+                                    tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) Color.White else Color.White.copy(alpha = 0.5f)
                                 )
                             }
                             DropdownMenu(
@@ -290,7 +398,7 @@ if (isLandscape) {
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("Play next song", color = Color.White) },
-                                    leadingIcon = { Icon(Icons.Rounded.ArrowRightAlt, contentDescription = null, tint = controlIconColor) },
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Rounded.ArrowRightAlt, contentDescription = null, tint = Color.White) },
                                     onClick = { 
                                         showRepeatMenu = false
                                         musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_OFF)
@@ -298,7 +406,7 @@ if (isLandscape) {
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Repeat the same queue", color = Color.White) },
-                                    leadingIcon = { Icon(Icons.Rounded.Repeat, contentDescription = null, tint = controlIconColor) },
+                                    leadingIcon = { Icon(Icons.Rounded.Repeat, contentDescription = null, tint = Color.White) },
                                     onClick = { 
                                         showRepeatMenu = false
                                         musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ALL)
@@ -306,7 +414,7 @@ if (isLandscape) {
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Repeat the same song", color = Color.White) },
-                                    leadingIcon = { Icon(Icons.Rounded.RepeatOne, contentDescription = null, tint = controlIconColor) },
+                                    leadingIcon = { Icon(Icons.Rounded.RepeatOne, contentDescription = null, tint = Color.White) },
                                     onClick = { 
                                         showRepeatMenu = false
                                         musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ONE)
@@ -323,18 +431,18 @@ if (isLandscape) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(modifier = Modifier.shadow(8.dp, CircleShape, ambientColor = Color.Black, spotColor = Color.Black).background(Color.Black.copy(alpha = 0.15f), CircleShape), onClick = { 
+                        IconButton(onClick = { 
                             val intent = Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
                             context.startActivity(intent)
                         }) {
                             Icon(
                                 painter = painterResource(id = com.ballade.hwaran.R.drawable.ic_speaker),
                                 contentDescription = "Cast",
-                                tint = controlIconColor.copy(alpha = 0.7f),
+                                tint = Color.White.copy(alpha = 0.7f),
                                 modifier = Modifier.size(24.dp)
                             )
                         }
-                        IconButton(modifier = Modifier.shadow(8.dp, CircleShape, ambientColor = Color.Black, spotColor = Color.Black).background(Color.Black.copy(alpha = 0.15f), CircleShape), onClick = { 
+                        IconButton(onClick = { 
                             currentChapter?.let { chapter ->
                                 try {
                                     val uri = Uri.parse(chapter.folderUri)
@@ -349,10 +457,10 @@ if (isLandscape) {
                                 }
                             }
                         }) {
-                            Icon(Icons.Rounded.IosShare, contentDescription = "Share", tint = controlIconColor.copy(alpha = 0.7f))
+                            Icon(Icons.Rounded.IosShare, contentDescription = "Share", tint = Color.White.copy(alpha = 0.7f))
                         }
-                        IconButton(onClick = { showQueueDialog = true }, modifier = Modifier.shadow(8.dp, CircleShape, ambientColor = Color.Black, spotColor = Color.Black).background(Color.Black.copy(alpha = 0.15f), CircleShape)) {
-                            Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = "Queue", tint = controlIconColor.copy(alpha = 0.7f))
+                        IconButton(onClick = { showQueueDialog = true }) {
+                            Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = "Queue", tint = Color.White.copy(alpha = 0.7f))
                         }
                         Box {
                             IconButton(onClick = { showMenu = true }) {
@@ -380,6 +488,22 @@ if (isLandscape) {
                                     onClick = { 
                                         showMenu = false
                                         showPlaylistDialog = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Conductor Animation Based on Genre", color = Color.White) },
+                                    leadingIcon = { Icon(Icons.Rounded.GraphicEq, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
+                                    onClick = { 
+                                        showMenu = false
+                                        showGenreDialog = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Lyrics Options", color = Color.White) },
+                                    leadingIcon = { Icon(Icons.Rounded.Lyrics, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
+                                    onClick = { 
+                                        showMenu = false
+                                        showLyricsDialog = true
                                     }
                                 )
                                 DropdownMenuItem(
@@ -454,6 +578,22 @@ if (isLandscape) {
                             }
                         )
                         DropdownMenuItem(
+                            text = { Text("Conductor Animation Based on Genre", color = Color.White) },
+                            leadingIcon = { Icon(Icons.Rounded.GraphicEq, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
+                            onClick = { 
+                                showMenu = false
+                                showGenreDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Lyrics Options", color = Color.White) },
+                            leadingIcon = { Icon(Icons.Rounded.Lyrics, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
+                            onClick = { 
+                                showMenu = false
+                                showLyricsDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { Text(if (musicMode == 1) "Show Album Art" else "Show Conductor", color = Color.White) },
                             leadingIcon = { Icon(if (musicMode == 1) Icons.Rounded.Image else Icons.Rounded.GraphicEq, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
                             onClick = { 
@@ -481,74 +621,122 @@ if (isLandscape) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .clip(RoundedCornerShape(32.dp))
-                    .shadow(
-                        elevation = 40.dp,
-                        shape = RoundedCornerShape(32.dp),
-                        spotColor = Color(colorPalette.vibrant).copy(alpha = 0.5f),
-                        ambientColor = Color.Transparent
+                    .then(
+                        if (!isLyricsMode) {
+                            Modifier
+                                .shadow(
+                                    elevation = 40.dp,
+                                    shape = RoundedCornerShape(32.dp),
+                                    spotColor = Color(colorPalette.vibrant).copy(alpha = 0.5f),
+                                    ambientColor = Color.Transparent
+                                )
+                        } else Modifier
                     )
-                    .clickable { isLyricsMode = !isLyricsMode }
             ) {
-                AnimatedContent(
-                    targetState = isLyricsMode,
-                    transitionSpec = {
-                        fadeIn(animationSpec = tween(500)) togetherWith fadeOut(animationSpec = tween(500))
-                    },
-                    label = "lyrics_transition"
-                ) { targetLyricsMode ->
-                    if (targetLyricsMode) {
-                        // Lyrics View
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black)
-                                .padding(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = currentChapter?.lyrics ?: "No lyrics found.",
-                                color = Color.White,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Medium,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.verticalScroll(rememberScrollState())
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { isLyricsMode = !isLyricsMode }
+                ) {
+                    AnimatedContent(
+                        targetState = isLyricsMode,
+                        transitionSpec = {
+                            fadeIn(animationSpec = tween(500)) togetherWith fadeOut(animationSpec = tween(500))
+                        },
+                        label = "lyrics_transition"
+                    ) { targetLyricsMode ->
+                        if (targetLyricsMode) {
+                            SyncedLyricsView(
+                                lyrics = currentChapter?.lyrics,
+                                currentPositionMs = currentPosition,
+                                onSeekTo = { musicViewModel.seekToPosition(it) },
+                                onOpenLyricsDialog = { showLyricsDialog = true }
                             )
-                        }
-                    } else {
-                        // Album Cover / Animation View
-                        val cover = currentChapter?.thumbnailUri ?: currentChapter?.folderUri ?: currentManga?.coverPath
-                        Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-                            if (!cover.isNullOrEmpty() && cover != "android.resource://android/drawable/ic_menu_gallery") {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(context)
-                                        .data(cover)
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize().then(
-                                        if (musicMode == 1) Modifier.blur(10.dp).graphicsLayer { alpha = 0.6f } else Modifier
+                        } else {
+                            val cover = currentChapter?.thumbnailUri ?: currentChapter?.folderUri ?: currentManga?.coverPath
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(32.dp))
+                                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(32.dp))
+                                    .background(Color.Black),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (!cover.isNullOrEmpty() && cover != "android.resource://android/drawable/ic_menu_gallery") {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data(cover)
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize().then(
+                                            if (musicMode == 1) Modifier.blur(10.dp).graphicsLayer { alpha = 0.6f } else Modifier
+                                        )
                                     )
-                                )
-                            } else {
-                                androidx.compose.material3.Icon(
-                                    Icons.Rounded.MusicNote,
-                                    contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.1f),
-                                    modifier = Modifier.size(150.dp)
-                                )
-                            }
-                            if (musicMode == 1) {
-                                val genre = currentChapter?.genre ?: currentManga?.genre ?: "Skip"
-                                if (!LocalBatterySaving.current) {
-                                    ConductorAnimation(isPlaying = isPlaying, genre = genre)
+                                } else {
+                                    androidx.compose.material3.Icon(
+                                        Icons.Rounded.MusicNote,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.1f),
+                                        modifier = Modifier.size(150.dp)
+                                    )
+                                }
+                                if (musicMode == 1) {
+                                    val genre = currentChapter?.genre ?: currentManga?.genre ?: "Skip"
+                                    if (!LocalBatterySaving.current) {
+                                        ConductorAnimation(isPlaying = isPlaying, genre = genre)
+                                    }
                                 }
                             }
                         }
                     }
                 }
-                Box(modifier = Modifier.fillMaxSize().border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(32.dp)))
+
+                // Conductor Style chip (only shown when conductor is enabled and not in lyrics mode)
+                if (musicMode == 1 && !isLyricsMode) {
+                    Surface(
+                        onClick = { showGenreDialog = true },
+                        shape = CircleShape,
+                        color = Color.Black.copy(alpha = 0.55f),
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(14.dp)
+                            .height(38.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.GraphicEq,
+                                contentDescription = "Conductor Style",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            val activeGenre = currentChapter?.genre?.takeIf { it.isNotBlank() && it != "Skip" }
+                                ?: currentManga?.genre?.takeIf { it.isNotBlank() && it != "Skip" }
+                                ?: "Default"
+                            Text(
+                                text = activeGenre,
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Icon(
+                                imageVector = Icons.Rounded.ArrowDropDown,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.7f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.weight(0.5f))
@@ -560,13 +748,12 @@ if (isLandscape) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
-                    Text(
+                    MarqueeTextWithFade(
                         text = currentChapter?.title ?: "No Song Playing",
                         color = Color.White,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        modifier = Modifier.fillMaxWidth().horizontalFade().basicMarquee()
+                        modifier = Modifier.fillMaxWidth()
                     )
                     Text(
                         text = currentChapter?.artist ?: "Unknown Artist",
@@ -598,9 +785,9 @@ if (isLandscape) {
                         musicViewModel.seekTo(sliderPosition)
                     },
                     isPlaying = isPlaying,
-                    activeTrackColor = controlIconColor,
-                    inactiveTrackColor = controlIconColor.copy(alpha = 0.2f),
-                    thumbColor = controlIconColor,
+                    activeTrackColor = Color.White,
+                    inactiveTrackColor = Color.White.copy(alpha = 0.25f),
+                    thumbColor = Color.White,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -613,59 +800,52 @@ if (isLandscape) {
 
             // Controls
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround, verticalAlignment = Alignment.CenterVertically) {
-                IconButton(modifier = Modifier.shadow(8.dp, CircleShape, ambientColor = Color.Black, spotColor = Color.Black).background(Color.Black.copy(alpha = 0.15f), CircleShape), onClick = { 
-                    musicViewModel.toggleShuffle() 
-                    scope.launch { 
-                        snackbarHostState.currentSnackbarData?.dismiss()
-                        snackbarHostState.showSnackbar(if (!shuffleMode) "Shuffle mode is on" else "Shuffle mode is off") 
-                    }
-                }) {
-                    Icon(if (shuffleMode) Icons.Rounded.Shuffle else SequentialPlayIcon, contentDescription = null, tint = if (shuffleMode) controlIconColor else controlIconColor.copy(alpha = 0.6f))
-                }
+                ShuffleControlMenu(
+                    currentShuffleMode = currentShuffleMode,
+                    onSelectMode = { musicViewModel.setShuffleMode(it) }
+                )
                 IconButton(
                     onClick = { musicViewModel.previous() },
-                    enabled = hasPrevious,
-                    modifier = Modifier.shadow(8.dp, CircleShape, ambientColor = Color.Black, spotColor = Color.Black).background(Color.Black.copy(alpha = 0.15f), CircleShape)
+                    enabled = hasPrevious
                 ) {
                     Icon(
                         Icons.Rounded.SkipPrevious, 
                         contentDescription = null, 
-                        tint = if (hasPrevious) controlIconColor else controlIconColor.copy(alpha = 0.2f), 
+                        tint = if (hasPrevious) Color.White else Color.White.copy(alpha = 0.25f), 
                         modifier = Modifier.size(48.dp)
                     )
                 }
                 Surface(
                     onClick = { musicViewModel.togglePlayPause() },
                     shape = CircleShape,
-                    color = controlIconColor,
+                    color = Color.White,
                     modifier = Modifier.size(72.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp))
+                        Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.Black, modifier = Modifier.size(40.dp))
                     }
                 }
                 IconButton(
                     onClick = { musicViewModel.next() },
-                    enabled = hasNext,
-                    modifier = Modifier.shadow(8.dp, CircleShape, ambientColor = Color.Black, spotColor = Color.Black).background(Color.Black.copy(alpha = 0.15f), CircleShape)
+                    enabled = hasNext
                 ) {
                     Icon(
                         Icons.Rounded.SkipNext, 
                         contentDescription = null, 
-                        tint = if (hasNext) controlIconColor else controlIconColor.copy(alpha = 0.2f), 
+                        tint = if (hasNext) Color.White else Color.White.copy(alpha = 0.25f), 
                         modifier = Modifier.size(48.dp)
                     )
                 }
                 Box {
-                    IconButton(onClick = { showRepeatMenu = true }, modifier = Modifier.shadow(8.dp, CircleShape, ambientColor = Color.Black, spotColor = Color.Black).background(Color.Black.copy(alpha = 0.15f), CircleShape)) {
+                    IconButton(onClick = { showRepeatMenu = true }) {
                         Icon(
                             imageVector = when(repeatMode) {
                                 androidx.media3.common.Player.REPEAT_MODE_ONE -> Icons.Rounded.RepeatOne
                                 androidx.media3.common.Player.REPEAT_MODE_ALL -> Icons.Rounded.Repeat
-                                else -> Icons.Rounded.ArrowRightAlt
+                                else -> Icons.AutoMirrored.Rounded.ArrowRightAlt
                             },
                             contentDescription = null, 
-                            tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) controlIconColor else controlIconColor.copy(alpha = 0.6f)
+                            tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) Color.White else Color.White.copy(alpha = 0.5f)
                         )
                     }
                     DropdownMenu(
@@ -677,7 +857,7 @@ if (isLandscape) {
                     ) {
                         DropdownMenuItem(
                             text = { Text("Play next song", color = Color.White) },
-                            leadingIcon = { Icon(Icons.Rounded.ArrowRightAlt, contentDescription = null, tint = controlIconColor) },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.ArrowRightAlt, contentDescription = null, tint = Color.White) },
                             onClick = { 
                                 showRepeatMenu = false
                                 musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_OFF)
@@ -685,7 +865,7 @@ if (isLandscape) {
                         )
                         DropdownMenuItem(
                             text = { Text("Repeat the same queue", color = Color.White) },
-                            leadingIcon = { Icon(Icons.Rounded.Repeat, contentDescription = null, tint = controlIconColor) },
+                            leadingIcon = { Icon(Icons.Rounded.Repeat, contentDescription = null, tint = Color.White) },
                             onClick = { 
                                 showRepeatMenu = false
                                 musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ALL)
@@ -693,7 +873,7 @@ if (isLandscape) {
                         )
                         DropdownMenuItem(
                             text = { Text("Repeat the same song", color = Color.White) },
-                            leadingIcon = { Icon(Icons.Rounded.RepeatOne, contentDescription = null, tint = controlIconColor) },
+                            leadingIcon = { Icon(Icons.Rounded.RepeatOne, contentDescription = null, tint = Color.White) },
                             onClick = { 
                                 showRepeatMenu = false
                                 musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ONE)
@@ -710,18 +890,18 @@ if (isLandscape) {
                 modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp), 
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                IconButton(modifier = Modifier.shadow(8.dp, CircleShape, ambientColor = Color.Black, spotColor = Color.Black).background(Color.Black.copy(alpha = 0.15f), CircleShape), onClick = { 
+                IconButton(onClick = { 
                     val intent = Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
                     context.startActivity(intent)
                 }) {
                     Icon(
                         painter = painterResource(id = com.ballade.hwaran.R.drawable.ic_speaker),
                         contentDescription = null,
-                        tint = controlIconColor.copy(alpha = 0.5f),
+                        tint = Color.White.copy(alpha = 0.7f),
                         modifier = Modifier.size(24.dp)
                     )
                 }
-                IconButton(modifier = Modifier.shadow(8.dp, CircleShape, ambientColor = Color.Black, spotColor = Color.Black).background(Color.Black.copy(alpha = 0.15f), CircleShape), onClick = { 
+                IconButton(onClick = { 
                     currentChapter?.let { chapter ->
                         try {
                             val uri = Uri.parse(chapter.folderUri)
@@ -736,10 +916,10 @@ if (isLandscape) {
                         }
                     }
                 }) {
-                    Icon(Icons.Rounded.IosShare, contentDescription = null, tint = controlIconColor.copy(alpha = 0.5f))
+                    Icon(Icons.Rounded.IosShare, contentDescription = null, tint = Color.White.copy(alpha = 0.7f))
                 }
-                IconButton(onClick = { showQueueDialog = true }, modifier = Modifier.shadow(8.dp, CircleShape, ambientColor = Color.Black, spotColor = Color.Black).background(Color.Black.copy(alpha = 0.15f), CircleShape)) {
-                    Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = null, tint = controlIconColor.copy(alpha = 0.5f))
+                IconButton(onClick = { showQueueDialog = true }) {
+                    Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = null, tint = Color.White.copy(alpha = 0.7f))
                 }
 
                 // Heart Button Logic
@@ -787,6 +967,34 @@ if (isLandscape) {
     }
 
     // Feature Dialogs
+        if (showGenreDialog) {
+            GenreSelectionDialog(
+                onGenreSelected = { newGenre ->
+                    showGenreDialog = false
+                    musicViewModel.updateCurrentChapterGenre(newGenre)
+                    settingsViewModel.setMusicMode(1)
+                },
+                onDismiss = { showGenreDialog = false }
+            )
+        }
+
+        if (showLyricsDialog) {
+            LyricsManagementDialog(
+                currentLyrics = currentChapter?.lyrics,
+                onSaveLyrics = { newLyrics ->
+                    musicViewModel.updateCurrentChapterLyrics(newLyrics)
+                    scope.launch {
+                        snackbarHostState.showSnackbar(if (newLyrics.isNullOrBlank()) "Lyrics reset" else "Lyrics updated")
+                    }
+                },
+                onSelectLrcFile = {
+                    showLyricsDialog = false
+                    lrcPickerLauncher.launch(arrayOf("*/*"))
+                },
+                onDismiss = { showLyricsDialog = false }
+            )
+        }
+
         if (showPlaylistDialog && currentChapter != null) {
             PlaylistSelectionDialog(
                 playlists = playlists,
@@ -1143,3 +1351,726 @@ fun Modifier.horizontalFade(): Modifier = this
             blendMode = BlendMode.DstIn
         )
     }
+
+@Composable
+fun MarqueeTextWithFade(
+    text: String,
+    color: Color,
+    fontSize: TextUnit,
+    fontWeight: FontWeight,
+    modifier: Modifier = Modifier
+) {
+    val textMeasurer = rememberTextMeasurer()
+    var isOverflowing by remember { mutableStateOf(false) }
+
+    BoxWithConstraints(modifier = modifier) {
+        val maxWidthPx = constraints.maxWidth
+
+        LaunchedEffect(text, maxWidthPx) {
+            val textLayoutResult = textMeasurer.measure(
+                text = AnnotatedString(text),
+                style = TextStyle(
+                    fontSize = fontSize,
+                    fontWeight = fontWeight
+                ),
+                maxLines = 1
+            )
+            isOverflowing = textLayoutResult.size.width > maxWidthPx
+        }
+
+        if (isOverflowing) {
+            Text(
+                text = text,
+                color = color,
+                fontSize = fontSize,
+                fontWeight = fontWeight,
+                maxLines = 1,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalFade()
+                    .basicMarquee(iterations = Int.MAX_VALUE)
+            )
+        } else {
+            Text(
+                text = text,
+                color = color,
+                fontSize = fontSize,
+                fontWeight = fontWeight,
+                maxLines = 1,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+data class LyricLine(
+    val timestampMs: Long,
+    val text: String
+)
+
+object LyricsParser {
+    // Matches standard LRC timestamps: [mm:ss.xx], [mm:ss:xx], [mm:ss], [hh:mm:ss.xx], [m:ss.x], etc.
+    private val TIMESTAMP_REGEX = Regex("""\[(?:(\d{1,2}):)?(\d{1,3}):(\d{2})(?:[.:](\d{1,4}))?\]""")
+    private val OFFSET_REGEX = Regex("""\[offset:\s*([+-]?\d+)\s*\]""", RegexOption.IGNORE_CASE)
+
+    fun parse(lyrics: String?): List<LyricLine> {
+        if (lyrics.isNullOrBlank()) return emptyList()
+        val cleanLyrics = lyrics.removePrefix("\uFEFF")
+        val lines = cleanLyrics.lines()
+
+        var globalOffsetMs = 0L
+        for (rawLine in lines) {
+            val offsetMatch = OFFSET_REGEX.find(rawLine)
+            if (offsetMatch != null) {
+                globalOffsetMs = offsetMatch.groupValues[1].toLongOrNull() ?: 0L
+            }
+        }
+
+        val result = mutableListOf<LyricLine>()
+        for (rawLine in lines) {
+            val line = rawLine.trim()
+            if (line.isBlank()) continue
+            // Skip metadata header lines like [ar:Artist], [ti:Title], [al:Album]
+            if (line.startsWith("[") && line.contains(":") && !TIMESTAMP_REGEX.containsMatchIn(line)) {
+                continue
+            }
+            val matches = TIMESTAMP_REGEX.findAll(line).toList()
+            if (matches.isNotEmpty()) {
+                val text = line.replace(TIMESTAMP_REGEX, "").trim()
+                for (match in matches) {
+                    val hours = match.groupValues[1].takeIf { it.isNotEmpty() }?.toLongOrNull() ?: 0L
+                    val minutes = match.groupValues[2].toLongOrNull() ?: 0L
+                    val seconds = match.groupValues[3].toLongOrNull() ?: 0L
+                    val millisPart = match.groupValues.getOrNull(4).orEmpty()
+                    val millis = when {
+                        millisPart.isEmpty() -> 0L
+                        millisPart.length == 1 -> millisPart.toLong() * 100L
+                        millisPart.length == 2 -> millisPart.toLong() * 10L
+                        else -> millisPart.take(3).padEnd(3, '0').toLong()
+                    }
+                    val totalMs = (hours * 3600_000L + minutes * 60_000L + seconds * 1000L + millis + globalOffsetMs).coerceAtLeast(0L)
+                    result.add(LyricLine(timestampMs = totalMs, text = text))
+                }
+            }
+        }
+        return result.sortedBy { it.timestampMs }
+    }
+}
+
+fun Modifier.fadingEdges(
+    topFade: androidx.compose.ui.unit.Dp = 48.dp,
+    bottomFade: androidx.compose.ui.unit.Dp = 48.dp
+): Modifier = this
+    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+    .drawWithContent {
+        drawContent()
+        val topFadePx = topFade.toPx()
+        val bottomFadePx = bottomFade.toPx()
+        val h = size.height
+
+        if (topFadePx > 0f) {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color.Transparent, Color.Black),
+                    startY = 0f,
+                    endY = topFadePx
+                ),
+                blendMode = BlendMode.DstIn
+            )
+        }
+        if (bottomFadePx > 0f && h > bottomFadePx) {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color.Black, Color.Transparent),
+                    startY = h - bottomFadePx,
+                    endY = h
+                ),
+                blendMode = BlendMode.DstIn
+            )
+        }
+    }
+
+@Composable
+fun ShuffleControlMenu(
+    currentShuffleMode: ShuffleMode,
+    onSelectMode: (ShuffleMode) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+
+    val themeColor = MaterialTheme.colorScheme.primary
+
+    Box(modifier = modifier) {
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                imageVector = when (currentShuffleMode) {
+                    ShuffleMode.SMART -> Icons.Rounded.AutoAwesome
+                    ShuffleMode.ADVANCE -> Icons.Rounded.Tune
+                    ShuffleMode.NORMAL -> Icons.Rounded.Shuffle
+                    ShuffleMode.OFF -> Icons.AutoMirrored.Rounded.ArrowRightAlt
+                },
+                contentDescription = "Shuffle Mode",
+                tint = if (currentShuffleMode != ShuffleMode.OFF) Color.White else Color.White.copy(alpha = 0.5f)
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = Color(0xFF1A1A1A),
+            modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+        ) {
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        "Smart shuffle mode",
+                        color = if (currentShuffleMode == ShuffleMode.SMART) themeColor else Color.White,
+                        fontWeight = if (currentShuffleMode == ShuffleMode.SMART) FontWeight.Bold else FontWeight.Normal
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        Icons.Rounded.AutoAwesome,
+                        contentDescription = null,
+                        tint = if (currentShuffleMode == ShuffleMode.SMART) themeColor else Color.White
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    onSelectMode(ShuffleMode.SMART)
+                }
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        "Advance shuffle mode",
+                        color = if (currentShuffleMode == ShuffleMode.ADVANCE) themeColor else Color.White,
+                        fontWeight = if (currentShuffleMode == ShuffleMode.ADVANCE) FontWeight.Bold else FontWeight.Normal
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        Icons.Rounded.Tune,
+                        contentDescription = null,
+                        tint = if (currentShuffleMode == ShuffleMode.ADVANCE) themeColor else Color.White
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    onSelectMode(ShuffleMode.ADVANCE)
+                }
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        "Normal shuffle mode",
+                        color = if (currentShuffleMode == ShuffleMode.NORMAL) themeColor else Color.White,
+                        fontWeight = if (currentShuffleMode == ShuffleMode.NORMAL) FontWeight.Bold else FontWeight.Normal
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        Icons.Rounded.Shuffle,
+                        contentDescription = null,
+                        tint = if (currentShuffleMode == ShuffleMode.NORMAL) themeColor else Color.White
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    onSelectMode(ShuffleMode.NORMAL)
+                }
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        "Shuffle mode off",
+                        color = if (currentShuffleMode == ShuffleMode.OFF) themeColor else Color.White,
+                        fontWeight = if (currentShuffleMode == ShuffleMode.OFF) FontWeight.Bold else FontWeight.Normal
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowRightAlt,
+                        contentDescription = null,
+                        tint = if (currentShuffleMode == ShuffleMode.OFF) themeColor else Color.White
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    onSelectMode(ShuffleMode.OFF)
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun SyncedLyricsView(
+    lyrics: String?,
+    currentPositionMs: Long,
+    onSeekTo: (Long) -> Unit,
+    onOpenLyricsDialog: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val parsedLines = remember(lyrics) {
+        LyricsParser.parse(lyrics)
+    }
+
+    if (lyrics.isNullOrBlank()) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "No lyrics found.",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedButton(
+                    onClick = onOpenLyricsDialog,
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                ) {
+                    Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Add Lyrics")
+                }
+            }
+        }
+    } else if (parsedLines.isNotEmpty()) {
+        val activeIndex = remember(currentPositionMs, parsedLines) {
+            parsedLines.indexOfLast { it.timestampMs <= currentPositionMs }
+        }
+
+        val scrollState = rememberScrollState()
+        val itemCenters = remember { mutableStateMapOf<Int, Float>() }
+
+        BoxWithConstraints(
+            modifier = modifier
+                .fillMaxSize()
+                .fadingEdges(topFade = 56.dp, bottomFade = 56.dp)
+        ) {
+            val density = LocalDensity.current
+            val viewportHeightPx = with(density) { maxHeight.toPx() }
+            val halfHeightDp = maxHeight / 2
+
+            // Smooth programmatic auto-scroll centering the active line
+            LaunchedEffect(activeIndex, viewportHeightPx) {
+                if (activeIndex in parsedLines.indices && viewportHeightPx > 0f) {
+                    if (!itemCenters.containsKey(activeIndex)) {
+                        snapshotFlow { itemCenters[activeIndex] }
+                            .filterNotNull()
+                            .first()
+                    }
+
+                    val lineCenter = itemCenters[activeIndex]
+                    if (lineCenter != null) {
+                        val viewportCenter = viewportHeightPx / 2f
+                        val targetScroll = (lineCenter - viewportCenter).roundToInt().coerceIn(0, scrollState.maxValue)
+                        scrollState.animateScrollTo(
+                            value = targetScroll,
+                            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                        )
+                    }
+                } else if (activeIndex == -1) {
+                    if (scrollState.value != 0) {
+                        scrollState.animateScrollTo(0, tween(300))
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState, enabled = false),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Top spacer so line 0 sits at the exact vertical center
+                Spacer(modifier = Modifier.height(halfHeightDp))
+
+                parsedLines.forEachIndexed { index, line ->
+                    val distance = if (activeIndex >= 0) abs(index - activeIndex) else 1
+
+                    // Layer 1: Centre (focused playing lyric at this timeline)
+                    // Layer 2: Middle (visible nearby lines)
+                    // Layer 3: Last part / Outer (most blurred and faded look)
+                    val targetScale = when {
+                        distance == 0 -> 1.10f
+                        distance in 1..2 -> 1.0f
+                        else -> 0.94f
+                    }
+                    val targetAlpha = when {
+                        distance == 0 -> 1.0f
+                        distance == 1 -> 0.60f
+                        distance == 2 -> 0.40f
+                        else -> 0.15f
+                    }
+                    val targetBlur = when {
+                        distance == 0 -> 0.dp
+                        distance in 1..2 -> 0.dp
+                        distance == 3 -> 2.dp
+                        else -> 4.dp
+                    }
+                    val targetSize = when {
+                        distance == 0 -> 21.sp
+                        distance in 1..2 -> 16.sp
+                        else -> 14.5.sp
+                    }
+                    val targetWeight = when {
+                        distance == 0 -> FontWeight.Bold
+                        distance in 1..2 -> FontWeight.SemiBold
+                        else -> FontWeight.Normal
+                    }
+
+                    val alpha by animateFloatAsState(
+                        targetValue = targetAlpha,
+                        animationSpec = tween(durationMillis = 300),
+                        label = "lyric_alpha"
+                    )
+                    val scale by animateFloatAsState(
+                        targetValue = targetScale,
+                        animationSpec = tween(durationMillis = 300),
+                        label = "lyric_scale"
+                    )
+                    val blurDp by animateDpAsState(
+                        targetValue = targetBlur,
+                        animationSpec = tween(durationMillis = 300),
+                        label = "lyric_blur"
+                    )
+
+                    Text(
+                        text = line.text.ifBlank { "• • •" },
+                        color = Color.White,
+                        fontSize = targetSize,
+                        fontWeight = targetWeight,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 8.dp)
+                            .onGloballyPositioned { coordinates ->
+                                val parent = coordinates.parentLayoutCoordinates
+                                if (parent != null) {
+                                    val localPos = parent.localPositionOf(coordinates, Offset.Zero)
+                                    itemCenters[index] = localPos.y + (coordinates.size.height / 2f)
+                                }
+                            }
+                            .then(if (blurDp > 0.dp) Modifier.blur(blurDp) else Modifier)
+                            .graphicsLayer {
+                                this.alpha = alpha
+                                scaleX = scale
+                                scaleY = scale
+                                transformOrigin = TransformOrigin(0.5f, 0.5f)
+                            }
+                    )
+                }
+
+                // Bottom spacer so last line sits at the exact vertical center
+                Spacer(modifier = Modifier.height(halfHeightDp))
+            }
+        }
+    } else {
+        // Plain text lyrics without timestamps
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = lyrics,
+                color = Color.White,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.verticalScroll(rememberScrollState(), enabled = false)
+            )
+        }
+    }
+}
+
+enum class LyricsType {
+    EMBEDDED,
+    LRC
+}
+
+@Composable
+fun LyricsManagementDialog(
+    currentLyrics: String?,
+    onSaveLyrics: (String?) -> Unit,
+    onSelectLrcFile: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val themeColor = MaterialTheme.colorScheme.primary
+    var selectedType by remember {
+        mutableStateOf(
+            if (currentLyrics != null && currentLyrics.contains(Regex("""\[\d{1,2}:\d{2}"""))) {
+                LyricsType.LRC
+            } else {
+                LyricsType.EMBEDDED
+            }
+        )
+    }
+    var showEditor by remember { mutableStateOf(false) }
+    var editorInitialText by remember { mutableStateOf("") }
+    var editorTitle by remember { mutableStateOf("Edit Lyrics") }
+
+    if (showEditor) {
+        LyricsEditorDialog(
+            title = editorTitle,
+            initialText = editorInitialText,
+            onSave = { newLyrics ->
+                onSaveLyrics(newLyrics)
+                showEditor = false
+                onDismiss()
+            },
+            onDismiss = { showEditor = false }
+        )
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Lyrics Options",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp
+            )
+        },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .fillMaxWidth(0.9f)
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color(0xFF1E1E1E))
+            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(24.dp))
+            .padding(24.dp),
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Option 1: Embedded lyrics
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { selectedType = LyricsType.EMBEDDED }
+                        .padding(vertical = 6.dp)
+                ) {
+                    RadioButton(
+                        selected = selectedType == LyricsType.EMBEDDED,
+                        onClick = { selectedType = LyricsType.EMBEDDED },
+                        colors = RadioButtonDefaults.colors(
+                            selectedColor = themeColor,
+                            unselectedColor = Color.White.copy(alpha = 0.6f)
+                        )
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Embedded lyrics",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                if (selectedType == LyricsType.EMBEDDED) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 48.dp, top = 4.dp, bottom = 12.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                editorTitle = "Edit Lyrics"
+                                editorInitialText = currentLyrics ?: ""
+                                showEditor = true
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color.White
+                            ),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = Color.White.copy(alpha = 0.8f)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Edit", color = Color.White, fontSize = 14.sp)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Option 2: .LRC file
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { selectedType = LyricsType.LRC }
+                        .padding(vertical = 6.dp)
+                ) {
+                    RadioButton(
+                        selected = selectedType == LyricsType.LRC,
+                        onClick = { selectedType = LyricsType.LRC },
+                        colors = RadioButtonDefaults.colors(
+                            selectedColor = themeColor,
+                            unselectedColor = Color.White.copy(alpha = 0.6f)
+                        )
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = ".LRC file",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                if (selectedType == LyricsType.LRC) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 48.dp, top = 4.dp, bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onSelectLrcFile,
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color.White
+                            ),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Description,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = Color.White.copy(alpha = 0.8f)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Select a '.lrc' file", color = Color.White, fontSize = 13.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                editorTitle = "Create .LRC Lyrics"
+                                editorInitialText = currentLyrics ?: "[00:00.00] \n"
+                                showEditor = true
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color.White
+                            ),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = Color.White.copy(alpha = 0.8f)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Create", color = Color.White, fontSize = 13.sp)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Bottom Buttons: RESET (left) and DONE (right)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = {
+                            onSaveLyrics(null)
+                            onDismiss()
+                        }
+                    ) {
+                        Text(
+                            text = "RESET",
+                            color = themeColor,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
+
+                    TextButton(
+                        onClick = onDismiss
+                    ) {
+                        Text(
+                            text = "DONE",
+                            color = themeColor,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        containerColor = Color(0xFF1E1E1E)
+    )
+}
+
+@Composable
+fun LyricsEditorDialog(
+    title: String,
+    initialText: String,
+    onSave: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val themeColor = MaterialTheme.colorScheme.primary
+    var text by remember { mutableStateOf(initialText) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp),
+                placeholder = {
+                    Text("Enter or paste lyrics here...", color = Color.White.copy(alpha = 0.4f))
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = themeColor,
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
+                    cursorColor = themeColor
+                )
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(text) }) {
+                Text("Save", color = themeColor, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+            }
+        },
+        containerColor = Color(0xFF1E1E1E)
+    )
+}

@@ -34,12 +34,14 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import com.ballade.hwaran.frontend.canvas.CanvasScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
 sealed class Screen(val route: String) {
     object Intro : Screen("intro")
     object Home : Screen("home")
+    object Canvas : Screen("canvas")
     object Settings : Screen("settings")
     object History : Screen("history")
     object LockSelection : Screen("lock_selection")
@@ -168,7 +170,21 @@ fun AppNavGraph(
                     settingsViewModel = settingsViewModel,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToLockSelection = { navController.navigate(Screen.LockSelection.route) },
-                    onNavigateToHistory = { navController.navigate(Screen.History.route) }
+                    onNavigateToHistory = { navController.navigate(Screen.History.route) },
+                    onNavigateToCanvas = { navController.navigate(Screen.Canvas.route) }
+                )
+            }
+        }
+        composable(
+            route = Screen.Canvas.route,
+            enterTransition = { fadeIn(tween(400)) },
+            exitTransition = { fadeOut(tween(400)) }
+        ) {
+            BlockTouchesWhenExiting {
+                CanvasScreen(
+                    settingsViewModel = settingsViewModel,
+                    musicViewModel = musicViewModel,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }

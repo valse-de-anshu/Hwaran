@@ -23,10 +23,6 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.changedToDown
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -42,12 +38,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.ballade.hwaran.ui.navigation.AppNavGraph
 import com.ballade.hwaran.ui.navigation.Screen
 import com.ballade.hwaran.ui.components.MiniPlayer
-import com.ballade.hwaran.ui.background.DrunkStarsBackground
-import com.ballade.hwaran.ui.background.JellyfishBackground
-import com.ballade.hwaran.ui.background.KaleidoscopeBackground
-import com.ballade.hwaran.ui.background.FlowerBackground
 import com.ballade.hwaran.ui.theme.HwaranTheme
-import com.ballade.hwaran.ui.dialogs.OnboardingOverlay
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
 import com.ballade.hwaran.ui.viewmodels.MusicViewModel
 import com.ballade.hwaran.core.datastore.GlobalSettings
@@ -106,13 +97,6 @@ class MainActivity : ComponentActivity() {
                 val activeTab by settingsViewModel.activeTab.collectAsState()
                 val hasSeenIntro by settingsViewModel.hasSeenIntro.collectAsState()
 
-                val animationVisibility by settingsViewModel.animationVisibility.collectAsState()
-                val animationType by settingsViewModel.animationType.collectAsState()
-                val animationSpeed by settingsViewModel.animationSpeed.collectAsState()
-
-                // Effective animation visibility: OFF when battery saving is on
-                val effectiveAnimationVisible = animationVisibility && !batterySavingMode
-
                 // Hide system bars globally for immersive premium experience
                 LaunchedEffect(Unit) {
                     windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
@@ -134,196 +118,58 @@ class MainActivity : ComponentActivity() {
                     color = Color.Black // Keep surface black to avoid flickers during navigation
                 ) {
                     val baseAppGradient = com.ballade.hwaran.ui.theme.LocalAppGradient.current
-                    val appGradient = remember(baseAppGradient, animationType) {
-                        if (animationType == 1) {
-                            androidx.compose.ui.graphics.Brush.verticalGradient(
-                                colors = listOf(Color(0xFF0C071E), Color(0xFF1D1442))
-                            )
-                        } else {
-                            baseAppGradient
-                        }
-                    }
                     Box(modifier = Modifier.fillMaxSize()) {
                         // Content Layer - Only composed when ready, but overlay is always here
                         if (isReady) {
-                            val pointerState = remember { com.ballade.hwaran.ui.background.LiquidPointerState() }
-
-                            Box(modifier = Modifier
-                                .fillMaxSize()
-                                .pointerInput(Unit) {
-                                    awaitPointerEventScope {
-                                        while (true) {
-                                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                                            val change = event.changes.firstOrNull()
-                                            if (change != null) {
-                                                pointerState.x = change.position.x
-                                                pointerState.y = change.position.y
-                                                
-                                                // mimic mouse:
-                                                // 1. Initial touch = "Mouse Down" (Explode)
-                                                // 2. Sliding = "Mouse Hover" (Compact Blob)
-                                                // 3. Releasing = Clear state
-                                                if (change.changedToDown()) {
-                                                    pointerState.triggerExplosion()
-                                                    pointerState.isPressed = true
-                                                } else if (change.position != change.previousPosition) {
-                                                    // While moving, we treat it as "Hovering"
-                                                    pointerState.isPressed = false
-                                                }
-
-                                                if (!event.changes.any { it.pressed }) {
-                                                    pointerState.isPressed = false
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ) {
-                                // Layer 1: Theme Gradient Background
-                                Box(modifier = Modifier.fillMaxSize()) {
-                                    androidx.compose.animation.AnimatedContent(
-                                        targetState = appGradient,
-                                        transitionSpec = {
-                                            androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(500)).togetherWith(
-                                                androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(500))
-                                            )
-                                        },
-                                        label = "bg_gradient_animation"
-                                    ) { gradient ->
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .then(if (gradient != null) Modifier.background(gradient) else Modifier)
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                // Layer 1: Theme Gradient / Solid Color Background
+                                androidx.compose.animation.AnimatedContent(
+                                    targetState = baseAppGradient,
+                                    transitionSpec = {
+                                        androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(500)).togetherWith(
+                                            androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(500))
                                         )
-                                    }
-                                    // Background Animations
-                                    val starsAlpha by androidx.compose.animation.core.animateFloatAsState(
-                                        targetValue = if (animationType == 0) 1f else 0f,
-                                        animationSpec = androidx.compose.animation.core.tween(1500),
-                                        label = "stars_alpha"
+                                    },
+                                    label = "bg_gradient_animation"
+                                ) { gradient ->
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .then(if (gradient != null) Modifier.background(gradient) else Modifier.background(Color.Black))
                                     )
-                                    val jellyfishAlpha by androidx.compose.animation.core.animateFloatAsState(
-                                        targetValue = if (animationType == 1) 1f else 0f,
-                                        animationSpec = androidx.compose.animation.core.tween(1500),
-                                        label = "jellyfish_alpha"
-                                    )
-                                    val celestialAlpha by androidx.compose.animation.core.animateFloatAsState(
-                                        targetValue = if (animationType == 2) 1f else 0f,
-                                        animationSpec = androidx.compose.animation.core.tween(1500),
-                                        label = "celestial_alpha"
-                                    )
-                                    val pokerAlpha by androidx.compose.animation.core.animateFloatAsState(
-                                        targetValue = if (animationType == 3) 1f else 0f,
-                                        animationSpec = androidx.compose.animation.core.tween(1500),
-                                        label = "poker_alpha"
-                                    )
-                                    val kaleidoscopeAlpha by androidx.compose.animation.core.animateFloatAsState(
-                                        targetValue = if (animationType == 4) 1f else 0f,
-                                        animationSpec = androidx.compose.animation.core.tween(1500),
-                                        label = "kaleidoscope_alpha"
-                                    )
-                                    val flowerAlpha by androidx.compose.animation.core.animateFloatAsState(
-                                        targetValue = if (animationType == 5) 1f else 0f,
-                                        animationSpec = androidx.compose.animation.core.tween(1500),
-                                        label = "flower_alpha"
-                                    )
-                                    val liquidAlpha by androidx.compose.animation.core.animateFloatAsState(
-                                        targetValue = if (animationType == 6) 1f else 0f,
-                                        animationSpec = androidx.compose.animation.core.tween(1500),
-                                        label = "liquid_alpha"
-                                    )
+                                }
 
-                                    val bgScrollOffset by settingsViewModel.backgroundScrollOffset.collectAsState()
-                                    var autoScrollOffset by remember { mutableStateOf(0f) }
-                                    LaunchedEffect(animationType, animationSpeed, effectiveAnimationVisible) {
-                                        if ((animationType == 2 || animationType == 3 || animationType == 4 || animationType == 5) && effectiveAnimationVisible) {
-                                            while (isActive) {
-                                                autoScrollOffset += 0.8f * animationSpeed
-                                                kotlinx.coroutines.delay(16)
-                                            }
-                                        }
-                                    }
-
-                                    androidx.compose.animation.AnimatedVisibility(
-                                        visible = effectiveAnimationVisible,
-                                        enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(800)),
-                                        exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(800))
-                                    ) {
-                                        Box(modifier = Modifier.fillMaxSize()) {
-                                            com.ballade.hwaran.ui.background.DrunkStarsBackground(
-                                                animationSpeed = animationSpeed,
-                                                isEnabled = animationType == 0 && animationVisibility,
-                                                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = starsAlpha }
-                                            )
-                                            com.ballade.hwaran.ui.background.JellyfishBackground(
-                                                animationSpeed = animationSpeed,
-                                                isEnabled = animationType == 1 && effectiveAnimationVisible,
-                                                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = jellyfishAlpha }
-                                            )
-                                            com.ballade.hwaran.ui.background.CelestialBackground(
-                                                animationSpeed = animationSpeed,
-                                                isEnabled = animationType == 2 && effectiveAnimationVisible,
-                                                scrollOffset = bgScrollOffset + autoScrollOffset,
-                                                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = celestialAlpha }
-                                            )
-                                            com.ballade.hwaran.ui.background.PokerBackground(
-                                                animationSpeed = animationSpeed,
-                                                isEnabled = animationType == 3 && effectiveAnimationVisible,
-                                                scrollOffset = bgScrollOffset + autoScrollOffset,
-                                                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = pokerAlpha }
-                                            )
-                                            com.ballade.hwaran.ui.background.KaleidoscopeBackground(
-                                                animationSpeed = animationSpeed,
-                                                isEnabled = animationType == 4 && effectiveAnimationVisible,
-                                                scrollOffset = bgScrollOffset + autoScrollOffset,
-                                                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = kaleidoscopeAlpha }
-                                            )
-                                            com.ballade.hwaran.ui.background.FlowerBackground(
-                                                animationSpeed = animationSpeed,
-                                                isEnabled = animationType == 5 && effectiveAnimationVisible,
-                                                scrollOffset = bgScrollOffset + autoScrollOffset,
-                                                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = flowerAlpha }
-                                            )
-                                            com.ballade.hwaran.ui.background.LiquidBackground(
-                                                isEnabled = animationType == 6 && effectiveAnimationVisible,
-                                                pointerState = pointerState,
-                                                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = liquidAlpha }
-                                            )
-                                        }
-                                    }
-
-                                    val startDestination = remember { if (hasSeenIntro) Screen.Home.route else Screen.Intro.route }
-                                    AppNavGraph(
-                                        navController = navController,
-                                        startDestination = startDestination,
-                                        settingsViewModel = settingsViewModel,
-                                        musicViewModel = musicViewModel
-                                    )
-                                    
-                                    // Handle external intents
-                                    LaunchedEffect(currentIntent) {
-                                        currentIntent?.let { intent ->
-                                            if (intent.action == android.content.Intent.ACTION_VIEW) {
-                                                intent.data?.let { uri ->
-                                                    val mimeType = intent.type ?: contentResolver.getType(uri) ?: ""
-                                                    val mimeTypeLower = mimeType.lowercase()
-                                                    when {
-                                                        mimeTypeLower.startsWith("video/") -> {
-                                                            navController.navigate(Screen.ExternalVideo.createRoute(uri.toString()))
-                                                        }
-                                                        mimeTypeLower == "application/pdf" -> {
-                                                            navController.navigate(Screen.ExternalPdf.createRoute(uri.toString()))
-                                                        }
-                                                        mimeTypeLower.startsWith("audio/") -> {
-                                                            musicViewModel.playExternalAudio(uri, this@MainActivity)
-                                                            settingsViewModel.setActiveTab(1)
-                                                            navController.navigate(Screen.Home.route) {
-                                                                popUpTo(Screen.Home.route) { inclusive = true }
-                                                            }
+                                val startDestination = remember(hasSeenIntro) { if (hasSeenIntro) Screen.Home.route else Screen.Intro.route }
+                                AppNavGraph(
+                                    navController = navController,
+                                    startDestination = startDestination,
+                                    settingsViewModel = settingsViewModel,
+                                    musicViewModel = musicViewModel
+                                )
+                                
+                                // Handle external intents
+                                LaunchedEffect(currentIntent) {
+                                    currentIntent?.let { intent ->
+                                        if (intent.action == android.content.Intent.ACTION_VIEW) {
+                                            intent.data?.let { uri ->
+                                                val mimeType = intent.type ?: contentResolver.getType(uri) ?: ""
+                                                val mimeTypeLower = mimeType.lowercase()
+                                                when {
+                                                    mimeTypeLower.startsWith("video/") -> {
+                                                        navController.navigate(Screen.ExternalVideo.createRoute(uri.toString()))
+                                                    }
+                                                    mimeTypeLower == "application/pdf" -> {
+                                                        navController.navigate(Screen.ExternalPdf.createRoute(uri.toString()))
+                                                    }
+                                                    mimeTypeLower.startsWith("audio/") -> {
+                                                        musicViewModel.playExternalAudio(uri, this@MainActivity)
+                                                        settingsViewModel.setActiveTab(1)
+                                                        navController.navigate(Screen.Home.route) {
+                                                            popUpTo(Screen.Home.route) { inclusive = true }
                                                         }
                                                     }
-                                                    intentState.value = null // Clear intent after handling
                                                 }
+                                                intentState.value = null // Clear intent after handling
                                             }
                                         }
                                     }
@@ -363,28 +209,19 @@ class MainActivity : ComponentActivity() {
                                         onClick = { navController.navigate(Screen.NowPlaying.route) }
                                     )
                                 }
-
-                                OnboardingOverlay(
-                                    settingsViewModel = settingsViewModel,
-                                    currentRoute = currentRoute,
-                                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
-                                    onNavigateBack = { navController.popBackStack() },
-                                    onImportNow = { settingsViewModel.setActiveTab(1) }
-                                )
                             }
                         }
 
-                        // Initial Black Overlay for seamless transition from Splash
+                        // Seamless cinematic fade-in overlay from Splash screen
                         val launchAlpha = remember { androidx.compose.animation.core.Animatable(1f) }
                         LaunchedEffect(isReady) {
                             if (isReady) {
-                                // Small buffer so the first Compose frame is settled
-                                // (avoids white flash) without sitting on a black screen
-                                kotlinx.coroutines.delay(150)
+                                // Brief buffer so initial Compose layout renders behind the veil
+                                kotlinx.coroutines.delay(60)
                                 launchAlpha.animateTo(
                                     targetValue = 0f,
                                     animationSpec = androidx.compose.animation.core.tween(
-                                        durationMillis = 900,
+                                        durationMillis = 450,
                                         easing = androidx.compose.animation.core.FastOutSlowInEasing
                                     )
                                 )
@@ -396,20 +233,8 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .graphicsLayer { alpha = launchAlpha.value }
-                                    .background(Color.Black),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    CircularProgressIndicator(
-                                        color = Color.White.copy(alpha = 0.7f),
-                                        strokeWidth = 2.dp,
-                                        modifier = Modifier.size(40.dp)
-                                    )
-                                }
-                            }
+                                    .background(Color.Black)
+                            )
                         }
                     }
                 }

@@ -1,6 +1,7 @@
 package com.ballade.hwaran.data.importer.music
 
 import android.content.Context
+import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
@@ -22,7 +23,52 @@ object MusicExternalSingleImport {
 
         // 1. Duplicate check
         val existingAlbum = repository.getAlbumByUri(uriStr)
-        if (existingAlbum != null) return@withContext existingAlbum.id
+        if (existingAlbum != null) {
+            val existingTracks = repository.getTracksForAlbum(existingAlbum.id)
+            val audioFiles = MusicImportUtils.findAudioFiles(folderDoc)
+            val lyricsFiles = MusicImportUtils.findLyricsFiles(folderDoc)
+
+            if (existingTracks.isEmpty() && audioFiles.isNotEmpty()) {
+                val tracksToInsert = mutableListOf<ChapterEntity>()
+                audioFiles.forEachIndexed { index, audioDoc ->
+                    if (isCancelled()) return@withContext existingAlbum.id
+                    val trackUri = audioDoc.uri.toString()
+                    val fileName = audioDoc.name ?: "Unknown Track"
+                    val meta = MusicImportUtils.extractTrackMetadata(context, audioDoc.uri, fileName)
+
+                    val matchingLyricsDoc = MusicImportUtils.findMatchingLyricsDoc(fileName, meta.title, lyricsFiles)
+                    val trackLyrics = matchingLyricsDoc?.let { MusicImportUtils.readLyrics(context, it) } ?: meta.lyrics
+
+                    val track = ChapterEntity(
+                        mangaId = existingAlbum.id,
+                        title = meta.title,
+                        folderUri = trackUri,
+                        position = index,
+                        duration = meta.duration,
+                        thumbnailUri = meta.coverPath ?: "",
+                        artist = meta.artist,
+                        lyrics = trackLyrics
+                    )
+                    tracksToInsert.add(track)
+                }
+                if (tracksToInsert.isNotEmpty()) {
+                    repository.insertTracks(tracksToInsert)
+                }
+            } else if (existingTracks.isNotEmpty() && lyricsFiles.isNotEmpty()) {
+                existingTracks.forEach { track ->
+                    if (track.lyrics.isNullOrBlank()) {
+                        val decodedUri = Uri.decode(track.folderUri)
+                        val fileName = decodedUri.substringAfterLast('/').substringAfterLast(':')
+                        val matchingLyricsDoc = MusicImportUtils.findMatchingLyricsDoc(fileName, track.title, lyricsFiles)
+                        val trackLyrics = matchingLyricsDoc?.let { MusicImportUtils.readLyrics(context, it) }
+                        if (!trackLyrics.isNullOrBlank()) {
+                            repository.updateTrack(track.copy(lyrics = trackLyrics))
+                        }
+                    }
+                }
+            }
+            return@withContext existingAlbum.id
+        }
 
         if (isCancelled()) return@withContext null
 
@@ -50,13 +96,19 @@ object MusicExternalSingleImport {
 
         val albumId = repository.insertAlbum(albumToInsert)
 
-        // 4. Insert Tracks
+        // 4. Scan Lyrics (Case 1: side-by-side, Case 2: lyrics folder alongside)
+        val lyricsFiles = MusicImportUtils.findLyricsFiles(folderDoc)
+
+        // 5. Insert Tracks
         val tracksToInsert = mutableListOf<ChapterEntity>()
         audioFiles.forEachIndexed { index, audioDoc ->
             if (isCancelled()) return@withContext albumId
             val trackUri = audioDoc.uri.toString()
             val fileName = audioDoc.name ?: "Unknown Track"
             val meta = MusicImportUtils.extractTrackMetadata(context, audioDoc.uri, fileName)
+
+            val matchingLyricsDoc = MusicImportUtils.findMatchingLyricsDoc(fileName, meta.title, lyricsFiles)
+            val trackLyrics = matchingLyricsDoc?.let { MusicImportUtils.readLyrics(context, it) } ?: meta.lyrics
 
             val track = ChapterEntity(
                 mangaId = albumId,
@@ -65,7 +117,8 @@ object MusicExternalSingleImport {
                 position = index,
                 duration = meta.duration,
                 thumbnailUri = meta.coverPath ?: "",
-                artist = meta.artist
+                artist = meta.artist,
+                lyrics = trackLyrics
             )
             tracksToInsert.add(track)
             

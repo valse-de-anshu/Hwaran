@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
@@ -32,6 +33,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ballade.hwaran.ui.components.DevilJellyBall
 import com.ballade.hwaran.ui.components.JellyBall
 import com.ballade.hwaran.ui.components.WobblySnakeRing
 
@@ -44,7 +46,8 @@ fun HomeNavDock(
     isImporting: Boolean = false,
     importProgress: Float = 0f,
     modifier: Modifier = Modifier,
-    glowColor: Color = Color(0xFF9C27B0)
+    glowColor: Color = Color(0xFF9C27B0),
+    fabStyle: Int = 1
 ) {
     val haptic = LocalHapticFeedback.current
 
@@ -139,14 +142,26 @@ fun HomeNavDock(
                         )
                     }
 
-                    JellyBall(
-                        modifier = Modifier
-                            .size(120.dp)
-                            .scale(jellyScale),
-                        isHappy = isImporting,
-                        enableJump = false,
-                        lookUp = false
-                    )
+                    when (fabStyle) {
+                        2 -> {
+                            DevilJellyBall(
+                                modifier = Modifier
+                                    .size(120.dp)
+                                    .scale(jellyScale),
+                                isHappy = isImporting
+                            )
+                        }
+                        else -> {
+                            JellyBall(
+                                modifier = Modifier
+                                    .size(120.dp)
+                                    .scale(jellyScale),
+                                isHappy = isImporting,
+                                enableJump = false,
+                                lookUp = false
+                            )
+                        }
+                    }
                 }
 
                 // Right 1: Search

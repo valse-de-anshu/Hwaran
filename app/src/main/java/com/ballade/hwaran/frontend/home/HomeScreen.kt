@@ -2,7 +2,6 @@ package com.ballade.hwaran.frontend.home
 
 import androidx.activity.compose.BackHandler
 import com.ballade.hwaran.core.database.AppDatabase
-import com.ballade.hwaran.frontend.settings.MediaConfigHelpDialog
 import android.net.Uri
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -336,6 +335,9 @@ fun HomeScreen(
                         HomeSearchView(
                             allManga = allManga,
                             onNavigateToDescription = onNavigateToDescription,
+                            onPlaySong = { manga, chapters, index ->
+                                musicViewModel.playPlaylist(manga, chapters, index)
+                            },
                             onBack = { activeDockTab = 0 },
                             glowColor = Color(glowColor)
                         )
@@ -422,25 +424,12 @@ fun HomeScreen(
                         },
                         isImporting = isImportingGlobal,
                         importProgress = if (isMegaImporting) megaImportProgress else (importProgress / 100f),
-                        glowColor = Color(glowColor)
+                        glowColor = Color(glowColor),
+                        fabStyle = fabStyle
                     )
                 }
             }
         }
-    }
-
-    var showMediaConfigHelp by remember { mutableStateOf(false) }
-
-    if (showMediaConfigHelp) {
-        val glowBrightness by settingsViewModel.glowBrightness.collectAsState()
-        val glowRadius by settingsViewModel.glowRadius.collectAsState()
-        val glowColorLong by settingsViewModel.glowColor.collectAsState()
-        MediaConfigHelpDialog(
-            glowBrightness = glowBrightness,
-            glowRadius = glowRadius,
-            glowColorLong = glowColorLong,
-            onDismiss = { showMediaConfigHelp = false }
-        )
     }
 
     if (showImportTypeDialog) {
@@ -467,7 +456,6 @@ fun HomeScreen(
                 mediaModeForImport = mediaMode
                 megaFolderPickerLauncher.launch(null)
             },
-            onShowDocs = { showMediaConfigHelp = true },
             onDismiss = {
                 showImportTypeDialog = false
             }
@@ -509,7 +497,6 @@ fun ImportTypeDialog(
     glowColor: Color,
     onSingleImport: (Int, Int) -> Unit,
     onMegaImport: (Int, Int) -> Unit,
-    onShowDocs: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
@@ -558,33 +545,21 @@ fun ImportTypeDialog(
             .clip(RoundedCornerShape(32.dp))
             .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(32.dp)),
         title = {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        dialogTitle,
-                        color = Color.White,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 20.sp,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        "Select how you want to add content to your library",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 12.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-                IconButton(
-                    onClick = onShowDocs,
-                    modifier = Modifier.align(Alignment.TopEnd).offset(x = 12.dp, y = (-12).dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.HelpOutline,
-                        contentDescription = "Documentation",
-                        tint = Color.White.copy(alpha = 0.5f)
-                    )
-                }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    dialogTitle,
+                    color = Color.White,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 20.sp,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    "Select how you want to add content to your library",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
         },
         text = {

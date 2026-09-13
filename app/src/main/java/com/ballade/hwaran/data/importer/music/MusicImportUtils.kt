@@ -12,11 +12,56 @@ object MusicImportUtils {
     private val VALID_AUDIO_EXTENSIONS = listOf("mp3", "flac", "wav", "ogg", "m4a", "opus", "aac")
     private val VALID_IMAGE_EXTENSIONS = listOf("jpg", "jpeg", "png", "gif")
     private val PREFERRED_COVER_NAMES = listOf("cover", "folder", "album")
+    val VALID_LYRICS_EXTENSIONS = listOf("lrc", "txt", "ser", "usf")
+
+    fun isAuxiliaryFolder(name: String): Boolean {
+        val lower = name.lowercase().trim()
+        return lower in listOf("lyrics", "lyric", "lrc", "covers", "cover", "artwork", "art", "scans", "scan", "extras", "extra")
+    }
 
     fun detectStructure(folder: DocumentFile): String {
         val files = folder.listFiles() ?: emptyArray()
-        val hasDirectories = files.any { it.isDirectory && !it.name.orEmpty().startsWith(".") }
-        return if (hasDirectories) "MEGA" else "SINGLE"
+        val nonAuxSubdirs = files.filter { file ->
+            file.isDirectory &&
+            !file.name.orEmpty().startsWith(".") &&
+            !isAuxiliaryFolder(file.name.orEmpty())
+        }
+
+        val hasAlbumSubdirectories = nonAuxSubdirs.any { subDir ->
+            findAudioFiles(subDir).isNotEmpty() ||
+            (subDir.listFiles()?.any { it.isDirectory && !it.name.orEmpty().startsWith(".") } == true)
+        }
+
+        return if (hasAlbumSubdirectories) "MEGA" else "SINGLE"
+    }
+
+    fun detectStructure(folder: File): String {
+        val files = folder.listFiles() ?: emptyArray()
+        val nonAuxSubdirs = files.filter { file ->
+            file.isDirectory &&
+            !file.name.startsWith(".") &&
+            !isAuxiliaryFolder(file.name)
+        }
+
+        val hasAlbumSubdirectories = nonAuxSubdirs.any { subDir ->
+            findAudioFiles(subDir).isNotEmpty() ||
+            (subDir.listFiles()?.any { it.isDirectory && !it.name.startsWith(".") } == true)
+        }
+
+        return if (hasAlbumSubdirectories) "MEGA" else "SINGLE"
+    }
+
+    fun isValidAudioFile(file: File): Boolean {
+        if (file.isDirectory) return false
+        val name = file.name
+        if (name.startsWith(".")) return false
+        val ext = file.extension.lowercase()
+        return ext in VALID_AUDIO_EXTENSIONS
+    }
+
+    fun findAudioFiles(folder: File): List<File> {
+        val files = folder.listFiles() ?: emptyArray()
+        return files.filter { isValidAudioFile(it) }.sortedBy { it.name.lowercase() }
     }
 
     fun isValidAudioFile(file: DocumentFile): Boolean {
@@ -30,6 +75,196 @@ object MusicImportUtils {
     fun findAudioFiles(folder: DocumentFile): List<DocumentFile> {
         val files = folder.listFiles() ?: emptyArray()
         return files.filter { isValidAudioFile(it) }.sortedBy { it.name?.lowercase() ?: "" }
+    }
+
+    /**
+     * Scans for lyrics files based on the 2 viable cases:
+     * Case 1: Music and lyrics files are side by side in the same folder.
+     * Case 2: A folder named "lyrics" sits alongside music, containing lyrics files for the tracks.
+     * Supported extensions: .lrc, .txt, .ser, .usf
+     */
+    val LYRICS_FOLDER_NAMES = setOf("lyrics", "lyric", "lrc", "lrcs")
+
+    fun findLyricsFiles(folder: DocumentFile): List<DocumentFile> {
+        val files = folder.listFiles() ?: emptyArray()
+        val result = mutableListOf<DocumentFile>()
+
+        // Case 1: Side-by-side lyrics in the same folder
+        for (file in files) {
+            if (!file.isDirectory) {
+                val ext = file.name?.substringAfterLast('.', "")?.lowercase().orEmpty()
+                if (ext in VALID_LYRICS_EXTENSIONS) {
+                    result.add(file)
+                }
+            }
+        }
+
+        // Case 2: In a folder we have music, then lyrics folder alongside music with lyrics inside
+        val lyricsFolder = files.firstOrNull { it.isDirectory && it.name?.lowercase() in LYRICS_FOLDER_NAMES }
+        if (lyricsFolder != null) {
+            val subFiles = lyricsFolder.listFiles() ?: emptyArray()
+            for (file in subFiles) {
+                if (!file.isDirectory) {
+                    val ext = file.name?.substringAfterLast('.', "")?.lowercase().orEmpty()
+                    if (ext in VALID_LYRICS_EXTENSIONS) {
+                        result.add(file)
+                    }
+                }
+            }
+        }
+
+        return result
+    }
+
+    /**
+     * Local java.io.File version of findLyricsFiles.
+     */
+    fun findLyricsFiles(folder: File): List<File> {
+        val files = folder.listFiles() ?: emptyArray()
+        val result = mutableListOf<File>()
+
+        // Case 1: Side-by-side
+        for (file in files) {
+            if (file.isFile) {
+                val ext = file.extension.lowercase()
+                if (ext in VALID_LYRICS_EXTENSIONS) {
+                    result.add(file)
+                }
+            }
+        }
+
+        // Case 2: lyrics folder alongside
+        val lyricsFolder = files.firstOrNull { it.isDirectory && it.name.lowercase() in LYRICS_FOLDER_NAMES }
+        if (lyricsFolder != null) {
+            val subFiles = lyricsFolder.listFiles() ?: emptyArray()
+            for (file in subFiles) {
+                if (file.isFile) {
+                    val ext = file.extension.lowercase()
+                    if (ext in VALID_LYRICS_EXTENSIONS) {
+                        result.add(file)
+                    }
+                }
+            }
+        }
+
+        return result
+    }
+
+    private fun cleanTitleForMatching(name: String): String {
+        return name.trim()
+            .replace(Regex("^[0-9]+[\\s._\\-]+"), "") // strip track prefixes like "01 - "
+            .replace(Regex("[_\\-]+"), " ")
+            .trim()
+            .lowercase()
+    }
+
+    fun findMatchingLyricsDoc(
+        audioFileName: String,
+        metaTitle: String,
+        lyricsFiles: List<DocumentFile>
+    ): DocumentFile? {
+        if (lyricsFiles.isEmpty()) return null
+        val audioBase = audioFileName.substringBeforeLast('.')
+        val cleanAudioBase = cleanTitleForMatching(audioBase)
+        val cleanMeta = cleanTitleForMatching(metaTitle)
+
+        val extPriority = mapOf("lrc" to 0, "txt" to 1, "ser" to 2, "usf" to 3)
+        val sortedLyrics = lyricsFiles.sortedBy { extPriority[it.name?.substringAfterLast('.', "")?.lowercase()] ?: 99 }
+
+        // 1. Exact base name match (case-insensitive)
+        sortedLyrics.firstOrNull {
+            val base = it.name?.substringBeforeLast('.').orEmpty()
+            base.equals(audioBase, ignoreCase = true)
+        }?.let { return it }
+
+        // 2. Cleaned audio file base match
+        if (cleanAudioBase.isNotBlank()) {
+            sortedLyrics.firstOrNull {
+                val base = it.name?.substringBeforeLast('.').orEmpty()
+                cleanTitleForMatching(base) == cleanAudioBase
+            }?.let { return it }
+        }
+
+        // 3. Metadata title match
+        if (cleanMeta.isNotBlank()) {
+            sortedLyrics.firstOrNull {
+                val base = it.name?.substringBeforeLast('.').orEmpty()
+                cleanTitleForMatching(base) == cleanMeta || base.equals(metaTitle, ignoreCase = true)
+            }?.let { return it }
+        }
+
+        return null
+    }
+
+    fun findMatchingLyricsFile(
+        audioFileName: String,
+        metaTitle: String,
+        lyricsFiles: List<File>
+    ): File? {
+        if (lyricsFiles.isEmpty()) return null
+        val audioBase = audioFileName.substringBeforeLast('.')
+        val cleanAudioBase = cleanTitleForMatching(audioBase)
+        val cleanMeta = cleanTitleForMatching(metaTitle)
+
+        val extPriority = mapOf("lrc" to 0, "txt" to 1, "ser" to 2, "usf" to 3)
+        val sortedLyrics = lyricsFiles.sortedBy { extPriority[it.extension.lowercase()] ?: 99 }
+
+        // 1. Exact base name match
+        sortedLyrics.firstOrNull {
+            it.nameWithoutExtension.equals(audioBase, ignoreCase = true)
+        }?.let { return it }
+
+        // 2. Cleaned audio file base match
+        if (cleanAudioBase.isNotBlank()) {
+            sortedLyrics.firstOrNull {
+                cleanTitleForMatching(it.nameWithoutExtension) == cleanAudioBase
+            }?.let { return it }
+        }
+
+        // 3. Metadata title match
+        if (cleanMeta.isNotBlank()) {
+            sortedLyrics.firstOrNull {
+                cleanTitleForMatching(it.nameWithoutExtension) == cleanMeta || it.nameWithoutExtension.equals(metaTitle, ignoreCase = true)
+            }?.let { return it }
+        }
+
+        return null
+    }
+
+    fun readLyrics(context: Context, lyricsDoc: DocumentFile): String? {
+        return try {
+            context.contentResolver.openInputStream(lyricsDoc.uri)?.use { inputStream ->
+                val bytes = inputStream.readBytes()
+                if (bytes.isEmpty()) null
+                else {
+                    try {
+                        String(bytes, java.nio.charset.StandardCharsets.UTF_8).removePrefix("\uFEFF")
+                    } catch (e: Exception) {
+                        String(bytes, java.nio.charset.StandardCharsets.ISO_8859_1)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    fun readLyrics(file: File): String? {
+        return try {
+            val bytes = file.readBytes()
+            if (bytes.isEmpty()) null
+            else {
+                try {
+                    String(bytes, java.nio.charset.StandardCharsets.UTF_8).removePrefix("\uFEFF")
+                } catch (e: Exception) {
+                    String(bytes, java.nio.charset.StandardCharsets.ISO_8859_1)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 
     fun extractEmbeddedCover(context: Context, audioUri: Uri, albumTitle: String): String? {
@@ -79,7 +314,13 @@ object MusicImportUtils {
         return ""
     }
 
-    data class TrackMetadata(val title: String, val duration: Long, val artist: String?, val coverPath: String?)
+    data class TrackMetadata(
+        val title: String, 
+        val duration: Long, 
+        val artist: String?, 
+        val coverPath: String?,
+        val lyrics: String? = null
+    )
 
     fun extractTrackMetadata(context: Context, audioUri: Uri, fallbackName: String): TrackMetadata {
         val retriever = MediaMetadataRetriever()
@@ -87,6 +328,7 @@ object MusicImportUtils {
         var duration = 0L
         var artist: String? = null
         var coverPath: String? = null
+        var lyrics: String? = null
         try {
             context.contentResolver.openFileDescriptor(audioUri, "r")?.use { pfd ->
                 retriever.setDataSource(pfd.fileDescriptor)
@@ -124,6 +366,6 @@ object MusicImportUtils {
                 // Ignore
             }
         }
-        return TrackMetadata(title, duration, artist, coverPath)
+        return TrackMetadata(title, duration, artist, coverPath, lyrics)
     }
 }

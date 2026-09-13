@@ -17,15 +17,38 @@ object MusicExternalMegaImport {
     ): MusicImportSummary = withContext(Dispatchers.IO) {
 
         val files = parentDoc.listFiles() ?: emptyArray()
-        val childFolders = files.filter { it.isDirectory && !it.name.orEmpty().startsWith(".") }
-            .sortedBy { it.name?.lowercase() ?: "" }
+        val childFolders = files.filter { 
+            it.isDirectory && 
+            !it.name.orEmpty().startsWith(".") &&
+            !MusicImportUtils.isAuxiliaryFolder(it.name.orEmpty())
+        }.sortedBy { it.name?.lowercase() ?: "" }
 
         var importedCount = 0
         var skippedCount = 0
         val reasons = mutableListOf<String>()
 
-        if (childFolders.isEmpty()) {
-            return@withContext MusicImportSummary(0, 0, listOf("No child folders found in Mega Import"))
+        // Check if parentDoc itself directly contains audio files
+        val parentAudioFiles = MusicImportUtils.findAudioFiles(parentDoc)
+        if (parentAudioFiles.isNotEmpty()) {
+            try {
+                val parentAlbumId = MusicExternalSingleImport.execute(
+                    context = context,
+                    repository = repository,
+                    folderDoc = parentDoc,
+                    workspace = workspace,
+                    isCancelled = isCancelled,
+                    onProgress = null
+                )
+                if (parentAlbumId != null) {
+                    importedCount++
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        if (childFolders.isEmpty() && parentAudioFiles.isEmpty()) {
+            return@withContext MusicImportSummary(0, 0, listOf("No audio files found in Mega Import"))
         }
 
         childFolders.forEachIndexed { index, folder ->

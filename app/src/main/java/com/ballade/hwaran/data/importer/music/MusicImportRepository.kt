@@ -13,12 +13,20 @@ class MusicImportRepository(private val dao: LibraryDao) {
         dao.getRootMangaByUri(uri)
     }
 
+    suspend fun getTracksForAlbum(albumId: Long): List<ChapterEntity> = withContext(Dispatchers.IO) {
+        dao.getChaptersForMangaList(albumId)
+    }
+
     suspend fun insertAlbum(manga: MangaEntity): Long = withContext(Dispatchers.IO) {
         dao.insertManga(manga)
     }
 
     suspend fun insertTracks(tracks: List<ChapterEntity>) = withContext(Dispatchers.IO) {
         tracks.forEach { dao.insertChapter(it) }
+    }
+
+    suspend fun updateTrack(track: ChapterEntity) = withContext(Dispatchers.IO) {
+        dao.insertChapter(track)
     }
 
     fun logHistory(title: String, details: String) {
