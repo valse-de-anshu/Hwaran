@@ -32,7 +32,7 @@ class HwaranApp : Application(), ImageLoaderFactory {
                     .maxSizeBytes(512L * 1024 * 1024) // 512MB
                     .build()
             }
-            .crossfade(800) // Smooth, noticeable fade-in for covers and gifs
+            .crossfade(150) // Crisp, snappy fade-in for covers without blocking GPU redraws
             .build()
     }
 }

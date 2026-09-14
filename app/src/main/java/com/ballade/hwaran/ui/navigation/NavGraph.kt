@@ -6,6 +6,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -83,27 +85,26 @@ sealed class Screen(val route: String) {
     }
 }
 
-@Composable
-fun BlockTouchesWhenExiting(content: @Composable () -> Unit) {
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val state by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
-    Box(modifier = Modifier.fillMaxSize()) {
-        content()
-        if (state != Lifecycle.State.RESUMED) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
-                                event.changes.forEach { it.consume() }
-                            }
-                        }
-                    }
-            )
+private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
+private val EmphasizedAccelerate = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
+
+/**
+ * Safe navigation extension that prevents rapid multi-tap double-navigation
+ * while preserving 100% natural, responsive touch input.
+ */
+fun NavHostController.navigateSafely(route: String, builder: androidx.navigation.NavOptionsBuilder.() -> Unit = {}) {
+    val currentEntry = currentBackStackEntry
+    if (currentEntry == null || currentEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+        navigate(route) {
+            launchSingleTop = true
+            builder()
         }
     }
+}
+
+@Composable
+fun BlockTouchesWhenExiting(content: @Composable () -> Unit) {
+    content()
 }
 
 @Composable
@@ -117,16 +118,28 @@ fun AppNavGraph(
         navController = navController,
         startDestination = startDestination,
         enterTransition = {
-            fadeIn(animationSpec = tween(600))
+            slideInHorizontally(
+                initialOffsetX = { (it * 0.20f).toInt() },
+                animationSpec = tween(280, easing = EmphasizedDecelerate)
+            ) + fadeIn(animationSpec = tween(240, easing = LinearOutSlowInEasing))
         },
         exitTransition = {
-            fadeOut(animationSpec = tween(600))
+            slideOutHorizontally(
+                targetOffsetX = { (-it * 0.10f).toInt() },
+                animationSpec = tween(260, easing = EmphasizedAccelerate)
+            ) + fadeOut(animationSpec = tween(200))
         },
         popEnterTransition = {
-            fadeIn(animationSpec = tween(600))
+            slideInHorizontally(
+                initialOffsetX = { (-it * 0.10f).toInt() },
+                animationSpec = tween(280, easing = EmphasizedDecelerate)
+            ) + fadeIn(animationSpec = tween(240, easing = LinearOutSlowInEasing))
         },
         popExitTransition = {
-            fadeOut(animationSpec = tween(600))
+            slideOutHorizontally(
+                targetOffsetX = { (it * 0.20f).toInt() },
+                animationSpec = tween(260, easing = EmphasizedAccelerate)
+            ) + fadeOut(animationSpec = tween(200))
         }
     ) {
         composable(
@@ -150,27 +163,39 @@ fun AppNavGraph(
             route = Screen.Home.route,
             enterTransition = {
                 if (initialState.destination.route == Screen.Intro.route) {
-                    fadeIn(animationSpec = tween(600))
+                    fadeIn(animationSpec = tween(300))
                 } else {
-                    slideIntoContainer(
-                        towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                        animationSpec = tween(500, easing = FastOutSlowInEasing)
-                    ) + fadeIn(animationSpec = tween(500))
+                    slideInHorizontally(
+                        initialOffsetX = { (-it * 0.10f).toInt() },
+                        animationSpec = tween(280, easing = EmphasizedDecelerate)
+                    ) + fadeIn(animationSpec = tween(240, easing = LinearOutSlowInEasing))
                 }
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { (-it * 0.10f).toInt() },
+                    animationSpec = tween(260, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(200))
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { (-it * 0.10f).toInt() },
+                    animationSpec = tween(280, easing = EmphasizedDecelerate)
+                ) + fadeIn(animationSpec = tween(240, easing = LinearOutSlowInEasing))
             }
         ) {
             BlockTouchesWhenExiting {
                 HomeScreen(
                     settingsViewModel = settingsViewModel,
                     musicViewModel = musicViewModel,
-                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
-                    onNavigateToDescription = { mangaId -> navController.navigate(Screen.Description.createRoute(mangaId)) },
+                    onNavigateToSettings = { navController.navigateSafely(Screen.Settings.route) },
+                    onNavigateToDescription = { mangaId -> navController.navigateSafely(Screen.Description.createRoute(mangaId)) },
                     onNavigateToMedia = { id, contentType ->
                         when (contentType) {
-                            1 -> navController.navigate(Screen.PdfReader.createRoute(id))
-                            2 -> navController.navigate(Screen.VideoPlayer.createRoute(id))
-                            4 -> navController.navigate(Screen.NovelReader.createRoute(id))
-                            else -> navController.navigate(Screen.Reader.createRoute(id))
+                            1 -> navController.navigateSafely(Screen.PdfReader.createRoute(id))
+                            2 -> navController.navigateSafely(Screen.VideoPlayer.createRoute(id))
+                            4 -> navController.navigateSafely(Screen.NovelReader.createRoute(id))
+                            else -> navController.navigateSafely(Screen.Reader.createRoute(id))
                         }
                     }
                 )
@@ -236,9 +261,9 @@ fun AppNavGraph(
                                 }
                             }
                         },
-                        onNavigateToNowPlaying = { navController.navigate(Screen.NowPlaying.route) },
-                        onNavigateToEditPlaylist = { id -> navController.navigate(Screen.EditPlaylist.createRoute(id)) },
-                        onNavigateToEditSong = { id -> navController.navigate(Screen.EditSong.createRoute(id)) }
+                        onNavigateToNowPlaying = { navController.navigateSafely(Screen.NowPlaying.route) },
+                        onNavigateToEditPlaylist = { id -> navController.navigateSafely(Screen.EditPlaylist.createRoute(id)) },
+                        onNavigateToEditSong = { id -> navController.navigateSafely(Screen.EditSong.createRoute(id)) }
                     )
                 } else {
                     val mediaMode by settingsViewModel.mediaMode.collectAsState()
@@ -255,26 +280,49 @@ fun AppNavGraph(
                         },
                         onNavigateToMedia = { id, contentType -> 
                             when (contentType) {
-                                1 -> navController.navigate(Screen.PdfReader.createRoute(id))
-                                2 -> navController.navigate(Screen.VideoPlayer.createRoute(id))
-                                4 -> navController.navigate(Screen.NovelReader.createRoute(id))
-                                else -> navController.navigate(Screen.Reader.createRoute(id))
+                                1 -> navController.navigateSafely(Screen.PdfReader.createRoute(id))
+                                2 -> navController.navigateSafely(Screen.VideoPlayer.createRoute(id))
+                                4 -> navController.navigateSafely(Screen.NovelReader.createRoute(id))
+                                else -> navController.navigateSafely(Screen.Reader.createRoute(id))
                             }
                         },
                         onNavigateToDescription = { id -> 
                             if (mediaMode == 2) {
-                                navController.navigate(Screen.Description.createRoute(id)) {
+                                navController.navigateSafely(Screen.Description.createRoute(id)) {
                                     popUpTo(Screen.Description.route) { inclusive = true }
                                 }
                             } else {
-                                navController.navigate(Screen.Description.createRoute(id))
+                                navController.navigateSafely(Screen.Description.createRoute(id))
                             }
                         }
                     )
                 }
             }
         }
-        composable(Screen.Reader.route) { backStackEntry ->
+        composable(
+            route = Screen.Reader.route,
+            enterTransition = {
+                slideInVertically(
+                    initialOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(280, easing = EmphasizedDecelerate)
+                ) + fadeIn(animationSpec = tween(240))
+            },
+            exitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(240, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(200))
+            },
+            popEnterTransition = {
+                fadeIn(animationSpec = tween(240))
+            },
+            popExitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(240, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(200))
+            }
+        ) { backStackEntry ->
             val chapterId = backStackEntry.arguments?.getString("chapterId")?.toLongOrNull() ?: 0L
             BlockTouchesWhenExiting {
                 ReaderScreen(
@@ -282,12 +330,35 @@ fun AppNavGraph(
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToChapter = { newChapterId ->
                         navController.popBackStack()
-                        navController.navigate(Screen.Reader.createRoute(newChapterId))
+                        navController.navigateSafely(Screen.Reader.createRoute(newChapterId))
                     }
                 )
             }
         }
-        composable(Screen.PdfReader.route) { backStackEntry ->
+        composable(
+            route = Screen.PdfReader.route,
+            enterTransition = {
+                slideInVertically(
+                    initialOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(280, easing = EmphasizedDecelerate)
+                ) + fadeIn(animationSpec = tween(240))
+            },
+            exitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(240, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(200))
+            },
+            popEnterTransition = {
+                fadeIn(animationSpec = tween(240))
+            },
+            popExitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(240, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(200))
+            }
+        ) { backStackEntry ->
             val mangaId = backStackEntry.arguments?.getString("mangaId")?.toLongOrNull() ?: 0L
             BlockTouchesWhenExiting {
                 PdfReaderScreen(
@@ -296,7 +367,30 @@ fun AppNavGraph(
                 )
             }
         }
-        composable(Screen.VideoPlayer.route) { backStackEntry ->
+        composable(
+            route = Screen.VideoPlayer.route,
+            enterTransition = {
+                slideInVertically(
+                    initialOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(280, easing = EmphasizedDecelerate)
+                ) + fadeIn(animationSpec = tween(240))
+            },
+            exitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(240, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(200))
+            },
+            popEnterTransition = {
+                fadeIn(animationSpec = tween(240))
+            },
+            popExitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(240, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(200))
+            }
+        ) { backStackEntry ->
             val chapterId = backStackEntry.arguments?.getString("chapterId")?.toLongOrNull() ?: 0L
             BlockTouchesWhenExiting {
                 VideoPlayerScreen(
@@ -306,12 +400,35 @@ fun AppNavGraph(
                     },
                     onNavigateToChapter = { newChapterId ->
                         navController.popBackStack()
-                        navController.navigate(Screen.VideoPlayer.createRoute(newChapterId))
+                        navController.navigateSafely(Screen.VideoPlayer.createRoute(newChapterId))
                     }
                 )
             }
         }
-        composable(Screen.NowPlaying.route) {
+        composable(
+            route = Screen.NowPlaying.route,
+            enterTransition = {
+                slideInVertically(
+                    initialOffsetY = { (it * 0.35f).toInt() },
+                    animationSpec = tween(300, easing = EmphasizedDecelerate)
+                ) + fadeIn(animationSpec = tween(240))
+            },
+            exitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { (it * 0.35f).toInt() },
+                    animationSpec = tween(260, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(200))
+            },
+            popEnterTransition = {
+                fadeIn(animationSpec = tween(240))
+            },
+            popExitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { (it * 0.35f).toInt() },
+                    animationSpec = tween(260, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(200))
+            }
+        ) {
             BlockTouchesWhenExiting {
                 val libraryViewModel: LibraryViewModel = viewModel()
                 NowPlayingScreen(
@@ -324,19 +441,18 @@ fun AppNavGraph(
                             val currentChapter = musicViewModel.currentChapter.value
                             val playlistId = currentChapter?.mangaId
                             if (playlistId != null && playlistId > 0L) {
-                                navController.navigate(Screen.Description.createRoute(playlistId)) {
+                                navController.navigateSafely(Screen.Description.createRoute(playlistId)) {
                                     popUpTo(Screen.Home.route) { inclusive = false }
                                 }
                             } else {
                                 settingsViewModel.setActiveTab(1)
-                                navController.navigate(Screen.Home.route) {
+                                navController.navigateSafely(Screen.Home.route) {
                                     popUpTo(0) { inclusive = true }
-                                    launchSingleTop = true
                                 }
                             }
                         }
                     },
-                    onNavigateToEditSong = { id -> navController.navigate(Screen.EditSong.createRoute(id)) }
+                    onNavigateToEditSong = { id -> navController.navigateSafely(Screen.EditSong.createRoute(id)) }
                 )
             }
         }
@@ -358,7 +474,21 @@ fun AppNavGraph(
                 )
             }
         }
-        composable(Screen.ExternalPdf.route) { backStackEntry ->
+        composable(
+            route = Screen.ExternalPdf.route,
+            enterTransition = {
+                slideInVertically(
+                    initialOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(280, easing = EmphasizedDecelerate)
+                ) + fadeIn(animationSpec = tween(240))
+            },
+            exitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(240, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(200))
+            }
+        ) { backStackEntry ->
             val uri = backStackEntry.arguments?.getString("uri")?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: ""
             BlockTouchesWhenExiting {
                 PdfReaderScreen(
@@ -368,7 +498,21 @@ fun AppNavGraph(
                 )
             }
         }
-        composable(Screen.ExternalVideo.route) { backStackEntry ->
+        composable(
+            route = Screen.ExternalVideo.route,
+            enterTransition = {
+                slideInVertically(
+                    initialOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(280, easing = EmphasizedDecelerate)
+                ) + fadeIn(animationSpec = tween(240))
+            },
+            exitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(240, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(200))
+            }
+        ) { backStackEntry ->
             val uri = backStackEntry.arguments?.getString("uri")?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: ""
             BlockTouchesWhenExiting {
                 VideoPlayerScreen(
@@ -380,7 +524,30 @@ fun AppNavGraph(
                 )
             }
         }
-        composable(Screen.NovelReader.route) { backStackEntry ->
+        composable(
+            route = Screen.NovelReader.route,
+            enterTransition = {
+                slideInVertically(
+                    initialOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(280, easing = EmphasizedDecelerate)
+                ) + fadeIn(animationSpec = tween(240))
+            },
+            exitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(240, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(200))
+            },
+            popEnterTransition = {
+                fadeIn(animationSpec = tween(240))
+            },
+            popExitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(240, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(200))
+            }
+        ) { backStackEntry ->
             val mangaId = backStackEntry.arguments?.getString("mangaId")?.toLongOrNull() ?: 0L
             BlockTouchesWhenExiting {
                 NovelPlayerScreen(
@@ -389,7 +556,21 @@ fun AppNavGraph(
                 )
             }
         }
-        composable(Screen.ExternalNovel.route) { backStackEntry ->
+        composable(
+            route = Screen.ExternalNovel.route,
+            enterTransition = {
+                slideInVertically(
+                    initialOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(280, easing = EmphasizedDecelerate)
+                ) + fadeIn(animationSpec = tween(240))
+            },
+            exitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(240, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(200))
+            }
+        ) { backStackEntry ->
             val uri = backStackEntry.arguments?.getString("uri")?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: ""
             BlockTouchesWhenExiting {
                 NovelPlayerScreen(
@@ -399,7 +580,21 @@ fun AppNavGraph(
                 )
             }
         }
-        composable(Screen.ExternalImage.route) { backStackEntry ->
+        composable(
+            route = Screen.ExternalImage.route,
+            enterTransition = {
+                slideInVertically(
+                    initialOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(280, easing = EmphasizedDecelerate)
+                ) + fadeIn(animationSpec = tween(240))
+            },
+            exitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { (it * 0.15f).toInt() },
+                    animationSpec = tween(240, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(200))
+            }
+        ) { backStackEntry ->
             val uri = backStackEntry.arguments?.getString("uri")?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: ""
             BlockTouchesWhenExiting {
                 ReaderScreen(

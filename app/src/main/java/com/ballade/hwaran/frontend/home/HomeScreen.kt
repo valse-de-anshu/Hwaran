@@ -363,9 +363,14 @@ fun HomeScreen(
                         // Backward transition: Music -> Home/Library
                         (slideInHorizontally(spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)) { -it / 6 } + fadeIn(tween(280)))
                             .togetherWith(slideOutHorizontally(tween(220)) { it / 4 } + fadeOut(tween(180)))
+                    } else if (targetState > initialState) {
+                        // Forward tab switch (e.g. Home -> Library -> Search)
+                        (slideInHorizontally(tween(260, easing = FastOutSlowInEasing)) { (it * 0.12f).toInt() } + fadeIn(tween(220)))
+                            .togetherWith(slideOutHorizontally(tween(220, easing = FastOutSlowInEasing)) { (-it * 0.08f).toInt() } + fadeOut(tween(180)))
                     } else {
-                        // Other transitions (Home <-> Library, Search)
-                        fadeIn(tween(220)).togetherWith(fadeOut(tween(180)))
+                        // Backward tab switch (e.g. Search -> Library -> Home)
+                        (slideInHorizontally(tween(260, easing = FastOutSlowInEasing)) { (-it * 0.12f).toInt() } + fadeIn(tween(220)))
+                            .togetherWith(slideOutHorizontally(tween(220, easing = FastOutSlowInEasing)) { (it * 0.08f).toInt() } + fadeOut(tween(180)))
                     }
                 },
                 label = "home_content_transition",

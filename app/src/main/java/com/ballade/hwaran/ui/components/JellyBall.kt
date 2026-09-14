@@ -34,21 +34,21 @@ fun JellyBall(
     val stageSize = 120f
     val bodySize = 64f
     
-    // Animation State
-    var time by remember { mutableFloatStateOf(0f) }
-    var jumpTimer by remember { mutableFloatStateOf(0f) }
-    var isJumping by remember { mutableStateOf(false) }
-    var jumpProgress by remember { mutableFloatStateOf(0f) }
-
-    // Physics State (Scaled)
-    var currentEyeX by remember { mutableFloatStateOf(0f) }
-    var currentEyeY by remember { mutableFloatStateOf(0f) }
+    // Physics State animated cleanly with Compose springs (0% CPU when at rest)
     var targetEyeX by remember { mutableFloatStateOf(0f) }
     var targetEyeY by remember { mutableFloatStateOf(0f) }
-    var eyeVelX by remember { mutableFloatStateOf(0f) }
-    var eyeVelY by remember { mutableFloatStateOf(0f) }
     var eyeSpring by remember { mutableFloatStateOf(0.05f) }
-    val eyeFriction = 0.8f
+
+    val currentEyeX by animateFloatAsState(
+        targetValue = targetEyeX,
+        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioLowBouncy),
+        label = "eyeX"
+    )
+    val currentEyeY by animateFloatAsState(
+        targetValue = targetEyeY,
+        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioLowBouncy),
+        label = "eyeY"
+    )
 
     var isBlinking by remember { mutableStateOf(false) }
     var isShySquint by remember { mutableStateOf(false) }
@@ -56,6 +56,21 @@ fun JellyBall(
     var shiverOffset by remember { mutableFloatStateOf(0f) }
 
     val batterySaving = LocalBatterySaving.current
+
+    // Breathing scale: hardware-accelerated infinite transition
+    val breathingTransition = rememberInfiniteTransition(label = "jelly_breathing")
+    val breathScaleX by breathingTransition.animateFloat(
+        initialValue = 0.985f,
+        targetValue = 1.015f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+        label = "breathX"
+    )
+    val breathScaleY by breathingTransition.animateFloat(
+        initialValue = 1.015f,
+        targetValue = 0.985f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+        label = "breathY"
+    )
 
     // Swirl — suspended in battery save mode (zero GPU cost)
     val swirlTransition = rememberInfiniteTransition(label = "swirl")
@@ -68,45 +83,6 @@ fun JellyBall(
             animationSpec = infiniteRepeatable(tween(25000, easing = LinearEasing)),
             label = "swirl"
         ).let { state -> remember { state } }
-    }
-
-    if (!isPreviewMode && !batterySaving) {
-        LaunchedEffect(Unit) {
-            var lastFrameTime = 0L
-            while (true) {
-                withFrameNanos { frameTime ->
-                    if (lastFrameTime == 0L) lastFrameTime = frameTime
-                    val elapsedMs = (frameTime - lastFrameTime) / 1_000_000f
-                    lastFrameTime = frameTime
-
-                    time += 0.04f
-                    jumpTimer += elapsedMs
-
-                    val targetJumpTime = if (isHappy) 300f else 6000f
-                    if (enableJump && jumpTimer > targetJumpTime && !isJumping) {
-                        isJumping = true
-                        jumpProgress = 0f
-                    }
-
-                    if (isJumping) {
-                        jumpProgress += if (isHappy) 0.024f else 0.012f
-                        if (jumpProgress >= 1.0f) {
-                            isJumping = false
-                            jumpTimer = 0f
-                        }
-                    }
-
-                    val dx = targetEyeX - currentEyeX
-                    val dy = targetEyeY - currentEyeY
-                    eyeVelX += dx * eyeSpring
-                    eyeVelY += dy * eyeSpring
-                    eyeVelX *= eyeFriction
-                    eyeVelY *= eyeFriction
-                    currentEyeX += eyeVelX
-                    currentEyeY += eyeVelY
-                }
-            }
-        }
     }
 
     var isLaughing by remember { mutableStateOf(false) }
@@ -257,7 +233,7 @@ fun JellyBall(
             label = "breath"
         )
         LaunchedEffect(Unit) {
-            currentEyeY = -5f
+            targetEyeY = -5f
             isBlinking = false
             blushActive = true
             isLaughing = true
@@ -271,39 +247,11 @@ fun JellyBall(
     }
 
     // Animation Transforms
-    var sX = if (isPreviewMode) 1f else 1f + sin(time * 2.5f) * 0.015f
-    var sY = if (isPreviewMode) 1f else 1f - sin(time * 2.5f) * 0.015f
-    var translateY = 0f
-    var shadS = if (isPreviewMode) 1f else 1f + sin(time * 2.5f) * 0.05f
-    var shadO = if (isPreviewMode) 0.2f else 0.2f + sin(time * 2.5f) * 0.03f
-
-    if (isJumping) {
-        if (jumpProgress < 0.25f) {
-            val p = jumpProgress / 0.25f
-            val squish = sin(p * PI.toFloat())
-            sX += squish * 0.12f
-            sY -= squish * 0.08f
-        } else if (jumpProgress < 0.45f) {
-            val p = (jumpProgress - 0.25f) / 0.2f
-            val jumpHeight = sin(p * PI.toFloat())
-            translateY = -20f * jumpHeight // Scaled jump
-            sX -= jumpHeight * 0.08f
-            sY += jumpHeight * 0.12f
-            shadS -= jumpHeight * 0.3f
-            shadO -= jumpHeight * 0.1f
-        } else if (jumpProgress < 0.65f) {
-            val p = (jumpProgress - 0.45f) / 0.2f
-            val impact = sin(p * PI.toFloat())
-            sX += impact * 0.18f
-            sY -= impact * 0.12f
-            shadS += impact * 0.2f
-        } else if (jumpProgress < 1.0f) {
-            val p = (jumpProgress - 0.65f) / 0.35f
-            val settle = sin(p * PI.toFloat()) * exp(-p * 3f)
-            sX -= settle * 0.05f
-            sY += settle * 0.05f
-        }
-    }
+    val sX = if (batterySaving || isPreviewMode) 1f else breathScaleX
+    val sY = if (batterySaving || isPreviewMode) 1f else breathScaleY
+    val translateY = 0f
+    val shadS = if (batterySaving || isPreviewMode) 1f else breathScaleX
+    val shadO = 0.22f
 
     val blushAlpha by animateFloatAsState(if (blushActive) 0.7f else 0f, tween(1000), label = "blush")
 

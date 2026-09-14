@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -128,13 +129,19 @@ fun HomeDashboard(
         allManga.count { !it.isNsfw && (it.isFavorite || it.genre?.contains("favorite", ignoreCase = true) == true) }
     }
 
+    // Pre-index history events for O(1) membership check
+    val openedMangaIdsFromHistory = remember(historyEvents) {
+        historyEvents.mapNotNull { event ->
+            if (event.eventType in listOf("WATCH", "READ_TOON", "READ_BOOK", "LISTEN", "READ_NOVEL")) {
+                Regex("mangaId:(\\d+)").find(event.details)?.groupValues?.getOrNull(1)?.toLongOrNull()
+            } else null
+        }.toSet()
+    }
+
     // Continue watching / in progress covers
-    val inProgressItems = remember(allManga, historyEvents) {
+    val inProgressItems = remember(allManga, openedMangaIdsFromHistory) {
         val opened = allManga.filter { manga ->
-            manga.openCount > 0 || !manga.lastReadTitle.isNullOrBlank() || ((manga.lastReadPage ?: 0) > 0) || historyEvents.any { event ->
-                (event.eventType in listOf("WATCH", "READ_TOON", "READ_BOOK", "LISTEN", "READ_NOVEL")) &&
-                event.details.contains("mangaId:${manga.id}")
-            }
+            manga.openCount > 0 || !manga.lastReadTitle.isNullOrBlank() || ((manga.lastReadPage ?: 0) > 0) || openedMangaIdsFromHistory.contains(manga.id)
         }.sortedByDescending { it.lastModified }
         opened.take(8)
     }
@@ -453,34 +460,18 @@ private fun BannerCarouselSection(
     onBannerClick: (Int) -> Unit = {}
 ) {
     val pagerState = rememberPagerState(pageCount = { banners.size })
-    var scrollForward by remember { mutableStateOf(true) }
 
-    // Natural auto-scroll left and right
-    LaunchedEffect(pagerState, banners.size) {
+    // Buttery-smooth cyclic auto-scroll that respects user touch and pauses during drags
+    LaunchedEffect(banners.size) {
         if (banners.size <= 1) return@LaunchedEffect
         while (true) {
-            delay(4000)
+            delay(4200)
             if (!pagerState.isScrollInProgress) {
-                val current = pagerState.currentPage
-                val target = if (scrollForward) {
-                    if (current < banners.size - 1) {
-                        current + 1
-                    } else {
-                        scrollForward = false
-                        current - 1
-                    }
-                } else {
-                    if (current > 0) {
-                        current - 1
-                    } else {
-                        scrollForward = true
-                        current + 1
-                    }
-                }
+                val next = (pagerState.currentPage + 1) % banners.size
                 pagerState.animateScrollToPage(
-                    page = target,
+                    page = next,
                     animationSpec = tween(
-                        durationMillis = 850,
+                        durationMillis = 450,
                         easing = FastOutSlowInEasing
                     )
                 )
@@ -496,6 +487,13 @@ private fun BannerCarouselSection(
             state = pagerState,
             contentPadding = PaddingValues(horizontal = 20.dp),
             pageSpacing = 14.dp,
+            flingBehavior = PagerDefaults.flingBehavior(
+                state = pagerState,
+                snapAnimationSpec = spring(
+                    stiffness = Spring.StiffnessMediumLow,
+                    dampingRatio = Spring.DampingRatioNoBouncy
+                )
+            ),
             modifier = Modifier.fillMaxWidth()
         ) { page ->
             val context = LocalContext.current
@@ -503,20 +501,16 @@ private fun BannerCarouselSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(740f / 235f)
-                    .shadow(
-                        elevation = 12.dp,
-                        shape = RoundedCornerShape(18.dp),
-                        spotColor = glowColor.copy(alpha = 0.25f)
-                    )
                     .clickable { onBannerClick(page) },
                 shape = RoundedCornerShape(18.dp),
                 color = Color(0xFF10151C),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
+                shadowElevation = 4.dp,
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
             ) {
                 AsyncImage(
                     model = ImageRequest.Builder(context)
                         .data(banners[page])
-                        .crossfade(true)
+                        .crossfade(false)
                         .build(),
                     contentDescription = "Hwaran Feature Banner",
                     contentScale = ContentScale.Fit,
@@ -538,7 +532,7 @@ private fun BannerCarouselSection(
                 val isSelected = pagerState.currentPage == index
                 val width by animateDpAsState(
                     targetValue = if (isSelected) 18.dp else 6.dp,
-                    animationSpec = spring(stiffness = 300f),
+                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
                     label = "dotWidth"
                 )
                 val color by animateColorAsState(

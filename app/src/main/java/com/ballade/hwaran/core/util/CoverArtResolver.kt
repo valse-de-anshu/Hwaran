@@ -2,7 +2,6 @@ package com.ballade.hwaran.core.util
 
 import android.content.Context
 import android.net.Uri
-import androidx.documentfile.provider.DocumentFile
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import java.io.File
 
@@ -38,51 +37,22 @@ object CoverArtResolver {
                     return Uri.parse(clean)
                 }
                 clean.startsWith("content://") -> {
-                    val uri = Uri.parse(clean)
-                    if (context != null) {
-                        try {
-                            val cached = CoverCacheManager.cacheCoverFromUri(context, uri, "cover", "cached")
-                            if (cached != null) {
-                                val cachedFile = File(cached)
-                                if (cachedFile.exists() && cachedFile.length() > 0) return cachedFile
-                            }
-                        } catch (_: Exception) {}
-                    }
-                    return uri
+                    return Uri.parse(clean)
                 }
                 else -> return clean
             }
         }
 
-        // Dedicated cover image files in parent directory (strictly cover, folder, poster, thumb)
-        if (!parentUri.isNullOrBlank()) {
-            if (parentUri.startsWith("/")) {
-                val dir = File(parentUri)
-                if (dir.exists() && dir.isDirectory) {
-                    val candidate = dir.listFiles()?.firstOrNull { file ->
-                        val n = file.name.lowercase()
-                        (n.startsWith("cover.") || n.startsWith("folder.") || n.startsWith("poster.") || n.startsWith("thumb.")) &&
-                                (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp"))
-                    }
-                    if (candidate != null && candidate.exists()) return candidate
+        // Dedicated cover image files in parent directory (strictly local File checks; no blocking SAF IPC)
+        if (!parentUri.isNullOrBlank() && parentUri.startsWith("/")) {
+            val dir = File(parentUri)
+            if (dir.exists() && dir.isDirectory) {
+                val candidate = dir.listFiles()?.firstOrNull { file ->
+                    val n = file.name.lowercase()
+                    (n.startsWith("cover.") || n.startsWith("folder.") || n.startsWith("poster.") || n.startsWith("thumb.")) &&
+                            (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp"))
                 }
-            } else if (parentUri.startsWith("content://") && context != null) {
-                try {
-                    val docDir = DocumentFile.fromTreeUri(context, Uri.parse(parentUri))
-                    val candidate = docDir?.listFiles()?.firstOrNull { file ->
-                        val n = file.name?.lowercase() ?: ""
-                        (n.startsWith("cover.") || n.startsWith("folder.") || n.startsWith("poster.") || n.startsWith("thumb.")) &&
-                                (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp"))
-                    }
-                    if (candidate != null) {
-                        val cached = CoverCacheManager.cacheCoverFromUri(context, candidate.uri, "parent", "cover")
-                        if (cached != null) {
-                            val cachedFile = File(cached)
-                            if (cachedFile.exists() && cachedFile.length() > 0) return cachedFile
-                        }
-                        return candidate.uri
-                    }
-                } catch (_: Exception) {}
+                if (candidate != null && candidate.exists()) return candidate
             }
         }
 
