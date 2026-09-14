@@ -2,13 +2,13 @@ package com.ballade.hwaran.frontend.player.novel
 
 import android.app.Activity
 import android.content.Context
-import android.content.pm.ActivityInfo
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,17 +28,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -121,10 +116,14 @@ enum class NovelReadMode {
 }
 
 enum class NovelFontFamily(val label: String, val family: FontFamily) {
+    LITERATA("Literata", FontFamily.Serif),
+    LORA("Lora", FontFamily.Serif),
+    MERRIWEATHER("Merit", FontFamily.Serif),
+    SOURCE_SERIF("Source", FontFamily.Serif),
+    NUNITO("Nunito", FontFamily.SansSerif),
     SERIF("Serif", FontFamily.Serif),
     SANS("Sans", FontFamily.SansSerif),
-    MONO("Mono", FontFamily.Monospace),
-    CURSIVE("Cursive", FontFamily.Cursive)
+    MONO("Mono", FontFamily.Monospace)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -139,30 +138,130 @@ fun NovelPlayerScreen(
     val coroutineScope = rememberCoroutineScope()
     val database = remember(context) { AppDatabase.getDatabase(context) }
 
-    // State
+    // ── Asset font families resolved once ──────────────────────────────────────
+    val assetFonts: Map<NovelFontFamily, FontFamily> = remember(context) {
+        mapOf(
+            NovelFontFamily.LORA to try {
+                val tf = android.graphics.Typeface.createFromAsset(context.assets, "fonts/Lora_Regular.ttf")
+                FontFamily(tf)
+            } catch (_: Exception) { FontFamily.Serif },
+
+            NovelFontFamily.MERRIWEATHER to try {
+                val tf = android.graphics.Typeface.createFromAsset(context.assets, "fonts/Merriweather_Regular.ttf")
+                FontFamily(tf)
+            } catch (_: Exception) { FontFamily.Serif },
+
+            NovelFontFamily.SOURCE_SERIF to try {
+                val tf = android.graphics.Typeface.createFromAsset(context.assets, "fonts/SourceSerif4_Regular.ttf")
+                FontFamily(tf)
+            } catch (_: Exception) { FontFamily.Serif },
+
+            NovelFontFamily.LITERATA to try {
+                val tf = android.graphics.Typeface.createFromAsset(context.assets, "fonts/Literata_Regular.ttf")
+                FontFamily(tf)
+            } catch (_: Exception) { FontFamily.Serif },
+
+            NovelFontFamily.NUNITO to try {
+                val tf = android.graphics.Typeface.createFromAsset(context.assets, "fonts/Nunito_Regular.ttf")
+                FontFamily(tf)
+            } catch (_: Exception) { FontFamily.SansSerif }
+        )
+    }
+
+    fun resolveFont(selected: NovelFontFamily): FontFamily =
+        assetFonts[selected] ?: selected.family
+
+    // ── Custom Fonts Management ────────────────────────────────────────────────
+    var customFonts by remember { mutableStateOf<List<CustomFontEntry>>(emptyList()) }
+    var selectedCustomFontName by rememberSaveable { mutableStateOf<String?>(null) }
+
+    fun refreshCustomFonts() {
+        val dir = File(context.filesDir, "custom_fonts")
+        if (!dir.exists()) dir.mkdirs()
+        val list = dir.listFiles { f -> f.extension.lowercase() in listOf("ttf", "otf") }
+            ?.mapNotNull { file ->
+                try {
+                    val tf = android.graphics.Typeface.createFromFile(file)
+                    val cleanName = file.nameWithoutExtension.replace("_", " ").replace("-", " ")
+                    CustomFontEntry(cleanName, file, FontFamily(tf))
+                } catch (_: Exception) {
+                    null
+                }
+            } ?: emptyList()
+        customFonts = list
+    }
+
+    LaunchedEffect(Unit) {
+        refreshCustomFonts()
+    }
+
+    // Custom Font File Picker Launcher
+    val fontPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch(Dispatchers.IO) {
+                try {
+                    val dir = File(context.filesDir, "custom_fonts")
+                    if (!dir.exists()) dir.mkdirs()
+                    var displayName = "Font_${System.currentTimeMillis()}"
+                    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex != -1 && cursor.moveToFirst()) {
+                            displayName = cursor.getString(nameIndex)
+                        }
+                    }
+                    val destFile = File(dir, displayName)
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        destFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    withContext(Dispatchers.Main) {
+                        refreshCustomFonts()
+                        selectedCustomFontName = destFile.nameWithoutExtension.replace("_", " ").replace("-", " ")
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
+
+    // ── State ──────────────────────────────────────────────────────────────────
     var novelBook by remember { mutableStateOf<NovelBook?>(null) }
     var mangaEntity by remember { mutableStateOf<MangaEntity?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var currentChapterIndex by rememberSaveable { mutableIntStateOf(0) }
     var isControlsVisible by rememberSaveable { mutableStateOf(false) }
     var activeSettingTab by remember { mutableStateOf<NovelSettingTab?>(null) }
-    var showTocDrawer by remember { mutableStateOf(false) }
-    var showTypographySheet by remember { mutableStateOf(false) }
-    var showBookmarksSheet by remember { mutableStateOf(false) }
+    var showTocSheet by remember { mutableStateOf(false) }
     var bookmarkedChapters by remember { mutableStateOf(setOf<Int>()) }
 
-    // Preferences
+    // ── Reading Preferences ────────────────────────────────────────────────────
     var currentTheme by rememberSaveable { mutableStateOf(NovelTheme.DARK) }
     var readMode by rememberSaveable { mutableStateOf(NovelReadMode.VERTICAL_SCROLL) }
-    var currentFont by rememberSaveable { mutableStateOf(NovelFontFamily.SERIF) }
+    var currentFont by rememberSaveable { mutableStateOf(NovelFontFamily.LITERATA) }
     var fontSizeSp by rememberSaveable { mutableFloatStateOf(18f) }
     var lineHeightMultiplier by rememberSaveable { mutableFloatStateOf(1.65f) }
     var paragraphSpacingDp by rememberSaveable { mutableIntStateOf(14) }
     var horizontalMarginDp by rememberSaveable { mutableIntStateOf(20) }
+    var textAlign by rememberSaveable { mutableStateOf(TextAlign.Start) }
     var keepScreenOn by rememberSaveable { mutableStateOf(false) }
     var brightnessOverride by remember { mutableStateOf<Float?>(null) }
 
-    // Immersive Fullscreen Mode Controller
+    val resolvedFont = remember(currentFont, selectedCustomFontName, customFonts, assetFonts) {
+        if (selectedCustomFontName != null) {
+            customFonts.find { it.name == selectedCustomFontName }?.fontFamily ?: resolveFont(currentFont)
+        } else {
+            resolveFont(currentFont)
+        }
+    }
+
+    // Shared LazyListState for continuous vertical scrolling
+    val verticalListState = rememberLazyListState()
+
+    // ── Immersive Fullscreen ───────────────────────────────────────────────────
     val activity = context as? Activity
     DisposableEffect(isControlsVisible) {
         val window = activity?.window
@@ -172,7 +271,8 @@ fun NovelPlayerScreen(
                 insetsController.show(WindowInsetsCompat.Type.systemBars())
             } else {
                 insetsController.hide(WindowInsetsCompat.Type.systemBars())
-                insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                insetsController.systemBarsBehavior =
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
         }
         onDispose {
@@ -182,7 +282,7 @@ fun NovelPlayerScreen(
         }
     }
 
-    // Brightness Override Effect
+    // ── Brightness ─────────────────────────────────────────────────────────────
     DisposableEffect(brightnessOverride) {
         val w = activity?.window
         val lp = w?.attributes
@@ -198,7 +298,7 @@ fun NovelPlayerScreen(
         }
     }
 
-    // Keep Screen On Effect
+    // ── Keep Screen On ─────────────────────────────────────────────────────────
     DisposableEffect(keepScreenOn) {
         if (keepScreenOn) {
             activity?.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -210,15 +310,14 @@ fun NovelPlayerScreen(
         }
     }
 
-    // Load Novel Data
+    // ── Load Novel Data ────────────────────────────────────────────────────────
     LaunchedEffect(mangaId, externalUriString) {
         isLoading = true
         withContext(Dispatchers.IO) {
             try {
                 if (externalUriString != null) {
                     val uri = Uri.parse(externalUriString)
-                    val book = NovelParser.parseNovel(context, uri)
-                    novelBook = book
+                    novelBook = NovelParser.parseNovel(context, uri)
                 } else if (mangaId > 0L) {
                     var manga = database.mediaDao().getMangaById(mangaId)
                     var targetChapterIndex = 0
@@ -232,29 +331,34 @@ fun NovelPlayerScreen(
                     mangaEntity = manga
                     if (manga != null) {
                         val dbChapters = database.trackDao().getChaptersForMangaList(manga.id)
-                        val book = if (dbChapters.isNotEmpty() && dbChapters.any { it.folderUri.lowercase().let { u -> u.endsWith(".txt") || u.endsWith(".md") || u.endsWith(".markdown") || u.endsWith(".epub") } }) {
+                        val book = if (dbChapters.isNotEmpty() && dbChapters.any {
+                                it.folderUri.lowercase().let { u ->
+                                    u.endsWith(".txt") || u.endsWith(".md") || u.endsWith(".markdown") || u.endsWith(".epub")
+                                }
+                            }) {
                             NovelParser.parseNovelFromChapterEntities(context, manga.title, dbChapters)
                         } else {
                             val uri = Uri.parse(manga.parentUri)
                             val loaded = if (manga.parentUri.startsWith("file://") || manga.parentUri.startsWith("/")) {
-                                val file = if (manga.parentUri.startsWith("file://")) File(Uri.parse(manga.parentUri).path ?: "") else File(manga.parentUri)
-                                if (file.exists()) NovelParser.parseNovelFromFile(file) else NovelParser.parseNovel(context, uri, manga.title)
+                                val file = if (manga.parentUri.startsWith("file://"))
+                                    File(Uri.parse(manga.parentUri).path ?: "")
+                                else File(manga.parentUri)
+                                if (file.exists()) NovelParser.parseNovelFromFile(file)
+                                else NovelParser.parseNovel(context, uri, manga.title)
                             } else {
                                 NovelParser.parseNovel(context, uri, manga.title)
                             }
-                            if (loaded.chapters.isEmpty() && dbChapters.isNotEmpty()) {
+                            if (loaded.chapters.isEmpty() && dbChapters.isNotEmpty())
                                 NovelParser.parseNovelFromChapterEntities(context, manga.title, dbChapters)
-                            } else loaded
+                            else loaded
                         }
                         novelBook = book
 
-                        // Restore last read position
                         val savedChapterIndex = if (targetChapterIndex > 0) targetChapterIndex else (manga.lastReadPage ?: 0)
                         if (book.chapters.isNotEmpty()) {
                             currentChapterIndex = savedChapterIndex.coerceIn(0, book.chapters.size - 1)
                         }
 
-                        // Record History Event
                         database.historyDao().insertHistoryEvent(
                             HistoryEventEntity(
                                 timestamp = System.currentTimeMillis(),
@@ -273,17 +377,15 @@ fun NovelPlayerScreen(
         }
     }
 
-    // Save progress helper
+    // ── Save Progress ──────────────────────────────────────────────────────────
     fun saveProgress(chapterIdx: Int) {
         if (mangaId > 0L && novelBook != null && chapterIdx in novelBook!!.chapters.indices) {
             val chapterTitle = novelBook!!.chapters[chapterIdx].title
             coroutineScope.launch(Dispatchers.IO) {
                 val current = database.mediaDao().getMangaById(mangaId) ?: return@launch
-                val updated = current.copy(
-                    lastReadPage = chapterIdx,
-                    lastReadTitle = chapterTitle
+                database.mediaDao().insertManga(
+                    current.copy(lastReadPage = chapterIdx, lastReadTitle = chapterTitle)
                 )
-                database.mediaDao().insertManga(updated)
                 HistoryTracker.logEvent(
                     "READ_NOVEL",
                     chapterTitle,
@@ -293,32 +395,49 @@ fun NovelPlayerScreen(
         }
     }
 
+    // ── Back Handler ───────────────────────────────────────────────────────────
     BackHandler {
-        if (activeSettingTab != null) {
-            activeSettingTab = null
-        } else if (showTocDrawer) {
-            showTocDrawer = false
-        } else if (showTypographySheet) {
-            showTypographySheet = false
-        } else if (showBookmarksSheet) {
-            showBookmarksSheet = false
-        } else if (isControlsVisible) {
-            isControlsVisible = false
-        } else {
-            onNavigateBack()
+        when {
+            activeSettingTab != null -> activeSettingTab = null
+            showTocSheet -> showTocSheet = false
+            isControlsVisible -> isControlsVisible = false
+            else -> onNavigateBack()
         }
     }
 
     val chapters = novelBook?.chapters ?: emptyList()
     val activeChapter = chapters.getOrNull(currentChapterIndex)
 
+    // Scroll Progress Percentage Calculation (for bottom-right 53% indicator)
+    val scrollProgressPercent by remember(readMode, currentChapterIndex, chapters.size) {
+        derivedStateOf {
+            if (readMode == NovelReadMode.VERTICAL_SCROLL) {
+                val layoutInfo = verticalListState.layoutInfo
+                val totalItems = layoutInfo.totalItemsCount
+                if (totalItems <= 1) 0
+                else {
+                    val index = verticalListState.firstVisibleItemIndex
+                    val offset = verticalListState.firstVisibleItemScrollOffset
+                    val itemSize = layoutInfo.visibleItemsInfo.firstOrNull()?.size ?: 1000
+                    val fraction = (index.toFloat() + (offset.toFloat() / itemSize.coerceAtLeast(1))) / (totalItems.toFloat())
+                    (fraction * 100).toInt().coerceIn(0, 100)
+                }
+            } else {
+                if (chapters.isEmpty()) 0
+                else (((currentChapterIndex + 1).toFloat() / chapters.size.toFloat()) * 100).toInt().coerceIn(0, 100)
+            }
+        }
+    }
+
+    // ── Root Canvas ─────────────────────────────────────────────────────────────
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(currentTheme.bg)
     ) {
+
+        // ── Loading ──────────────────────────────────────────────────────────────
         if (isLoading) {
-            // Ambient Loading Screen
             Column(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.Center,
@@ -344,248 +463,193 @@ fun NovelPlayerScreen(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.MenuBook,
-                            contentDescription = "Loading Novel",
-                            tint = Color(0xFFE6E8EC),
+                            contentDescription = "Loading",
+                            tint = Color(0xFFE6E8EC).copy(alpha = glowAlpha),
                             modifier = Modifier.size(36.dp)
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(Modifier.height(20.dp))
                 Text(
-                    text = "Opening Novel...",
+                    text = "Opening Novel…",
                     color = currentTheme.text,
                     fontSize = 16.sp,
-                    fontFamily = currentFont.family,
+                    fontFamily = resolvedFont,
                     fontWeight = FontWeight.Medium
                 )
             }
+
+        // ── Empty State ───────────────────────────────────────────────────────────
         } else if (chapters.isEmpty()) {
-            // Empty State
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
+                modifier = Modifier.fillMaxSize().padding(32.dp),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.MenuBook,
+                    imageVector = Icons.AutoMirrored.Rounded.MenuBook,
                     contentDescription = null,
                     tint = currentTheme.secondaryText,
                     modifier = Modifier.size(64.dp)
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(Modifier.height(16.dp))
                 Text(
-                    text = "No readable chapters found in this file.",
+                    text = "No readable chapters found.",
                     color = currentTheme.text,
                     fontSize = 17.sp,
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(Modifier.height(24.dp))
                 FilledTonalButton(
                     onClick = onNavigateBack,
                     colors = ButtonDefaults.filledTonalButtonColors(containerColor = currentTheme.surface)
-                ) {
-                    Text("Go Back", color = currentTheme.text)
-                }
+                ) { Text("Go Back", color = currentTheme.text) }
             }
+
+        // ── Reading View ───────────────────────────────────────────────────────────
         } else {
-            // ─────────────────────────────────────────────────────────────────────────────
-            // Reading View (Paginated vs Vertical Scroll)
-            // ─────────────────────────────────────────────────────────────────────────────
 
+            // ── Vertical Scroll Mode ────────────────────────────────────────────────
             if (readMode == NovelReadMode.VERTICAL_SCROLL) {
-                // Continuous Vertical Scroll Mode
-                val listState = rememberLazyListState()
-
-                // When chapter changes via slider or TOC, scroll to top
                 LaunchedEffect(currentChapterIndex) {
-                    listState.scrollToItem(0)
+                    verticalListState.scrollToItem(0)
                     saveProgress(currentChapterIndex)
                 }
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(activeSettingTab, isControlsVisible) {
-                            detectTapGestures(
-                                onTap = {
-                                    if (activeSettingTab != null) {
-                                        activeSettingTab = null
-                                    } else {
-                                        isControlsVisible = !isControlsVisible
-                                    }
-                                }
-                            )
-                        }
+                LazyColumn(
+                    state = verticalListState,
+                    contentPadding = PaddingValues(
+                        top = if (isControlsVisible) 80.dp else 44.dp,
+                        bottom = 120.dp,
+                        start = horizontalMarginDp.dp,
+                        end = horizontalMarginDp.dp
+                    ),
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    LazyColumn(
-                        state = listState,
-                        contentPadding = PaddingValues(
-                            top = if (isControlsVisible) 88.dp else 44.dp,
-                            bottom = if (isControlsVisible) 130.dp else 60.dp,
-                            start = horizontalMarginDp.dp,
-                            end = horizontalMarginDp.dp
-                        ),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                if (activeSettingTab != null) {
-                                    activeSettingTab = null
-                                } else {
-                                    isControlsVisible = !isControlsVisible
-                                }
-                            }
-                    ) {
-                        item(key = "chapter_header_${currentChapterIndex}") {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 20.dp)
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null
-                                    ) {
-                                        if (activeSettingTab != null) {
-                                            activeSettingTab = null
-                                        } else {
-                                            isControlsVisible = !isControlsVisible
-                                        }
-                                    }
+                    item(key = "ch_header_$currentChapterIndex") {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 20.dp)
+                        ) {
+                            Text(
+                                text = activeChapter?.title ?: "",
+                                fontFamily = resolvedFont,
+                                fontSize = (fontSizeSp + 6).sp,
+                                fontWeight = FontWeight.Bold,
+                                color = currentTheme.text,
+                                lineHeight = ((fontSizeSp + 6) * 1.3f).sp
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Text(
-                                    text = activeChapter?.title ?: "",
-                                    fontFamily = currentFont.family,
-                                    fontSize = (fontSizeSp + 6).sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = currentTheme.text,
-                                    lineHeight = ((fontSizeSp + 6) * 1.3f).sp
+                                    text = "Chapter ${currentChapterIndex + 1} of ${chapters.size}",
+                                    color = currentTheme.secondaryText,
+                                    fontSize = 13.sp,
+                                    fontFamily = resolvedFont
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = "Chapter ${currentChapterIndex + 1} of ${chapters.size}",
-                                        color = currentTheme.secondaryText,
-                                        fontSize = 13.sp,
-                                        fontFamily = currentFont.family
-                                    )
-                                    Text(
-                                        text = "•",
-                                        color = currentTheme.secondaryText.copy(alpha = 0.5f),
-                                        fontSize = 12.sp
-                                    )
-                                    Text(
-                                        text = "${activeChapter?.wordCount ?: 0} words",
-                                        color = currentTheme.secondaryText,
-                                        fontSize = 13.sp,
-                                        fontFamily = currentFont.family
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(16.dp))
-                                HorizontalDivider(color = currentTheme.border.copy(alpha = 0.5f))
-                                Spacer(modifier = Modifier.height(20.dp))
+                                Text("•", color = currentTheme.secondaryText.copy(alpha = 0.5f), fontSize = 12.sp)
+                                Text(
+                                    text = "${activeChapter?.wordCount ?: 0} words",
+                                    color = currentTheme.secondaryText,
+                                    fontSize = 13.sp,
+                                    fontFamily = resolvedFont
+                                )
+                            }
+                            Spacer(Modifier.height(16.dp))
+                            HorizontalDivider(color = currentTheme.border.copy(alpha = 0.5f))
+                            Spacer(Modifier.height(20.dp))
+                        }
+                    }
+
+                    item(key = "ch_content_$currentChapterIndex") {
+                        val paragraphs = remember(activeChapter?.content) {
+                            val raw = activeChapter?.content ?: ""
+                            if (raw.contains("\n\n") || raw.contains("\r\n\r\n")) {
+                                raw.split(Regex("""(?:\r?\n\s*){2,}"""))
+                            } else {
+                                raw.split(Regex("""\r?\n"""))
                             }
                         }
 
-                        item(key = "chapter_content_${currentChapterIndex}") {
-                            val paragraphs = remember(activeChapter?.content) {
-                                (activeChapter?.content ?: "").split(Regex("""\n\s*\n"""))
-                            }
-
-                            SelectionContainer {
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(paragraphSpacingDp.dp)
-                                ) {
-                                    paragraphs.forEach { paragraph ->
-                                        if (paragraph.isNotBlank()) {
-                                            Text(
-                                                text = paragraph.trim(),
-                                                color = currentTheme.text,
-                                                fontSize = fontSizeSp.sp,
-                                                fontFamily = currentFont.family,
-                                                lineHeight = (fontSizeSp * lineHeightMultiplier).sp,
-                                                textAlign = TextAlign.Start,
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clickable(
-                                                        interactionSource = remember { MutableInteractionSource() },
-                                                        indication = null
-                                                    ) {
-                                                        if (activeSettingTab != null) {
-                                                            activeSettingTab = null
-                                                        } else {
-                                                            isControlsVisible = !isControlsVisible
-                                                        }
-                                                    }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Bottom Chapter Skip Actions
-                        item(key = "chapter_footer_${currentChapterIndex}") {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 40.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                HorizontalDivider(color = currentTheme.border.copy(alpha = 0.5f))
-                                Spacer(modifier = Modifier.height(24.dp))
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    FilledTonalButton(
-                                        onClick = {
-                                            if (currentChapterIndex > 0) {
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                currentChapterIndex--
-                                            }
-                                        },
-                                        enabled = currentChapterIndex > 0,
-                                        colors = ButtonDefaults.filledTonalButtonColors(
-                                            containerColor = currentTheme.surface,
-                                            contentColor = currentTheme.text
+                        SelectionContainer {
+                            Column(verticalArrangement = Arrangement.spacedBy(paragraphSpacingDp.dp)) {
+                                paragraphs.forEach { paragraph ->
+                                    if (paragraph.isNotBlank()) {
+                                        Text(
+                                            text = paragraph.trim(),
+                                            color = currentTheme.text,
+                                            fontSize = fontSizeSp.sp,
+                                            fontFamily = resolvedFont,
+                                            lineHeight = (fontSizeSp * lineHeightMultiplier).sp,
+                                            textAlign = textAlign,
+                                            modifier = Modifier.fillMaxWidth()
                                         )
-                                    ) {
-                                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Prev Chapter")
-                                    }
-
-                                    FilledTonalButton(
-                                        onClick = {
-                                            if (currentChapterIndex < chapters.size - 1) {
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                currentChapterIndex++
-                                            }
-                                        },
-                                        enabled = currentChapterIndex < chapters.size - 1,
-                                        colors = ButtonDefaults.filledTonalButtonColors(
-                                            containerColor = currentTheme.surface,
-                                            contentColor = currentTheme.text
-                                        )
-                                    ) {
-                                        Text("Next Chapter")
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
                                     }
                                 }
                             }
                         }
                     }
+
+                    // End of chapter footer with prev/next
+                    item(key = "ch_footer_$currentChapterIndex") {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 40.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            HorizontalDivider(color = currentTheme.border.copy(alpha = 0.5f))
+                            Spacer(Modifier.height(24.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                FilledTonalButton(
+                                    onClick = {
+                                        if (currentChapterIndex > 0) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            currentChapterIndex--
+                                        }
+                                    },
+                                    enabled = currentChapterIndex > 0,
+                                    colors = ButtonDefaults.filledTonalButtonColors(
+                                        containerColor = currentTheme.surface,
+                                        contentColor = currentTheme.text
+                                    )
+                                ) {
+                                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Prev Chapter")
+                                }
+
+                                FilledTonalButton(
+                                    onClick = {
+                                        if (currentChapterIndex < chapters.size - 1) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            currentChapterIndex++
+                                        }
+                                    },
+                                    enabled = currentChapterIndex < chapters.size - 1,
+                                    colors = ButtonDefaults.filledTonalButtonColors(
+                                        containerColor = currentTheme.surface,
+                                        contentColor = currentTheme.text
+                                    )
+                                ) {
+                                    Text("Next Chapter")
+                                    Spacer(Modifier.width(6.dp))
+                                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
+                    }
                 }
+
+            // ── Paginated Mode ────────────────────────────────────────────────────
             } else {
-                // Paginated Book Flip Mode
                 val pagerState = rememberPagerState(
                     initialPage = currentChapterIndex.coerceIn(0, (chapters.size - 1).coerceAtLeast(0)),
                     pageCount = { chapters.size }
@@ -604,43 +668,7 @@ fun NovelPlayerScreen(
 
                 HorizontalPager(
                     state = pagerState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(activeSettingTab, isControlsVisible) {
-                            detectTapGestures(
-                                onTap = { offset ->
-                                    if (activeSettingTab != null) {
-                                        activeSettingTab = null
-                                        return@detectTapGestures
-                                    }
-                                    val width = size.width
-                                    when {
-                                        offset.x < width * 0.25f -> {
-                                            // Tap Left: Prev Page/Chapter
-                                            if (pagerState.currentPage > 0) {
-                                                coroutineScope.launch {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                    pagerState.animateScrollToPage(pagerState.currentPage - 1)
-                                                }
-                                            }
-                                        }
-                                        offset.x > width * 0.75f -> {
-                                            // Tap Right: Next Page/Chapter
-                                            if (pagerState.currentPage < chapters.size - 1) {
-                                                coroutineScope.launch {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
-                                                }
-                                            }
-                                        }
-                                        else -> {
-                                            // Tap Center: Toggle HUD
-                                            isControlsVisible = !isControlsVisible
-                                        }
-                                    }
-                                }
-                            )
-                        }
+                    modifier = Modifier.fillMaxSize()
                 ) { page ->
                     val chapter = chapters[page]
                     val scrollState = rememberScrollState()
@@ -649,350 +677,242 @@ fun NovelPlayerScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(scrollState)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                if (activeSettingTab != null) {
-                                    activeSettingTab = null
-                                } else {
-                                    isControlsVisible = !isControlsVisible
-                                }
-                            }
                             .padding(
-                                top = if (isControlsVisible) 88.dp else 40.dp,
-                                bottom = if (isControlsVisible) 120.dp else 44.dp,
+                                top = if (isControlsVisible) 80.dp else 40.dp,
+                                bottom = 120.dp,
                                 start = horizontalMarginDp.dp,
                                 end = horizontalMarginDp.dp
                             )
                     ) {
                         Text(
                             text = chapter.title,
-                            fontFamily = currentFont.family,
+                            fontFamily = resolvedFont,
                             fontSize = (fontSizeSp + 6).sp,
                             fontWeight = FontWeight.Bold,
                             color = currentTheme.text,
                             lineHeight = ((fontSizeSp + 6) * 1.3f).sp
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(Modifier.height(6.dp))
                         Text(
                             text = "Chapter ${page + 1} of ${chapters.size} • ${chapter.wordCount} words",
                             color = currentTheme.secondaryText,
                             fontSize = 12.sp,
-                            fontFamily = currentFont.family
+                            fontFamily = resolvedFont
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(Modifier.height(16.dp))
                         HorizontalDivider(color = currentTheme.border.copy(alpha = 0.5f))
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(Modifier.height(20.dp))
 
                         val paragraphs = remember(chapter.content) {
-                            chapter.content.split(Regex("""\n\s*\n"""))
+                            val raw = chapter.content
+                            if (raw.contains("\n\n") || raw.contains("\r\n\r\n")) {
+                                raw.split(Regex("""(?:\r?\n\s*){2,}"""))
+                            } else {
+                                raw.split(Regex("""\r?\n"""))
+                            }
                         }
 
                         SelectionContainer {
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(paragraphSpacingDp.dp)
-                            ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(paragraphSpacingDp.dp)) {
                                 paragraphs.forEach { p ->
                                     if (p.isNotBlank()) {
                                         Text(
                                             text = p.trim(),
                                             color = currentTheme.text,
                                             fontSize = fontSizeSp.sp,
-                                            fontFamily = currentFont.family,
+                                            fontFamily = resolvedFont,
                                             lineHeight = (fontSizeSp * lineHeightMultiplier).sp,
-                                            textAlign = TextAlign.Start,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable(
-                                                    interactionSource = remember { MutableInteractionSource() },
-                                                    indication = null
-                                                ) {
-                                                    if (activeSettingTab != null) {
-                                                        activeSettingTab = null
-                                                    } else {
-                                                        isControlsVisible = !isControlsVisible
-                                                    }
-                                                }
+                                            textAlign = textAlign,
+                                            modifier = Modifier.fillMaxWidth()
                                         )
                                     }
                                 }
                             }
                         }
-                        Spacer(modifier = Modifier.height(40.dp))
+                        Spacer(Modifier.height(40.dp))
                     }
                 }
             }
 
-            // ─────────────────────────────────────────────────────────────────────────────
-            // Top HUD Bar
-            // ─────────────────────────────────────────────────────────────────────────────
+            // ═════════════════════════════════════════════════════════════════════
+            // TOP HUD — Minimalist: Back button + Title/Chapter only
+            // ═════════════════════════════════════════════════════════════════════
             AnimatedVisibility(
                 visible = isControlsVisible,
-                enter = fadeIn(tween(250)) + slideInVertically(tween(250)) { -it },
-                exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { -it },
+                enter = fadeIn(tween(200)) + slideInVertically(tween(220)) { -it },
+                exit = fadeOut(tween(180)) + slideOutVertically(tween(200)) { -it },
                 modifier = Modifier.align(Alignment.TopCenter)
             ) {
-                Surface(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .shadow(12.dp, spotColor = Color.Black.copy(alpha = 0.3f)),
-                    color = currentTheme.surface.copy(alpha = 0.95f),
-                    border = BorderStroke(1.dp, currentTheme.border.copy(alpha = 0.4f))
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    currentTheme.bg.copy(alpha = 0.96f),
+                                    currentTheme.bg.copy(alpha = 0f)
+                                )
+                            )
+                        )
+                        .statusBarsPadding()
+                        .displayCutoutPadding()
+                        .padding(start = 4.dp, end = 70.dp, top = 8.dp, bottom = 24.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "Back",
+                            tint = currentTheme.text
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 4.dp)
+                    ) {
+                        Text(
+                            text = novelBook?.title ?: mangaEntity?.title ?: "Novel Reader",
+                            color = currentTheme.text,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (activeChapter?.title != null) {
+                            Text(
+                                text = activeChapter.title,
+                                color = currentTheme.secondaryText,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ═════════════════════════════════════════════════════════════════════
+            // BOTTOM NAVIGATION PILL — Manhua/Toon style + Scroll to Top Button
+            // ═════════════════════════════════════════════════════════════════════
+            AnimatedVisibility(
+                visible = isControlsVisible,
+                enter = fadeIn(tween(200)) + slideInVertically(tween(220)) { it },
+                exit = fadeOut(tween(180)) + slideOutVertically(tween(200)) { it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 32.dp)
+            ) {
+                val overlayBg = Color(0xFF141418).copy(alpha = 0.94f)
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    // Center Chapter Navigation Pill
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
+                            .align(Alignment.Center)
+                            .background(overlayBg, RoundedCornerShape(50))
+                            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), RoundedCornerShape(50))
                             .padding(horizontal = 8.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = currentTheme.text)
-                        }
-
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(horizontal = 8.dp)
-                        ) {
-                            Text(
-                                text = novelBook?.title ?: mangaEntity?.title ?: "Novel Reader",
-                                color = currentTheme.text,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = activeChapter?.title ?: "",
-                                color = currentTheme.secondaryText,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-
-                        // Bookmark toggle
-                        val isBookmarked = bookmarkedChapters.contains(currentChapterIndex)
+                        // Prev chapter
                         IconButton(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                bookmarkedChapters = if (isBookmarked) {
-                                    bookmarkedChapters - currentChapterIndex
-                                } else {
-                                    bookmarkedChapters + currentChapterIndex
-                                }
-                            }
+                                if (currentChapterIndex > 0) currentChapterIndex--
+                            },
+                            enabled = currentChapterIndex > 0,
+                            modifier = Modifier.size(44.dp)
                         ) {
                             Icon(
-                                imageVector = if (isBookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
-                                contentDescription = "Bookmark",
-                                tint = if (isBookmarked) currentTheme.accent else currentTheme.secondaryText
+                                Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
+                                contentDescription = "Prev Chapter",
+                                tint = if (currentChapterIndex > 0) Color.White else Color.White.copy(alpha = 0.22f),
+                                modifier = Modifier.size(28.dp)
                             )
                         }
 
-                        // Table of Contents Toggle
-                        IconButton(
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                showTocDrawer = true
-                            }
+                        // Chapter picker button
+                        Box(
+                            modifier = Modifier
+                                .background(Color.White.copy(alpha = 0.10f), RoundedCornerShape(24.dp))
+                                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), RoundedCornerShape(24.dp))
+                                .clip(RoundedCornerShape(24.dp))
+                                .clickable {
+                                    activeSettingTab = null
+                                    showTocSheet = true
+                                }
+                                .padding(horizontal = 18.dp, vertical = 10.dp)
                         ) {
-                            Icon(Icons.Rounded.FormatListBulleted, contentDescription = "Table of Contents", tint = currentTheme.text)
+                            Text(
+                                text = activeChapter?.title ?: "Chapter ${currentChapterIndex + 1}",
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.widthIn(max = 160.dp)
+                            )
                         }
 
-                        // Typography & Appearance Settings Toggle
+                        // Next chapter
                         IconButton(
                             onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                activeSettingTab = if (activeSettingTab == NovelSettingTab.TYPOGRAPHY) null else NovelSettingTab.TYPOGRAPHY
-                            }
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                if (currentChapterIndex < chapters.size - 1) currentChapterIndex++
+                            },
+                            enabled = currentChapterIndex < chapters.size - 1,
+                            modifier = Modifier.size(44.dp)
                         ) {
                             Icon(
-                                Icons.Rounded.FormatSize,
-                                contentDescription = "Appearance",
-                                tint = if (activeSettingTab == NovelSettingTab.TYPOGRAPHY) currentTheme.accent else currentTheme.text
+                                Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                contentDescription = "Next Chapter",
+                                tint = if (currentChapterIndex < chapters.size - 1) Color.White else Color.White.copy(alpha = 0.22f),
+                                modifier = Modifier.size(28.dp)
                             )
                         }
                     }
-                }
-            }
 
-            // ─────────────────────────────────────────────────────────────────────────────
-            // Bottom HUD Bar
-            // ─────────────────────────────────────────────────────────────────────────────
-            AnimatedVisibility(
-                visible = isControlsVisible,
-                enter = fadeIn(tween(250)) + slideInVertically(tween(250)) { it },
-                exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it },
-                modifier = Modifier.align(Alignment.BottomCenter)
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(16.dp, spotColor = Color.Black.copy(alpha = 0.4f)),
-                    color = currentTheme.surface.copy(alpha = 0.95f),
-                    border = BorderStroke(1.dp, currentTheme.border.copy(alpha = 0.4f))
-                ) {
-                    Column(
+                    // Scroll to Top Button (aligned CenterEnd, identical to ToonPlayerScreen)
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 16.dp)
+                            .size(44.dp)
+                            .background(overlayBg, CircleShape)
+                            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), CircleShape)
+                            .clip(CircleShape)
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                coroutineScope.launch {
+                                    verticalListState.scrollToItem(0)
+                                }
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
-                        // Chapter progress indicator and chapter seek
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "Chapter ${currentChapterIndex + 1} of ${chapters.size}",
-                                color = currentTheme.secondaryText,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-
-                            val progressPercent = if (chapters.isNotEmpty()) {
-                                ((currentChapterIndex + 1).toFloat() / chapters.size.toFloat() * 100f).toInt()
-                            } else 0
-
-                            Text(
-                                text = "$progressPercent%",
-                                color = currentTheme.accent,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        // Progress Slider
-                        if (chapters.size > 1) {
-                            Slider(
-                                value = currentChapterIndex.toFloat(),
-                                onValueChange = { newIdx ->
-                                    currentChapterIndex = newIdx.toInt().coerceIn(0, chapters.size - 1)
-                                },
-                                onValueChangeFinished = {
-                                    saveProgress(currentChapterIndex)
-                                },
-                                valueRange = 0f..(chapters.size - 1).toFloat(),
-                                steps = (chapters.size - 2).coerceAtLeast(0),
-                                colors = SliderDefaults.colors(
-                                    thumbColor = currentTheme.accent,
-                                    activeTrackColor = currentTheme.accent,
-                                    inactiveTrackColor = currentTheme.border
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-
-                        // Bottom Actions: Prev Chapter, Mode Toggle, Theme Quick Picker, Next Chapter
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = {
-                                    if (currentChapterIndex > 0) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        currentChapterIndex--
-                                    }
-                                },
-                                enabled = currentChapterIndex > 0
-                            ) {
-                                Icon(
-                                    Icons.AutoMirrored.Rounded.ArrowBack,
-                                    contentDescription = "Previous",
-                                    tint = if (currentChapterIndex > 0) currentTheme.text else currentTheme.secondaryText.copy(alpha = 0.3f)
-                                )
-                            }
-
-                            // Read Mode Toggle (Paginated vs Scroll)
-                            Surface(
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    readMode = if (readMode == NovelReadMode.PAGINATED) NovelReadMode.VERTICAL_SCROLL else NovelReadMode.PAGINATED
-                                },
-                                shape = RoundedCornerShape(16.dp),
-                                color = currentTheme.bg,
-                                border = BorderStroke(1.dp, currentTheme.border)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = if (readMode == NovelReadMode.PAGINATED) Icons.AutoMirrored.Rounded.MenuBook else Icons.Rounded.SwapVert,
-                                        contentDescription = null,
-                                        tint = currentTheme.accent,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Text(
-                                        text = if (readMode == NovelReadMode.PAGINATED) "Paginated" else "Scroll",
-                                        color = currentTheme.text,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
-
-                            // Quick Themes Row
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                NovelTheme.values().forEach { theme ->
-                                    Box(
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .clip(CircleShape)
-                                            .background(theme.bg)
-                                            .border(
-                                                width = if (currentTheme == theme) 2.dp else 1.dp,
-                                                color = if (currentTheme == theme) currentTheme.accent else theme.border,
-                                                shape = CircleShape
-                                            )
-                                            .clickable {
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                currentTheme = theme
-                                            }
-                                    )
-                                }
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    if (currentChapterIndex < chapters.size - 1) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        currentChapterIndex++
-                                    }
-                                },
-                                enabled = currentChapterIndex < chapters.size - 1
-                            ) {
-                                Icon(
-                                    Icons.AutoMirrored.Rounded.ArrowForward,
-                                    contentDescription = "Next",
-                                    tint = if (currentChapterIndex < chapters.size - 1) currentTheme.text else currentTheme.secondaryText.copy(alpha = 0.3f)
-                                )
-                            }
-                        }
+                        Icon(
+                            imageVector = Icons.Rounded.KeyboardArrowUp,
+                            contentDescription = "Scroll to Top",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
                 }
             }
 
-            // ─────────────────────────────────────────────────────────────────────────────
-            // INVISIBLE TOP-RIGHT FOCUS TRIGGER ZONE (Effortless corner tap when HUD hidden)
-            // ─────────────────────────────────────────────────────────────────────────────
-            if (!isControlsVisible && !showTocDrawer && !showBookmarksSheet && !showTypographySheet) {
+            // ═════════════════════════════════════════════════════════════════════
+            // RIGHT-SIDE FOCUS TRIGGER (Full-height right margin tap zone)
+            // ═════════════════════════════════════════════════════════════════════
+            if (!isControlsVisible && !showTocSheet) {
+                // Entire right margin tap zone (as drawn by user in screenshot 14.32.09)
                 Box(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(width = 160.dp, height = 140.dp)
+                        .align(Alignment.CenterEnd)
+                        .fillMaxHeight()
+                        .width(72.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
@@ -1001,22 +921,74 @@ fun NovelPlayerScreen(
                             isControlsVisible = true
                         }
                 )
+
+                // Reading Progress Pill (bottom-right 53% indicator from screenshot 14.32.09)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF141418).copy(alpha = 0.85f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .navigationBarsPadding()
+                        .padding(end = 16.dp, bottom = 24.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            isControlsVisible = true
+                        }
+                ) {
+                    Text(
+                        text = "$scrollProgressPercent%",
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
             }
 
-            // ─────────────────────────────────────────────────────────────────────────────
-            // VERTICAL SETTINGS PILL & LIVE SETTINGS POPUP (Manga / Manhua Style)
-            // ─────────────────────────────────────────────────────────────────────────────
+            // Tap anywhere on canvas when controls visible → dismiss controls
+            if (isControlsVisible && activeSettingTab == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            isControlsVisible = false
+                        }
+                )
+            }
+
+            // ═════════════════════════════════════════════════════════════════════
+            // SETTINGS PILL (right side, visible when controls visible)
+            // ═════════════════════════════════════════════════════════════════════
             AnimatedVisibility(
                 visible = isControlsVisible,
                 enter = fadeIn(tween(200)),
                 exit = fadeOut(tween(180)),
                 modifier = Modifier.fillMaxSize()
             ) {
+                val isBookmarked = bookmarkedChapters.contains(currentChapterIndex)
                 NovelReaderSettingsPill(
                     activeTab = activeSettingTab,
                     onTabSelected = { activeSettingTab = it },
                     currentFont = currentFont,
-                    onFontChange = { currentFont = it },
+                    onFontChange = {
+                        selectedCustomFontName = null
+                        currentFont = it
+                    },
+                    customFonts = customFonts,
+                    selectedCustomFontName = selectedCustomFontName,
+                    onSelectCustomFont = { selectedCustomFontName = it },
+                    onAddCustomFont = {
+                        fontPickerLauncher.launch(
+                            arrayOf("font/*", "application/octet-stream", "application/x-font-ttf", "application/x-font-opentype")
+                        )
+                    },
                     fontSizeSp = fontSizeSp,
                     onFontSizeChange = { fontSizeSp = it },
                     lineHeightMultiplier = lineHeightMultiplier,
@@ -1025,6 +997,8 @@ fun NovelPlayerScreen(
                     onParagraphSpacingChange = { paragraphSpacingDp = it },
                     horizontalMarginDp = horizontalMarginDp,
                     onHorizontalMarginChange = { horizontalMarginDp = it },
+                    textAlign = textAlign,
+                    onTextAlignChange = { textAlign = it },
                     currentTheme = currentTheme,
                     onThemeChange = { currentTheme = it },
                     readMode = readMode,
@@ -1033,312 +1007,139 @@ fun NovelPlayerScreen(
                     onKeepScreenOnChange = { keepScreenOn = it },
                     brightnessOverride = brightnessOverride,
                     onBrightnessOverrideChange = { brightnessOverride = it },
+                    onShowToc = { showTocSheet = true; activeSettingTab = null },
+                    onToggleBookmark = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        bookmarkedChapters = if (isBookmarked)
+                            bookmarkedChapters - currentChapterIndex
+                        else
+                            bookmarkedChapters + currentChapterIndex
+                    },
+                    isBookmarked = isBookmarked,
                     glowColor = currentTheme.accent,
                     modifier = Modifier.fillMaxSize()
                 )
             }
+        }
+    }
 
-            // ─────────────────────────────────────────────────────────────────────────────
-            // Table of Contents Modal Bottom Sheet
-            // ─────────────────────────────────────────────────────────────────────────────
-            if (showTocDrawer) {
-                var searchQuery by remember { mutableStateOf("") }
-                val filteredChapters = remember(chapters, searchQuery) {
-                    if (searchQuery.isBlank()) chapters
-                    else chapters.filter { it.title.contains(searchQuery, ignoreCase = true) }
+    // ═════════════════════════════════════════════════════════════════════════
+    // TABLE OF CONTENTS MODAL BOTTOM SHEET
+    // ═════════════════════════════════════════════════════════════════════════
+    if (showTocSheet) {
+        var searchQuery by remember { mutableStateOf("") }
+        val filteredChapters = remember(chapters, searchQuery) {
+            if (searchQuery.isBlank()) chapters
+            else chapters.filter { it.title.contains(searchQuery, ignoreCase = true) }
+        }
+
+        ModalBottomSheet(
+            onDismissRequest = { showTocSheet = false },
+            containerColor = currentTheme.surface,
+            dragHandle = { BottomSheetDefaults.DragHandle(color = currentTheme.secondaryText) }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Table of Contents",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = currentTheme.text
+                    )
+                    Text(
+                        text = "${chapters.size} Chapters",
+                        fontSize = 13.sp,
+                        color = currentTheme.secondaryText
+                    )
                 }
 
-                ModalBottomSheet(
-                    onDismissRequest = { showTocDrawer = false },
-                    containerColor = currentTheme.surface,
-                    dragHandle = { BottomSheetDefaults.DragHandle(color = currentTheme.secondaryText) }
+                Spacer(Modifier.height(14.dp))
+
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search chapter…", color = currentTheme.secondaryText) },
+                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = currentTheme.secondaryText) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = currentTheme.text,
+                        unfocusedTextColor = currentTheme.text,
+                        focusedBorderColor = currentTheme.accent,
+                        unfocusedBorderColor = currentTheme.border
+                    )
+                )
+
+                Spacer(Modifier.height(14.dp))
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 480.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                            .padding(bottom = 32.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                    itemsIndexed(filteredChapters) { _, chapter ->
+                        val isSelected = chapter.index == currentChapterIndex
+                        val isBookmarked = bookmarkedChapters.contains(chapter.index)
+
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                currentChapterIndex = chapter.index
+                                saveProgress(chapter.index)
+                                showTocSheet = false
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) currentTheme.accent.copy(alpha = 0.15f) else Color.Transparent,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(
-                                text = "Table of Contents",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = currentTheme.text
-                            )
-                            Text(
-                                text = "${chapters.size} Chapters",
-                                fontSize = 13.sp,
-                                color = currentTheme.secondaryText
-                            )
-                        }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "${chapter.index + 1}",
+                                    color = if (isSelected) currentTheme.accent else currentTheme.secondaryText,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.width(36.dp)
+                                )
 
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Search Chapters
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = { Text("Search chapter title...", color = currentTheme.secondaryText) },
-                            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = currentTheme.secondaryText) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = currentTheme.text,
-                                unfocusedTextColor = currentTheme.text,
-                                focusedBorderColor = currentTheme.accent,
-                                unfocusedBorderColor = currentTheme.border
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 420.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            itemsIndexed(filteredChapters) { _, chapter ->
-                                val isSelected = chapter.index == currentChapterIndex
-                                val isBookmarked = bookmarkedChapters.contains(chapter.index)
-
-                                Surface(
-                                    onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        currentChapterIndex = chapter.index
-                                        saveProgress(chapter.index)
-                                        showTocDrawer = false
-                                    },
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (isSelected) currentTheme.accent.copy(alpha = 0.15f) else Color.Transparent,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "${chapter.index + 1}",
-                                            color = if (isSelected) currentTheme.accent else currentTheme.secondaryText,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.width(36.dp)
-                                        )
-
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = chapter.title,
-                                                color = if (isSelected) currentTheme.accent else currentTheme.text,
-                                                fontSize = 15.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                text = "${chapter.wordCount} words",
-                                                color = currentTheme.secondaryText,
-                                                fontSize = 12.sp
-                                            )
-                                        }
-
-                                        if (isBookmarked) {
-                                            Icon(
-                                                imageVector = Icons.Rounded.Bookmark,
-                                                contentDescription = "Bookmarked",
-                                                tint = currentTheme.accent,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ─────────────────────────────────────────────────────────────────────────────
-            // Typography & Appearance Modal Bottom Sheet
-            // ─────────────────────────────────────────────────────────────────────────────
-            if (showTypographySheet) {
-                ModalBottomSheet(
-                    onDismissRequest = { showTypographySheet = false },
-                    containerColor = currentTheme.surface,
-                    dragHandle = { BottomSheetDefaults.DragHandle(color = currentTheme.secondaryText) }
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp)
-                            .padding(bottom = 36.dp)
-                    ) {
-                        Text(
-                            text = "Reading Appearance",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = currentTheme.text
-                        )
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        // Theme Selector
-                        Text("Theme", color = currentTheme.secondaryText, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            NovelTheme.values().forEach { theme ->
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.clickable {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        currentTheme = theme
-                                    }
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(44.dp)
-                                            .clip(CircleShape)
-                                            .background(theme.bg)
-                                            .border(
-                                                width = if (currentTheme == theme) 2.5.dp else 1.dp,
-                                                color = if (currentTheme == theme) currentTheme.accent else theme.border,
-                                                shape = CircleShape
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text("Aa", color = theme.text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = theme.label,
-                                        color = if (currentTheme == theme) currentTheme.accent else currentTheme.secondaryText,
-                                        fontSize = 11.sp
+                                        text = chapter.title,
+                                        color = if (isSelected) currentTheme.accent else currentTheme.text,
+                                        fontSize = 15.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${chapter.wordCount} words",
+                                        color = currentTheme.secondaryText,
+                                        fontSize = 12.sp
                                     )
                                 }
-                            }
-                        }
 
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        // Font Family Selector
-                        Text("Font Family", color = currentTheme.secondaryText, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            NovelFontFamily.values().forEach { font ->
-                                val isSelected = currentFont == font
-                                Surface(
-                                    onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        currentFont = font
-                                    },
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (isSelected) currentTheme.accent.copy(alpha = 0.2f) else currentTheme.bg,
-                                    border = BorderStroke(1.dp, if (isSelected) currentTheme.accent else currentTheme.border),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Box(modifier = Modifier.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
-                                        Text(
-                                            text = font.label,
-                                            fontFamily = font.family,
-                                            color = if (isSelected) currentTheme.accent else currentTheme.text,
-                                            fontSize = 13.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        // Font Size Slider
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Font Size", color = currentTheme.secondaryText, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                            Text("${fontSizeSp.toInt()} sp", color = currentTheme.accent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Slider(
-                            value = fontSizeSp,
-                            onValueChange = { fontSizeSp = it },
-                            valueRange = 14f..32f,
-                            steps = 9,
-                            colors = SliderDefaults.colors(
-                                thumbColor = currentTheme.accent,
-                                activeTrackColor = currentTheme.accent,
-                                inactiveTrackColor = currentTheme.border
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Line Spacing
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Line Spacing", color = currentTheme.secondaryText, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf(1.4f, 1.65f, 1.9f, 2.2f).forEach { multiplier ->
-                                    val isSelected = (lineHeightMultiplier - multiplier) in -0.05f..0.05f
-                                    Surface(
-                                        onClick = { lineHeightMultiplier = multiplier },
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = if (isSelected) currentTheme.accent.copy(alpha = 0.2f) else currentTheme.bg,
-                                        border = BorderStroke(1.dp, if (isSelected) currentTheme.accent else currentTheme.border)
-                                    ) {
-                                        Text(
-                                            text = "${multiplier}x",
-                                            color = if (isSelected) currentTheme.accent else currentTheme.text,
-                                            fontSize = 12.sp,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Page Margins
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Page Margin", color = currentTheme.secondaryText, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf(14, 20, 28, 36).forEach { margin ->
-                                    val isSelected = horizontalMarginDp == margin
-                                    Surface(
-                                        onClick = { horizontalMarginDp = margin },
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = if (isSelected) currentTheme.accent.copy(alpha = 0.2f) else currentTheme.bg,
-                                        border = BorderStroke(1.dp, if (isSelected) currentTheme.accent else currentTheme.border)
-                                    ) {
-                                        Text(
-                                            text = "${margin}dp",
-                                            color = if (isSelected) currentTheme.accent else currentTheme.text,
-                                            fontSize = 12.sp,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                        )
-                                    }
+                                if (isBookmarked) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Bookmark,
+                                        contentDescription = "Bookmarked",
+                                        tint = currentTheme.accent,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
                             }
                         }
