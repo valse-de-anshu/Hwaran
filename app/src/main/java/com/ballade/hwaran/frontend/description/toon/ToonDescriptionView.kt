@@ -103,6 +103,7 @@ fun ToonDescriptionView(
     val TextMuted = MaterialTheme.colorScheme.onSurfaceVariant
 
     var isSynopsisExpanded by remember { mutableStateOf(false) }
+    var isTagsExpanded by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
 
     val resolvedCoverModel = remember(manga.coverPath, draftCover, isEditMode) {
@@ -491,20 +492,32 @@ fun ToonDescriptionView(
                         }
                     }
 
-                    // Assigned Tags FlowRow with ✕ Buttons
+                    // Assigned Tags FlowRow
+                    val maxInitialTags = 6
+                    val displayTags = if (isEditMode || isTagsExpanded || assignedTags.size <= maxInitialTags) {
+                        assignedTags
+                    } else {
+                        assignedTags.take(maxInitialTags)
+                    }
+
                     FlowRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        assignedTags.forEach { tag ->
+                        displayTags.forEach { tag ->
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
                                 color = CardBg.copy(alpha = 0.85f),
                                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(start = 10.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                                    modifier = Modifier.padding(
+                                        start = 10.dp,
+                                        end = if (isEditMode) 4.dp else 10.dp,
+                                        top = 5.dp,
+                                        bottom = 5.dp
+                                    ),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
@@ -514,18 +527,49 @@ fun ToonDescriptionView(
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Medium
                                     )
-                                    // ✕ Button to cut/remove unnecessary tag
-                                    IconButton(
-                                        onClick = { onRemoveTag(tag) },
-                                        modifier = Modifier.size(20.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Close,
-                                            contentDescription = "Remove $tag",
-                                            tint = Color.White.copy(alpha = 0.6f),
-                                            modifier = Modifier.size(12.dp)
-                                        )
+                                    // ✕ Button ONLY in edit mode
+                                    if (isEditMode) {
+                                        IconButton(
+                                            onClick = { onRemoveTag(tag) },
+                                            modifier = Modifier.size(20.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Close,
+                                                contentDescription = "Remove $tag",
+                                                tint = Color.White.copy(alpha = 0.6f),
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                        }
                                     }
+                                }
+                            }
+                        }
+
+                        // Expand / Collapse Chevron Pill when more than 6 tags
+                        if (!isEditMode && assignedTags.size > maxInitialTags) {
+                            Surface(
+                                onClick = { isTagsExpanded = !isTagsExpanded },
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color.White.copy(alpha = 0.08f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text(
+                                        text = if (isTagsExpanded) "Less" else "+${assignedTags.size - maxInitialTags}",
+                                        color = Color.White.copy(alpha = 0.85f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Icon(
+                                        imageVector = if (isTagsExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                                        contentDescription = if (isTagsExpanded) "Show fewer tags" else "Show all tags",
+                                        tint = Color.White.copy(alpha = 0.85f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 }
                             }
                         }

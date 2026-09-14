@@ -162,7 +162,8 @@ object ToonExternalSingleImport {
                 context = context,
                 mangaId = mangaId,
                 parentUri = uriStr,
-                metadata = parsedZine.toEntryMetadata()
+                metadata = parsedZine.toEntryMetadata(),
+                forceWriteToFile = false
             )
         }
 

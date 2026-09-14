@@ -557,7 +557,8 @@ class LibraryRepository(private val context: Context, private val database: AppD
                 context = context,
                 mangaId = mangaId,
                 parentUri = mangaToInsert.parentUri,
-                metadata = parsedZine.toEntryMetadata()
+                metadata = parsedZine.toEntryMetadata(),
+                forceWriteToFile = false
             )
         }
 

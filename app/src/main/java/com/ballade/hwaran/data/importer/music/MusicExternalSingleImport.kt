@@ -122,7 +122,8 @@ object MusicExternalSingleImport {
                 context = context,
                 mangaId = albumId,
                 parentUri = uriStr,
-                metadata = parsedZine.toEntryMetadata()
+                metadata = parsedZine.toEntryMetadata(),
+                forceWriteToFile = false
             )
         }
 

@@ -134,7 +134,8 @@ object BookLocalSingleImport {
                 context = context,
                 mangaId = mangaId,
                 parentUri = destFile.absolutePath,
-                metadata = parsedZine.toEntryMetadata()
+                metadata = parsedZine.toEntryMetadata(),
+                forceWriteToFile = false
             )
         }
 

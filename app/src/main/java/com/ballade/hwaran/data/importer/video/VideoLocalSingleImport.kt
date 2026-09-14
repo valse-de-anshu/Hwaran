@@ -175,7 +175,8 @@ object VideoLocalSingleImport {
                 context = context,
                 mangaId = mangaId,
                 parentUri = destination.absolutePath,
-                metadata = parsedZine.toEntryMetadata()
+                metadata = parsedZine.toEntryMetadata(),
+                forceWriteToFile = false
             )
         }
 

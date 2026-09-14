@@ -181,43 +181,64 @@ object MediaMetadataManager {
         baseFallback
     }
 
+    private fun mergeMetadataJson(existingContent: String?, metadata: EntryMetadata): String {
+        val trimmed = existingContent?.trim().orEmpty()
+        val obj = if (trimmed.startsWith("{")) {
+            try {
+                JSONObject(trimmed)
+            } catch (_: Exception) {
+                JSONObject()
+            }
+        } else {
+            JSONObject()
+        }
+
+        // Merge or update properties while preserving existing untouched fields
+        obj.put("title", metadata.title)
+        if (metadata.altTitle.isNotBlank() || obj.has("altTitle")) obj.put("altTitle", metadata.altTitle)
+        obj.put("author", metadata.author)
+        if (metadata.artist.isNotBlank() || obj.has("artist")) obj.put("artist", metadata.artist)
+        obj.put("description", metadata.description)
+        obj.put("type", metadata.type)
+        obj.put("status", metadata.status)
+        obj.put("rating", metadata.rating)
+        obj.put("tags", JSONArray(metadata.tags))
+        if (metadata.publisher.isNotBlank() || obj.has("publisher")) obj.put("publisher", metadata.publisher)
+        if (metadata.serialization.isNotBlank() || obj.has("serialization")) obj.put("serialization", metadata.serialization)
+        if (metadata.year.isNotBlank() || obj.has("year")) obj.put("year", metadata.year)
+        if (metadata.language.isNotBlank() || obj.has("language")) obj.put("language", metadata.language)
+        if (metadata.pages.isNotBlank() || obj.has("pages")) obj.put("pages", metadata.pages)
+        if (metadata.totalChapters > 0 || obj.has("totalChapters")) obj.put("totalChapters", metadata.totalChapters)
+        obj.put("isFavorite", metadata.isFavorite)
+
+        return obj.toString(2)
+    }
+
     /**
-     * Saves EntryMetadata to:
-     * 1. Internal app cache (files/metadata/{mangaId}.json)
-     * 2. Local entry.json in parentUri directory (if writable)
-     * 3. SAF entry.json (if content:// tree URI)
+     * Saves EntryMetadata according to Hwaran metadata rules:
+     * 1. Always caches to internal app storage (files/metadata/{mangaId}.json).
+     * 2. Finds existing .json in .zine/ or root folder.
+     *    - If existing JSON is found, uses/updates it (never creates an extraneous entry.json).
+     *    - If an existing JSON or .zine folder is empty, fills it with metadata.
+     *    - Only creates entry.json at root when NO .json exists anywhere in .zine or root.
+     * 3. [forceWriteToFile] determines if the file on disk should be written if it already exists with content.
+     *    - Set true when user explicitly edits metadata in description.
+     *    - Set false during media importing (so existing non-empty files are preserved untouched).
      */
     suspend fun saveMetadata(
         context: Context,
         mangaId: Long,
         parentUri: String?,
-        metadata: EntryMetadata
+        metadata: EntryMetadata,
+        forceWriteToFile: Boolean = true
     ): Boolean = withContext(Dispatchers.IO) {
-        val obj = JSONObject().apply {
-            put("title", metadata.title)
-            put("altTitle", metadata.altTitle)
-            put("author", metadata.author)
-            put("artist", metadata.artist)
-            put("description", metadata.description)
-            put("type", metadata.type)
-            put("status", metadata.status)
-            put("rating", metadata.rating)
-            put("tags", JSONArray(metadata.tags))
-            put("publisher", metadata.publisher)
-            put("serialization", metadata.serialization)
-            put("year", metadata.year)
-            put("language", metadata.language)
-            put("pages", metadata.pages)
-            put("totalChapters", metadata.totalChapters)
-            put("isFavorite", metadata.isFavorite)
-        }
-        val content = obj.toString(2)
+        val fullContent = mergeMetadataJson(null, metadata)
 
         // 1. Save to internal app storage cache
         try {
             val dir = File(context.filesDir, "metadata")
             if (!dir.exists()) dir.mkdirs()
-            File(dir, "$mangaId.json").writeText(content)
+            File(dir, "$mangaId.json").writeText(fullContent)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -225,9 +246,24 @@ object MediaMetadataManager {
         // 2. Try to save to local folder if parentUri is filesystem path
         if (!parentUri.isNullOrBlank() && parentUri.startsWith("/")) {
             try {
-                val dir = File(parentUri)
-                if (dir.exists() && dir.isDirectory && dir.canWrite()) {
-                    File(dir, "entry.json").writeText(content)
+                val f = File(parentUri)
+                val dir = if (f.isFile) f.parentFile else f
+                if (dir != null && dir.exists() && dir.isDirectory && dir.canWrite()) {
+                    val targetFile = ZineMetadataExtractor.findMetadataFile(dir)
+                    val exists = targetFile.exists()
+                    val isEmpty = !exists || targetFile.length() == 0L
+
+                    // Only write if forceWriteToFile == true (e.g. user edit) OR if the target file is empty
+                    val shouldWrite = forceWriteToFile || isEmpty
+                    if (shouldWrite) {
+                        val existingContent = if (exists && targetFile.length() > 0L) {
+                            try { targetFile.readText() } catch (_: Exception) { null }
+                        } else null
+
+                        val merged = mergeMetadataJson(existingContent, metadata)
+                        targetFile.parentFile?.mkdirs()
+                        targetFile.writeText(merged)
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -238,11 +274,20 @@ object MediaMetadataManager {
         if (!parentUri.isNullOrBlank() && parentUri.startsWith("content://")) {
             try {
                 val docDir = DocumentFile.fromTreeUri(context, Uri.parse(parentUri))
-                if (docDir != null && docDir.canWrite()) {
-                    val target = docDir.findFile("entry.json") ?: docDir.createFile("application/json", "entry.json")
+                if (docDir != null && docDir.isDirectory && docDir.canWrite()) {
+                    val target = ZineMetadataExtractor.findOrCreateMetadataDoc(docDir)
                     if (target != null) {
-                        context.contentResolver.openOutputStream(target.uri, "wt")?.use { stream ->
-                            stream.write(content.toByteArray(Charsets.UTF_8))
+                        val isEmpty = target.length() == 0L
+                        val shouldWrite = forceWriteToFile || isEmpty
+                        if (shouldWrite) {
+                            val existingContent = if (!isEmpty) {
+                                ZineMetadataExtractor.readDocText(context, target)
+                            } else null
+
+                            val merged = mergeMetadataJson(existingContent, metadata)
+                            context.contentResolver.openOutputStream(target.uri, "wt")?.use { stream ->
+                                stream.write(merged.toByteArray(Charsets.UTF_8))
+                            }
                         }
                     }
                 }

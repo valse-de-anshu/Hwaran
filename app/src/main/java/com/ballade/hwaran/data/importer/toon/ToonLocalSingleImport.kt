@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
+import com.ballade.hwaran.core.metadata.EntryMetadata
 import com.ballade.hwaran.core.metadata.MediaMetadataManager
 import com.ballade.hwaran.core.metadata.ZineMetadataExtractor
 import kotlinx.coroutines.Dispatchers
@@ -261,12 +262,21 @@ object ToonLocalSingleImport {
         repository.insertChapters(chapterEntities)
 
         // 7. Cache Full Metadata
-        if (parsedZine != null) {
+        val hasZineFolder = destination.listFiles()?.any { it.isDirectory && it.name.equals(".zine", ignoreCase = true) } == true
+        val hasExistingJson = destination.listFiles()?.any { it.isFile && it.extension.equals("json", ignoreCase = true) } == true
+        if (parsedZine != null || hasZineFolder || hasExistingJson) {
+            val meta = parsedZine?.toEntryMetadata() ?: EntryMetadata(
+                title = mangaToInsert.title,
+                author = "",
+                description = mangaToInsert.description,
+                type = mangaToInsert.boxPurpose ?: "Manga"
+            )
             MediaMetadataManager.saveMetadata(
                 context = context,
                 mangaId = mangaId,
                 parentUri = destination.absolutePath,
-                metadata = parsedZine.toEntryMetadata()
+                metadata = meta,
+                forceWriteToFile = false
             )
         }
 

@@ -385,7 +385,8 @@ object SeriesStructureImporter {
                 context = context,
                 mangaId = rootId,
                 parentUri = rootDestinationPath,
-                metadata = parsedZine.toEntryMetadata()
+                metadata = parsedZine.toEntryMetadata(),
+                forceWriteToFile = false
             )
         }
 

@@ -99,6 +99,7 @@ fun SeriesDescriptionView(
     val TextMuted = MaterialTheme.colorScheme.onSurfaceVariant
 
     var isSynopsisExpanded by remember { mutableStateOf(false) }
+    var isTagsExpanded by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
 
     val resolvedCoverModel = remember(manga.coverPath, draftCover, isEditMode) {
@@ -513,12 +514,19 @@ fun SeriesDescriptionView(
 
                     // Assigned Tag Pills
                     if (assignedTags.isNotEmpty()) {
+                        val maxInitialTags = 6
+                        val displayTags = if (isEditMode || isTagsExpanded || assignedTags.size <= maxInitialTags) {
+                            assignedTags
+                        } else {
+                            assignedTags.take(maxInitialTags)
+                        }
+
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            assignedTags.forEach { tag ->
+                            displayTags.forEach { tag ->
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
                                     color = CardBg,
@@ -553,6 +561,35 @@ fun SeriesDescriptionView(
                                                 )
                                             }
                                         }
+                                    }
+                                }
+                            }
+
+                            // Expand / Collapse Chevron Pill when more than 6 tags
+                            if (!isEditMode && assignedTags.size > maxInitialTags) {
+                                Surface(
+                                    onClick = { isTagsExpanded = !isTagsExpanded },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.White.copy(alpha = 0.08f),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        Text(
+                                            text = if (isTagsExpanded) "Less" else "+${assignedTags.size - maxInitialTags}",
+                                            color = Color.White.copy(alpha = 0.85f),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Icon(
+                                            imageVector = if (isTagsExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                                            contentDescription = if (isTagsExpanded) "Show fewer tags" else "Show all tags",
+                                            tint = Color.White.copy(alpha = 0.85f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
                                     }
                                 }
                             }

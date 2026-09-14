@@ -155,7 +155,7 @@ object ZineMetadataExtractor {
         return null
     }
 
-    private fun findJsonFileInDir(dir: File): File? {
+    fun findJsonFileInDir(dir: File): File? {
         val jsonFiles = dir.listFiles()?.filter {
             it.isFile && it.name.lowercase().endsWith(".json")
         } ?: return null
@@ -166,6 +166,27 @@ object ZineMetadataExtractor {
             val idx = PREFERRED_JSON_NAMES.indexOf(file.name.lowercase())
             if (idx >= 0) idx else 1000
         }.thenBy { it.name.lowercase() }).firstOrNull()
+    }
+
+    /**
+     * Resolves the target metadata JSON file for a local media folder:
+     * 1. If .zine/ exists:
+     *    - If it contains any .json file, return that file.
+     *    - If empty, target .zine/metadata.json.
+     * 2. Else if root folder contains any .json file, return that file.
+     * 3. Else fallback to folder/entry.json.
+     */
+    fun findMetadataFile(dir: File): File {
+        val zineDir = dir.listFiles()?.firstOrNull { it.isDirectory && it.name.equals(".zine", ignoreCase = true) }
+        if (zineDir != null) {
+            val existingJson = findJsonFileInDir(zineDir)
+            if (existingJson != null) return existingJson
+            return File(zineDir, "metadata.json")
+        }
+        val rootJson = findJsonFileInDir(dir)
+        if (rootJson != null) return rootJson
+
+        return File(dir, "entry.json")
     }
 
     /**
@@ -251,7 +272,7 @@ object ZineMetadataExtractor {
         return null
     }
 
-    private fun findJsonDocInDir(dirDoc: DocumentFile): DocumentFile? {
+    fun findJsonDocInDir(dirDoc: DocumentFile): DocumentFile? {
         val files = dirDoc.listFiles().filter {
             !it.isDirectory && it.name?.lowercase()?.endsWith(".json") == true
         }
@@ -263,7 +284,29 @@ object ZineMetadataExtractor {
         }.thenBy { doc -> doc.name?.lowercase().orEmpty() }).firstOrNull()
     }
 
-    private fun readDocText(context: Context, doc: DocumentFile): String? {
+    /**
+     * Resolves or creates the target metadata JSON DocumentFile for a SAF directory:
+     * 1. If .zine/ directory exists:
+     *    - If it contains any .json file, return that DocumentFile.
+     *    - If empty, create/return .zine/metadata.json.
+     * 2. Else if root directory contains any .json file, return that DocumentFile.
+     * 3. Else create/return root/entry.json.
+     */
+    fun findOrCreateMetadataDoc(dirDoc: DocumentFile): DocumentFile? {
+        if (!dirDoc.isDirectory) return null
+        val zineDoc = dirDoc.listFiles().firstOrNull { it.isDirectory && it.name.equals(".zine", ignoreCase = true) }
+        if (zineDoc != null) {
+            val existingJson = findJsonDocInDir(zineDoc)
+            if (existingJson != null) return existingJson
+            return zineDoc.findFile("metadata.json") ?: zineDoc.createFile("application/json", "metadata.json")
+        }
+        val rootJson = findJsonDocInDir(dirDoc)
+        if (rootJson != null) return rootJson
+
+        return dirDoc.findFile("entry.json") ?: dirDoc.createFile("application/json", "entry.json")
+    }
+
+    fun readDocText(context: Context, doc: DocumentFile): String? {
         return try {
             context.contentResolver.openInputStream(doc.uri)?.use { stream ->
                 stream.bufferedReader().readText()

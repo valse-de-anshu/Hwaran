@@ -145,6 +145,7 @@ fun NovelPlayerScreen(
     var isLoading by remember { mutableStateOf(true) }
     var currentChapterIndex by rememberSaveable { mutableIntStateOf(0) }
     var isControlsVisible by rememberSaveable { mutableStateOf(false) }
+    var activeSettingTab by remember { mutableStateOf<NovelSettingTab?>(null) }
     var showTocDrawer by remember { mutableStateOf(false) }
     var showTypographySheet by remember { mutableStateOf(false) }
     var showBookmarksSheet by remember { mutableStateOf(false) }
@@ -158,6 +159,8 @@ fun NovelPlayerScreen(
     var lineHeightMultiplier by rememberSaveable { mutableFloatStateOf(1.65f) }
     var paragraphSpacingDp by rememberSaveable { mutableIntStateOf(14) }
     var horizontalMarginDp by rememberSaveable { mutableIntStateOf(20) }
+    var keepScreenOn by rememberSaveable { mutableStateOf(false) }
+    var brightnessOverride by remember { mutableStateOf<Float?>(null) }
 
     // Immersive Fullscreen Mode Controller
     val activity = context as? Activity
@@ -176,6 +179,34 @@ fun NovelPlayerScreen(
             activity?.window?.let { w ->
                 WindowCompat.getInsetsController(w, w.decorView).show(WindowInsetsCompat.Type.systemBars())
             }
+        }
+    }
+
+    // Brightness Override Effect
+    DisposableEffect(brightnessOverride) {
+        val w = activity?.window
+        val lp = w?.attributes
+        if (brightnessOverride != null && lp != null) {
+            lp.screenBrightness = brightnessOverride!!
+            w.attributes = lp
+        }
+        onDispose {
+            if (lp != null) {
+                lp.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                w?.attributes = lp
+            }
+        }
+    }
+
+    // Keep Screen On Effect
+    DisposableEffect(keepScreenOn) {
+        if (keepScreenOn) {
+            activity?.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
 
@@ -263,7 +294,9 @@ fun NovelPlayerScreen(
     }
 
     BackHandler {
-        if (showTocDrawer) {
+        if (activeSettingTab != null) {
+            activeSettingTab = null
+        } else if (showTocDrawer) {
             showTocDrawer = false
         } else if (showTypographySheet) {
             showTypographySheet = false
@@ -374,10 +407,14 @@ fun NovelPlayerScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .pointerInput(Unit) {
+                        .pointerInput(activeSettingTab, isControlsVisible) {
                             detectTapGestures(
                                 onTap = {
-                                    isControlsVisible = !isControlsVisible
+                                    if (activeSettingTab != null) {
+                                        activeSettingTab = null
+                                    } else {
+                                        isControlsVisible = !isControlsVisible
+                                    }
                                 }
                             )
                         }
@@ -390,10 +427,35 @@ fun NovelPlayerScreen(
                             start = horizontalMarginDp.dp,
                             end = horizontalMarginDp.dp
                         ),
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                if (activeSettingTab != null) {
+                                    activeSettingTab = null
+                                } else {
+                                    isControlsVisible = !isControlsVisible
+                                }
+                            }
                     ) {
                         item(key = "chapter_header_${currentChapterIndex}") {
-                            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 20.dp)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) {
+                                        if (activeSettingTab != null) {
+                                            activeSettingTab = null
+                                        } else {
+                                            isControlsVisible = !isControlsVisible
+                                        }
+                                    }
+                            ) {
                                 Text(
                                     text = activeChapter?.title ?: "",
                                     fontFamily = currentFont.family,
@@ -449,7 +511,18 @@ fun NovelPlayerScreen(
                                                 fontFamily = currentFont.family,
                                                 lineHeight = (fontSizeSp * lineHeightMultiplier).sp,
                                                 textAlign = TextAlign.Start,
-                                                modifier = Modifier.fillMaxWidth()
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable(
+                                                        interactionSource = remember { MutableInteractionSource() },
+                                                        indication = null
+                                                    ) {
+                                                        if (activeSettingTab != null) {
+                                                            activeSettingTab = null
+                                                        } else {
+                                                            isControlsVisible = !isControlsVisible
+                                                        }
+                                                    }
                                             )
                                         }
                                     }
@@ -533,9 +606,13 @@ fun NovelPlayerScreen(
                     state = pagerState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .pointerInput(Unit) {
+                        .pointerInput(activeSettingTab, isControlsVisible) {
                             detectTapGestures(
                                 onTap = { offset ->
+                                    if (activeSettingTab != null) {
+                                        activeSettingTab = null
+                                        return@detectTapGestures
+                                    }
                                     val width = size.width
                                     when {
                                         offset.x < width * 0.25f -> {
@@ -572,6 +649,16 @@ fun NovelPlayerScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(scrollState)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                if (activeSettingTab != null) {
+                                    activeSettingTab = null
+                                } else {
+                                    isControlsVisible = !isControlsVisible
+                                }
+                            }
                             .padding(
                                 top = if (isControlsVisible) 88.dp else 40.dp,
                                 bottom = if (isControlsVisible) 120.dp else 44.dp,
@@ -615,7 +702,18 @@ fun NovelPlayerScreen(
                                             fontFamily = currentFont.family,
                                             lineHeight = (fontSizeSp * lineHeightMultiplier).sp,
                                             textAlign = TextAlign.Start,
-                                            modifier = Modifier.fillMaxWidth()
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable(
+                                                    interactionSource = remember { MutableInteractionSource() },
+                                                    indication = null
+                                                ) {
+                                                    if (activeSettingTab != null) {
+                                                        activeSettingTab = null
+                                                    } else {
+                                                        isControlsVisible = !isControlsVisible
+                                                    }
+                                                }
                                         )
                                     }
                                 }
@@ -708,10 +806,14 @@ fun NovelPlayerScreen(
                         IconButton(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                showTypographySheet = true
+                                activeSettingTab = if (activeSettingTab == NovelSettingTab.TYPOGRAPHY) null else NovelSettingTab.TYPOGRAPHY
                             }
                         ) {
-                            Icon(Icons.Rounded.FormatSize, contentDescription = "Appearance", tint = currentTheme.text)
+                            Icon(
+                                Icons.Rounded.FormatSize,
+                                contentDescription = "Appearance",
+                                tint = if (activeSettingTab == NovelSettingTab.TYPOGRAPHY) currentTheme.accent else currentTheme.text
+                            )
                         }
                     }
                 }
@@ -881,6 +983,59 @@ fun NovelPlayerScreen(
                         }
                     }
                 }
+            }
+
+            // ─────────────────────────────────────────────────────────────────────────────
+            // INVISIBLE TOP-RIGHT FOCUS TRIGGER ZONE (Effortless corner tap when HUD hidden)
+            // ─────────────────────────────────────────────────────────────────────────────
+            if (!isControlsVisible && !showTocDrawer && !showBookmarksSheet && !showTypographySheet) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(width = 160.dp, height = 140.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            isControlsVisible = true
+                        }
+                )
+            }
+
+            // ─────────────────────────────────────────────────────────────────────────────
+            // VERTICAL SETTINGS PILL & LIVE SETTINGS POPUP (Manga / Manhua Style)
+            // ─────────────────────────────────────────────────────────────────────────────
+            AnimatedVisibility(
+                visible = isControlsVisible,
+                enter = fadeIn(tween(200)),
+                exit = fadeOut(tween(180)),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                NovelReaderSettingsPill(
+                    activeTab = activeSettingTab,
+                    onTabSelected = { activeSettingTab = it },
+                    currentFont = currentFont,
+                    onFontChange = { currentFont = it },
+                    fontSizeSp = fontSizeSp,
+                    onFontSizeChange = { fontSizeSp = it },
+                    lineHeightMultiplier = lineHeightMultiplier,
+                    onLineHeightChange = { lineHeightMultiplier = it },
+                    paragraphSpacingDp = paragraphSpacingDp,
+                    onParagraphSpacingChange = { paragraphSpacingDp = it },
+                    horizontalMarginDp = horizontalMarginDp,
+                    onHorizontalMarginChange = { horizontalMarginDp = it },
+                    currentTheme = currentTheme,
+                    onThemeChange = { currentTheme = it },
+                    readMode = readMode,
+                    onReadModeChange = { readMode = it },
+                    keepScreenOn = keepScreenOn,
+                    onKeepScreenOnChange = { keepScreenOn = it },
+                    brightnessOverride = brightnessOverride,
+                    onBrightnessOverrideChange = { brightnessOverride = it },
+                    glowColor = currentTheme.accent,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
 
             // ─────────────────────────────────────────────────────────────────────────────
