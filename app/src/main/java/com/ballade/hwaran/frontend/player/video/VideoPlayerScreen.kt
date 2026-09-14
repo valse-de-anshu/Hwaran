@@ -92,6 +92,7 @@ fun VideoPlayerScreen(
     val database = remember { AppDatabase.getDatabase(context) }
     var videoUri by remember { mutableStateOf<Uri?>(null) }
     var chapterTitle by remember { mutableStateOf("Episode") }
+    var seriesTitle by remember { mutableStateOf<String?>(null) }
     var isLoadingMetadata by remember { mutableStateOf(true) }
 
     var allChapters by remember { mutableStateOf<List<com.ballade.hwaran.core.database.entity.ChapterEntity>>(emptyList()) }
@@ -160,6 +161,9 @@ fun VideoPlayerScreen(
             chapter?.let {
                 chapterTitle = it.title
                 val manga = database.libraryDao().getMangaById(it.mangaId)
+                if (manga != null && manga.title.isNotBlank() && manga.title != "Standalone Videos") {
+                    seriesTitle = manga.title
+                }
                 com.ballade.hwaran.core.util.HistoryTracker.logEvent(
                     "WATCH",
                     it.title,
@@ -440,14 +444,20 @@ fun VideoPlayerScreen(
                         IconButton(onClick = handleBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                         }
-                        if (isPortrait) {
+                        if (!isPortrait) {
                             Spacer(modifier = Modifier.width(12.dp))
+                            val displayTitle = if (!seriesTitle.isNullOrBlank() && seriesTitle != chapterTitle) {
+                                "$seriesTitle • $chapterTitle"
+                            } else {
+                                chapterTitle
+                            }
                             Text(
-                                text = chapterTitle, 
+                                text = displayTitle, 
                                 color = Color.White, 
                                 fontSize = 15.sp, 
                                 fontWeight = FontWeight.SemiBold,
-                                maxLines = Int.MAX_VALUE,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
                             )
                         }
