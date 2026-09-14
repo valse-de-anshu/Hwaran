@@ -405,27 +405,6 @@ fun NovelPlayerScreen(
     val chapters = novelBook?.chapters ?: emptyList()
     val activeChapter = chapters.getOrNull(currentChapterIndex)
 
-    // Scroll Progress Percentage Calculation (for bottom-right 53% indicator)
-    val scrollProgressPercent by remember(readMode, currentChapterIndex, chapters.size) {
-        derivedStateOf {
-            if (readMode == NovelReadMode.VERTICAL_SCROLL) {
-                val layoutInfo = verticalListState.layoutInfo
-                val totalItems = layoutInfo.totalItemsCount
-                if (totalItems <= 1) 0
-                else {
-                    val index = verticalListState.firstVisibleItemIndex
-                    val offset = verticalListState.firstVisibleItemScrollOffset
-                    val itemSize = layoutInfo.visibleItemsInfo.firstOrNull()?.size ?: 1000
-                    val fraction = (index.toFloat() + (offset.toFloat() / itemSize.coerceAtLeast(1))) / (totalItems.toFloat())
-                    (fraction * 100).toInt().coerceIn(0, 100)
-                }
-            } else {
-                if (chapters.isEmpty()) 0
-                else (((currentChapterIndex + 1).toFloat() / chapters.size.toFloat()) * 100).toInt().coerceIn(0, 100)
-            }
-        }
-    }
-
     // ── Root Canvas ─────────────────────────────────────────────────────────────
     Box(
         modifier = Modifier
@@ -749,31 +728,6 @@ fun NovelPlayerScreen(
                             isControlsVisible = true
                         }
                 )
-
-                // Reading Progress Pill (bottom-right 53% indicator from screenshot 14.32.09)
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF141418).copy(alpha = 0.85f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 16.dp, bottom = 24.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            isControlsVisible = true
-                        }
-                ) {
-                    Text(
-                        text = "$scrollProgressPercent%",
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
             }
 
             // ═════════════════════════════════════════════════════════════════════
