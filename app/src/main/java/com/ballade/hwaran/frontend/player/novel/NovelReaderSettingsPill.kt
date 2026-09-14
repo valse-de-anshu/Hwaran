@@ -177,8 +177,6 @@ fun NovelReaderSettingsPill(
     onBrightnessOverrideChange: (Float?) -> Unit,
     // Navigation & Quick Actions
     onShowToc: () -> Unit,
-    onToggleBookmark: () -> Unit,
-    isBookmarked: Boolean,
     glowColor: Color = Color(0xFFE6E8EC),
     modifier: Modifier = Modifier
 ) {
@@ -803,18 +801,6 @@ fun NovelReaderSettingsPill(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         onShowToc()
-                    }
-                )
-
-                // 6. Bookmark
-                VerticalPillIcon(
-                    icon = if (isBookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
-                    contentDescription = "Bookmark",
-                    isSelected = isBookmarked,
-                    glowColor = glowColor,
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onToggleBookmark()
                     }
                 )
             }

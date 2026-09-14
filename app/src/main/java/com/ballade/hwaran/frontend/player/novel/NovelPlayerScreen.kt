@@ -262,19 +262,15 @@ fun NovelPlayerScreen(
     // Shared LazyListState for continuous vertical scrolling
     val verticalListState = rememberLazyListState()
 
-    // ── Immersive Fullscreen ───────────────────────────────────────────────────
+    // ── Immersive Fullscreen (Always in Reading Mode) ───────────────────────────
     val activity = context as? Activity
-    DisposableEffect(isControlsVisible) {
+    DisposableEffect(Unit) {
         val window = activity?.window
         if (window != null) {
             val insetsController = WindowCompat.getInsetsController(window, window.decorView)
-            if (isControlsVisible) {
-                insetsController.show(WindowInsetsCompat.Type.systemBars())
-            } else {
-                insetsController.hide(WindowInsetsCompat.Type.systemBars())
-                insetsController.systemBarsBehavior =
-                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
+            insetsController.hide(WindowInsetsCompat.Type.systemBars())
+            insetsController.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         onDispose {
             activity?.window?.let { w ->
@@ -736,175 +732,6 @@ fun NovelPlayerScreen(
             }
 
             // ═════════════════════════════════════════════════════════════════════
-            // TOP HUD — Minimalist: Back button + Title/Chapter only
-            // ═════════════════════════════════════════════════════════════════════
-            AnimatedVisibility(
-                visible = isControlsVisible,
-                enter = fadeIn(tween(200)) + slideInVertically(tween(220)) { -it },
-                exit = fadeOut(tween(180)) + slideOutVertically(tween(200)) { -it },
-                modifier = Modifier.align(Alignment.TopCenter)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    currentTheme.bg.copy(alpha = 0.96f),
-                                    currentTheme.bg.copy(alpha = 0f)
-                                )
-                            )
-                        )
-                        .statusBarsPadding()
-                        .displayCutoutPadding()
-                        .padding(start = 4.dp, end = 70.dp, top = 8.dp, bottom = 24.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
-                            tint = currentTheme.text
-                        )
-                    }
-
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(start = 4.dp)
-                    ) {
-                        Text(
-                            text = novelBook?.title ?: mangaEntity?.title ?: "Novel Reader",
-                            color = currentTheme.text,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (activeChapter?.title != null) {
-                            Text(
-                                text = activeChapter.title,
-                                color = currentTheme.secondaryText,
-                                fontSize = 11.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-            }
-
-            // ═════════════════════════════════════════════════════════════════════
-            // BOTTOM NAVIGATION PILL — Manhua/Toon style + Scroll to Top Button
-            // ═════════════════════════════════════════════════════════════════════
-            AnimatedVisibility(
-                visible = isControlsVisible,
-                enter = fadeIn(tween(200)) + slideInVertically(tween(220)) { it },
-                exit = fadeOut(tween(180)) + slideOutVertically(tween(200)) { it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 32.dp)
-            ) {
-                val overlayBg = Color(0xFF141418).copy(alpha = 0.94f)
-
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    // Center Chapter Navigation Pill
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .background(overlayBg, RoundedCornerShape(50))
-                            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), RoundedCornerShape(50))
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Prev chapter
-                        IconButton(
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                if (currentChapterIndex > 0) currentChapterIndex--
-                            },
-                            enabled = currentChapterIndex > 0,
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
-                                contentDescription = "Prev Chapter",
-                                tint = if (currentChapterIndex > 0) Color.White else Color.White.copy(alpha = 0.22f),
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-
-                        // Chapter picker button
-                        Box(
-                            modifier = Modifier
-                                .background(Color.White.copy(alpha = 0.10f), RoundedCornerShape(24.dp))
-                                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), RoundedCornerShape(24.dp))
-                                .clip(RoundedCornerShape(24.dp))
-                                .clickable {
-                                    activeSettingTab = null
-                                    showTocSheet = true
-                                }
-                                .padding(horizontal = 18.dp, vertical = 10.dp)
-                        ) {
-                            Text(
-                                text = activeChapter?.title ?: "Chapter ${currentChapterIndex + 1}",
-                                color = Color.White,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.widthIn(max = 160.dp)
-                            )
-                        }
-
-                        // Next chapter
-                        IconButton(
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                if (currentChapterIndex < chapters.size - 1) currentChapterIndex++
-                            },
-                            enabled = currentChapterIndex < chapters.size - 1,
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                                contentDescription = "Next Chapter",
-                                tint = if (currentChapterIndex < chapters.size - 1) Color.White else Color.White.copy(alpha = 0.22f),
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-                    }
-
-                    // Scroll to Top Button (aligned CenterEnd, identical to ToonPlayerScreen)
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .padding(end = 16.dp)
-                            .size(44.dp)
-                            .background(overlayBg, CircleShape)
-                            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), CircleShape)
-                            .clip(CircleShape)
-                            .clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                coroutineScope.launch {
-                                    verticalListState.scrollToItem(0)
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.KeyboardArrowUp,
-                            contentDescription = "Scroll to Top",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-            }
-
-            // ═════════════════════════════════════════════════════════════════════
             // RIGHT-SIDE FOCUS TRIGGER (Full-height right margin tap zone)
             // ═════════════════════════════════════════════════════════════════════
             if (!isControlsVisible && !showTocSheet) {
@@ -930,7 +757,6 @@ fun NovelPlayerScreen(
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .navigationBarsPadding()
                         .padding(end = 16.dp, bottom = 24.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -950,76 +776,129 @@ fun NovelPlayerScreen(
                 }
             }
 
-            // Tap anywhere on canvas when controls visible → dismiss controls
-            if (isControlsVisible && activeSettingTab == null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            isControlsVisible = false
-                        }
-                )
-            }
-
             // ═════════════════════════════════════════════════════════════════════
-            // SETTINGS PILL (right side, visible when controls visible)
+            // OVERLAY CONTROLS (Top Bar, Dismiss Background, and Settings Pill)
             // ═════════════════════════════════════════════════════════════════════
             AnimatedVisibility(
                 visible = isControlsVisible,
-                enter = fadeIn(tween(200)),
-                exit = fadeOut(tween(180)),
+                enter = fadeIn(tween(180)),
+                exit = fadeOut(tween(160)),
                 modifier = Modifier.fillMaxSize()
             ) {
-                val isBookmarked = bookmarkedChapters.contains(currentChapterIndex)
-                NovelReaderSettingsPill(
-                    activeTab = activeSettingTab,
-                    onTabSelected = { activeSettingTab = it },
-                    currentFont = currentFont,
-                    onFontChange = {
-                        selectedCustomFontName = null
-                        currentFont = it
-                    },
-                    customFonts = customFonts,
-                    selectedCustomFontName = selectedCustomFontName,
-                    onSelectCustomFont = { selectedCustomFontName = it },
-                    onAddCustomFont = {
-                        fontPickerLauncher.launch(
-                            arrayOf("font/*", "application/octet-stream", "application/x-font-ttf", "application/x-font-opentype")
-                        )
-                    },
-                    fontSizeSp = fontSizeSp,
-                    onFontSizeChange = { fontSizeSp = it },
-                    lineHeightMultiplier = lineHeightMultiplier,
-                    onLineHeightChange = { lineHeightMultiplier = it },
-                    paragraphSpacingDp = paragraphSpacingDp,
-                    onParagraphSpacingChange = { paragraphSpacingDp = it },
-                    horizontalMarginDp = horizontalMarginDp,
-                    onHorizontalMarginChange = { horizontalMarginDp = it },
-                    textAlign = textAlign,
-                    onTextAlignChange = { isJustified = (it == TextAlign.Justify) },
-                    currentTheme = currentTheme,
-                    onThemeChange = { currentTheme = it },
-                    readMode = readMode,
-                    onReadModeChange = { readMode = it },
-                    keepScreenOn = keepScreenOn,
-                    onKeepScreenOnChange = { keepScreenOn = it },
-                    brightnessOverride = brightnessOverride,
-                    onBrightnessOverrideChange = { brightnessOverride = it },
-                    onShowToc = { showTocSheet = true; activeSettingTab = null },
-                    onToggleBookmark = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        bookmarkedChapters = if (isBookmarked)
-                            bookmarkedChapters - currentChapterIndex
-                        else
-                            bookmarkedChapters + currentChapterIndex
-                    },
-                    isBookmarked = isBookmarked,
-                    glowColor = currentTheme.accent,
-                    modifier = Modifier.fillMaxSize()
-                )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // 1. Transparent dismiss layer BEHIND top bar and settings pill
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                if (activeSettingTab != null) {
+                                    activeSettingTab = null
+                                } else {
+                                    isControlsVisible = false
+                                }
+                            }
+                    )
+
+                    // 2. TOP HUD — Minimalist: Back button + Title/Chapter only
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.TopCenter)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        currentTheme.bg.copy(alpha = 0.96f),
+                                        currentTheme.bg.copy(alpha = 0f)
+                                    )
+                                )
+                            )
+                            .statusBarsPadding()
+                            .displayCutoutPadding()
+                            .padding(start = 12.dp, end = 70.dp, top = 12.dp, bottom = 28.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = onNavigateBack,
+                            modifier = Modifier
+                                .size(44.dp)
+                                .background(currentTheme.surface.copy(alpha = 0.90f), CircleShape)
+                                .border(BorderStroke(1.dp, currentTheme.border.copy(alpha = 0.5f)), CircleShape)
+                                .clip(CircleShape)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Back",
+                                tint = currentTheme.text,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        Spacer(Modifier.width(10.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = novelBook?.title ?: mangaEntity?.title ?: "Novel Reader",
+                                color = currentTheme.text,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (activeChapter?.title != null) {
+                                Text(
+                                    text = activeChapter.title,
+                                    color = currentTheme.secondaryText,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
+                    // 3. Right Side Settings Pill (Without bookmark)
+                    NovelReaderSettingsPill(
+                        activeTab = activeSettingTab,
+                        onTabSelected = { activeSettingTab = it },
+                        currentFont = currentFont,
+                        onFontChange = {
+                            selectedCustomFontName = null
+                            currentFont = it
+                        },
+                        customFonts = customFonts,
+                        selectedCustomFontName = selectedCustomFontName,
+                        onSelectCustomFont = { selectedCustomFontName = it },
+                        onAddCustomFont = {
+                            fontPickerLauncher.launch(
+                                arrayOf("font/*", "application/octet-stream", "application/x-font-ttf", "application/x-font-opentype")
+                            )
+                        },
+                        fontSizeSp = fontSizeSp,
+                        onFontSizeChange = { fontSizeSp = it },
+                        lineHeightMultiplier = lineHeightMultiplier,
+                        onLineHeightChange = { lineHeightMultiplier = it },
+                        paragraphSpacingDp = paragraphSpacingDp,
+                        onParagraphSpacingChange = { paragraphSpacingDp = it },
+                        horizontalMarginDp = horizontalMarginDp,
+                        onHorizontalMarginChange = { horizontalMarginDp = it },
+                        textAlign = textAlign,
+                        onTextAlignChange = { isJustified = (it == TextAlign.Justify) },
+                        currentTheme = currentTheme,
+                        onThemeChange = { currentTheme = it },
+                        readMode = readMode,
+                        onReadModeChange = { readMode = it },
+                        keepScreenOn = keepScreenOn,
+                        onKeepScreenOnChange = { keepScreenOn = it },
+                        brightnessOverride = brightnessOverride,
+                        onBrightnessOverrideChange = { brightnessOverride = it },
+                        onShowToc = { showTocSheet = true; activeSettingTab = null },
+                        glowColor = currentTheme.accent,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
     }
