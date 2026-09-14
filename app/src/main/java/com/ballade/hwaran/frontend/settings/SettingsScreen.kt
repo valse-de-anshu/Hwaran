@@ -2,6 +2,13 @@ package com.ballade.hwaran.frontend.settings
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.Settings
+import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
+import android.Manifest
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -285,6 +292,117 @@ fun ConfigContent(vm: SettingsViewModel) {
             showGlow = false,
             glowColorOverride = Color(glowColorLong)
         )
+    }
+
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var hasStoragePermission by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Environment.isExternalStorageManager()
+            } else {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+                ) == PackageManager.PERMISSION_GRANTED
+            }
+        )
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                hasStoragePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    Environment.isExternalStorageManager()
+                } else {
+                    ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.READ_EXTERNAL_STORAGE
+                    ) == PackageManager.PERMISSION_GRANTED
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    Spacer(modifier = Modifier.height(14.dp))
+
+    // ── All Files Access Tile ──
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = if (hasStoragePermission) Color(0xFF142416) else Color(0xFF261D12),
+        border = BorderStroke(
+            1.dp,
+            if (hasStoragePermission) Color(0xFF4CAF50).copy(alpha = 0.5f) else Color(0xFFFF9800).copy(alpha = 0.5f)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    try {
+                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                            data = Uri.parse("package:${context.packageName}")
+                        }
+                        context.startActivity(intent)
+                    } catch (_: Exception) {
+                        val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                        context.startActivity(intent)
+                    }
+                } else {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                    }
+                    context.startActivity(intent)
+                }
+            }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (hasStoragePermission) Color(0xFF4CAF50).copy(alpha = 0.2f)
+                        else Color(0xFFFF9800).copy(alpha = 0.2f)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (hasStoragePermission) Icons.Rounded.CheckCircle else Icons.Rounded.FolderShared,
+                    contentDescription = null,
+                    tint = if (hasStoragePermission) Color(0xFF4CAF50) else Color(0xFFFF9800),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "All Files Access",
+                    color = if (hasStoragePermission) Color(0xFF4CAF50) else Color(0xFFFFB74D),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    if (hasStoragePermission)
+                        "Active • Full access to external storage & local vault migration"
+                    else
+                        "Tap to grant • Required for reading external media & shifting to vault",
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                contentDescription = "Manage",
+                tint = Color.White.copy(alpha = 0.4f),
+                modifier = Modifier.size(16.dp)
+            )
+        }
     }
 
     Spacer(modifier = Modifier.height(16.dp))
