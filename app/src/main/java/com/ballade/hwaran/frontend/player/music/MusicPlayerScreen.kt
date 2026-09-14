@@ -506,22 +506,6 @@ if (isLandscape) {
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Conductor Animation Based on Genre", color = Color.White) },
-                                    leadingIcon = { Icon(Icons.Rounded.GraphicEq, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
-                                    onClick = { 
-                                        showMenu = false
-                                        showGenreDialog = true
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Lyrics Options", color = Color.White) },
-                                    leadingIcon = { Icon(Icons.Rounded.Lyrics, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
-                                    onClick = { 
-                                        showMenu = false
-                                        showLyricsDialog = true
-                                    }
-                                )
-                                DropdownMenuItem(
                                     text = { Text(if (musicMode == 1) "Show Album Art" else "Show Conductor", color = Color.White) },
                                     leadingIcon = { Icon(if (musicMode == 1) Icons.Rounded.Image else Icons.Rounded.GraphicEq, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
                                     onClick = { 
@@ -590,22 +574,6 @@ if (isLandscape) {
                             onClick = { 
                                 showMenu = false
                                 showPlaylistDialog = true
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Conductor Animation Based on Genre", color = Color.White) },
-                            leadingIcon = { Icon(Icons.Rounded.GraphicEq, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
-                            onClick = { 
-                                showMenu = false
-                                showGenreDialog = true
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Lyrics Options", color = Color.White) },
-                            leadingIcon = { Icon(Icons.Rounded.Lyrics, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
-                            onClick = { 
-                                showMenu = false
-                                showLyricsDialog = true
                             }
                         )
                         DropdownMenuItem(
