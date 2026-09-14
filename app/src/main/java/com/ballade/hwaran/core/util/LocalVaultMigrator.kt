@@ -304,18 +304,117 @@ object LocalVaultMigrator {
                 }
             }
 
-            // 3. Delete from DB
+            // 3. Delete cached cover from internal app storage if present
+            if (manga.coverPath.isNotBlank() && !manga.coverPath.startsWith("content://")) {
+                try {
+                    val cover = File(manga.coverPath)
+                    if (cover.exists() && cover.isFile) {
+                        cover.delete()
+                    }
+                } catch (_: Exception) {}
+            }
+
+            // 4. Delete from DB
             database.trackDao().deleteChaptersByMangaId(manga.id)
             database.libraryDao().deleteChildrenByParentId(manga.id)
             database.libraryDao().deleteManga(manga)
 
-            // 4. Log event
+            // 5. Log event
             HistoryTracker.logEvent("DELETE", manga.title, "Media Item")
             Result.success(Unit)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
         }
+    }
+
+    suspend fun checkMediaExists(
+        context: Context,
+        database: AppDatabase,
+        manga: MangaEntity
+    ): Boolean = withContext(Dispatchers.IO) {
+        // Virtual custom playlists always exist
+        if (manga.parentUri.startsWith("custom_playlist_") || manga.title.equals("Favorites", ignoreCase = true)) {
+            return@withContext true
+        }
+
+        // Vault items
+        if (isItemInVault(manga)) {
+            val vaultDir = File(manga.parentUri)
+            if (vaultDir.exists()) return@withContext true
+            val chapters = database.trackDao().getChaptersForMangaList(manga.id)
+            return@withContext chapters.any { File(it.folderUri).exists() }
+        }
+
+        // SAF URIs
+        if (manga.parentUri.startsWith("content://")) {
+            val uri = Uri.parse(manga.parentUri)
+            try {
+                val doc = if (manga.parentUri.contains("/tree/")) {
+                    DocumentFile.fromTreeUri(context, uri)
+                } else {
+                    DocumentFile.fromSingleUri(context, uri)
+                }
+                if (doc != null && doc.exists()) return@withContext true
+            } catch (_: Exception) {}
+
+            val physical = resolveSafUriToPhysicalFile(uri)
+            if (physical != null && physical.exists()) return@withContext true
+
+            val fileName = physical?.name
+                ?: uri.lastPathSegment?.substringAfterLast("/")?.substringAfterLast("%2F")
+            if (!fileName.isNullOrBlank()) {
+                val decoded = try { URLDecoder.decode(fileName, "UTF-8") } catch (_: Exception) { fileName }
+                val candidate = findFileInCommonDirectories(decoded)
+                if (candidate != null && candidate.exists()) return@withContext true
+            }
+
+            // Check if any chapters still exist
+            val chapters = database.trackDao().getChaptersForMangaList(manga.id)
+            for (ch in chapters) {
+                if (ch.folderUri.startsWith("content://")) {
+                    val chUri = Uri.parse(ch.folderUri)
+                    try {
+                        val chDoc = DocumentFile.fromSingleUri(context, chUri)
+                        if (chDoc != null && chDoc.exists()) return@withContext true
+                    } catch (_: Exception) {}
+                    val chPhys = resolveSafUriToPhysicalFile(chUri)
+                    if (chPhys != null && chPhys.exists()) return@withContext true
+                } else if (ch.folderUri.isNotBlank()) {
+                    if (File(ch.folderUri).exists()) return@withContext true
+                }
+            }
+
+            return@withContext false
+        }
+
+        // Direct paths
+        if (manga.parentUri.startsWith("/") || manga.parentUri.startsWith("file://")) {
+            val directPath = if (manga.parentUri.startsWith("file://")) Uri.parse(manga.parentUri).path ?: "" else manga.parentUri
+            if (File(directPath).exists()) return@withContext true
+            val chapters = database.trackDao().getChaptersForMangaList(manga.id)
+            return@withContext chapters.any { File(it.folderUri).exists() }
+        }
+
+        false
+    }
+
+    suspend fun pruneMissingMedia(
+        context: Context,
+        database: AppDatabase
+    ): Int = withContext(Dispatchers.IO) {
+        val allManga = database.libraryDao().getAllMangaList()
+        var pruned = 0
+        for (manga in allManga) {
+            if (manga.parentUri.startsWith("custom_playlist_") || manga.title.equals("Favorites", ignoreCase = true)) {
+                continue
+            }
+            if (!checkMediaExists(context, database, manga)) {
+                deleteMedia(context, database, manga)
+                pruned++
+            }
+        }
+        pruned
     }
 
     private fun copyUriToFile(

@@ -51,6 +51,13 @@ fun MediaQuickActionsSheet(
     val isVault = remember(manga.parentUri) { LocalVaultMigrator.isItemInVault(manga) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
+    val database = remember { com.ballade.hwaran.core.database.AppDatabase.getDatabase(context) }
+    var fileExists by remember(manga.id) { mutableStateOf<Boolean?>(null) }
+
+    LaunchedEffect(manga.id) {
+        fileExists = LocalVaultMigrator.checkMediaExists(context, database, manga)
+    }
+
     val currentMigration by VaultMigrationManager.currentMigration.collectAsState()
     val isThisItemMigrating = currentMigration?.mangaId == manga.id
     val effectiveIsMigrating = isMigrating || isThisItemMigrating
@@ -298,13 +305,61 @@ fun MediaQuickActionsSheet(
                         }
                     }
 
+                    // Missing file warning banner
+                    if (fileExists == false) {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFF261214),
+                            border = BorderStroke(1.dp, Color(0xFFEF5350).copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFEF5350).copy(alpha = 0.18f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.WarningAmber,
+                                        contentDescription = null,
+                                        tint = Color(0xFFEF5350),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "File Deleted from Storage",
+                                        color = Color(0xFFEF5350),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "The original file was removed outside Hwaran. You can remove this dead entry from your library.",
+                                        color = Color.White.copy(alpha = 0.65f),
+                                        fontSize = 11.sp,
+                                        lineHeight = 14.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // ── Action 1: Shift to Local Vault ──
                     QuickActionItem(
                         icon = if (isVault) Icons.Rounded.LockClock else Icons.Rounded.Lock,
                         title = if (isVault) "Already in Local Vault" else "Shift to Local Vault",
-                        subtitle = if (isVault) "Media is stored in private app vault (.nomedia protected)"
-                                   else "Background service moves files so other apps cannot see it",
-                        enabled = !isVault && !effectiveIsMigrating,
+                        subtitle = when {
+                            fileExists == false -> "Source file was deleted from storage; cannot migrate"
+                            isVault -> "Media is stored in private app vault (.nomedia protected)"
+                            else -> "Background service moves files so other apps cannot see it"
+                        },
+                        enabled = !isVault && !effectiveIsMigrating && fileExists != false,
                         trailingBadge = if (isVault) "PROTECTED" else null,
                         onClick = {
                             haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
@@ -327,9 +382,12 @@ fun MediaQuickActionsSheet(
                     // ── Action 3: Delete Media ──
                     QuickActionItem(
                         icon = Icons.Rounded.DeleteOutline,
-                        title = "Delete Media",
-                        subtitle = if (isVault) "Permanently delete files from vault and remove from library"
-                                   else "Delete files and remove entry from your library",
+                        title = if (fileExists == false) "Remove Dead Entry" else "Delete Media",
+                        subtitle = when {
+                            fileExists == false -> "Remove this missing item and its cached covers from library"
+                            isVault -> "Permanently delete files from vault and remove from library"
+                            else -> "Delete files and remove entry from your library"
+                        },
                         isDestructive = true,
                         enabled = !effectiveIsMigrating,
                         onClick = {
@@ -351,7 +409,7 @@ fun MediaQuickActionsSheet(
             containerColor = Color(0xFF161520),
             title = {
                 Text(
-                    text = "Delete \"${manga.title}\"?",
+                    text = if (fileExists == false) "Remove \"${manga.title}\"?" else "Delete \"${manga.title}\"?",
                     color = Color.White,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold
@@ -359,10 +417,10 @@ fun MediaQuickActionsSheet(
             },
             text = {
                 Text(
-                    text = if (isVault) {
-                        "This will permanently delete this title's files from your private vault and remove it from your library."
-                    } else {
-                        "This will remove \"${manga.title}\" from your library and delete the original files from storage."
+                    text = when {
+                        fileExists == false -> "The backing file was already removed from storage outside Hwaran. Remove this dead entry and all cached artwork from your library?"
+                        isVault -> "This will permanently delete this title's files from your private vault and remove it from your library."
+                        else -> "This will remove \"${manga.title}\" from your library and delete the original files from storage."
                     },
                     color = Color.White.copy(alpha = 0.7f),
                     fontSize = 13.sp,
@@ -381,7 +439,7 @@ fun MediaQuickActionsSheet(
                     ),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("Delete", fontWeight = FontWeight.Bold)
+                    Text(if (fileExists == false) "Remove" else "Delete", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

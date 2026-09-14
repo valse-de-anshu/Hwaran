@@ -405,6 +405,83 @@ fun ConfigContent(vm: SettingsViewModel) {
         }
     }
 
+    var isPruning by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val database = remember { com.ballade.hwaran.core.database.AppDatabase.getDatabase(context) }
+
+    Spacer(modifier = Modifier.height(10.dp))
+
+    // ── Clean Missing Media Tile ──
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White.copy(alpha = 0.04f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !isPruning) {
+                isPruning = true
+                scope.launch {
+                    val count = com.ballade.hwaran.core.util.LocalVaultMigrator.pruneMissingMedia(context, database)
+                    isPruning = false
+                    android.widget.Toast.makeText(
+                        context,
+                        if (count > 0) "Cleaned $count deleted media items from library" else "Library is clean. No missing items found.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.06f)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isPruning) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = Color.White
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.DeleteSweep,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Clean Missing Media",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    if (isPruning) "Scanning library for deleted files..."
+                    else "Scan and remove library entries whose files were deleted from storage",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                contentDescription = "Run",
+                tint = Color.White.copy(alpha = 0.3f),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+
     Spacer(modifier = Modifier.height(16.dp))
 
     // ── Battery Saving Mode ────────────────────────────────────────
