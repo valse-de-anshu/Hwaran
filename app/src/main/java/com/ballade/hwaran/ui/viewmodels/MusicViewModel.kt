@@ -394,11 +394,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun savePlaybackState() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
+            val curCh = _currentChapter.value
+            val curPos = exoPlayer.currentPosition
+            if (curCh != null && curPos > 0) {
+                database.trackDao().insertChapter(curCh.copy(position = curPos.toInt()))
+            }
             context.dataStore.edit { prefs ->
-                _currentChapter.value?.let { prefs[KEY_LAST_CHAPTER_ID] = it.id }
+                curCh?.let { prefs[KEY_LAST_CHAPTER_ID] = it.id }
                 _currentManga.value?.let { prefs[KEY_LAST_MANGA_ID] = it.id }
-                prefs[KEY_LAST_POSITION] = exoPlayer.currentPosition
+                prefs[KEY_LAST_POSITION] = curPos
             }
         }
     }

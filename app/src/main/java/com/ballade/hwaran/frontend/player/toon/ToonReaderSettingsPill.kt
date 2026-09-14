@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ballade.hwaran.frontend.player.novel.MinimalSlider
 import kotlin.math.roundToInt
 
 enum class ReaderSettingTab {
@@ -202,15 +203,15 @@ fun ToonReaderSettingsPill(
                                         }
 
                                         if (brightnessOverride != null) {
-                                            Slider(
+                                            MinimalSlider(
                                                 value = brightnessOverride,
                                                 onValueChange = onBrightnessOverrideChange,
                                                 valueRange = 0.05f..1.0f,
-                                                colors = SliderDefaults.colors(
-                                                    thumbColor = Color(0xFFE6E8EC),
-                                                    activeTrackColor = Color(0xFFE6E8EC),
-                                                    inactiveTrackColor = Color.White.copy(alpha = 0.12f)
-                                                )
+                                                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                                                trackColor = glowColor,
+                                                thumbColor = Color.White,
+                                                trackHeight = 2.5.dp,
+                                                thumbRadius = 7.dp
                                             )
                                         }
                                     }
@@ -246,15 +247,15 @@ fun ToonReaderSettingsPill(
                                         }
                                     }
 
-                                    Slider(
+                                    MinimalSlider(
                                         value = cropZoom,
                                         onValueChange = onCropZoomChange,
                                         valueRange = 1.0f..2.50f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = Color(0xFFE6E8EC),
-                                            activeTrackColor = Color(0xFFE6E8EC),
-                                            inactiveTrackColor = Color.White.copy(alpha = 0.12f)
-                                        )
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                                        trackColor = glowColor,
+                                        thumbColor = Color.White,
+                                        trackHeight = 2.5.dp,
+                                        thumbRadius = 7.dp
                                     )
 
                                     // Quick presets

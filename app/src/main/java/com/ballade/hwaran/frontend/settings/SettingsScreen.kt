@@ -228,71 +228,12 @@ fun SettingsScreen(
 
 @Composable
 fun ConfigContent(vm: SettingsViewModel) {
-    val mediaMode by vm.mediaMode.collectAsState()
-    val storageMode by vm.storageMode.collectAsState()
-    val videoLayoutMode by vm.videoLayoutMode.collectAsState()
-    val musicMode by vm.musicMode.collectAsState()
     val glowBrightness by vm.glowBrightness.collectAsState()
     val glowRadius by vm.glowRadius.collectAsState()
     val glowColorLong by vm.glowColor.collectAsState()
     val batterySavingMode by vm.batterySavingMode.collectAsState()
 
-    SectionHeader("Configuration", "Core app behavior")
-
-    PremiumToggleRow("Media Mode") {
-        JellyToggle3(
-            options = listOf("Toon", "Book", "Video", "Music"),
-            selectedIndex = mediaMode,
-            onToggle = { vm.setMediaMode(it) },
-            glowBrightness = glowBrightness,
-            glowRadius = glowRadius,
-            showGlow = false,
-            glowColorOverride = Color(glowColorLong)
-        )
-    }
-
-    if (mediaMode == 2) {
-        PremiumToggleRow("Shelf Layout") {
-            JellyToggle(
-                option1 = "Series",
-                option2 = "Channel",
-                isOption2 = videoLayoutMode == 1,
-                onToggle = { vm.setVideoLayoutMode(if (it) 1 else 0) },
-                glowBrightness = glowBrightness,
-                glowRadius = glowRadius,
-                showGlow = false,
-                glowColorOverride = Color(glowColorLong)
-            )
-        }
-    }
-
-    if (mediaMode == 3) {
-        PremiumToggleRow("Music Display") {
-            JellyToggle(
-                option1 = "Album Art",
-                option2 = "Conductor",
-                isOption2 = musicMode == 1,
-                onToggle = { vm.setMusicMode(if (it) 1 else 0) },
-                glowBrightness = glowBrightness,
-                glowRadius = glowRadius,
-                showGlow = false,
-                glowColorOverride = Color(glowColorLong)
-            )
-        }
-    }
-
-    PremiumToggleRow("Storage Mode") {
-        JellyToggle(
-            option1 = "Local",
-            option2 = "External",
-            isOption2 = storageMode == 1,
-            onToggle = { vm.setStorageMode(if (it) 1 else 0) },
-            glowBrightness = glowBrightness,
-            glowRadius = glowRadius,
-            showGlow = false,
-            glowColorOverride = Color(glowColorLong)
-        )
-    }
+    SectionHeader("Configuration", "Storage & Vault Management")
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current

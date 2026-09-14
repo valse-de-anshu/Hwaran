@@ -207,9 +207,18 @@ fun HomeDashboard(
 
                         val cover = resolvedThumb ?: CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, chapters, context)
 
-                        val prog = if (target != null && target.duration > 0) {
+                        val prog = if (target != null && target.duration > 0 && target.position > 0) {
                             (target.position.toFloat() / target.duration.toFloat()).coerceIn(0.02f, 1f)
                         } else 0f
+
+                        val displaySub = if (target != null && target.duration > 0 && target.position > 0) {
+                            val remSec = ((target.duration - target.position) / 1000L).coerceAtLeast(0L)
+                            val remMins = remSec / 60L
+                            val remSecs = remSec % 60L
+                            "${target.title} • ${remMins}:${remSecs.toString().padStart(2, '0')} left"
+                        } else {
+                            subtitle
+                        }
 
                         result.add(
                             ContinueWatchingItem(
@@ -218,7 +227,7 @@ fun HomeDashboard(
                                 allChapters = chapters,
                                 targetIndex = targetIdx,
                                 displayTitle = songTitle,
-                                displaySubtitle = subtitle,
+                                displaySubtitle = displaySub,
                                 coverModel = cover,
                                 progress = prog
                             )
@@ -230,9 +239,18 @@ fun HomeDashboard(
                             ?: chapters.firstOrNull { it.position > 0 }
                             ?: chapters.firstOrNull()
                         val targetIdx = if (target != null) chapters.indexOfFirst { it.id == target.id }.coerceAtLeast(0) else 0
-                        val prog = if (target != null && target.duration > 0) {
+                        val prog = if (target != null && target.duration > 0 && target.position > 0) {
                             (target.position.toFloat() / target.duration.toFloat()).coerceIn(0.02f, 1f)
-                        } else if (target != null && target.position > 0) 0.2f else 0f
+                        } else 0f
+
+                        val displaySub = if (target != null && target.duration > 0 && target.position > 0) {
+                            val remMs = (target.duration - target.position).coerceAtLeast(0L)
+                            val remMins = (remMs / 60000L).coerceAtLeast(1L)
+                            "${target.title} • ${remMins}m left"
+                        } else {
+                            target?.title ?: if (manga.boxPurpose == "channel") "Channel" else "Series"
+                        }
+
                         val cover = CoverArtResolver.resolveCoverModel(target?.thumbnailUri ?: manga.coverPath, manga.parentUri, chapters, context)
                         result.add(
                             ContinueWatchingItem(
@@ -241,7 +259,7 @@ fun HomeDashboard(
                                 allChapters = chapters,
                                 targetIndex = targetIdx,
                                 displayTitle = manga.title,
-                                displaySubtitle = target?.title ?: if (manga.boxPurpose == "channel") "Channel" else "Series",
+                                displaySubtitle = displaySub,
                                 coverModel = cover,
                                 progress = prog
                             )
@@ -251,10 +269,37 @@ fun HomeDashboard(
                         // Manga / Toon
                         val target = chapters.firstOrNull { it.title == manga.lastReadTitle } ?: chapters.firstOrNull()
                         val targetIdx = if (target != null) chapters.indexOfFirst { it.id == target.id }.coerceAtLeast(0) else 0
-                        val prog = if (chapters.isNotEmpty()) {
-                            val idx = chapters.indexOfFirst { it.title == manga.lastReadTitle }.takeIf { it >= 0 } ?: 0
-                            ((idx + 1).toFloat() / chapters.size.toFloat()).coerceIn(0.05f, 1f)
+                        val totalChapters = chapters.size.coerceAtLeast(1)
+                        val curPage = (manga.lastReadPage ?: 1).coerceAtLeast(1)
+
+                        val prog = if (chapters.size > 1) {
+                            ((targetIdx.toFloat() + 0.5f) / totalChapters.toFloat()).coerceIn(0.02f, 1f)
+                        } else if (manga.lastReadPage != null && manga.lastReadPage > 0) {
+                            val lastToonEvent = historyEvents.firstOrNull {
+                                it.eventType == "READ_TOON" && it.details.contains("mangaId:${manga.id}")
+                            }
+                            val historyTotalPages = lastToonEvent?.let { ev ->
+                                Regex("totalPages:(\\d+)").find(ev.details)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                            }
+                            if (historyTotalPages != null && historyTotalPages > 0) {
+                                (curPage.toFloat() / historyTotalPages.toFloat()).coerceIn(0.02f, 1f)
+                            } else {
+                                0.15f
+                            }
                         } else 0f
+
+                        val displaySub = if (!manga.lastReadTitle.isNullOrBlank()) {
+                            if (chapters.size > 1) {
+                                "${manga.lastReadTitle} • Ch. ${targetIdx + 1}/$totalChapters"
+                            } else if (manga.lastReadPage != null && manga.lastReadPage > 0) {
+                                "${manga.lastReadTitle} • p. $curPage"
+                            } else {
+                                manga.lastReadTitle!!
+                            }
+                        } else {
+                            if (manga.boxPurpose == "manhua") "Manhua" else "Manga"
+                        }
+
                         val cover = CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, chapters, context)
                         result.add(
                             ContinueWatchingItem(
@@ -263,7 +308,7 @@ fun HomeDashboard(
                                 allChapters = chapters,
                                 targetIndex = targetIdx,
                                 displayTitle = manga.title,
-                                displaySubtitle = manga.lastReadTitle ?: if (manga.boxPurpose == "manhua") "Manhua" else "Manga",
+                                displaySubtitle = displaySub,
                                 coverModel = cover,
                                 progress = prog
                             )
@@ -271,7 +316,25 @@ fun HomeDashboard(
                     }
                     4 -> {
                         // Novel (contentType == 4)
-                        val prog = if (manga.lastReadPage != null && manga.lastReadPage > 0) 0.35f else 0f
+                        val lastNovelEvent = historyEvents.firstOrNull {
+                            it.eventType == "READ_NOVEL" && it.details.contains("mangaId:${manga.id}")
+                        }
+                        val historyTotalChapters = lastNovelEvent?.let { ev ->
+                            Regex("totalPages:(\\d+)").find(ev.details)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                        }
+                        val totalChapters = chapters.size.takeIf { it > 0 } ?: historyTotalChapters ?: 1
+                        val currentChIdx = manga.lastReadPage ?: 0
+                        val prog = if (totalChapters > 0) {
+                            ((currentChIdx + 1).toFloat() / totalChapters.toFloat()).coerceIn(0.02f, 1f)
+                        } else 0f
+
+                        val displaySub = if (!manga.lastReadTitle.isNullOrBlank()) {
+                            if (totalChapters > 1) "${manga.lastReadTitle} • Ch. ${currentChIdx + 1}/$totalChapters"
+                            else manga.lastReadTitle!!
+                        } else {
+                            "Chapter ${currentChIdx + 1} of $totalChapters"
+                        }
+
                         val cover = CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, chapters, context)
                         result.add(
                             ContinueWatchingItem(
@@ -279,7 +342,7 @@ fun HomeDashboard(
                                 targetChapter = chapters.firstOrNull(),
                                 allChapters = chapters,
                                 displayTitle = manga.title,
-                                displaySubtitle = manga.lastReadTitle ?: "Novel",
+                                displaySubtitle = displaySub,
                                 coverModel = cover,
                                 progress = prog
                             )
@@ -287,13 +350,33 @@ fun HomeDashboard(
                     }
                     else -> {
                         // Book (contentType == 1)
-                        val prog = if (manga.lastReadPage != null && manga.lastReadPage > 0) 0.3f else 0f
+                        val curPage = (manga.lastReadPage ?: 1).coerceAtLeast(1)
+                        val lastBookEvent = historyEvents.firstOrNull {
+                            it.eventType == "READ_BOOK" && it.details.contains("mangaId:${manga.id}")
+                        }
+                        val totalPages = lastBookEvent?.let { ev ->
+                            Regex("totalPages:(\\d+)").find(ev.details)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                        }
+                        val prog = if (totalPages != null && totalPages > 0) {
+                            (curPage.toFloat() / totalPages.toFloat()).coerceIn(0.02f, 1f)
+                        } else if (manga.lastReadPage != null && manga.lastReadPage > 0) {
+                            0.1f
+                        } else 0f
+
+                        val displaySub = if (totalPages != null && totalPages > 0) {
+                            "Page $curPage of $totalPages"
+                        } else if (manga.lastReadPage != null && manga.lastReadPage > 0) {
+                            "Page $curPage"
+                        } else {
+                            manga.lastReadTitle ?: "Book • PDF"
+                        }
+
                         val cover = CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
                         result.add(
                             ContinueWatchingItem(
                                 manga = manga,
                                 displayTitle = manga.title,
-                                displaySubtitle = manga.lastReadTitle ?: "Book • PDF",
+                                displaySubtitle = displaySub,
                                 coverModel = cover,
                                 progress = prog
                             )
@@ -746,7 +829,7 @@ private fun ContinueWatchingSection(
                         .height(130.dp)
                         .clip(RoundedCornerShape(18.dp))
                         .combinedClickable(
-                            onClick = { onItemClick(item.manga) },
+                            onClick = { onPlayItem(item) },
                             onLongClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 onItemLongClick(item.manga)
