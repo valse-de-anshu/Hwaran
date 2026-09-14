@@ -49,6 +49,7 @@ import com.ballade.hwaran.core.database.AppDatabase
 import com.ballade.hwaran.core.database.entity.HistoryEventEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.core.util.HistoryTracker
+import com.ballade.hwaran.ui.viewmodels.MusicViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -131,6 +132,7 @@ enum class NovelFontFamily(val label: String, val family: FontFamily) {
 fun NovelPlayerScreen(
     mangaId: Long = 0L,
     externalUriString: String? = null,
+    musicViewModel: MusicViewModel? = null,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -850,6 +852,7 @@ fun NovelPlayerScreen(
                         onBrightnessOverrideChange = { brightnessOverride = it },
                         onShowToc = { showTocSheet = true; activeSettingTab = null },
                         glowColor = currentTheme.accent,
+                        musicViewModel = musicViewModel,
                         modifier = Modifier.fillMaxSize()
                     )
                 }

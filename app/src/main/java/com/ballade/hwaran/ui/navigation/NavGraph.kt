@@ -358,6 +358,7 @@ fun AppNavGraph(
             BlockTouchesWhenExiting {
                 ReaderScreen(
                     chapterId = chapterId,
+                    musicViewModel = musicViewModel,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToChapter = { newChapterId ->
                         navController.popBackStack()
@@ -394,6 +395,7 @@ fun AppNavGraph(
             BlockTouchesWhenExiting {
                 PdfReaderScreen(
                     mangaId = mangaId,
+                    musicViewModel = musicViewModel,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
@@ -525,6 +527,7 @@ fun AppNavGraph(
                 PdfReaderScreen(
                     mangaId = -1L,
                     externalUri = uri,
+                    musicViewModel = musicViewModel,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
@@ -583,6 +586,7 @@ fun AppNavGraph(
             BlockTouchesWhenExiting {
                 NovelPlayerScreen(
                     mangaId = mangaId,
+                    musicViewModel = musicViewModel,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
@@ -607,6 +611,7 @@ fun AppNavGraph(
                 NovelPlayerScreen(
                     mangaId = -1L,
                     externalUriString = uri,
+                    musicViewModel = musicViewModel,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }

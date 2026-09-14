@@ -25,13 +25,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ballade.hwaran.frontend.player.novel.MinimalSlider
+import com.ballade.hwaran.ui.components.ReaderMusicPlayerCard
+import com.ballade.hwaran.ui.viewmodels.MusicViewModel
 import kotlin.math.roundToInt
 
 enum class ReaderSettingTab {
     DISPLAY,
     ZOOM_CROP,
     LAYOUT,
-    BACKGROUND
+    BACKGROUND,
+    MUSIC
 }
 
 @Composable
@@ -51,6 +54,7 @@ fun ToonReaderSettingsPill(
     brightnessOverride: Float?,
     onBrightnessOverrideChange: (Float?) -> Unit,
     glowColor: Color = Color(0xFFE6E8EC),
+    musicViewModel: MusicViewModel? = null,
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
@@ -68,7 +72,12 @@ fun ToonReaderSettingsPill(
                 .align(Alignment.CenterEnd)
                 .padding(end = 76.dp)
         ) {
-            if (activeTab != null) {
+            if (activeTab == ReaderSettingTab.MUSIC && musicViewModel != null) {
+                ReaderMusicPlayerCard(
+                    musicViewModel = musicViewModel,
+                    onClose = { onTabSelected(null) }
+                )
+            } else if (activeTab != null && activeTab != ReaderSettingTab.MUSIC) {
                 Surface(
                     shape = RoundedCornerShape(22.dp),
                     color = Color(0xFF14131E).copy(alpha = 0.94f),
@@ -96,6 +105,8 @@ fun ToonReaderSettingsPill(
                                 ReaderSettingTab.ZOOM_CROP -> "Crop Margin & Zoom"
                                 ReaderSettingTab.LAYOUT -> "Reading Layout"
                                 ReaderSettingTab.BACKGROUND -> "Canvas Background"
+                                ReaderSettingTab.MUSIC -> "Music Player"
+                                else -> ""
                             }
 
                             Text(
@@ -412,6 +423,7 @@ fun ToonReaderSettingsPill(
                                     )
                                 }
                             }
+                            ReaderSettingTab.MUSIC, null -> {}
                         }
                     }
                 }
@@ -480,6 +492,21 @@ fun ToonReaderSettingsPill(
                         onTabSelected(if (activeTab == ReaderSettingTab.BACKGROUND) null else ReaderSettingTab.BACKGROUND)
                     }
                 )
+
+                // 5. Music Player (shown only when music from Hwaran is active in background)
+                val currentTrack = musicViewModel?.currentChapter?.collectAsState()?.value
+                if (currentTrack != null) {
+                    VerticalPillIcon(
+                        icon = Icons.Rounded.MusicNote,
+                        contentDescription = "Music Player",
+                        isSelected = activeTab == ReaderSettingTab.MUSIC,
+                        glowColor = glowColor,
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onTabSelected(if (activeTab == ReaderSettingTab.MUSIC) null else ReaderSettingTab.MUSIC)
+                        }
+                    )
+                }
             }
         }
     }

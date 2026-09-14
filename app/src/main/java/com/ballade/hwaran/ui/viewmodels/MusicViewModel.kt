@@ -1308,10 +1308,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun stopPlayback() {
+        savePlaybackState()
         exoPlayer.stop()
         exoPlayer.clearMediaItems()
         HwaranPlayerHolder.activeExternalChapter = null
         HwaranPlayerHolder.activeExternalManga = null
+        _currentChapter.value = null
+        _currentPlaylist.value = emptyList()
+        _isPlaying.value = false
+        _currentPosition.value = 0L
+        _playbackProgress.value = 0f
         try {
             val stopIntent = Intent(context, MusicNotificationService::class.java).apply {
                 action = "ACTION_STOP_SERVICE"

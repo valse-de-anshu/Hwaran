@@ -131,9 +131,8 @@ fun PlaylistDetailScreen(
         selectedChapterIds.clear()
     }
 
-    val isMiniPlayerActive = currentChapter != null
     val bottomActionPadding by animateDpAsState(
-        targetValue = if (isMiniPlayerActive) 152.dp else 28.dp,
+        targetValue = 28.dp,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessLow
@@ -141,12 +140,7 @@ fun PlaylistDetailScreen(
         label = "bottom_action_padding"
     )
 
-    val listBottomPadding = when {
-        selectionMode != SelectionMode.NONE && isMiniPlayerActive -> 240.dp
-        selectionMode != SelectionMode.NONE -> 150.dp
-        isMiniPlayerActive -> 160.dp
-        else -> 100.dp
-    }
+    val listBottomPadding = if (selectionMode != SelectionMode.NONE) 150.dp else 100.dp
 
 
     val musicPickerLauncher = rememberLauncherForActivityResult(

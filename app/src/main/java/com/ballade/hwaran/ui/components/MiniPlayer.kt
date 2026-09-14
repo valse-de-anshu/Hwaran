@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.SkipNext
@@ -401,6 +402,19 @@ fun MiniPlayer(
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
+
+                                // Close / Kill button
+                                IconButton(
+                                    onClick = { musicViewModel.stopPlayback() },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = "Stop Music",
+                                        tint = Color.White.copy(alpha = 0.60f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -541,6 +555,18 @@ fun MiniPlayer(
                             contentDescription = "Next",
                             tint = if (hasNext) Color.White.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.2f),
                             modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { musicViewModel.stopPlayback() },
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Stop Music",
+                            tint = Color.White.copy(alpha = 0.65f),
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }

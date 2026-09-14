@@ -34,6 +34,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ballade.hwaran.ui.components.ReaderMusicPlayerCard
+import com.ballade.hwaran.ui.viewmodels.MusicViewModel
 import java.io.File
 import kotlin.math.roundToInt
 
@@ -41,7 +43,8 @@ enum class NovelSettingTab {
     TYPOGRAPHY,
     THEME,
     LAYOUT,
-    DISPLAY
+    DISPLAY,
+    MUSIC
 }
 
 data class CustomFontEntry(
@@ -178,6 +181,7 @@ fun NovelReaderSettingsPill(
     // Navigation & Quick Actions
     onShowToc: () -> Unit,
     glowColor: Color = Color(0xFFE6E8EC),
+    musicViewModel: MusicViewModel? = null,
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
@@ -195,7 +199,12 @@ fun NovelReaderSettingsPill(
                 .align(Alignment.CenterEnd)
                 .padding(end = 76.dp)
         ) {
-            if (activeTab != null) {
+            if (activeTab == NovelSettingTab.MUSIC && musicViewModel != null) {
+                ReaderMusicPlayerCard(
+                    musicViewModel = musicViewModel,
+                    onClose = { onTabSelected(null) }
+                )
+            } else if (activeTab != null && activeTab != NovelSettingTab.MUSIC) {
                 Surface(
                     shape = RoundedCornerShape(22.dp),
                     color = Color(0xFF14131E).copy(alpha = 0.96f),
@@ -225,6 +234,8 @@ fun NovelReaderSettingsPill(
                                 NovelSettingTab.THEME -> "Reading Theme"
                                 NovelSettingTab.LAYOUT -> "Reading Layout"
                                 NovelSettingTab.DISPLAY -> "Display Screen"
+                                NovelSettingTab.MUSIC -> "Music Player"
+                                else -> ""
                             }
 
                             Text(
@@ -715,6 +726,7 @@ fun NovelReaderSettingsPill(
                                     }
                                 }
                             }
+                            NovelSettingTab.MUSIC, null -> {}
                         }
                     }
                 }
@@ -783,6 +795,21 @@ fun NovelReaderSettingsPill(
                         onTabSelected(if (activeTab == NovelSettingTab.DISPLAY) null else NovelSettingTab.DISPLAY)
                     }
                 )
+
+                // Music Player (shown only when music from Hwaran is active in background)
+                val currentTrack = musicViewModel?.currentChapter?.collectAsState()?.value
+                if (currentTrack != null) {
+                    VerticalPillIcon(
+                        icon = Icons.Rounded.MusicNote,
+                        contentDescription = "Music Player",
+                        isSelected = activeTab == NovelSettingTab.MUSIC,
+                        glowColor = glowColor,
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onTabSelected(if (activeTab == NovelSettingTab.MUSIC) null else NovelSettingTab.MUSIC)
+                        }
+                    )
+                }
 
                 // Divider
                 Box(

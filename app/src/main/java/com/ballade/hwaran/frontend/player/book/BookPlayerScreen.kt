@@ -83,6 +83,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ballade.hwaran.core.database.AppDatabase
+import com.ballade.hwaran.ui.components.ReaderMusicPlayerCard
+import com.ballade.hwaran.ui.viewmodels.MusicViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -166,7 +168,8 @@ enum class EyeCareMode(val label: String) {
 
 enum class PdfBottomPanel {
     HIGHLIGHTER,
-    EYE_CARE
+    EYE_CARE,
+    MUSIC
 }
 
 data class HighlightColorOption(
@@ -256,9 +259,10 @@ fun PdfReaderScreen(
     mangaId: Long,
     externalUri: String? = null,
     pdfViewModel: com.ballade.hwaran.ui.viewmodels.PdfViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    musicViewModel: MusicViewModel? = null,
     onNavigateBack: () -> Unit
 ) {
-    BookPlayerScreen(mangaId, externalUri, pdfViewModel, onNavigateBack)
+    BookPlayerScreen(mangaId, externalUri, pdfViewModel, musicViewModel, onNavigateBack)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -267,6 +271,7 @@ fun BookPlayerScreen(
     mangaId: Long,
     externalUri: String? = null,
     pdfViewModel: com.ballade.hwaran.ui.viewmodels.PdfViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    musicViewModel: MusicViewModel? = null,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -1345,6 +1350,14 @@ fun BookPlayerScreen(
                                                 }
                                             }
 
+                                            PdfBottomPanel.MUSIC -> {
+                                                if (musicViewModel != null) {
+                                                    ReaderMusicPlayerCard(
+                                                        musicViewModel = musicViewModel,
+                                                        onClose = { activeBottomPanel = null }
+                                                    )
+                                                }
+                                            }
                                             null -> {}
                                         }
                                     }
@@ -1523,6 +1536,31 @@ fun BookPlayerScreen(
                                                         tint = if (canRedo) Color.White else Color.White.copy(alpha = 0.3f),
                                                         modifier = Modifier.size(19.dp)
                                                     )
+                                                }
+                                            }
+
+                                            // Music Player Button (only when music from Hwaran is active in background)
+                                            val currentTrack = musicViewModel?.currentChapter?.collectAsState()?.value
+                                            if (currentTrack != null) {
+                                                Surface(
+                                                    shape = CircleShape,
+                                                    color = if (activeBottomPanel == PdfBottomPanel.MUSIC) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.Transparent,
+                                                    border = if (activeBottomPanel == PdfBottomPanel.MUSIC) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                                                    modifier = Modifier
+                                                        .size(38.dp)
+                                                        .clip(CircleShape)
+                                                        .clickable {
+                                                            activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.MUSIC) null else PdfBottomPanel.MUSIC
+                                                        }
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(
+                                                            imageVector = Icons.Rounded.MusicNote,
+                                                            contentDescription = "Music Player",
+                                                            tint = if (activeBottomPanel == PdfBottomPanel.MUSIC) MaterialTheme.colorScheme.primary else Color.White,
+                                                            modifier = Modifier.size(19.dp)
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }

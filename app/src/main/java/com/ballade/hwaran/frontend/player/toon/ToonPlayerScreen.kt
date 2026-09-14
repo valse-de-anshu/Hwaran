@@ -55,6 +55,7 @@ import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
 import com.ballade.hwaran.core.datastore.GlobalSettings
+import com.ballade.hwaran.ui.viewmodels.MusicViewModel
 import com.ballade.hwaran.ui.viewmodels.ReaderViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -64,10 +65,11 @@ fun ReaderScreen(
     chapterId: Long,
     externalUri: String? = null,
     readerViewModel: ReaderViewModel = viewModel(),
+    musicViewModel: MusicViewModel? = null,
     onNavigateBack: () -> Unit,
     onNavigateToChapter: (Long) -> Unit
 ) {
-    ToonPlayerScreen(chapterId, externalUri, readerViewModel, onNavigateBack, onNavigateToChapter)
+    ToonPlayerScreen(chapterId, externalUri, readerViewModel, musicViewModel, onNavigateBack, onNavigateToChapter)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,6 +78,7 @@ fun ToonPlayerScreen(
     chapterId: Long,
     externalUri: String? = null,
     readerViewModel: ReaderViewModel = viewModel(),
+    musicViewModel: MusicViewModel? = null,
     onNavigateBack: () -> Unit,
     onNavigateToChapter: (Long) -> Unit
 ) {
@@ -691,6 +694,7 @@ fun ToonPlayerScreen(
                             brightnessOverride = brightnessOverride,
                             onBrightnessOverrideChange = { brightnessOverride = it },
                             glowColor = PrimaryPurple,
+                            musicViewModel = musicViewModel,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
