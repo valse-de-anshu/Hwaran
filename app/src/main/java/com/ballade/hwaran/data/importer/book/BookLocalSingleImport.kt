@@ -5,6 +5,9 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
+import com.ballade.hwaran.core.metadata.MediaMetadataManager
+import com.ballade.hwaran.core.metadata.ParsedZineMetadata
+import com.ballade.hwaran.core.metadata.ZineMetadataExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -22,7 +25,9 @@ object BookLocalSingleImport {
         isNsfw: Boolean,
         boxPurpose: String?,
         importMode: String,
-        isCancelled: () -> Boolean
+        isCancelled: () -> Boolean,
+        metadataOverride: ParsedZineMetadata? = null,
+        coverDocOverride: DocumentFile? = null
     ): Long? = withContext(Dispatchers.IO) {
 
         val vaultBase = File(context.filesDir, "book_vault")
@@ -30,7 +35,20 @@ object BookLocalSingleImport {
         File(vaultBase, ".nomedia").createNewFile()
 
         val fileName = pdfDoc.name ?: "Unknown.pdf"
-        val title = fileName.substringBeforeLast(".")
+        val fallbackTitle = fileName.substringBeforeLast(".")
+
+        // 1. Resolve metadata (override or from parent)
+        val parsedZine = metadataOverride ?: run {
+            try {
+                pdfDoc.parentFile?.let { ZineMetadataExtractor.extractFromDocumentFolder(context, it) }
+            } catch (_: Exception) { null }
+        }
+
+        // Rule 4: Metadata overrides filesystem hints
+        val finalTitle = parsedZine?.title?.takeIf { it.isNotBlank() } ?: fallbackTitle
+        val finalDescription = parsedZine?.description?.takeIf { it.isNotBlank() } ?: "Book"
+        val finalTags = parsedZine?.tags?.takeIf { it.isNotEmpty() }?.joinToString(", ")
+
         val destFile = File(vaultBase, fileName)
 
         // Duplicate check by vault path
@@ -56,21 +74,46 @@ object BookLocalSingleImport {
             return@withContext null
         }
 
-        // Generate Thumbnail
-        val thumbFile = File(vaultBase, "${title}_thumb.jpg")
-        val coverPath = BookImportUtils.generatePdfThumbnail(context, Uri.fromFile(destFile), thumbFile) ?: ""
+        // 2. Cover image resolution (Rule 5: check dedicated cover first, then pdf thumb)
+        val coverDoc = coverDocOverride ?: run {
+            try {
+                pdfDoc.parentFile?.let { ZineMetadataExtractor.findCoverInDocumentFolder(it, parsedZine?.coverFileName) }
+            } catch (_: Exception) { null }
+        }
+
+        var coverPath = ""
+        if (coverDoc != null) {
+            val coverName = coverDoc.name ?: "${finalTitle}_cover.jpg"
+            val destCoverFile = File(vaultBase, coverName)
+            try {
+                context.contentResolver.openInputStream(coverDoc.uri)?.use { input ->
+                    destCoverFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                coverPath = destCoverFile.absolutePath
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        if (coverPath.isEmpty()) {
+            val thumbFile = File(vaultBase, "${fallbackTitle}_thumb.jpg")
+            coverPath = BookImportUtils.generatePdfThumbnail(context, Uri.fromFile(destFile), thumbFile) ?: ""
+        }
 
         val mangaToInsert = MangaEntity(
             id = 0L,
-            title = title,
-            description = "Book",
+            title = finalTitle,
+            description = finalDescription,
             thoughts = "",
             coverPath = coverPath,
             isNsfw = isNsfw,
             parentUri = destFile.absolutePath,
             lastModified = System.currentTimeMillis(),
             contentType = 1, // 1 = Book
-            boxPurpose = boxPurpose,
+            boxPurpose = boxPurpose ?: parsedZine?.type ?: "book",
+            genre = finalTags,
             workspace = workspace
         )
 
@@ -79,15 +122,25 @@ object BookLocalSingleImport {
         // One PDF = One Chapter (The PDF itself)
         val chapter = ChapterEntity(
             mangaId = mangaId,
-            title = title,
+            title = finalTitle,
             folderUri = destFile.absolutePath,
             position = 0
         )
         repository.insertChapters(listOf(chapter))
 
+        // Cache full metadata if available
+        if (parsedZine != null) {
+            MediaMetadataManager.saveMetadata(
+                context = context,
+                mangaId = mangaId,
+                parentUri = destFile.absolutePath,
+                metadata = parsedZine.toEntryMetadata()
+            )
+        }
+
         com.ballade.hwaran.core.util.HistoryTracker.logEvent(
             "IMPORT",
-            title,
+            finalTitle,
             "Book • $importMode | Source: ${pdfDoc.uri}"
         )
 
@@ -95,7 +148,8 @@ object BookLocalSingleImport {
     }
 
     /**
-     * Legacy entry point - handles importing PDFs from a folder.
+     * Folder entry point - handles importing PDF(s) from a folder.
+     * Applies .zine JSON or root JSON metadata to the imported Book.
      */
     suspend fun execute(
         context: Context,
@@ -109,16 +163,33 @@ object BookLocalSingleImport {
         onProgress: (Int) -> Unit
     ): Long? = withContext(Dispatchers.IO) {
         val sourceDoc = DocumentFile.fromTreeUri(context, uri) ?: return@withContext null
-        val files = sourceDoc.listFiles() ?: emptyArray()
+        val files = sourceDoc.listFiles()
         val pdfs = files.filter { !it.isDirectory && it.name?.lowercase()?.endsWith(".pdf") == true }
-        
+
+        if (pdfs.isEmpty()) return@withContext null
+
+        // 1. Extract metadata from .zine/*.json or root *.json
+        val parsedZine = ZineMetadataExtractor.extractFromDocumentFolder(context, sourceDoc)
+        val coverDoc = ZineMetadataExtractor.findCoverInDocumentFolder(sourceDoc, parsedZine?.coverFileName)
+
         var lastId: Long? = null
         pdfs.forEachIndexed { index, pdfDoc ->
             if (isCancelled()) return@withContext lastId
-            lastId = executeSinglePdf(context, repository, pdfDoc, workspace, isNsfw, boxPurpose, importMode, isCancelled)
+            lastId = executeSinglePdf(
+                context = context,
+                repository = repository,
+                pdfDoc = pdfDoc,
+                workspace = workspace,
+                isNsfw = isNsfw,
+                boxPurpose = boxPurpose,
+                importMode = importMode,
+                isCancelled = isCancelled,
+                metadataOverride = parsedZine,
+                coverDocOverride = coverDoc
+            )
             onProgress(((index + 1).toFloat() / pdfs.size * 100).toInt())
         }
-        
+
         onProgress(100)
         return@withContext lastId
     }

@@ -74,6 +74,7 @@ dependencies {
     implementation("androidx.palette:palette:1.0.0")
     implementation("com.github.barteksc:pdfium-android:1.9.0")
     testImplementation(libs.junit)
+    testImplementation("org.json:json:20231013")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

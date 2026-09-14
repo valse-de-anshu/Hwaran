@@ -603,6 +603,44 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                             onProgress = { progress -> _importProgress.value = progress }
                         )
                     }
+                } else if (mediaMode == 2) {
+                    val videoRepository = com.ballade.hwaran.data.importer.video.VideoImportRepository(database.libraryDao())
+                    if (isLocalMode) {
+                        importedId = com.ballade.hwaran.data.importer.video.VideoLocalSingleImport.execute(
+                            context = getApplication(),
+                            repository = videoRepository,
+                            uri = uri,
+                            workspace = workspace,
+                            isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                            boxPurpose = boxPurpose,
+                            isCancelled = { _isCancelRequested.value },
+                            onProgress = { progress -> _importProgress.value = progress }
+                        )
+                    } else {
+                        importedId = com.ballade.hwaran.data.importer.video.VideoExternalSingleImport.execute(
+                            context = getApplication(),
+                            repository = videoRepository,
+                            uri = uri,
+                            workspace = workspace,
+                            isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                            boxPurpose = boxPurpose,
+                            isCancelled = { _isCancelRequested.value },
+                            onProgress = { progress -> _importProgress.value = progress }
+                        )
+                    }
+                } else if (mediaMode == 3 && !isFile) {
+                    val musicRepository = com.ballade.hwaran.data.importer.music.MusicImportRepository(database.libraryDao())
+                    val folderDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(getApplication(), uri)
+                    if (folderDoc != null) {
+                        importedId = com.ballade.hwaran.data.importer.music.MusicExternalSingleImport.execute(
+                            context = getApplication(),
+                            repository = musicRepository,
+                            folderDoc = folderDoc,
+                            workspace = workspace,
+                            isCancelled = { _isCancelRequested.value },
+                            onProgress = { progress -> _importProgress.value = progress }
+                        )
+                    }
                 } else {
                     importedId = repository.scanImportedFolder(
                         rootUri = uri,

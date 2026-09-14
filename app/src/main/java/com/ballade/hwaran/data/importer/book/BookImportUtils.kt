@@ -19,8 +19,8 @@ object BookImportUtils {
         val hasPdf = files.any { !it.isDirectory && it.name?.lowercase()?.endsWith(".pdf") == true }
         if (hasPdf) return true to null
         
-        val hasSubDirs = files.any { it.isDirectory && !(it.name?.startsWith(".") == true) }
-        if (hasSubDirs) return true to null
+        val validSubDirs = files.filter { it.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }
+        if (validSubDirs.isNotEmpty()) return true to null
 
         return false to "No PDF files found"
     }
@@ -35,7 +35,7 @@ object BookImportUtils {
         }
         
         // Else if: no pdf directly + child folders -> Mega Import
-        val hasChildFolders = files.any { it.isDirectory && !(it.name?.startsWith(".") == true) }
+        val hasChildFolders = files.any { it.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }
         if (hasChildFolders) {
             return "MEGA"
         }

@@ -5,6 +5,9 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
+import com.ballade.hwaran.core.metadata.MediaMetadataManager
+import com.ballade.hwaran.core.metadata.ZineMetadataExtractor
+import com.ballade.hwaran.core.util.CoverCacheManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -29,79 +32,68 @@ object VideoExternalSingleImport {
         if (!isValid) return@withContext null
         if (isCancelled()) return@withContext null
 
+        // If this is a series or structured series, delegate to SeriesStructureImporter
+        if (boxPurpose == "series" || (boxPurpose == null && SeriesStructureImporter.isOrganizedSeries(context, sourceDoc))) {
+            return@withContext SeriesStructureImporter.execute(
+                context = context,
+                repository = repository,
+                rootDoc = sourceDoc,
+                isLocalMode = false,
+                workspace = workspace,
+                isNsfw = isNsfw,
+                isCancelled = isCancelled,
+                onProgress = onProgress
+            )
+        }
+
+        // Channel Mode (flat collection)
         val uriStr = uri.toString()
+        val existingManga = repository.getRootMangaByUri(uriStr)
 
         val folderName = sourceDoc.name ?: "Unknown"
 
-        // Duplicate check — no file copy happens, just URI
-        val existingManga = repository.getRootMangaByUri(uriStr)
-        if (existingManga != null) {
-            val rootFiles = sourceDoc.listFiles() ?: emptyArray()
-            val imageFiles = rootFiles.filter { file ->
-                !file.isDirectory && VideoImportUtils.coverExtensions.any { ext -> file.name?.lowercase()?.endsWith(".$ext") == true }
-            }.toTypedArray()
-            val coverDoc = VideoImportUtils.findCoverInFiles(imageFiles)
-            if (coverDoc != null) {
-                val newCover = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, coverDoc.uri, "video", folderName)
-                if (!newCover.isNullOrBlank() && newCover != existingManga.coverPath) {
-                    repository.insertManga(existingManga.copy(coverPath = newCover))
-                }
-            } else if (existingManga.coverPath.isNotEmpty()) {
-                if (existingManga.coverPath.startsWith("/data/")) {
-                    try { java.io.File(existingManga.coverPath).delete() } catch (_: Exception) {}
-                }
-                repository.insertManga(existingManga.copy(coverPath = ""))
-            }
-            return@withContext existingManga.id
-        }
+        // 1. Extract metadata from .zine/*.json or root *.json
+        val parsedZine = ZineMetadataExtractor.extractFromDocumentFolder(context, sourceDoc)
+        val finalTitle = parsedZine?.title?.takeIf { it.isNotBlank() } ?: existingManga?.title ?: folderName
+        val finalDescription = parsedZine?.description?.takeIf { it.isNotBlank() } ?: existingManga?.description ?: "No description added yet."
+        val finalTags = parsedZine?.tags?.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: existingManga?.genre
 
-        val rootFiles = sourceDoc.listFiles() ?: emptyArray()
-
-        // Determine cover — cache dedicated image if found, otherwise keep empty
-        val coverPath: String = run {
-            val imageFiles = rootFiles.filter { file ->
-                !file.isDirectory &&
-                        VideoImportUtils.coverExtensions.any { ext ->
-                            file.name?.lowercase()?.endsWith(".$ext") == true
-                        }
-            }.toTypedArray()
-            val coverDoc = VideoImportUtils.findCoverInFiles(imageFiles)
-            if (coverDoc != null) {
-                com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, coverDoc.uri, "video", folderName)
-                    ?: coverDoc.uri.toString()
-            } else ""
+        // 2. Cover resolution
+        var coverPath = existingManga?.coverPath ?: ""
+        val coverDoc = ZineMetadataExtractor.findCoverInDocumentFolder(sourceDoc, parsedZine?.coverFileName)
+        if (coverDoc != null) {
+            coverPath = CoverCacheManager.cacheCoverFromUri(context, coverDoc.uri, "video", finalTitle)
+                ?: coverDoc.uri.toString()
         }
 
         val mangaToInsert = MangaEntity(
-            id = 0L,
-            title = folderName,
-            description = "No description added yet.",
-            thoughts = "No thoughts added.",
+            id = existingManga?.id ?: 0L,
+            title = finalTitle,
+            description = finalDescription,
+            thoughts = existingManga?.thoughts ?: "No thoughts added.",
             coverPath = coverPath,
-            isNsfw = isNsfw,
+            isNsfw = existingManga?.isNsfw ?: isNsfw,
             parentUri = uriStr,
             lastModified = sourceDoc.lastModified(),
             contentType = 2, // Video
-            boxPurpose = boxPurpose,
+            boxPurpose = boxPurpose ?: "channel",
             boxLabel = null,
-            workspace = workspace
+            genre = finalTags,
+            workspace = existingManga?.workspace ?: workspace
         )
 
         val mangaId = repository.insertManga(mangaToInsert)
-
         if (isCancelled()) return@withContext mangaId
 
-        // Chapter entities: one per video file, sorted with existing app sort logic
+        // 3. Insert video chapters
+        val rootFiles = sourceDoc.listFiles()
         val videoFiles = rootFiles.filter { file ->
-            !file.isDirectory &&
-                    VideoImportUtils.videoExtensions.any { ext ->
-                        file.name?.lowercase()?.endsWith(".$ext") == true
-                    }
+            !file.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(file.name) &&
+            VideoImportUtils.videoExtensions.any { ext -> file.name?.lowercase()?.endsWith(".$ext") == true }
         }.sortedWith(compareBy { item ->
-            val name = item.name ?: ""
-            name.replace(Regex("\\d+")) { match ->
+            item.name?.replace(Regex("\\d+")) { match ->
                 match.value.padStart(10, '0')
-            }
+            } ?: ""
         })
 
         val chapterEntities = videoFiles.mapIndexed { index, videoFile ->
@@ -109,24 +101,29 @@ object VideoExternalSingleImport {
             if (existingChapter == null) {
                 ChapterEntity(
                     mangaId = mangaId,
-                    title = videoFile.name?.substringBeforeLast(".") ?: videoFile.name ?: "Unknown",
+                    title = videoFile.name?.substringBeforeLast(".") ?: "Unknown",
                     folderUri = videoFile.uri.toString(),
                     position = index
                 )
-            } else if (existingChapter.mangaId != mangaId || existingChapter.position != index) {
-                existingChapter.copy(mangaId = mangaId, position = index)
             } else {
-                null
+                existingChapter.copy(mangaId = mangaId, position = index)
             }
-        }.filterNotNull()
+        }
 
         repository.insertChapters(chapterEntities)
-        onProgress(100)
 
-        // History — per-folder independent timestamp
+        if (parsedZine != null) {
+            MediaMetadataManager.saveMetadata(
+                context = context,
+                mangaId = mangaId,
+                parentUri = uriStr,
+                metadata = parsedZine.toEntryMetadata()
+            )
+        }
+
         com.ballade.hwaran.core.util.HistoryTracker.logEvent(
             "IMPORT",
-            folderName,
+            finalTitle,
             "Video • $importMode | Source: $uriStr"
         )
 

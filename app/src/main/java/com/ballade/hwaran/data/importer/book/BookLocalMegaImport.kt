@@ -36,7 +36,7 @@ object BookLocalMegaImport {
             candidates.add(parentDoc)
         }
         
-        val subDirs = rootFiles.filter { it.isDirectory && !(it.name?.startsWith(".") == true) }
+        val subDirs = rootFiles.filter { it.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }
         candidates.addAll(subDirs)
         
         if (candidates.isEmpty()) {

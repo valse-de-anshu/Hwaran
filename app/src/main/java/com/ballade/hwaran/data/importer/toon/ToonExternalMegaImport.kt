@@ -28,7 +28,7 @@ object ToonExternalMegaImport {
         val parentDoc = DocumentFile.fromTreeUri(context, parentUri)
         val allChildren = parentDoc?.listFiles() ?: emptyArray()
         val candidates = allChildren.filter {
-            it.isDirectory && !(it.name?.startsWith(".") == true)
+            it.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(it.name)
         }.sortedBy { it.name?.lowercase() ?: "" }
         
         totalCount = candidates.size

@@ -85,24 +85,46 @@ object MusicExternalSingleImport {
 
         val albumTitle = folderDoc.name ?: "Unknown Album"
 
+        // 1. Extract metadata from .zine/*.json or root *.json
+        val parsedZine = com.ballade.hwaran.core.metadata.ZineMetadataExtractor.extractFromDocumentFolder(context, folderDoc)
+        val finalAlbumTitle = parsedZine?.title?.takeIf { it.isNotBlank() } ?: albumTitle
+        val finalDescription = parsedZine?.description?.takeIf { it.isNotBlank() } ?: "External Music"
+        val finalTags = parsedZine?.tags?.takeIf { it.isNotEmpty() }?.joinToString(", ")
+
         // 2. Extract cover
-        val coverUri = MusicImportUtils.findCoverImage(context, folderDoc, audioFiles, albumTitle)
+        val coverDoc = com.ballade.hwaran.core.metadata.ZineMetadataExtractor.findCoverInDocumentFolder(folderDoc, parsedZine?.coverFileName)
+        val coverUri = if (coverDoc != null) {
+            com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, coverDoc.uri, "music", finalAlbumTitle)
+                ?: coverDoc.uri.toString()
+        } else {
+            MusicImportUtils.findCoverImage(context, folderDoc, audioFiles, finalAlbumTitle)
+        }
 
         // 3. Insert Album
         val albumToInsert = MangaEntity(
             id = 0L,
-            title = albumTitle,
-            description = "External Music",
+            title = finalAlbumTitle,
+            description = finalDescription,
             thoughts = "",
             coverPath = coverUri,
             isNsfw = false,
             parentUri = uriStr,
             lastModified = System.currentTimeMillis(),
             contentType = 3, // MUSIC
+            genre = finalTags,
             workspace = workspace
         )
 
         val albumId = repository.insertAlbum(albumToInsert)
+
+        if (parsedZine != null) {
+            com.ballade.hwaran.core.metadata.MediaMetadataManager.saveMetadata(
+                context = context,
+                mangaId = albumId,
+                parentUri = uriStr,
+                metadata = parsedZine.toEntryMetadata()
+            )
+        }
 
         // 4. Scan Lyrics (Case 1: side-by-side, Case 2: lyrics folder alongside)
         val lyricsFiles = MusicImportUtils.findLyricsFiles(folderDoc)

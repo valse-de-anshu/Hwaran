@@ -31,7 +31,7 @@ object VideoLocalMegaImport {
 
         // Immediate subfolders only, alphabetical, no hidden
         val candidates = allChildren.filter {
-            it.isDirectory && !(it.name?.startsWith(".") == true)
+            it.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(it.name)
         }.sortedBy { it.name?.lowercase() ?: "" }
 
         totalCount = candidates.size

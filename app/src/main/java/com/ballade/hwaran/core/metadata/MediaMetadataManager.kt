@@ -107,11 +107,11 @@ object MediaMetadataManager {
 
 
     /**
-     * Reads entry.json or metadata.json for a manga entry.
-     * Looks in:
-     * 1. Parent folder (if accessible via File or SAF DocumentFile)
-     * 2. Internal app cache (files/metadata/{mangaId}.json)
-     * 3. Fallbacks to MangaEntity values
+     * Reads metadata for a media entry according to Hwaran Import & Metadata Rules:
+     * 1. .zine/ JSON in parent folder
+     * 2. Root .json in parent folder
+     * 3. Internal app cache (files/metadata/{mangaId}.json)
+     * 4. Fallbacks to MangaEntity values
      */
     suspend fun loadMetadata(
         context: Context,
@@ -119,81 +119,41 @@ object MediaMetadataManager {
         parentUri: String?,
         manga: MangaEntity?
     ): EntryMetadata = withContext(Dispatchers.IO) {
-        var jsonContent: String? = null
+        var parsedZine: ParsedZineMetadata? = null
 
-        // 1. Try local filesystem
+        // 1. Try local filesystem folder (.zine/*.json or *.json)
         if (!parentUri.isNullOrBlank() && parentUri.startsWith("/")) {
             val dir = File(parentUri)
-            val entryFile = File(dir, "entry.json").takeIf { it.exists() }
-                ?: File(dir, "metadata.json").takeIf { it.exists() }
-            if (entryFile != null) {
-                try { jsonContent = entryFile.readText() } catch (_: Exception) {}
+            if (dir.exists() && dir.isDirectory) {
+                parsedZine = ZineMetadataExtractor.extractFromFolder(dir)
             }
         }
 
-        // 2. Try SAF DocumentFile
-        if (jsonContent == null && !parentUri.isNullOrBlank() && parentUri.startsWith("content://")) {
+        // 2. Try SAF DocumentFile (.zine/*.json or *.json)
+        if (parsedZine == null && !parentUri.isNullOrBlank() && parentUri.startsWith("content://")) {
             try {
                 val docDir = DocumentFile.fromTreeUri(context, Uri.parse(parentUri))
-                val entryDoc = docDir?.findFile("entry.json") ?: docDir?.findFile("metadata.json")
-                if (entryDoc != null && entryDoc.canRead()) {
-                    context.contentResolver.openInputStream(entryDoc.uri)?.use { stream ->
-                        jsonContent = stream.bufferedReader().readText()
-                    }
+                if (docDir != null && docDir.isDirectory) {
+                    parsedZine = ZineMetadataExtractor.extractFromDocumentFolder(context, docDir)
                 }
             } catch (_: Exception) {}
         }
 
         // 3. Try internal app storage cache
-        if (jsonContent == null && mangaId > 0) {
+        if (parsedZine == null && mangaId > 0) {
             val cacheFile = File(context.filesDir, "metadata/$mangaId.json")
             if (cacheFile.exists()) {
-                try { jsonContent = cacheFile.readText() } catch (_: Exception) {}
+                try {
+                    val cachedContent = cacheFile.readText()
+                    parsedZine = ZineMetadataExtractor.parseJson(cachedContent)
+                } catch (_: Exception) {}
             }
         }
 
-        // Parse JSON if available
-        if (!jsonContent.isNullOrBlank()) {
-            try {
-                val obj = JSONObject(jsonContent!!)
-                val tagsList = mutableListOf<String>()
-                val tagsArr = obj.optJSONArray("tags") ?: obj.optJSONArray("genres")
-                if (tagsArr != null) {
-                    for (i in 0 until tagsArr.length()) {
-                        val t = tagsArr.getString(i).trim()
-                        if (t.isNotEmpty() && !t.equals("Favorite", ignoreCase = true)) tagsList.add(t)
-                    }
-                }
-                val entityGenreTags = manga?.genre?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() && !it.equals("Favorite", ignoreCase = true) } ?: emptyList()
-                val mergedTags = (tagsList + entityGenreTags).distinct()
-                val isFav = obj.optBoolean("isFavorite", obj.optBoolean("favorite", manga?.isFavorite == true))
+        val defaultTags = manga?.genre?.split(",")?.map { it.trim() }
+            ?.filter { it.isNotEmpty() && !it.equals("Favorite", ignoreCase = true) } ?: emptyList()
 
-                return@withContext EntryMetadata(
-                    title = obj.optString("title", manga?.title ?: ""),
-                    altTitle = obj.optString("altTitle", obj.optString("nativeTitle", "")),
-                    author = obj.optString("author", ""),
-                    artist = obj.optString("artist", ""),
-                    description = obj.optString("description", manga?.description?.takeIf { it != "No description added yet." } ?: ""),
-                    type = obj.optString("type", manga?.boxPurpose ?: "Manga"),
-                    status = obj.optString("status", "Ongoing"),
-                    rating = obj.optString("rating", "8.7 (152K)"),
-                    tags = mergedTags,
-                    publisher = obj.optString("publisher", ""),
-                    serialization = obj.optString("serialization", ""),
-                    year = obj.optString("year", ""),
-                    language = obj.optString("language", "English"),
-                    pages = obj.optString("pages", obj.optString("pageCount", "")),
-                    totalChapters = obj.optInt("totalChapters", 0),
-                    isFavorite = isFav
-                )
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
-        // Fallback default from MangaEntity
-        val defaultTags = manga?.genre?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() && !it.equals("Favorite", ignoreCase = true) } ?: emptyList()
-        EntryMetadata(
+        val baseFallback = EntryMetadata(
             title = manga?.title ?: "",
             altTitle = "",
             author = "",
@@ -211,6 +171,14 @@ object MediaMetadataManager {
             totalChapters = 0,
             isFavorite = manga?.isFavorite == true
         )
+
+        if (parsedZine != null) {
+            val entryMeta = parsedZine.toEntryMetadata(baseFallback)
+            val mergedTags = (entryMeta.tags + defaultTags).distinct()
+            return@withContext entryMeta.copy(tags = mergedTags)
+        }
+
+        baseFallback
     }
 
     /**

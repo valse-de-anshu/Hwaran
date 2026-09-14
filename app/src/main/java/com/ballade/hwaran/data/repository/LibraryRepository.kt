@@ -9,6 +9,8 @@ import android.os.ParcelFileDescriptor
 import com.ballade.hwaran.core.database.AppDatabase
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
+import com.ballade.hwaran.core.metadata.MediaMetadataManager
+import com.ballade.hwaran.core.metadata.ZineMetadataExtractor
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.withPermit
 import java.io.File
@@ -368,10 +370,17 @@ class LibraryRepository(private val context: Context, private val database: AppD
             libraryDao.getRootMangaByUri(rootUri.toString())
         }
 
-        val title = existingManga?.title ?: (if (isLocalMode) importResult!!.destinationFolder.name else rootDoc.name?.substringBeforeLast(".")) ?: "Unknown"
-        val description = existingManga?.description ?: "No description added yet."
+        val parsedZine = if (isLocalMode) {
+            importResult?.destinationFolder?.let { com.ballade.hwaran.core.metadata.ZineMetadataExtractor.extractFromFolder(it) }
+        } else {
+            com.ballade.hwaran.core.metadata.ZineMetadataExtractor.extractFromDocumentFolder(context, rootDoc)
+        }
+
+        val title = parsedZine?.title?.takeIf { it.isNotBlank() } ?: existingManga?.title ?: (if (isLocalMode) importResult!!.destinationFolder.name else rootDoc.name?.substringBeforeLast(".")) ?: "Unknown"
+        val description = parsedZine?.description?.takeIf { it.isNotBlank() } ?: existingManga?.description ?: "No description added yet."
         val thoughts = existingManga?.thoughts ?: "No thoughts added."
         val isNsfw = existingManga?.isNsfw ?: isNsfwInput
+        val finalTags = parsedZine?.tags?.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: existingManga?.genre
         var coverPath = existingManga?.coverPath ?: ""
 
         val videoExtensions = listOf(".mp4", ".mkv", ".avi", ".webm", ".m4v", ".3gp", ".mov", ".flv")
@@ -438,15 +447,9 @@ class LibraryRepository(private val context: Context, private val database: AppD
             // Try to find a cover image for music/video/manga folders
             if (coverPath.isEmpty()) {
                 val potentialCover = if (isLocalMode) {
-                    importResult!!.copiedLooseFiles.find { item ->
-                        val itemName = item.name.lowercase()
-                        itemName == "cover.jpg" || itemName == "cover.png" || itemName == "cover.gif" || itemName == "folder.jpg" || itemName == "folder.png" || itemName == "folder.gif" || itemName == "poster.jpg" || itemName == "poster.gif"
-                    }
+                    com.ballade.hwaran.core.metadata.ZineMetadataExtractor.findCoverInFolder(importResult!!.destinationFolder, parsedZine?.coverFileName)
                 } else {
-                    getRootDocFiles().find { item ->
-                        val itemName = item.name?.lowercase() ?: ""
-                        itemName == "cover.jpg" || itemName == "cover.png" || itemName == "cover.gif" || itemName == "folder.jpg" || itemName == "folder.png" || itemName == "folder.gif" || itemName == "poster.jpg" || itemName == "poster.gif"
-                    }
+                    com.ballade.hwaran.core.metadata.ZineMetadataExtractor.findCoverInDocumentFolder(rootDoc, parsedZine?.coverFileName)
                 }
                 if (potentialCover != null) {
                     coverPath = if (isLocalMode) (potentialCover as java.io.File).absolutePath else (potentialCover as DocumentFile).uri.toString()
@@ -532,10 +535,20 @@ class LibraryRepository(private val context: Context, private val database: AppD
             contentType = if (existingManga == null || existingManga.contentType == 0) computedContentType else existingManga.contentType,
             boxPurpose = existingManga?.boxPurpose ?: boxPurposeInput,
             boxLabel = existingManga?.boxLabel,
+            genre = finalTags,
             workspace = workspace ?: existingManga?.workspace
         )
         
         val mangaId = libraryDao.insertManga(mangaToInsert)
+
+        if (parsedZine != null) {
+            com.ballade.hwaran.core.metadata.MediaMetadataManager.saveMetadata(
+                context = context,
+                mangaId = mangaId,
+                parentUri = mangaToInsert.parentUri,
+                metadata = parsedZine.toEntryMetadata()
+            )
+        }
 
         if (isLocalMode) {
             if (isFile && (computedContentType == 1 || computedContentType == 4)) {
@@ -557,6 +570,9 @@ class LibraryRepository(private val context: Context, private val database: AppD
                     } else {
                         importResult.copiedLooseFiles.filter { videoExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }
                     }
+                }.filter {
+                    !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(it.name) &&
+                    !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(it.name)
                 }.sortedWith(compareBy { item ->
                     val name = item.name
                     name.replace(Regex("\\d+")) { match ->
@@ -641,10 +657,10 @@ class LibraryRepository(private val context: Context, private val database: AppD
                 onProgress(100)
             } else {
                 val itemsInRoot = getRootDocFiles()
-                val subDirs = itemsInRoot.filter { it.isDirectory }
-                val videoFiles = itemsInRoot.filter { file -> !file.isDirectory && videoExtensions.any { file.name?.lowercase()?.endsWith(it) == true } }
-                val audioFiles = itemsInRoot.filter { file -> !file.isDirectory && audioExtensions.any { file.name?.lowercase()?.endsWith(it) == true } }
-                val imageFiles = itemsInRoot.filter { file -> !file.isDirectory && imageExtensions.any { file.name?.lowercase()?.endsWith(it) == true } }
+                val subDirs = itemsInRoot.filter { it.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }
+                val videoFiles = itemsInRoot.filter { file -> !file.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(file.name) && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(file.name) && videoExtensions.any { file.name?.lowercase()?.endsWith(it) == true } }
+                val audioFiles = itemsInRoot.filter { file -> !file.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(file.name) && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(file.name) && audioExtensions.any { file.name?.lowercase()?.endsWith(it) == true } }
+                val imageFiles = itemsInRoot.filter { file -> !file.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(file.name) && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(file.name) && imageExtensions.any { file.name?.lowercase()?.endsWith(it) == true } }
 
                 val chaptersToInsert = if (computedContentType == 2) {
                     if (videoFiles.isNotEmpty()) videoFiles else subDirs

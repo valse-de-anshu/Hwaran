@@ -5,10 +5,17 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
+import com.ballade.hwaran.core.metadata.MediaMetadataManager
+import com.ballade.hwaran.core.metadata.ZineMetadataExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 object ToonExternalSingleImport {
+
+    private data class DiscoveredExternalChapter(
+        val title: String,
+        val folderDoc: DocumentFile
+    )
 
     suspend fun execute(
         context: Context,
@@ -21,20 +28,26 @@ object ToonExternalSingleImport {
         isCancelled: () -> Boolean,
         onProgress: (Int) -> Unit
     ): Long? = withContext(Dispatchers.IO) {
-        
+
         val sourceDoc = DocumentFile.fromTreeUri(context, uri) ?: return@withContext null
-        val (isValid, reason) = ToonImportUtils.isToonFolderValid(sourceDoc)
+        val (isValid, _) = ToonImportUtils.isToonFolderValid(sourceDoc)
         if (!isValid) return@withContext null
         if (isCancelled()) return@withContext null
 
         val uriStr = uri.toString()
         val existingManga = repository.getRootMangaByUri(uriStr)
 
-        val rootFiles = sourceDoc.listFiles() ?: emptyArray()
-        
-        val title = existingManga?.title ?: sourceDoc.name ?: "Unknown"
+        val folderName = sourceDoc.name ?: "Unknown"
 
-        // Determine cover
+        // 1. Extract metadata from .zine/*.json or root *.json
+        val parsedZine = ZineMetadataExtractor.extractFromDocumentFolder(context, sourceDoc)
+
+        // Rule 4: Metadata overrides filesystem hints
+        val finalTitle = parsedZine?.title?.takeIf { it.isNotBlank() } ?: existingManga?.title ?: folderName
+        val finalDescription = parsedZine?.description?.takeIf { it.isNotBlank() } ?: existingManga?.description ?: "No description added yet."
+        val finalTags = parsedZine?.tags?.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: existingManga?.genre
+
+        // 2. Dedicated Cover Detection (Rule 5)
         var coverPath = ""
         if (existingManga != null && existingManga.coverPath.isNotEmpty() && !existingManga.coverPath.startsWith("content://")) {
             val f = java.io.File(existingManga.coverPath)
@@ -44,72 +57,121 @@ object ToonExternalSingleImport {
         }
 
         if (coverPath.isEmpty()) {
-            val potentialCover = ToonImportUtils.findCoverInFiles(rootFiles)
-            if (potentialCover != null) {
-                coverPath = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, potentialCover.uri, "toon", title)
-                    ?: potentialCover.uri.toString()
+            val coverDoc = ZineMetadataExtractor.findCoverInDocumentFolder(sourceDoc, parsedZine?.coverFileName)
+            if (coverDoc != null) {
+                coverPath = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, coverDoc.uri, "toon", finalTitle)
+                    ?: coverDoc.uri.toString()
             }
         }
 
         val mangaToInsert = MangaEntity(
             id = existingManga?.id ?: 0L,
-            title = title,
-            description = existingManga?.description ?: "No description added yet.",
+            title = finalTitle,
+            description = finalDescription,
             thoughts = existingManga?.thoughts ?: "No thoughts added.",
             coverPath = coverPath,
             isNsfw = existingManga?.isNsfw ?: isNsfw,
             parentUri = uriStr,
             lastModified = sourceDoc.lastModified(),
-            contentType = 0,
-            boxPurpose = existingManga?.boxPurpose ?: boxPurpose,
+            contentType = 0, // 0 = Manga / Toon
+            boxPurpose = existingManga?.boxPurpose ?: boxPurpose ?: parsedZine?.type,
             boxLabel = existingManga?.boxLabel,
+            genre = finalTags,
             workspace = existingManga?.workspace ?: workspace
         )
-        
+
         val mangaId = repository.insertManga(mangaToInsert)
         if (isCancelled()) return@withContext mangaId
 
-        val subDirs = rootFiles.filter { it.isDirectory }
-        val imageFiles = rootFiles.filter { file -> 
-            !file.isDirectory && ToonImportUtils.imageExtensions.any { file.name?.lowercase()?.endsWith(it) == true } 
+        // 3. Media Hierarchy Discovery (Volume -> Chapter -> Page)
+        val supportedExtensions = setOf("jpg", "jpeg", "png", "webp", "bmp", "gif")
+        val isSupportedImage: (DocumentFile) -> Boolean = { file ->
+            val name = file.name ?: ""
+            !name.startsWith(".") && supportedExtensions.contains(name.substringAfterLast(".", "").lowercase())
         }
 
-        val chaptersToProcess = if (subDirs.isNotEmpty()) {
-            subDirs
-        } else if (imageFiles.isNotEmpty()) {
-            listOf(sourceDoc)
-        } else {
-            emptyList()
-        }.sortedWith(compareBy { item ->
-            val name = item.name ?: ""
-            name.replace(Regex("\\d+")) { match ->
+        val rootFiles = sourceDoc.listFiles()
+        val subDirs = rootFiles.filter { it.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }
+        val looseImages = rootFiles.filter {
+            !it.isDirectory && isSupportedImage(it) && !ZineMetadataExtractor.isDedicatedCoverName(it.name)
+        }
+
+        val discoveredChapters = mutableListOf<DiscoveredExternalChapter>()
+
+        for (subDir in subDirs) {
+            val subChildren = subDir.listFiles()
+            val childSubDirs = subChildren.filter { it.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }
+            val directImages = subChildren.filter { !it.isDirectory && isSupportedImage(it) && !ZineMetadataExtractor.isDedicatedCoverName(it.name) }
+
+            if (childSubDirs.isNotEmpty()) {
+                val volName = subDir.name ?: "Volume"
+                for (chapDoc in childSubDirs) {
+                    val chapImages = chapDoc.listFiles().filter { !it.isDirectory && isSupportedImage(it) }
+                    if (chapImages.isNotEmpty()) {
+                        val chapName = chapDoc.name ?: "Chapter"
+                        val combinedTitle = if (chapName.contains(volName, ignoreCase = true)) chapName else "$volName - $chapName"
+                        discoveredChapters.add(DiscoveredExternalChapter(combinedTitle, chapDoc))
+                    }
+                }
+            } else if (directImages.isNotEmpty()) {
+                val chapName = subDir.name ?: "Chapter"
+                discoveredChapters.add(DiscoveredExternalChapter(chapName, subDir))
+            }
+        }
+
+        if (discoveredChapters.isEmpty() && looseImages.isNotEmpty()) {
+            discoveredChapters.add(DiscoveredExternalChapter(finalTitle, sourceDoc))
+        }
+
+        discoveredChapters.sortWith(compareBy { item ->
+            item.title.replace(Regex("\\d+")) { match ->
                 match.value.padStart(10, '0')
             }
         })
 
+        // 4. Insert Chapter Entities
         val chapterEntities = mutableListOf<ChapterEntity>()
-        chaptersToProcess.forEachIndexed { index, chapterItem ->
-            val chapterUriStr = chapterItem.uri.toString()
+        discoveredChapters.forEachIndexed { index, chapterItem ->
+            val chapterUriStr = chapterItem.folderDoc.uri.toString()
             val existingChapter = repository.getChapterByUri(chapterUriStr)
             if (existingChapter == null) {
                 chapterEntities.add(
                     ChapterEntity(
                         mangaId = mangaId,
-                        title = chapterItem.name ?: "Unknown",
+                        title = chapterItem.title,
                         folderUri = chapterUriStr,
                         position = index
                     )
                 )
-            } else if (existingChapter.mangaId != mangaId || existingChapter.position != index) {
-                chapterEntities.add(existingChapter.copy(mangaId = mangaId, position = index))
+            } else {
+                chapterEntities.add(
+                    existingChapter.copy(
+                        mangaId = mangaId,
+                        title = chapterItem.title,
+                        position = index
+                    )
+                )
             }
         }
-        
+
         repository.insertChapters(chapterEntities)
-        onProgress(100)
-        
-        com.ballade.hwaran.core.util.HistoryTracker.logEvent("IMPORT", mangaToInsert.title, "Toon • $importMode | Source: ${uri.toString()}")
-        
+
+        // 5. Cache Full Metadata
+        if (parsedZine != null) {
+            MediaMetadataManager.saveMetadata(
+                context = context,
+                mangaId = mangaId,
+                parentUri = uriStr,
+                metadata = parsedZine.toEntryMetadata()
+            )
+        }
+
+        com.ballade.hwaran.core.util.HistoryTracker.logEvent(
+            "IMPORT",
+            mangaToInsert.title,
+            "Toon • $importMode | Source: $uriStr"
+        )
+
         return@withContext mangaId
     }
 }

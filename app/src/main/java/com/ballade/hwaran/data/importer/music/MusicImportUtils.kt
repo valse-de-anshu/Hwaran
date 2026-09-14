@@ -15,6 +15,7 @@ object MusicImportUtils {
     val VALID_LYRICS_EXTENSIONS = listOf("lrc", "txt", "ser", "usf")
 
     fun isAuxiliaryFolder(name: String): Boolean {
+        if (com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(name)) return true
         val lower = name.lowercase().trim()
         return lower in listOf("lyrics", "lyric", "lrc", "covers", "cover", "artwork", "art", "scans", "scan", "extras", "extra")
     }
