@@ -224,11 +224,15 @@ if (isLandscape) {
                     modifier = Modifier
                         .weight(0.7f)
                         .aspectRatio(1f)
-                        .shadow(
-                            elevation = 12.dp,
-                            shape = RoundedCornerShape(32.dp),
-                            spotColor = Color(colorPalette.vibrant).copy(alpha = 0.35f),
-                            ambientColor = Color.Transparent
+                        .then(
+                            if (!isLyricsMode) {
+                                Modifier.shadow(
+                                    elevation = 12.dp,
+                                    shape = RoundedCornerShape(32.dp),
+                                    spotColor = Color(colorPalette.vibrant).copy(alpha = 0.35f),
+                                    ambientColor = Color.Transparent
+                                )
+                            } else Modifier
                         )
                 ) {
                     Box(
@@ -245,35 +249,10 @@ if (isLandscape) {
                             label = "lyrics_transition"
                         ) { targetLyricsMode ->
                             if (targetLyricsMode) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(RoundedCornerShape(32.dp))
-                                        .background(Color(0xFF14131E))
-                                        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(32.dp))
-                                ) {
-                                    SyncedLyricsView(
-                                        lyrics = currentChapter?.lyrics,
-                                        currentPositionMs = currentPosition,
-                                        onSeekTo = { musicViewModel.seekToPosition(it) },
-                                        onOpenLyricsDialog = { showLyricsDialog = true }
-                                    )
-                                    IconButton(
-                                        onClick = { isLyricsMode = false },
-                                        modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .padding(14.dp)
-                                            .size(32.dp)
-                                            .background(Color.White.copy(alpha = 0.12f), CircleShape)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Close,
-                                            contentDescription = "Close Lyrics",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                }
+                                SyncedLyricsView(
+                                    lyrics = currentChapter?.lyrics,
+                                    currentPositionMs = currentPosition
+                                )
                             } else {
                                 val cover = currentChapter?.thumbnailUri?.takeIf { it.isNotBlank() }
                                     ?: currentManga?.coverPath?.takeIf { it.isNotBlank() }
@@ -655,11 +634,15 @@ if (isLandscape) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .shadow(
-                        elevation = 12.dp,
-                        shape = RoundedCornerShape(32.dp),
-                        spotColor = Color(colorPalette.vibrant).copy(alpha = 0.35f),
-                        ambientColor = Color.Transparent
+                    .then(
+                        if (!isLyricsMode) {
+                            Modifier.shadow(
+                                elevation = 12.dp,
+                                shape = RoundedCornerShape(32.dp),
+                                spotColor = Color(colorPalette.vibrant).copy(alpha = 0.35f),
+                                ambientColor = Color.Transparent
+                            )
+                        } else Modifier
                     )
             ) {
                 Box(
@@ -678,35 +661,10 @@ if (isLandscape) {
                         label = "lyrics_transition"
                     ) { targetLyricsMode ->
                         if (targetLyricsMode) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(RoundedCornerShape(32.dp))
-                                    .background(Color(0xFF14131E))
-                                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(32.dp))
-                            ) {
-                                SyncedLyricsView(
-                                    lyrics = currentChapter?.lyrics,
-                                    currentPositionMs = currentPosition,
-                                    onSeekTo = { musicViewModel.seekToPosition(it) },
-                                    onOpenLyricsDialog = { showLyricsDialog = true }
-                                )
-                                IconButton(
-                                    onClick = { isLyricsMode = false },
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(14.dp)
-                                        .size(32.dp)
-                                        .background(Color.White.copy(alpha = 0.12f), CircleShape)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Close,
-                                        contentDescription = "Close Lyrics",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
+                            SyncedLyricsView(
+                                lyrics = currentChapter?.lyrics,
+                                currentPositionMs = currentPosition
+                            )
                         } else {
                             val cover = currentChapter?.thumbnailUri?.takeIf { it.isNotBlank() }
                                 ?: currentManga?.coverPath?.takeIf { it.isNotBlank() }
@@ -1661,8 +1619,8 @@ fun ShuffleControlMenu(
 fun SyncedLyricsView(
     lyrics: String?,
     currentPositionMs: Long,
-    onSeekTo: (Long) -> Unit,
-    onOpenLyricsDialog: () -> Unit,
+    onSeekTo: (Long) -> Unit = {},
+    onOpenLyricsDialog: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val parsedLines = remember(lyrics) {
@@ -1676,26 +1634,13 @@ fun SyncedLyricsView(
                 .padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "No lyrics found.",
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                OutlinedButton(
-                    onClick = onOpenLyricsDialog,
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                ) {
-                    Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Add Lyrics")
-                }
-            }
+            Text(
+                text = "No lyrics found.",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
         }
     } else if (parsedLines.isNotEmpty()) {
         val activeIndex = remember(currentPositionMs, parsedLines) {
@@ -1704,25 +1649,43 @@ fun SyncedLyricsView(
 
         val listState = androidx.compose.foundation.lazy.rememberLazyListState()
 
-        LaunchedEffect(activeIndex) {
-            if (activeIndex in parsedLines.indices) {
-                listState.animateScrollToItem(
-                    index = activeIndex,
-                    scrollOffset = -180
-                )
-            }
-        }
-
-        Box(
+        BoxWithConstraints(
             modifier = modifier
                 .fillMaxSize()
-                .fadingEdges(topFade = 48.dp, bottomFade = 48.dp)
+                .fadingEdges(topFade = 56.dp, bottomFade = 56.dp)
         ) {
+            val density = LocalDensity.current
+            val halfViewportDp = with(density) { (constraints.maxHeight / 2).toDp() }
+
+            var isInitialized by remember { mutableStateOf(false) }
+
+            LaunchedEffect(activeIndex, constraints.maxHeight) {
+                if (activeIndex in parsedLines.indices && constraints.maxHeight > 0) {
+                    val visibleItem = listState.layoutInfo.visibleItemsInfo.find { it.index == activeIndex }
+                    val itemHeightPx = visibleItem?.size ?: with(density) { 40.dp.roundToPx() }
+                    val centerOffset = -(constraints.maxHeight / 2 - itemHeightPx / 2)
+
+                    if (!isInitialized) {
+                        listState.scrollToItem(
+                            index = activeIndex,
+                            scrollOffset = centerOffset
+                        )
+                        isInitialized = true
+                    } else {
+                        listState.animateScrollToItem(
+                            index = activeIndex,
+                            scrollOffset = centerOffset
+                        )
+                    }
+                }
+            }
+
             androidx.compose.foundation.lazy.LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                contentPadding = PaddingValues(vertical = 120.dp)
+                contentPadding = PaddingValues(top = halfViewportDp, bottom = halfViewportDp),
+                userScrollEnabled = false
             ) {
                 items(
                     count = parsedLines.size,
@@ -1757,7 +1720,6 @@ fun SyncedLyricsView(
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onSeekTo(line.timestampMs) }
                             .padding(horizontal = 24.dp, vertical = 9.dp)
                     )
                 }
