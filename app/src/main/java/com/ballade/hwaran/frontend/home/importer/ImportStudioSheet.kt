@@ -12,8 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
-import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,6 +26,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -136,7 +136,9 @@ fun ImportStudioSheet(
             if (MEDIA_OPTIONS.any { it.modeId == initialMediaMode }) initialMediaMode else 0
         )
     }
-    var selectedStorageMode by remember(initialStorageMode) { mutableIntStateOf(initialStorageMode) }
+    var selectedStorageMode by remember(initialStorageMode) {
+        mutableIntStateOf(if (initialStorageMode == 0) 1 else initialStorageMode)
+    }
     var selectedVideoShelf by remember(initialVideoLayoutMode) { mutableIntStateOf(initialVideoLayoutMode) }
     var selectedComicPurpose by remember { mutableStateOf("manga") }
     var selectedWorkspace by remember(currentWorkspace) { mutableStateOf(currentWorkspace) }
@@ -378,6 +380,12 @@ fun ImportStudioSheet(
                             }
                         }
 
+                        // ── Material Viability & Directory Structure Guide ──
+                        MaterialViabilityGuide(
+                            selectedMediaId = selectedMediaId,
+                            accentColor = currentAccent
+                        )
+
                         // ── 2. Configuration Deck ──
                         Surface(
                             shape = RoundedCornerShape(20.dp),
@@ -408,14 +416,32 @@ fun ImportStudioSheet(
                                     )
                                 }
 
-                                // Storage Mode Pill
+                                // Storage Mode Pill - External In-Place is Default / First
                                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text(
-                                        text = "Storage Pipeline",
-                                        color = Color.White.copy(alpha = 0.6f),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = "Storage Pipeline",
+                                            color = Color.White.copy(alpha = 0.6f),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Surface(
+                                            color = Color(0xFF66BB6A).copy(alpha = 0.16f),
+                                            shape = RoundedCornerShape(6.dp),
+                                            border = BorderStroke(1.dp, Color(0xFF66BB6A).copy(alpha = 0.35f))
+                                        ) {
+                                            Text(
+                                                text = "External First",
+                                                color = Color(0xFF66BB6A),
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
 
                                     Row(
                                         modifier = Modifier
@@ -425,46 +451,15 @@ fun ImportStudioSheet(
                                             .padding(3.dp),
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        val isLocal = selectedStorageMode == 0
-                                        Surface(
-                                            onClick = {
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                selectedStorageMode = 0
-                                            },
-                                            shape = RoundedCornerShape(12.dp),
-                                            color = if (isLocal) Color(0xFF222631) else Color.Transparent,
-                                            border = if (isLocal) BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)) else null,
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(vertical = 8.dp),
-                                                horizontalArrangement = Arrangement.Center,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(
-                                                    Icons.Rounded.Shield,
-                                                    contentDescription = null,
-                                                    tint = if (isLocal) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
-                                                    modifier = Modifier.size(14.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text(
-                                                    text = "Local Vault",
-                                                    color = if (isLocal) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
-                                                    fontSize = 12.sp,
-                                                    fontWeight = if (isLocal) FontWeight.Bold else FontWeight.Normal
-                                                )
-                                            }
-                                        }
-
+                                        val isExternal = selectedStorageMode == 1
                                         Surface(
                                             onClick = {
                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                 selectedStorageMode = 1
                                             },
                                             shape = RoundedCornerShape(12.dp),
-                                            color = if (!isLocal) Color(0xFF222631) else Color.Transparent,
-                                            border = if (!isLocal) BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)) else null,
+                                            color = if (isExternal) Color(0xFF222631) else Color.Transparent,
+                                            border = if (isExternal) BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)) else null,
                                             modifier = Modifier.weight(1f)
                                         ) {
                                             Row(
@@ -475,25 +470,56 @@ fun ImportStudioSheet(
                                                 Icon(
                                                     Icons.Rounded.FolderOpen,
                                                     contentDescription = null,
-                                                    tint = if (!isLocal) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
+                                                    tint = if (isExternal) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
                                                     modifier = Modifier.size(14.dp)
                                                 )
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text(
                                                     text = "External In-Place",
-                                                    color = if (!isLocal) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
+                                                    color = if (isExternal) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
                                                     fontSize = 12.sp,
-                                                    fontWeight = if (!isLocal) FontWeight.Bold else FontWeight.Normal
+                                                    fontWeight = if (isExternal) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            }
+                                        }
+
+                                        Surface(
+                                            onClick = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                selectedStorageMode = 0
+                                            },
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (!isExternal) Color(0xFF222631) else Color.Transparent,
+                                            border = if (!isExternal) BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)) else null,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(vertical = 8.dp),
+                                                horizontalArrangement = Arrangement.Center,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    Icons.Rounded.Shield,
+                                                    contentDescription = null,
+                                                    tint = if (!isExternal) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "Local Vault",
+                                                    color = if (!isExternal) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = if (!isExternal) FontWeight.Bold else FontWeight.Normal
                                                 )
                                             }
                                         }
                                     }
 
                                     Text(
-                                        text = if (selectedStorageMode == 0)
-                                            "Copies content into app's secure private sandbox for instant caching and protection."
+                                        text = if (selectedStorageMode == 1)
+                                            "External In-Place reads from storage directly without copying. Saves disk space and preserves files."
                                         else
-                                            "Reads in-place from your storage without duplicating files to preserve disk space.",
+                                            "Copies all media into app's secure private sandbox for offline isolation.",
                                         color = Color.White.copy(alpha = 0.38f),
                                         fontSize = 10.sp,
                                         modifier = Modifier.padding(start = 2.dp)
@@ -788,14 +814,31 @@ fun ImportStudioSheet(
                             }
                         }
 
-                        // ── 3. Action Cards (Pick Single vs. Batch) ──
-                        Text(
-                            text = "IMPORT SOURCE",
-                            color = Color.White.copy(alpha = 0.45f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
-                        )
+                        // ── 3. Import Source: Divided into 2 Sections (Folder vs Batch) ──
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "IMPORT SOURCE",
+                                color = Color.White.copy(alpha = 0.45f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                            Surface(
+                                color = Color.White.copy(alpha = 0.08f),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    text = "2 MODES",
+                                    color = Color.White.copy(alpha = 0.6f),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
 
                         val computedPurpose = when (selectedMediaId) {
                             2 -> if (selectedVideoShelf == 1) "channel" else "series"
@@ -805,11 +848,11 @@ fun ImportStudioSheet(
                             else -> null
                         }
 
-                        // Card A: Single Item Import
+                        // ── SECTION 1: FOLDER IMPORT (Single Title / Work) ──
                         Surface(
                             shape = RoundedCornerShape(20.dp),
                             color = Color.White.copy(alpha = 0.045f),
-                            border = BorderStroke(1.dp, currentAccent.copy(alpha = 0.25f)),
+                            border = BorderStroke(1.dp, currentAccent.copy(alpha = 0.35f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(
@@ -822,7 +865,7 @@ fun ImportStudioSheet(
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(38.dp)
+                                            .size(42.dp)
                                             .clip(CircleShape)
                                             .background(currentAccent.copy(alpha = 0.18f)),
                                         contentAlignment = Alignment.Center
@@ -830,61 +873,73 @@ fun ImportStudioSheet(
                                         Icon(
                                             imageVector = when (selectedMediaId) {
                                                 1 -> Icons.Rounded.Description
-                                                4 -> Icons.Rounded.Article
+                                                4 -> Icons.AutoMirrored.Rounded.Article
                                                 2 -> Icons.Rounded.Movie
                                                 3 -> Icons.Rounded.Album
                                                 else -> Icons.Rounded.Folder
                                             },
                                             contentDescription = null,
                                             tint = currentAccent,
-                                            modifier = Modifier.size(20.dp)
+                                            modifier = Modifier.size(22.dp)
                                         )
                                     }
 
                                     Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = "Folder Import",
+                                                color = Color.White,
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Surface(
+                                                color = currentAccent.copy(alpha = 0.18f),
+                                                shape = RoundedCornerShape(6.dp),
+                                                border = BorderStroke(1.dp, currentAccent.copy(alpha = 0.4f))
+                                            ) {
+                                                Text(
+                                                    text = "Single Title",
+                                                    color = currentAccent,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
                                         Text(
                                             text = when (selectedMediaId) {
-                                                1 -> "Single Book (PDF)"
-                                                4 -> "Single Novel (EPUB / Text)"
-                                                2 -> if (selectedVideoShelf == 1) "Creator Channel Folder" else "Show / Season Folder"
-                                                3 -> "Single Album Folder"
-                                                else -> "Single Comic / Manga"
-                                            },
-                                            color = Color.White,
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            text = when (selectedMediaId) {
-                                                1 -> "Pick a single PDF document or folder containing book pages"
-                                                4 -> "Pick an .epub, .txt, or markdown file directly or its folder"
-                                                2 -> "Pick a video file or folder with episodes for a specific series"
-                                                3 -> "Pick an album folder containing audio tracks and cover"
-                                                else -> "Pick a folder with chapter subfolders or loose pages"
+                                                1 -> "Import a single PDF document or book folder"
+                                                4 -> "Import a single novel title folder or .epub / .txt file"
+                                                2 -> if (selectedVideoShelf == 1) "Import a creator channel folder" else "Import a show or anime series folder"
+                                                3 -> "Import a single album folder containing tracks"
+                                                else -> "Import a single comic or manga title folder"
                                             },
                                             color = Color.White.copy(alpha = 0.5f),
                                             fontSize = 11.sp,
-                                            lineHeight = 15.sp
+                                            lineHeight = 15.sp,
+                                            modifier = Modifier.padding(top = 2.dp)
                                         )
                                     }
                                 }
 
-                                // Action Buttons (File or Folder)
+                                // Action Buttons (Folder and File)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    if (activeOption.canImportFile) {
+                                    if (activeOption.canImportFolder) {
                                         Button(
                                             onClick = {
                                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                onImportSingleFile(
+                                                onImportSingleFolder(
                                                     selectedMediaId,
                                                     selectedStorageMode,
                                                     computedPurpose,
                                                     selectedWorkspace,
-                                                    isNsfwVault,
-                                                    activeOption.fileMimeTypes
+                                                    isNsfwVault
                                                 )
                                             },
                                             colors = ButtonDefaults.buttonColors(
@@ -896,40 +951,6 @@ fun ImportStudioSheet(
                                             modifier = Modifier.weight(1f)
                                         ) {
                                             Icon(
-                                                Icons.Rounded.InsertDriveFile,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = if (selectedMediaId == 1 || selectedMediaId == 4) "Pick File" else "Pick File",
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp
-                                            )
-                                        }
-                                    }
-
-                                    if (activeOption.canImportFolder) {
-                                        OutlinedButton(
-                                            onClick = {
-                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                onImportSingleFolder(
-                                                    selectedMediaId,
-                                                    selectedStorageMode,
-                                                    computedPurpose,
-                                                    selectedWorkspace,
-                                                    isNsfwVault
-                                                )
-                                            },
-                                            shape = RoundedCornerShape(14.dp),
-                                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-                                            colors = ButtonDefaults.outlinedButtonColors(
-                                                containerColor = Color.White.copy(alpha = 0.04f),
-                                                contentColor = Color(0xFFE6E8EC)
-                                            ),
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Icon(
                                                 Icons.Rounded.Folder,
                                                 contentDescription = null,
                                                 modifier = Modifier.size(16.dp)
@@ -937,6 +958,41 @@ fun ImportStudioSheet(
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
                                                 text = "Pick Folder",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp
+                                            )
+                                        }
+                                    }
+
+                                    if (activeOption.canImportFile) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                onImportSingleFile(
+                                                    selectedMediaId,
+                                                    selectedStorageMode,
+                                                    computedPurpose,
+                                                    selectedWorkspace,
+                                                    isNsfwVault,
+                                                    activeOption.fileMimeTypes
+                                                )
+                                            },
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                containerColor = Color.White.copy(alpha = 0.04f),
+                                                contentColor = Color(0xFFE6E8EC)
+                                            ),
+                                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                                            shape = RoundedCornerShape(14.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Icon(
+                                                Icons.AutoMirrored.Rounded.InsertDriveFile,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "Pick File",
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 13.sp
                                             )
@@ -946,7 +1002,7 @@ fun ImportStudioSheet(
                             }
                         }
 
-                        // Card B: Batch Mega Import
+                        // ── SECTION 2: BATCH IMPORT (Multi-Title Scanner) ──
                         Surface(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -959,80 +1015,447 @@ fun ImportStudioSheet(
                                 )
                             },
                             shape = RoundedCornerShape(20.dp),
-                            color = Color.White.copy(alpha = 0.035f),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                            color = Color.White.copy(alpha = 0.045f),
+                            border = BorderStroke(1.dp, Color(0xFF66BB6A).copy(alpha = 0.35f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Row(
+                            Column(
                                 modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.White.copy(alpha = 0.08f)),
-                                    contentAlignment = Alignment.Center
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Icon(
-                                        Icons.Rounded.AutoAwesomeMotion,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF66BB6A).copy(alpha = 0.18f)),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Text(
-                                            text = "Batch Library Import",
-                                            color = Color.White,
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.Bold
+                                        Icon(
+                                            Icons.Rounded.AutoAwesomeMotion,
+                                            contentDescription = null,
+                                            tint = Color(0xFF66BB6A),
+                                            modifier = Modifier.size(22.dp)
                                         )
-                                        Surface(
-                                            color = Color(0xFF66BB6A).copy(alpha = 0.16f),
-                                            shape = RoundedCornerShape(6.dp),
-                                            border = BorderStroke(1.dp, Color(0xFF66BB6A).copy(alpha = 0.35f))
+                                    }
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {
                                             Text(
-                                                text = "Scanner",
-                                                color = Color(0xFF66BB6A),
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                                text = "Batch Import",
+                                                color = Color.White,
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold
                                             )
+                                            Surface(
+                                                color = Color(0xFF66BB6A).copy(alpha = 0.16f),
+                                                shape = RoundedCornerShape(6.dp),
+                                                border = BorderStroke(1.dp, Color(0xFF66BB6A).copy(alpha = 0.35f))
+                                            ) {
+                                                Text(
+                                                    text = "Mega Scanner",
+                                                    color = Color(0xFF66BB6A),
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                                )
+                                            }
                                         }
+                                        Text(
+                                            text = when (selectedMediaId) {
+                                                1 -> "Pick a master directory containing dozens or hundreds of PDF books"
+                                                4 -> "Pick a root collection containing multiple EPUB / light novel titles"
+                                                2 -> "Pick a parent directory with multiple shows or anime to index all at once"
+                                                3 -> "Pick a music library folder containing multiple artists and albums"
+                                                else -> "Pick a collection folder full of multiple comic / manga titles"
+                                            },
+                                            color = Color.White.copy(alpha = 0.5f),
+                                            fontSize = 11.sp,
+                                            lineHeight = 15.sp,
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        )
                                     }
-                                    Text(
-                                        text = when (selectedMediaId) {
-                                            1 -> "Pick a master directory containing dozens or hundreds of PDF books"
-                                            4 -> "Pick a root collection containing multiple EPUB / light novel titles"
-                                            2 -> "Pick a parent directory with multiple shows/anime to index all at once"
-                                            3 -> "Pick a music library folder containing multiple artists and albums"
-                                            else -> "Pick a collection folder full of different manga / comic titles"
-                                        },
-                                        color = Color.White.copy(alpha = 0.45f),
-                                        fontSize = 11.sp,
-                                        lineHeight = 15.sp,
-                                        modifier = Modifier.padding(top = 2.dp)
+
+                                    Icon(
+                                        Icons.AutoMirrored.Rounded.ArrowForward,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
 
-                                Icon(
-                                    Icons.AutoMirrored.Rounded.ArrowForward,
-                                    contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.4f),
-                                    modifier = Modifier.size(20.dp)
-                                )
+                                Surface(
+                                    color = Color.Black.copy(alpha = 0.25f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.Info,
+                                            contentDescription = null,
+                                            tint = Color(0xFF66BB6A).copy(alpha = 0.8f),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = "Recursively indexes each subfolder into an independent library item in parallel.",
+                                            color = Color.White.copy(alpha = 0.6f),
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                }
                             }
                         }
 
                         Spacer(modifier = Modifier.height(20.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MaterialViabilityGuide(
+    selectedMediaId: Int,
+    accentColor: Color
+) {
+    var isExpanded by remember { mutableStateOf(true) }
+    var guideTab by remember { mutableIntStateOf(0) } // 0: Folder (Single), 1: Batch (Multi)
+
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White.copy(alpha = 0.035f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Header with expand/collapse toggle
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isExpanded = !isExpanded },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(accentColor.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Rounded.AccountTree,
+                            contentDescription = null,
+                            tint = accentColor,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "MATERIAL & STRUCTURE GUIDE",
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.7.sp
+                            )
+                            Surface(
+                                color = Color(0xFF4CAF50).copy(alpha = 0.18f),
+                                shape = RoundedCornerShape(6.dp),
+                                border = BorderStroke(1.dp, Color(0xFF4CAF50).copy(alpha = 0.35f))
+                            ) {
+                                Text(
+                                    text = "READ FIRST",
+                                    color = Color(0xFF81C784),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = "Viable formats and directory layout required for importing",
+                            color = Color.White.copy(alpha = 0.45f),
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+
+                IconButton(
+                    onClick = { isExpanded = !isExpanded },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        contentDescription = if (isExpanded) "Collapse" else "Expand",
+                        tint = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Structure Mode Tab Selector (Single Folder vs Batch Library)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.Black.copy(alpha = 0.35f))
+                            .padding(2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Surface(
+                            onClick = { guideTab = 0 },
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (guideTab == 0) Color(0xFF222631) else Color.Transparent,
+                            border = if (guideTab == 0) BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)) else null,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = "1. Folder (Single Title)",
+                                color = if (guideTab == 0) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
+                                fontSize = 11.sp,
+                                fontWeight = if (guideTab == 0) FontWeight.Bold else FontWeight.Normal,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(vertical = 6.dp)
+                            )
+                        }
+
+                        Surface(
+                            onClick = { guideTab = 1 },
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (guideTab == 1) Color(0xFF222631) else Color.Transparent,
+                            border = if (guideTab == 1) BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)) else null,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = "2. Batch (Multi-Title)",
+                                color = if (guideTab == 1) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
+                                fontSize = 11.sp,
+                                fontWeight = if (guideTab == 1) FontWeight.Bold else FontWeight.Normal,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(vertical = 6.dp)
+                            )
+                        }
+                    }
+
+                    // Directory Tree Viewport
+                    val treeText = when (selectedMediaId) {
+                        0 -> if (guideTab == 0) {
+                            """
+📁 Solo Leveling/               ← Select this folder
+├── 🖼️ cover.jpg                (optional title cover)
+├── 📁 Chapter 01/
+│   ├── 001.webp
+│   └── 002.webp
+└── 📁 Chapter 02/
+    └── 001.webp
+Tip: Can also pick a single .cbz / .zip file directly.
+                            """.trimIndent()
+                        } else {
+                            """
+📁 Manga Collection/            ← Select this master folder
+├── 📁 One Piece/
+│   ├── 📁 Chapter 01/ ...
+│   └── 📁 Chapter 02/ ...
+└── 📁 Berserk/
+    ├── 📁 Chapter 01/ ...
+    └── 📁 Chapter 02/ ...
+Tip: Recursively imports all title folders in parallel.
+                            """.trimIndent()
+                        }
+
+                        1 -> if (guideTab == 0) {
+                            """
+📄 Calculus_Third_Edition.pdf    ← Select PDF file directly
+OR
+📁 Calculus Book/               ← Select folder
+└── 📄 book.pdf
+Tip: Outlines, links & text are parsed automatically.
+                            """.trimIndent()
+                        } else {
+                            """
+📁 PDF Library/                 ← Select this master folder
+├── 📄 Dune.pdf
+├── 📄 Foundation.pdf
+└── 📁 Science/
+    └── 📄 Physics_Vol1.pdf
+Tip: Indexes all PDF documents across your folder tree.
+                            """.trimIndent()
+                        }
+
+                        4 -> if (guideTab == 0) {
+                            """
+📄 Lord_of_the_Mysteries.epub   ← Select EPUB file directly
+OR
+📁 Shadow Slave/                ← Select novel folder
+├── 🖼️ cover.webp               (optional cover)
+├── 📄 chapter_001.txt          (numbered chapter)
+├── 📄 chapter_002.txt
+└── 📄 .zine/entry.json         (optional metadata)
+                            """.trimIndent()
+                        } else {
+                            """
+📁 Web Novels Library/          ← Select this master folder
+├── 📄 Omniscient_Reader.epub
+├── 📁 The_Beginning_After_End/
+│   ├── 📄 ch001.txt
+│   └── 📄 ch002.txt
+└── 📁 Overlord/
+    └── 📄 Volume_01.epub
+Tip: Fast multi-novel indexing across all subfolders.
+                            """.trimIndent()
+                        }
+
+                        2 -> if (guideTab == 0) {
+                            """
+📁 Attack on Titan/             ← Select series folder
+├── 📁 Season 1/
+│   ├── 🎬 S01E01.mp4
+│   └── 🎬 S01E02.mp4
+└── 📁 Season 2/
+    └── 🎬 S02E01.mp4
+(For Creator Channels: put videos directly in folder)
+                            """.trimIndent()
+                        } else {
+                            """
+📁 Anime & Shows Library/       ← Select this master folder
+├── 📁 Steins Gate/
+│   ├── 📁 Season 1/ ...
+│   └── 📁 Season 2/ ...
+└── 📁 Jujutsu Kaisen/
+    └── 📁 Season 1/ ...
+Tip: Creates a show card for each series subfolder.
+                            """.trimIndent()
+                        }
+
+                        3 -> if (guideTab == 0) {
+                            """
+📁 Random Access Memories/      ← Select album folder
+├── 🖼️ cover.jpg                (optional album art)
+├── 🎵 01 - Give Life Back.flac
+├── 🎵 02 - Giorgio.flac
+└── 🎵 03 - Giorgio Moroder.flac
+Tip: ID3 tags (artist, album, track #) read automatically.
+                            """.trimIndent()
+                        } else {
+                            """
+📁 Music Collection/            ← Select this master folder
+├── 📁 Daft Punk/
+│   ├── 📁 Discovery/ ...
+│   └── 📁 RAM/ ...
+└── 📁 Pink Floyd/
+    └── 📁 The Wall/ ...
+Tip: Scans all artist and album folders into your library.
+                            """.trimIndent()
+                        }
+
+                        else -> ""
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF0C0E14),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = treeText,
+                            color = Color(0xFFB0BEC5),
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            lineHeight = 16.sp,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+
+                    // Key Rules / Checklist
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.White.copy(alpha = 0.02f))
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val rules = when (selectedMediaId) {
+                            0 -> listOf(
+                                "Chapter naming: Name subfolders numerically (e.g. 'Chapter 01', '01 - Intro').",
+                                "Images: Supported: JPG, PNG, WEBP. Sorted alphabetically inside chapters.",
+                                "Archives: Single .cbz or .zip files work as individual chapters or volumes."
+                            )
+                            1 -> listOf(
+                                "Single file: Tap 'Pick File' to import any .pdf directly.",
+                                "Covers: First page is automatically rendered as the high-res cover.",
+                                "Reading: Supports page-by-page, continuous scroll, text search, and links."
+                            )
+                            4 -> listOf(
+                                "Formats: EPUB (.epub) or text files (.txt, .md, .markdown).",
+                                "EPUB: Table of contents, word counts, spine, and cover parsed natively.",
+                                "Text Novels: Name files starting with numbers (e.g. '001_intro.txt') for chapter ordering."
+                            )
+                            2 -> listOf(
+                                "Series Mode: Name subfolders 'Season 1', 'Season 2' for multi-season grouping.",
+                                "Channel Mode: Put videos directly in a single folder for a YouTube-like feed.",
+                                "Metadata: Thumbnails, duration, and aspect ratio are generated automatically."
+                            )
+                            3 -> listOf(
+                                "Formats: MP3, FLAC, WAV, M4A, AAC, OGG.",
+                                "Metadata: Artist, album, track number, and embedded cover art read from ID3 tags.",
+                                "Album Folder: A folder with music tracks is recognized as a full album."
+                            )
+                            else -> emptyList()
+                        }
+
+                        rules.forEach { rule ->
+                            Row(
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF81C784),
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .padding(top = 2.dp)
+                                )
+                                Text(
+                                    text = rule,
+                                    color = Color.White.copy(alpha = 0.65f),
+                                    fontSize = 10.sp,
+                                    lineHeight = 14.sp
+                                )
+                            }
+                        }
                     }
                 }
             }

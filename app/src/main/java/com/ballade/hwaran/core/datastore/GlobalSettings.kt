@@ -201,7 +201,7 @@ class GlobalSettings(private val context: Context) {
     }
 
     val storageModeFlow: Flow<Int> = context.dataStore.data.map { preferences ->
-        preferences[STORAGE_MODE] ?: 0
+        preferences[STORAGE_MODE] ?: 1 // Default to External In-Place (1)
     }
 
     val mediaModeFlow: Flow<Int> = context.dataStore.data.map { preferences ->
