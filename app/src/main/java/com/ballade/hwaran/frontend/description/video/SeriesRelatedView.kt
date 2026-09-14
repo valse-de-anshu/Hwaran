@@ -30,7 +30,12 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -42,6 +47,7 @@ import coil.request.ImageRequest
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.core.util.CoverArtResolver
+import com.ballade.hwaran.frontend.player.video.VideoPreview
 import java.io.File
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
@@ -66,6 +72,7 @@ fun SeriesRelatedView(
     onRefreshAvailableMedia: () -> Unit
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val CardBg = MaterialTheme.colorScheme.surface
     val TextMuted = MaterialTheme.colorScheme.onSurfaceVariant
     val DangerRed = Color(0xFFE57373)
@@ -460,6 +467,8 @@ fun SeriesRelatedView(
                     ) {
                         items(sortedVideos, key = { it.id }) { video ->
                             val isSelected = selectedVideoIds.contains(video.id)
+                            var showPreview by remember { mutableStateOf(false) }
+                            var wasPreviewing by remember { mutableStateOf(false) }
 
                             val (modelData, cacheKey) = remember(video.thumbnailUri, video.folderUri) {
                                 if (video.thumbnailUri != null) {
@@ -487,12 +496,46 @@ fun SeriesRelatedView(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(16.dp))
+                                    .pointerInput(video.id, isDeleteMode) {
+                                        if (isDeleteMode) return@pointerInput
+                                        awaitEachGesture {
+                                            val down = awaitFirstDown(requireUnconsumed = false)
+                                            showPreview = false
+                                            wasPreviewing = false
+                                            val startPos = down.position
+                                            val startTime = System.currentTimeMillis()
+                                            var held = true
+                                            val touchSlop = viewConfiguration.touchSlop
+                                            do {
+                                                val event = awaitPointerEvent()
+                                                val pointer = event.changes.firstOrNull { it.id == down.id }
+                                                if (pointer == null || !pointer.pressed) {
+                                                    held = false
+                                                    break
+                                                }
+                                                if ((pointer.position - startPos).getDistance() > touchSlop) {
+                                                    held = false
+                                                    break
+                                                }
+                                                val elapsed = System.currentTimeMillis() - startTime
+                                                if (!showPreview && elapsed >= 180L) {
+                                                    showPreview = true
+                                                    wasPreviewing = true
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                }
+                                            } while (held)
+                                            showPreview = false
+                                        }
+                                    }
                                     .clickable {
                                         if (isDeleteMode) {
                                             if (isSelected) selectedVideoIds.remove(video.id)
                                             else selectedVideoIds.add(video.id)
                                         } else {
-                                            onNavigateToVideo(video.id)
+                                            if (!wasPreviewing) {
+                                                onNavigateToVideo(video.id)
+                                            }
+                                            wasPreviewing = false
                                         }
                                     },
                                 shape = RoundedCornerShape(16.dp),
@@ -525,8 +568,16 @@ fun SeriesRelatedView(
                                             modifier = Modifier.fillMaxSize()
                                         )
 
+                                        if (showPreview) {
+                                            VideoPreview(
+                                                uri = Uri.parse(video.folderUri),
+                                                initialDuration = video.duration,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+
                                         // Duration Badge
-                                        if (durationStr != null && !isDeleteMode) {
+                                        if (durationStr != null && !isDeleteMode && !showPreview) {
                                             Surface(
                                                 shape = RoundedCornerShape(6.dp),
                                                 color = Color.Black.copy(alpha = 0.80f),

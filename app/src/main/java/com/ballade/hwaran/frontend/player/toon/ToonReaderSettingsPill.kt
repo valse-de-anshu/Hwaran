@@ -249,8 +249,7 @@ fun ToonReaderSettingsPill(
                                     Slider(
                                         value = cropZoom,
                                         onValueChange = onCropZoomChange,
-                                        valueRange = 1.0f..1.50f,
-                                        steps = 9,
+                                        valueRange = 1.0f..2.50f,
                                         colors = SliderDefaults.colors(
                                             thumbColor = Color(0xFFE6E8EC),
                                             activeTrackColor = Color(0xFFE6E8EC),
@@ -271,18 +270,25 @@ fun ToonReaderSettingsPill(
                                             onClick = { onCropZoomChange(1.0f) }
                                         )
                                         CompactPresetPill(
-                                            label = "15%",
-                                            isSelected = cropZoom in 1.12f..1.18f,
+                                            label = "125%",
+                                            isSelected = cropZoom in 1.22f..1.28f,
                                             glowColor = glowColor,
                                             modifier = Modifier.weight(1f),
-                                            onClick = { onCropZoomChange(1.15f) }
+                                            onClick = { onCropZoomChange(1.25f) }
                                         )
                                         CompactPresetPill(
-                                            label = "30%",
-                                            isSelected = cropZoom in 1.28f..1.35f,
+                                            label = "150%",
+                                            isSelected = cropZoom in 1.47f..1.53f,
                                             glowColor = glowColor,
                                             modifier = Modifier.weight(1f),
-                                            onClick = { onCropZoomChange(1.30f) }
+                                            onClick = { onCropZoomChange(1.50f) }
+                                        )
+                                        CompactPresetPill(
+                                            label = "200%",
+                                            isSelected = cropZoom in 1.95f..2.05f,
+                                            glowColor = glowColor,
+                                            modifier = Modifier.weight(1f),
+                                            onClick = { onCropZoomChange(2.0f) }
                                         )
                                         // Reset Button
                                         Surface(

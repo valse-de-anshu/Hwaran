@@ -37,9 +37,34 @@ fun VideoPreview(
     val resolvedUri = remember(uri) {
         var result = uri
         try {
-            if (uri.toString().startsWith("content://")) {
+            val uriStr = uri.toString()
+            if (uriStr.startsWith("/")) {
+                val f = File(uriStr)
+                if (f.exists()) {
+                    if (f.isDirectory) {
+                        val videoFile = f.listFiles()?.find { file ->
+                            val name = file.name.lowercase()
+                            name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".avi") || name.endsWith(".webm")
+                        }
+                        if (videoFile != null) result = Uri.fromFile(videoFile)
+                    } else {
+                        result = Uri.fromFile(f)
+                    }
+                }
+            } else if (uriStr.startsWith("file://")) {
+                val f = File(uri.path ?: "")
+                if (f.exists() && f.isDirectory) {
+                    val videoFile = f.listFiles()?.find { file ->
+                        val name = file.name.lowercase()
+                        name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".avi") || name.endsWith(".webm")
+                    }
+                    if (videoFile != null) result = Uri.fromFile(videoFile)
+                }
+            } else if (uriStr.startsWith("content://")) {
                 val doc = DocumentFile.fromSingleUri(context, uri)
-                if (doc != null && doc.exists() && doc.isDirectory) {
+                if (doc != null && doc.exists() && !doc.isDirectory) {
+                    result = uri
+                } else if (doc != null && doc.exists() && doc.isDirectory) {
                     val videoFile = doc.listFiles().find { f ->
                         val name = f.name?.lowercase() ?: ""
                         name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".avi") || name.endsWith(".webm")
@@ -55,15 +80,6 @@ fun VideoPreview(
                         if (videoFile != null) result = videoFile.uri
                     }
                 }
-            } else {
-                val file = File(uri.path ?: "")
-                if (file.exists() && file.isDirectory) {
-                    val videoFile = file.listFiles()?.find { f -> 
-                        val name = f.name.lowercase()
-                        name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".avi") || name.endsWith(".webm")
-                    }
-                    if (videoFile != null) result = Uri.fromFile(videoFile)
-                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -73,7 +89,7 @@ fun VideoPreview(
 
     val alpha by animateFloatAsState(
         targetValue = if (isReadyToFade) 1f else 0f,
-        animationSpec = tween(durationMillis = 400),
+        animationSpec = tween(durationMillis = 200),
         label = "PreviewAlpha"
     )
     
@@ -81,7 +97,7 @@ fun VideoPreview(
         androidx.media3.exoplayer.ExoPlayer.Builder(context)
             .build().apply {
                 setSeekParameters(SeekParameters.CLOSEST_SYNC) 
-                setPlaybackSpeed(1.5f) // Snappy "Phub" style speed
+                setPlaybackSpeed(2.0f) // 2x preview
                 
                 val mediaItem = androidx.media3.common.MediaItem.fromUri(resolvedUri)
                 setMediaItem(mediaItem)
@@ -95,7 +111,10 @@ fun VideoPreview(
                     }
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         if (playbackState == Player.STATE_READY && duration <= 0L) {
-                            duration = this@apply.duration
+                            val dur = this@apply.duration
+                            if (dur > 0L) {
+                                duration = dur
+                            }
                         }
                     }
                     override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -116,56 +135,59 @@ fun VideoPreview(
     }
     
     LaunchedEffect(duration, exoPlayer) {
-        if (duration > 0) {
-            if (duration <= 61000L) {
-                exoPlayer.setPlaybackSpeed(2.5f)
-                exoPlayer.seekTo(0)
-                while (true) {
-                    delay(500)
-                    if (exoPlayer.playbackState == Player.STATE_ENDED) {
-                        exoPlayer.seekTo(0)
-                    }
+        if (duration <= 0L) {
+            // Start playing from beginning at 2.0x while waiting for duration to load
+            exoPlayer.setPlaybackSpeed(2.0f)
+            exoPlayer.seekTo(0)
+            while (duration <= 0L) {
+                delay(250)
+                if (exoPlayer.playbackState == Player.STATE_ENDED) {
+                    exoPlayer.seekTo(0)
                 }
-            } else {
-                val glimpseDuration = 1000L 
-                val middleStart = 30000L
-                val middleEnd = (duration - 40000L).coerceAtLeast(31000L)
-                val middleDuration = (middleEnd - middleStart).coerceAtLeast(1000L)
-                val segments = 6
-                
-                while (true) {
-                    try {
-                        // Phase 1: First 30 seconds at 2.5x
-                        exoPlayer.setPlaybackSpeed(2.5f)
-                        exoPlayer.seekTo(0)
-                        while (exoPlayer.currentPosition < 30000L && exoPlayer.playbackState != Player.STATE_ENDED) {
-                            delay(200)
-                        }
+            }
+        }
 
-                        // Phase 2: Middle segments follow current logic (1.5x)
-                        exoPlayer.setPlaybackSpeed(1.5f)
-                        for (i in 0 until segments) {
-                            val seekPosition = (middleStart + (i * (middleDuration / segments))).coerceIn(0, duration - 2000L)
-                            exoPlayer.seekTo(seekPosition)
-                            
-                            var waitCount = 0
-                            while (exoPlayer.playbackState == Player.STATE_BUFFERING && waitCount < 30) {
-                                delay(20)
-                                waitCount++
-                            }
-                            delay(glimpseDuration)
-                        }
-
-                        // Phase 3: Last 40 seconds at 2.5x
-                        exoPlayer.setPlaybackSpeed(2.5f)
-                        val lastPhaseStart = (duration - 40000L).coerceAtLeast(0L)
-                        exoPlayer.seekTo(lastPhaseStart)
-                        while (exoPlayer.currentPosition < duration - 1000L && exoPlayer.playbackState != Player.STATE_ENDED) {
-                            delay(200)
-                        }
-                    } catch (e: Exception) {
-                        break 
+        if (duration <= 60_000L) {
+            // 1 minute or less: Play whole video in 2x mode
+            exoPlayer.setPlaybackSpeed(2.0f)
+            exoPlayer.seekTo(0)
+            while (true) {
+                delay(250)
+                if (exoPlayer.playbackState == Player.STATE_ENDED || exoPlayer.currentPosition >= (duration - 400L)) {
+                    exoPlayer.seekTo(0)
+                }
+            }
+        } else {
+            // Video > 1 minute (e.g. 1:10 - 5:00 min, or full episodes):
+            // 1. Play first 30 seconds in 2x mode
+            // 2. Then show rapid preview snippets across the timeline to tell the full story
+            while (true) {
+                try {
+                    // Phase 1: First 30 seconds at 2.0x (or first half if duration < 70s)
+                    val introLimit = if (duration < 70_000L) (duration / 2).coerceAtLeast(15_000L) else 30_000L
+                    exoPlayer.setPlaybackSpeed(2.0f)
+                    exoPlayer.seekTo(0)
+                    while (exoPlayer.currentPosition < introLimit && exoPlayer.playbackState != Player.STATE_ENDED) {
+                        delay(200)
                     }
+
+                    // Phase 2: Rapid story preview (Netflix / Disney / YouTube style)
+                    val previewRatios = floatArrayOf(0.20f, 0.35f, 0.50f, 0.65f, 0.80f, 0.92f)
+                    exoPlayer.setPlaybackSpeed(2.5f)
+                    
+                    for (ratio in previewRatios) {
+                        val seekTarget = (duration * ratio).toLong().coerceIn(introLimit, (duration - 1800L).coerceAtLeast(0L))
+                        exoPlayer.seekTo(seekTarget)
+                        
+                        var waitCount = 0
+                        while (exoPlayer.playbackState == Player.STATE_BUFFERING && waitCount < 25) {
+                            delay(20)
+                            waitCount++
+                        }
+                        delay(1500L)
+                    }
+                } catch (e: Exception) {
+                    break 
                 }
             }
         }
@@ -179,6 +201,7 @@ fun VideoPreview(
                     useController = false
                     setKeepContentOnPlayerReset(true)
                     setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+                    resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                     layoutParams = android.view.ViewGroup.LayoutParams(
                         android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                         android.view.ViewGroup.LayoutParams.MATCH_PARENT
