@@ -229,12 +229,14 @@ class MainActivity : ComponentActivity() {
                                 val isMusicHomeScreen = isHomeScreen && activeTab == 1
                                 val isVerticalCompact = isHomeScreen && !isMusicHomeScreen
                                 val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                                val systemBarsBottom = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
+                                val maxBottomInset = maxOf(navBarBottom, systemBarsBottom)
                                 val targetPadding = if (isLandscape) {
-                                    8.dp
+                                    16.dp
                                 } else if (isVerticalCompact) {
                                     0.dp
                                 } else {
-                                    maxOf(navBarBottom + 16.dp, 32.dp) + 8.dp
+                                    maxOf(maxBottomInset + 36.dp, 56.dp) + 12.dp
                                 }
 
                                 val miniPlayerBottomPadding by animateDpAsState(

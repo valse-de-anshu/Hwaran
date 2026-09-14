@@ -133,7 +133,7 @@ fun PlaylistDetailScreen(
 
     val isMiniPlayerActive = currentChapter != null
     val bottomActionPadding by animateDpAsState(
-        targetValue = if (isMiniPlayerActive) 152.dp else 28.dp,
+        targetValue = if (isMiniPlayerActive) 176.dp else 28.dp,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessLow
@@ -142,9 +142,9 @@ fun PlaylistDetailScreen(
     )
 
     val listBottomPadding = when {
-        selectionMode != SelectionMode.NONE && isMiniPlayerActive -> 240.dp
+        selectionMode != SelectionMode.NONE && isMiniPlayerActive -> 270.dp
         selectionMode != SelectionMode.NONE -> 150.dp
-        isMiniPlayerActive -> 160.dp
+        isMiniPlayerActive -> 190.dp
         else -> 100.dp
     }
 

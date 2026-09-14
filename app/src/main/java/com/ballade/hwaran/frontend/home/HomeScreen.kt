@@ -102,6 +102,7 @@ fun HomeScreen(
     musicViewModel: MusicViewModel = viewModel(),
     onNavigateToSettings: () -> Unit,
     onNavigateToDescription: (Long) -> Unit,
+    onNavigateToPlaylistDetail: (Long) -> Unit = onNavigateToDescription,
     onNavigateToEditDescription: (Long) -> Unit = onNavigateToDescription,
     onNavigateToMedia: (Long, Int) -> Unit = { _, _ -> }
 ) {
@@ -223,11 +224,11 @@ fun HomeScreen(
                     libraryViewModel.updateMangaGenre(lastImportedMangaId!!, genre)
                 }
                 showGenreDialog = false
-                onNavigateToDescription(lastImportedMangaId!!)
+                onNavigateToPlaylistDetail(lastImportedMangaId!!)
             },
             onDismiss = { 
                 showGenreDialog = false 
-                onNavigateToDescription(lastImportedMangaId!!)
+                onNavigateToPlaylistDetail(lastImportedMangaId!!)
             }
         )
     }
@@ -408,6 +409,7 @@ fun HomeScreen(
                             allManga = allManga,
                             historyEvents = historyEvents,
                             onNavigateToDescription = onNavigateToDescription,
+                            onNavigateToPlaylistDetail = onNavigateToPlaylistDetail,
                             onNavigateToMedia = onNavigateToMedia,
                             onPlaySong = { manga, chapters, index ->
                                 musicViewModel.playPlaylist(manga, chapters, index)
@@ -430,7 +432,10 @@ fun HomeScreen(
                     1 -> {
                         LibraryView(
                             allManga = allManga,
-                            onNavigateToDescription = onNavigateToDescription,
+                            onNavigateToDescription = { id ->
+                                val m = allManga.find { it.id == id }
+                                if (m?.contentType == 3) onNavigateToPlaylistDetail(id) else onNavigateToDescription(id)
+                            },
                             initialTag = libraryInitialTag,
                             isLibraryLocked = isLibraryLocked,
                             libraryPassword = libraryPassword,
@@ -442,7 +447,10 @@ fun HomeScreen(
                     2 -> {
                         HomeSearchView(
                             allManga = allManga,
-                            onNavigateToDescription = onNavigateToDescription,
+                            onNavigateToDescription = { id ->
+                                val m = allManga.find { it.id == id }
+                                if (m?.contentType == 3) onNavigateToPlaylistDetail(id) else onNavigateToDescription(id)
+                            },
                             onPlaySong = { manga, chapters, index ->
                                 musicViewModel.playPlaylist(manga, chapters, index)
                             },
@@ -464,7 +472,7 @@ fun HomeScreen(
                             libraryViewModel = libraryViewModel,
                             settingsViewModel = settingsViewModel,
                             musicViewModel = musicViewModel,
-                            onNavigateToPlaylistDetail = onNavigateToDescription,
+                            onNavigateToPlaylistDetail = onNavigateToPlaylistDetail,
                             onImportMusic = {
                                 musicFolderPickerLauncher.launch(null)
                             },

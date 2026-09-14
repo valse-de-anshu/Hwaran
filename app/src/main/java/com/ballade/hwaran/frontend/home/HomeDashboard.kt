@@ -56,6 +56,7 @@ fun HomeDashboard(
     allManga: List<MangaEntity>,
     historyEvents: List<HistoryEventEntity>,
     onNavigateToDescription: (Long) -> Unit,
+    onNavigateToPlaylistDetail: (Long) -> Unit = onNavigateToDescription,
     onNavigateToMedia: (Long, Int) -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToSearch: () -> Unit = {},
@@ -452,7 +453,7 @@ fun HomeDashboard(
         if (inProgressItems.isNotEmpty()) {
             ContinueWatchingSection(
                 items = continueWatchingItems,
-                onItemClick = { manga -> onNavigateToDescription(manga.id) },
+                onItemClick = { manga -> if (manga.contentType == 3) onNavigateToPlaylistDetail(manga.id) else onNavigateToDescription(manga.id) },
                 onItemLongClick = onItemLongClick,
                 onPlayItem = { item ->
                     if (item.manga.contentType == 3) {
@@ -485,7 +486,7 @@ fun HomeDashboard(
         if (recentlyAdded.isNotEmpty()) {
             RecentlyAddedSection(
                 items = recentlyAdded.take(12),
-                onItemClick = { manga -> onNavigateToDescription(manga.id) },
+                onItemClick = { manga -> if (manga.contentType == 3) onNavigateToPlaylistDetail(manga.id) else onNavigateToDescription(manga.id) },
                 onItemLongClick = onItemLongClick,
                 onViewAllClick = { showRecentlyAddedSheet = true }
             )
@@ -499,7 +500,7 @@ fun HomeDashboard(
         RecentlyAddedSheet(
             allRecentlyAdded = recentlyAdded,
             onDismiss = { showRecentlyAddedSheet = false },
-            onItemClick = { manga -> onNavigateToDescription(manga.id) },
+            onItemClick = { manga -> if (manga.contentType == 3) onNavigateToPlaylistDetail(manga.id) else onNavigateToDescription(manga.id) },
             onItemLongClick = onItemLongClick
         )
     }

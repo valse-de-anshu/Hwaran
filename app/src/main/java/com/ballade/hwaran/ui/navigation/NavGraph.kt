@@ -190,6 +190,7 @@ fun AppNavGraph(
                     musicViewModel = musicViewModel,
                     onNavigateToSettings = { navController.navigateSafely(Screen.Settings.route) },
                     onNavigateToDescription = { mangaId -> navController.navigateSafely(Screen.Description.createRoute(mangaId)) },
+                    onNavigateToPlaylistDetail = { mangaId -> navController.navigateSafely(Screen.PlaylistDetail.createRoute(mangaId)) },
                     onNavigateToEditDescription = { mangaId -> navController.navigateSafely(Screen.Description.createRoute(mangaId, edit = true)) },
                     onNavigateToMedia = { id, contentType ->
                         when (contentType) {
@@ -275,28 +276,15 @@ fun AppNavGraph(
                     }
                 }
 
-                if (manga?.contentType == 3) {
-                    val libraryViewModel: LibraryViewModel = viewModel()
-                    PlaylistDetailScreen(
-                        mangaId = mangaId,
-                        descriptionViewModel = descriptionViewModel,
-                        musicViewModel = musicViewModel,
-                        settingsViewModel = settingsViewModel,
-                        libraryViewModel = libraryViewModel,
-                        onNavigateBack = { 
-                            val popped = navController.popBackStack()
-                            if (!popped) {
-                                navController.navigate(Screen.Home.route) {
-                                    popUpTo(0) { inclusive = true }
-                                    launchSingleTop = true
-                                }
-                            }
-                        },
-                        onNavigateToNowPlaying = { navController.navigateSafely(Screen.NowPlaying.route) },
-                        onNavigateToEditPlaylist = { id -> navController.navigateSafely(Screen.EditPlaylist.createRoute(id)) },
-                        onNavigateToEditSong = { id -> navController.navigateSafely(Screen.EditSong.createRoute(id)) }
-                    )
-                } else {
+                LaunchedEffect(manga?.contentType) {
+                    if (manga?.contentType == 3) {
+                        navController.navigate(Screen.PlaylistDetail.createRoute(mangaId)) {
+                            popUpTo(Screen.Description.createRoute(mangaId, shouldEdit)) { inclusive = true }
+                        }
+                    }
+                }
+
+                if (manga?.contentType != 3) {
                     val mediaMode by settingsViewModel.mediaMode.collectAsState()
                     DescriptionScreen(
                         mangaId = mangaId,
@@ -328,6 +316,58 @@ fun AppNavGraph(
                         }
                     )
                 }
+            }
+        }
+        composable(
+            route = Screen.PlaylistDetail.route,
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(280, easing = FastOutSlowInEasing)
+                ) + fadeIn(animationSpec = tween(200))
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { (-it * 0.10f).toInt() },
+                    animationSpec = tween(240, easing = FastOutSlowInEasing)
+                ) + fadeOut(animationSpec = tween(200))
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { (-it * 0.10f).toInt() },
+                    animationSpec = tween(260, easing = FastOutSlowInEasing)
+                ) + fadeIn(animationSpec = tween(200))
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(280, easing = FastOutSlowInEasing)
+                ) + fadeOut(animationSpec = tween(280))
+            }
+        ) { backStackEntry ->
+            val mangaId = backStackEntry.arguments?.getString("mangaId")?.toLongOrNull() ?: 0L
+            BlockTouchesWhenExiting {
+                val descriptionViewModel: DescriptionViewModel = viewModel()
+                val libraryViewModel: LibraryViewModel = viewModel()
+                PlaylistDetailScreen(
+                    mangaId = mangaId,
+                    descriptionViewModel = descriptionViewModel,
+                    musicViewModel = musicViewModel,
+                    settingsViewModel = settingsViewModel,
+                    libraryViewModel = libraryViewModel,
+                    onNavigateBack = { 
+                        val popped = navController.popBackStack()
+                        if (!popped) {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    },
+                    onNavigateToNowPlaying = { navController.navigateSafely(Screen.NowPlaying.route) },
+                    onNavigateToEditPlaylist = { id -> navController.navigateSafely(Screen.EditPlaylist.createRoute(id)) },
+                    onNavigateToEditSong = { id -> navController.navigateSafely(Screen.EditSong.createRoute(id)) }
+                )
             }
         }
         composable(

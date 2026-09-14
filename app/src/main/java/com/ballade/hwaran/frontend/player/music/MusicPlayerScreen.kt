@@ -245,12 +245,35 @@ if (isLandscape) {
                             label = "lyrics_transition"
                         ) { targetLyricsMode ->
                             if (targetLyricsMode) {
-                                SyncedLyricsView(
-                                    lyrics = currentChapter?.lyrics,
-                                    currentPositionMs = currentPosition,
-                                    onSeekTo = { musicViewModel.seekToPosition(it) },
-                                    onOpenLyricsDialog = { showLyricsDialog = true }
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(32.dp))
+                                        .background(Color(0xFF14131E))
+                                        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(32.dp))
+                                ) {
+                                    SyncedLyricsView(
+                                        lyrics = currentChapter?.lyrics,
+                                        currentPositionMs = currentPosition,
+                                        onSeekTo = { musicViewModel.seekToPosition(it) },
+                                        onOpenLyricsDialog = { showLyricsDialog = true }
+                                    )
+                                    IconButton(
+                                        onClick = { isLyricsMode = false },
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(14.dp)
+                                            .size(32.dp)
+                                            .background(Color.White.copy(alpha = 0.12f), CircleShape)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Close,
+                                            contentDescription = "Close Lyrics",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
                             } else {
                                 val cover = currentChapter?.thumbnailUri?.takeIf { it.isNotBlank() }
                                     ?: currentManga?.coverPath?.takeIf { it.isNotBlank() }
@@ -655,12 +678,35 @@ if (isLandscape) {
                         label = "lyrics_transition"
                     ) { targetLyricsMode ->
                         if (targetLyricsMode) {
-                            SyncedLyricsView(
-                                lyrics = currentChapter?.lyrics,
-                                currentPositionMs = currentPosition,
-                                onSeekTo = { musicViewModel.seekToPosition(it) },
-                                onOpenLyricsDialog = { showLyricsDialog = true }
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(32.dp))
+                                    .background(Color(0xFF14131E))
+                                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(32.dp))
+                            ) {
+                                SyncedLyricsView(
+                                    lyrics = currentChapter?.lyrics,
+                                    currentPositionMs = currentPosition,
+                                    onSeekTo = { musicViewModel.seekToPosition(it) },
+                                    onOpenLyricsDialog = { showLyricsDialog = true }
+                                )
+                                IconButton(
+                                    onClick = { isLyricsMode = false },
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(14.dp)
+                                        .size(32.dp)
+                                        .background(Color.White.copy(alpha = 0.12f), CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = "Close Lyrics",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
                         } else {
                             val cover = currentChapter?.thumbnailUri?.takeIf { it.isNotBlank() }
                                 ?: currentManga?.coverPath?.takeIf { it.isNotBlank() }
@@ -1473,36 +1519,28 @@ object LyricsParser {
 }
 
 fun Modifier.fadingEdges(
-    topFade: androidx.compose.ui.unit.Dp = 48.dp,
-    bottomFade: androidx.compose.ui.unit.Dp = 48.dp
+    topFade: androidx.compose.ui.unit.Dp = 56.dp,
+    bottomFade: androidx.compose.ui.unit.Dp = 56.dp
 ): Modifier = this
     .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
     .drawWithContent {
         drawContent()
-        val topFadePx = topFade.toPx()
-        val bottomFadePx = bottomFade.toPx()
         val h = size.height
+        if (h <= 0f) return@drawWithContent
+        val topFadePx = topFade.toPx().coerceAtLeast(0f)
+        val bottomFadePx = bottomFade.toPx().coerceAtLeast(0f)
+        val topStop = (topFadePx / h).coerceIn(0f, 0.45f)
+        val bottomStop = ((h - bottomFadePx) / h).coerceIn(0.55f, 1f)
 
-        if (topFadePx > 0f) {
-            drawRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(Color.Transparent, Color.Black),
-                    startY = 0f,
-                    endY = topFadePx
-                ),
-                blendMode = BlendMode.DstIn
-            )
-        }
-        if (bottomFadePx > 0f && h > bottomFadePx) {
-            drawRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(Color.Black, Color.Transparent),
-                    startY = h - bottomFadePx,
-                    endY = h
-                ),
-                blendMode = BlendMode.DstIn
-            )
-        }
+        drawRect(
+            brush = Brush.verticalGradient(
+                0f to Color.Transparent,
+                topStop to Color.Black,
+                bottomStop to Color.Black,
+                1f to Color.Transparent
+            ),
+            blendMode = BlendMode.DstIn
+        )
     }
 
 @Composable

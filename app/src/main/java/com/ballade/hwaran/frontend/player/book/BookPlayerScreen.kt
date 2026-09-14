@@ -1069,6 +1069,106 @@ fun BookPlayerScreen(
                                 }
                             }
 
+                            // ── Vertical Fast-Scroll & Page Indicator (Left Side) ──
+                            BoxWithConstraints(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .align(Alignment.CenterStart)
+                                    .padding(top = 100.dp, bottom = 90.dp)
+                                    .wrapContentWidth()
+                            ) {
+                                val density = LocalDensity.current
+                                val maxHeightPx = with(density) { maxHeight.toPx() }
+                                val thumbHeightPx = with(density) { 52.dp.toPx() }
+
+                                var dragOffset by remember { mutableFloatStateOf(0f) }
+                                var isDragging by remember { mutableStateOf(false) }
+
+                                val scrollFraction by remember {
+                                    derivedStateOf {
+                                        if (pageCount <= 1) 0f
+                                        else (currentPage.toFloat() / (pageCount - 1).toFloat()).coerceIn(0f, 1f)
+                                    }
+                                }
+
+                                val thumbY = if (isDragging) dragOffset else (scrollFraction.coerceIn(0f, 1f) * (maxHeightPx - thumbHeightPx))
+
+                                Row(
+                                    modifier = Modifier
+                                        .offset { IntOffset(0, thumbY.toInt()) }
+                                        .align(Alignment.TopStart)
+                                        .pointerInput(pageCount) {
+                                            detectDragGestures(
+                                                onDragStart = {
+                                                    isDragging = true
+                                                    dragOffset = (scrollFraction * (maxHeightPx - thumbHeightPx))
+                                                },
+                                                onDragEnd = { isDragging = false },
+                                                onDragCancel = { isDragging = false }
+                                            ) { change, dragAmount ->
+                                                change.consume()
+                                                dragOffset = (dragOffset + dragAmount.y).coerceIn(0f, maxHeightPx - thumbHeightPx)
+                                                val newFraction = dragOffset / (maxHeightPx - thumbHeightPx)
+
+                                                val totalPosition = newFraction * (pageCount - 1)
+                                                val pageIndex = totalPosition.toInt().coerceIn(0, pageCount - 1)
+                                                val pageOffsetFraction = totalPosition - pageIndex
+
+                                                val layoutInfo = listState.layoutInfo
+                                                val pageHeight = layoutInfo.visibleItemsInfo.find { it.index == pageIndex }?.size
+                                                    ?: layoutInfo.visibleItemsInfo.firstOrNull()?.size
+                                                    ?: 1000
+
+                                                val offset = (pageOffsetFraction * pageHeight).toInt()
+                                                coroutineScope.launch {
+                                                    listState.scrollToItem(pageIndex, offset)
+                                                }
+                                            }
+                                        },
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    // Dot Handle - Sleek frosted handle attached to left screen edge
+                                    Surface(
+                                        shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
+                                        color = Color(0xFF14131E).copy(alpha = 0.94f),
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+                                        modifier = Modifier.width(28.dp).height(48.dp),
+                                        shadowElevation = 8.dp
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.fillMaxSize(),
+                                            verticalArrangement = Arrangement.Center,
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            repeat(3) {
+                                                Row {
+                                                    repeat(2) {
+                                                        Box(modifier = Modifier.padding(1.5.dp).size(3.5.dp).background(Color.White.copy(alpha = 0.5f), CircleShape))
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Page Counter Pill (to the right of the left handle)
+                                    Surface(
+                                        shape = RoundedCornerShape(50),
+                                        color = Color(0xFF14131E).copy(alpha = 0.94f),
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+                                        shadowElevation = 8.dp
+                                    ) {
+                                        Text(
+                                            text = "${currentPage + 1} / $pageCount",
+                                            color = Color.White,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                }
+                            }
+
                             // ── Floating Flyout Card (Highlighter Palette, Eye Care, Music) ──
                             AnimatedVisibility(
                                 visible = activeBottomPanel != null,
