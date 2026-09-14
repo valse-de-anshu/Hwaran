@@ -25,19 +25,31 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
+import androidx.core.animation.doOnEnd
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+
 @SuppressLint("CustomSplashScreen")
 class SplashActivity : ComponentActivity() {
     private val isVideoReady = mutableStateOf(false)
 
     @OptIn(UnstableApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Intercept the Android 12+ system splash screen API and kill it instantly.
-        // This MUST be called before super.onCreate(). The .remove() in the exit listener
-        // dismisses the splash view before it renders even one frame — so the app icon
-        // is never shown. The theme (black, opaque) ensures the home screen never bleeds through.
         val splashScreen = installSplashScreen()
         splashScreen.setOnExitAnimationListener { splashScreenView ->
-            splashScreenView.remove()
+            val fadeOut = android.animation.ObjectAnimator.ofFloat(
+                splashScreenView.view,
+                android.view.View.ALPHA,
+                1f,
+                0f
+            )
+            fadeOut.duration = 400L
+            fadeOut.interpolator = android.view.animation.AccelerateInterpolator()
+            fadeOut.doOnEnd { splashScreenView.remove() }
+            fadeOut.start()
         }
 
         super.onCreate(savedInstanceState)
@@ -81,8 +93,15 @@ class SplashActivity : ComponentActivity() {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black)
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center
             ) {
+                Image(
+                    painter = painterResource(id = R.drawable.app_icon),
+                    contentDescription = "Hwaran Launch Icon",
+                    modifier = Modifier.size(160.dp)
+                )
+
                 AndroidView(
                     factory = { ctx ->
                         android.webkit.WebView(ctx).apply {
