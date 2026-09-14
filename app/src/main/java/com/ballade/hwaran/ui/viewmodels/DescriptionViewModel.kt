@@ -167,9 +167,11 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                     draftPages.value = meta.pages
                     draftIsFavorite.value = m.isFavorite || meta.isFavorite
                     draftMaterialTag.value = when {
-                        meta.type.isNotBlank() && listOf("Book", "Manhua", "Manga", "Series", "Channel").any { it.equals(meta.type, ignoreCase = true) } -> {
-                            listOf("Book", "Manhua", "Manga", "Series", "Channel").first { it.equals(meta.type, ignoreCase = true) }
+                        meta.type.isNotBlank() && listOf("Book", "Novel", "Light Novel", "Manhua", "Manga", "Series", "Channel").any { it.equals(meta.type, ignoreCase = true) } -> {
+                            val matched = listOf("Book", "Novel", "Light Novel", "Manhua", "Manga", "Series", "Channel").first { it.equals(meta.type, ignoreCase = true) }
+                            if (matched.equals("Light Novel", ignoreCase = true)) "Novel" else matched
                         }
+                        m.contentType == 4 || m.boxPurpose == "novel" -> "Novel"
                         m.contentType == 1 || m.boxPurpose == "book" -> "Book"
                         m.contentType == 2 && m.boxPurpose == "channel" -> "Channel"
                         m.contentType == 2 -> "Series"

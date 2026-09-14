@@ -45,6 +45,16 @@ object NovelParser {
         val resolvedName = fileName ?: (uri.lastPathSegment ?: "Novel")
         val lower = resolvedName.lowercase()
 
+        // Check if SAF DocumentFile is a directory
+        if (uri.toString().startsWith("content://")) {
+            try {
+                val doc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, uri)
+                if (doc != null && doc.isDirectory) {
+                    return@withContext parseNovelFromDocumentDirectory(context, doc, resolvedName)
+                }
+            } catch (_: Exception) {}
+        }
+
         when {
             lower.endsWith(".epub") -> parseEpub(context, uri, resolvedName)
             lower.endsWith(".md") || lower.endsWith(".markdown") -> parseTextOrMarkdown(context, uri, resolvedName, isMarkdown = true)
@@ -53,11 +63,177 @@ object NovelParser {
     }
 
     suspend fun parseNovelFromFile(file: File): NovelBook = withContext(Dispatchers.IO) {
+        if (file.isDirectory) {
+            return@withContext parseNovelFromDirectory(file)
+        }
         val lower = file.name.lowercase()
         when {
             lower.endsWith(".epub") -> parseEpubFromFile(file)
             lower.endsWith(".md") || lower.endsWith(".markdown") -> parseTextOrMarkdownFromFile(file, isMarkdown = true)
             else -> parseTextOrMarkdownFromFile(file, isMarkdown = false)
+        }
+    }
+
+    suspend fun parseNovelFromChapterEntities(
+        context: Context,
+        mangaTitle: String,
+        dbChapters: List<ChapterEntity>,
+        author: String? = null,
+        description: String? = null,
+        coverBitmap: Bitmap? = null
+    ): NovelBook = withContext(Dispatchers.IO) {
+        val sorted = dbChapters.sortedWith(compareBy { ch ->
+            ch.title.replace(Regex("\\d+")) { it.value.padStart(10, '0') }
+        })
+
+        val parsedChapters = mutableListOf<NovelChapter>()
+        sorted.forEachIndexed { index, chapterEntity ->
+            val text = readTextFromUri(context, chapterEntity.folderUri)
+            val cleanTitle = chapterEntity.title.substringBeforeLast(".")
+                .replace("_", " ")
+                .trim()
+                .ifBlank { "Chapter ${index + 1}" }
+
+            parsedChapters.add(
+                NovelChapter(
+                    id = chapterEntity.id,
+                    index = index,
+                    title = cleanTitle,
+                    content = text.trim().removePrefix("\uFEFF"),
+                    wordCount = countWords(text)
+                )
+            )
+        }
+
+        NovelBook(
+            title = mangaTitle,
+            author = author,
+            description = description,
+            coverBitmap = coverBitmap,
+            chapters = parsedChapters,
+            totalWordCount = parsedChapters.sumOf { it.wordCount }
+        )
+    }
+
+    private fun parseNovelFromDirectory(dir: File): NovelBook {
+        val novelExtensions = listOf(".txt", ".md", ".markdown", ".epub")
+        val allFiles = mutableListOf<File>()
+
+        fun scanDir(current: File) {
+            current.listFiles()?.forEach { f ->
+                if (f.isDirectory) {
+                    if (!f.name.equals(".zine", ignoreCase = true) && !f.name.startsWith(".")) {
+                        scanDir(f)
+                    }
+                } else if (f.isFile) {
+                    val lower = f.name.lowercase()
+                    if (novelExtensions.any { lower.endsWith(it) }) {
+                        allFiles.add(f)
+                    }
+                }
+            }
+        }
+
+        scanDir(dir)
+        val sortedFiles = allFiles.sortedWith(compareBy { f ->
+            f.name.replace(Regex("\\d+")) { it.value.padStart(10, '0') }
+        })
+
+        // Find cover
+        val coverFile = dir.listFiles()?.firstOrNull { f ->
+            f.isFile && listOf("cover", "poster", "folder", "artwork").any { prefix ->
+                f.nameWithoutExtension.equals(prefix, ignoreCase = true)
+            }
+        }
+        val coverBitmap = coverFile?.let { BitmapFactory.decodeFile(it.absolutePath) }
+
+        val chapters = mutableListOf<NovelChapter>()
+        sortedFiles.forEachIndexed { index, file ->
+            val cleanTitle = file.nameWithoutExtension.replace("_", " ").trim().ifBlank { "Chapter ${index + 1}" }
+            val rawText = try { file.readText(Charsets.UTF_8) } catch (_: Exception) { "" }
+            chapters.add(
+                NovelChapter(
+                    index = index,
+                    title = cleanTitle,
+                    content = rawText.trim().removePrefix("\uFEFF"),
+                    wordCount = countWords(rawText)
+                )
+            )
+        }
+
+        return NovelBook(
+            title = dir.name,
+            coverBitmap = coverBitmap,
+            chapters = chapters,
+            totalWordCount = chapters.sumOf { it.wordCount }
+        )
+    }
+
+    private fun parseNovelFromDocumentDirectory(
+        context: Context,
+        folderDoc: androidx.documentfile.provider.DocumentFile,
+        fallbackTitle: String
+    ): NovelBook {
+        val novelExtensions = listOf(".txt", ".md", ".markdown", ".epub")
+        val allDocs = mutableListOf<androidx.documentfile.provider.DocumentFile>()
+
+        fun scanDoc(doc: androidx.documentfile.provider.DocumentFile) {
+            doc.listFiles().forEach { child ->
+                val name = child.name ?: ""
+                if (child.isDirectory) {
+                    if (!name.equals(".zine", ignoreCase = true) && !name.startsWith(".")) {
+                        scanDoc(child)
+                    }
+                } else {
+                    val lower = name.lowercase()
+                    if (novelExtensions.any { lower.endsWith(it) }) {
+                        allDocs.add(child)
+                    }
+                }
+            }
+        }
+
+        scanDoc(folderDoc)
+        val sortedDocs = allDocs.sortedWith(compareBy { doc ->
+            (doc.name ?: "").replace(Regex("\\d+")) { it.value.padStart(10, '0') }
+        })
+
+        val chapters = mutableListOf<NovelChapter>()
+        sortedDocs.forEachIndexed { index, doc ->
+            val cleanTitle = (doc.name ?: "").substringBeforeLast(".").replace("_", " ").trim().ifBlank { "Chapter ${index + 1}" }
+            val rawText = readTextFromUri(context, doc.uri.toString())
+            chapters.add(
+                NovelChapter(
+                    index = index,
+                    title = cleanTitle,
+                    content = rawText.trim().removePrefix("\uFEFF"),
+                    wordCount = countWords(rawText)
+                )
+            )
+        }
+
+        return NovelBook(
+            title = folderDoc.name ?: fallbackTitle,
+            chapters = chapters,
+            totalWordCount = chapters.sumOf { it.wordCount }
+        )
+    }
+
+    fun readTextFromUri(context: Context, uriString: String): String {
+        return try {
+            if (uriString.startsWith("content://")) {
+                val uri = Uri.parse(uriString)
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).readText()
+                } ?: ""
+            } else {
+                val f = if (uriString.startsWith("file://")) File(Uri.parse(uriString).path ?: "") else File(uriString)
+                if (f.exists() && f.isFile) {
+                    f.readText(Charsets.UTF_8)
+                } else ""
+            }
+        } catch (_: Exception) {
+            ""
         }
     }
 

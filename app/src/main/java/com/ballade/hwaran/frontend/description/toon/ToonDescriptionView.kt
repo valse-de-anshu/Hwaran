@@ -201,6 +201,7 @@ fun ToonDescriptionView(
                         val effectiveType = if (isEditMode) draftMaterialTag else {
                             entryMetadata.type.ifBlank {
                                 when {
+                                    manga.contentType == 4 || manga.boxPurpose == "novel" -> "Novel"
                                     manga.contentType == 1 || manga.boxPurpose == "book" -> "Book"
                                     (manga.contentType == 2 && manga.boxPurpose == "channel") -> "Channel"
                                     manga.contentType == 2 -> "Series"
@@ -211,7 +212,7 @@ fun ToonDescriptionView(
                         }
 
                         if (isEditMode) {
-                            val availableOptions = listOf("Book", "Manhua", "Manga", "Series", "Channel")
+                            val availableOptions = listOf("Book", "Novel", "Manhua", "Manga", "Series", "Channel")
                             FlowRow(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -750,7 +751,7 @@ fun ToonDescriptionView(
                                 val targetChapter = chapters.firstOrNull { it.title == manga.lastReadTitle }
                                     ?: chapters.firstOrNull()
                                 if (targetChapter != null) {
-                                    onNavigateToMedia(targetChapter.id, 0)
+                                    onNavigateToMedia(targetChapter.id, manga.contentType)
                                 }
                             },
                             modifier = Modifier

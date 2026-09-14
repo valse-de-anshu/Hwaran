@@ -180,54 +180,8 @@ fun DescriptionScreen(
             val scrollState = rememberLazyListState()
 
             when {
-                // ── 0. Light Novel (contentType == 4 || boxPurpose == "novel") ──
-                manga != null && (manga?.contentType == 4 || manga?.boxPurpose == "novel") -> {
-                    NovelDescriptionView(
-                        manga = manga!!,
-                        chapters = chapters,
-                        entryMetadata = entryMetadata,
-                        assignedTags = assignedTags,
-                        isEditMode = isEditMode,
-                        tagQuery = tagQuery,
-                        tagSuggestions = tagSuggestions,
-                        isTagSearchVisible = isTagSearchVisible,
-                        draftTitle = draftTitle,
-                        draftAuthor = draftAuthor,
-                        draftPublisher = draftPublisher,
-                        draftYear = draftYear,
-                        draftStatus = draftStatus,
-                        draftLanguage = draftLanguage,
-                        draftPages = draftPages,
-                        draftMaterialTag = draftMaterialTag,
-                        draftIsFavorite = draftIsFavorite,
-                        draftDesc = draftDesc,
-                        draftCover = draftCover,
-                        scrollState = scrollState,
-                        onToggleEditMode = { descriptionViewModel.toggleEditMode() },
-                        onSaveManga = { descriptionViewModel.saveManga() },
-                        onNavigateBack = onNavigateBack,
-                        onNavigateToMedia = onNavigateToMedia,
-                        onToggleFavorite = { descriptionViewModel.toggleFavorite() },
-                        onAddTag = { descriptionViewModel.addTag(it) },
-                        onRemoveTag = { descriptionViewModel.removeTag(it) },
-                        onSetTagQuery = { descriptionViewModel.setTagQuery(it) },
-                        onToggleTagSearchVisible = { descriptionViewModel.toggleTagSearchVisible() },
-                        onPickCover = { imagePickerLauncher.launch(arrayOf("image/*")) },
-                        onSetMaterialTag = { descriptionViewModel.setMaterialTag(it) },
-                        onUpdateDraftTitle = { descriptionViewModel.draftTitle.value = it },
-                        onUpdateDraftAuthor = { descriptionViewModel.draftAuthor.value = it },
-                        onUpdateDraftPublisher = { descriptionViewModel.draftPublisher.value = it },
-                        onUpdateDraftYear = { descriptionViewModel.draftYear.value = it },
-                        onUpdateDraftStatus = { descriptionViewModel.draftStatus.value = it },
-                        onUpdateDraftLanguage = { descriptionViewModel.draftLanguage.value = it },
-                        onUpdateDraftPages = { descriptionViewModel.draftPages.value = it },
-                        onUpdateDraftDesc = { descriptionViewModel.draftDescription.value = it },
-                        onDeleteManga = { showDeleteDialog = true }
-                    )
-                }
-
-                // ── 1. Book / Novel (contentType == 1) ──
-                manga != null && manga?.contentType == 1 -> {
+                // ── 1. Book / PDF (contentType == 1) ──
+                manga != null && manga?.contentType == 1 && manga?.boxPurpose != "novel" -> {
                     if (showChaptersWindow) {
                         ToonChaptersView(
                             manga = manga!!,
@@ -286,15 +240,15 @@ fun DescriptionScreen(
                     }
                 }
 
-                // ── 2. Manga / Manhua (contentType == 0) ──
-                manga != null && manga?.contentType == 0 -> {
+                // ── 2. Manga / Manhua / Novel (contentType == 0 || contentType == 4 || boxPurpose == "novel") ──
+                manga != null && (manga?.contentType == 0 || manga?.contentType == 4 || manga?.boxPurpose == "novel") -> {
                     if (showChaptersWindow) {
                         ToonChaptersView(
                             manga = manga!!,
                             chapters = chapters,
                             onNavigateBack = { showChaptersWindow = false },
                             onNavigateToChapter = { chapterId ->
-                                onNavigateToMedia(chapterId, 0)
+                                onNavigateToMedia(chapterId, manga!!.contentType)
                             },
                             onPickChaptersFolder = { folderPickerLauncher.launch(null) },
                             onDeleteChapters = { chapterIds -> descriptionViewModel.deleteSelectedChapters(chapterIds) }

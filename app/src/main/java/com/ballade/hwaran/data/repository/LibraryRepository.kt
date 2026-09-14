@@ -397,11 +397,17 @@ class LibraryRepository(private val context: Context, private val database: AppD
             else if (audioExtensions.any { name.endsWith(it) }) computedContentType = 3
         } else {
             val hasNovel = if (isLocalMode) {
-                importResult!!.copiedLooseFiles.any { novelExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }
+                importResult!!.copiedLooseFiles.any { novelExtensions.any { ext -> it.name.lowercase().endsWith(ext) } } ||
+                importResult.copiedChapters.any { dir -> dir.listFiles()?.any { f -> novelExtensions.any { ext -> f.name.lowercase().endsWith(ext) } } == true }
             } else {
                 getRootDocFiles().any { item ->
                     val itemName = item.name
                     itemName != null && novelExtensions.any { itemName.lowercase().endsWith(it) }
+                } || getRootDocFiles().filter { it.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }.any { dir ->
+                    dir.listFiles().any { f ->
+                        val fName = f.name
+                        fName != null && novelExtensions.any { fName.lowercase().endsWith(it) }
+                    }
                 }
             }
             val hasPdf = if (isLocalMode) {
@@ -437,7 +443,12 @@ class LibraryRepository(private val context: Context, private val database: AppD
                 }
             }
 
-            if (hasAudio) computedContentType = 3
+            val isNovelByMetadata = parsedZine?.type?.equals("Novel", ignoreCase = true) == true ||
+                parsedZine?.type?.equals("Light Novel", ignoreCase = true) == true ||
+                boxPurposeInput == "novel"
+
+            if (isNovelByMetadata) computedContentType = 4
+            else if (hasAudio) computedContentType = 3
             else if (hasVideo) computedContentType = 2
             else if (hasNovel) computedContentType = 4
             else if (hasPdf) computedContentType = 1
@@ -562,6 +573,20 @@ class LibraryRepository(private val context: Context, private val database: AppD
                     if (importResult!!.copiedLooseFiles.any { audioExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }) {
                         importResult.copiedLooseFiles.filter { audioExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }
                     } else importResult.copiedChapters
+                } else if (computedContentType == 4) {
+                    val looseNovels = importResult!!.copiedLooseFiles.filter { novelExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }
+                    if (looseNovels.isNotEmpty()) {
+                        looseNovels
+                    } else {
+                        val subDirNovelFiles = importResult.copiedChapters.flatMap { dir ->
+                            dir.listFiles()?.filter { f ->
+                                !f.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(f.name) &&
+                                !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(f.name) &&
+                                novelExtensions.any { f.name.lowercase().endsWith(it) }
+                            } ?: emptyList()
+                        }
+                        if (subDirNovelFiles.isNotEmpty()) subDirNovelFiles else importResult.copiedChapters
+                    }
                 } else {
                     if (importResult!!.copiedChapters.isNotEmpty()) {
                         importResult.copiedChapters
@@ -611,7 +636,11 @@ class LibraryRepository(private val context: Context, private val database: AppD
                                     libraryDao.insertChapter(
                                         ChapterEntity(
                                             mangaId = mangaId,
-                                            title = if ((computedContentType == 2 || computedContentType == 3) && !chapterItem.isDirectory) extractVideoTitle(context, Uri.fromFile(chapterItem), chapterItem.name.substringBeforeLast(".")) else chapterItem.name,
+                                            title = if ((computedContentType == 2 || computedContentType == 3) && !chapterItem.isDirectory) {
+                                                extractVideoTitle(context, Uri.fromFile(chapterItem), chapterItem.name.substringBeforeLast("."))
+                                            } else if (computedContentType == 4 && !chapterItem.isDirectory) {
+                                                chapterItem.name.substringBeforeLast(".").replace("_", " ")
+                                            } else chapterItem.name,
                                             folderUri = finalPath,
                                             thumbnailUri = thumb,
                                             position = index,
@@ -661,11 +690,25 @@ class LibraryRepository(private val context: Context, private val database: AppD
                 val videoFiles = itemsInRoot.filter { file -> !file.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(file.name) && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(file.name) && videoExtensions.any { file.name?.lowercase()?.endsWith(it) == true } }
                 val audioFiles = itemsInRoot.filter { file -> !file.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(file.name) && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(file.name) && audioExtensions.any { file.name?.lowercase()?.endsWith(it) == true } }
                 val imageFiles = itemsInRoot.filter { file -> !file.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(file.name) && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(file.name) && imageExtensions.any { file.name?.lowercase()?.endsWith(it) == true } }
+                val novelFiles = itemsInRoot.filter { file -> !file.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(file.name) && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(file.name) && novelExtensions.any { file.name?.lowercase()?.endsWith(it) == true } }
 
                 val chaptersToInsert = if (computedContentType == 2) {
                     if (videoFiles.isNotEmpty()) videoFiles else subDirs
                 } else if (computedContentType == 3) {
                     if (audioFiles.isNotEmpty()) audioFiles else subDirs
+                } else if (computedContentType == 4) {
+                    if (novelFiles.isNotEmpty()) {
+                        novelFiles
+                    } else {
+                        val subDirNovelFiles = subDirs.flatMap { dir ->
+                            dir.listFiles().filter { f ->
+                                !f.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(f.name) &&
+                                !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(f.name) &&
+                                novelExtensions.any { f.name?.lowercase()?.endsWith(it) == true }
+                            }
+                        }
+                        if (subDirNovelFiles.isNotEmpty()) subDirNovelFiles else subDirs
+                    }
                 } else {
                     if (subDirs.isNotEmpty()) subDirs else if (imageFiles.isNotEmpty()) listOf(rootDoc) else emptyList()
                 }.sortedWith(compareBy { item ->
@@ -705,7 +748,11 @@ class LibraryRepository(private val context: Context, private val database: AppD
                                     libraryDao.insertChapter(
                                         ChapterEntity(
                                             mangaId = mangaId,
-                                            title = if ((computedContentType == 2 || computedContentType == 3) && !chapterItem.isDirectory) extractVideoTitle(context, chapterItem.uri, chapterItem.name?.substringBeforeLast(".") ?: "Unknown") else chapterItem.name ?: "Unknown",
+                                            title = if ((computedContentType == 2 || computedContentType == 3) && !chapterItem.isDirectory) {
+                                                extractVideoTitle(context, chapterItem.uri, chapterItem.name?.substringBeforeLast(".") ?: "Unknown")
+                                            } else if (computedContentType == 4 && !chapterItem.isDirectory) {
+                                                chapterItem.name?.substringBeforeLast(".")?.replace("_", " ") ?: "Unknown"
+                                            } else chapterItem.name ?: "Unknown",
                                             folderUri = finalUriStr,
                                             thumbnailUri = thumb,
                                             position = index,

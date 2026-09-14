@@ -189,20 +189,36 @@ fun NovelPlayerScreen(
                     val book = NovelParser.parseNovel(context, uri)
                     novelBook = book
                 } else if (mangaId > 0L) {
-                    val manga = database.mediaDao().getMangaById(mangaId)
+                    var manga = database.mediaDao().getMangaById(mangaId)
+                    var targetChapterIndex = 0
+                    if (manga == null) {
+                        val chapter = database.trackDao().getChapterById(mangaId)
+                        if (chapter != null) {
+                            manga = database.mediaDao().getMangaById(chapter.mangaId)
+                            targetChapterIndex = chapter.position
+                        }
+                    }
                     mangaEntity = manga
                     if (manga != null) {
-                        val uri = Uri.parse(manga.parentUri)
-                        val book = if (manga.parentUri.startsWith("file://") || manga.parentUri.startsWith("/")) {
-                            val file = if (manga.parentUri.startsWith("file://")) File(Uri.parse(manga.parentUri).path ?: "") else File(manga.parentUri)
-                            if (file.exists()) NovelParser.parseNovelFromFile(file) else NovelParser.parseNovel(context, uri, manga.title)
+                        val dbChapters = database.trackDao().getChaptersForMangaList(manga.id)
+                        val book = if (dbChapters.isNotEmpty() && dbChapters.any { it.folderUri.lowercase().let { u -> u.endsWith(".txt") || u.endsWith(".md") || u.endsWith(".markdown") || u.endsWith(".epub") } }) {
+                            NovelParser.parseNovelFromChapterEntities(context, manga.title, dbChapters)
                         } else {
-                            NovelParser.parseNovel(context, uri, manga.title)
+                            val uri = Uri.parse(manga.parentUri)
+                            val loaded = if (manga.parentUri.startsWith("file://") || manga.parentUri.startsWith("/")) {
+                                val file = if (manga.parentUri.startsWith("file://")) File(Uri.parse(manga.parentUri).path ?: "") else File(manga.parentUri)
+                                if (file.exists()) NovelParser.parseNovelFromFile(file) else NovelParser.parseNovel(context, uri, manga.title)
+                            } else {
+                                NovelParser.parseNovel(context, uri, manga.title)
+                            }
+                            if (loaded.chapters.isEmpty() && dbChapters.isNotEmpty()) {
+                                NovelParser.parseNovelFromChapterEntities(context, manga.title, dbChapters)
+                            } else loaded
                         }
                         novelBook = book
 
                         // Restore last read position
-                        val savedChapterIndex = manga.lastReadPage ?: 0
+                        val savedChapterIndex = if (targetChapterIndex > 0) targetChapterIndex else (manga.lastReadPage ?: 0)
                         if (book.chapters.isNotEmpty()) {
                             currentChapterIndex = savedChapterIndex.coerceIn(0, book.chapters.size - 1)
                         }
