@@ -30,12 +30,13 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -73,6 +74,7 @@ fun SeriesRelatedView(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val coroutineScope = rememberCoroutineScope()
     val CardBg = MaterialTheme.colorScheme.surface
     val TextMuted = MaterialTheme.colorScheme.onSurfaceVariant
     val DangerRed = Color(0xFFE57373)
@@ -497,46 +499,33 @@ fun SeriesRelatedView(
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(16.dp))
                                     .pointerInput(video.id, isDeleteMode) {
-                                        if (isDeleteMode) return@pointerInput
-                                        awaitEachGesture {
-                                            val down = awaitFirstDown(requireUnconsumed = false)
-                                            showPreview = false
-                                            wasPreviewing = false
-                                            val startPos = down.position
-                                            val startTime = System.currentTimeMillis()
-                                            var held = true
-                                            val touchSlop = viewConfiguration.touchSlop
-                                            do {
-                                                val event = awaitPointerEvent()
-                                                val pointer = event.changes.firstOrNull { it.id == down.id }
-                                                if (pointer == null || !pointer.pressed) {
-                                                    held = false
-                                                    break
+                                        if (isDeleteMode) {
+                                            detectTapGestures(
+                                                onTap = {
+                                                    if (isSelected) selectedVideoIds.remove(video.id)
+                                                    else selectedVideoIds.add(video.id)
                                                 }
-                                                if ((pointer.position - startPos).getDistance() > touchSlop) {
-                                                    held = false
-                                                    break
-                                                }
-                                                val elapsed = System.currentTimeMillis() - startTime
-                                                if (!showPreview && elapsed >= 180L) {
+                                            )
+                                            return@pointerInput
+                                        }
+                                        detectTapGestures(
+                                            onPress = {
+                                                var isHeld = false
+                                                val previewJob = coroutineScope.launch {
+                                                    delay(180L)
+                                                    isHeld = true
                                                     showPreview = true
-                                                    wasPreviewing = true
                                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                 }
-                                            } while (held)
-                                            showPreview = false
-                                        }
-                                    }
-                                    .clickable {
-                                        if (isDeleteMode) {
-                                            if (isSelected) selectedVideoIds.remove(video.id)
-                                            else selectedVideoIds.add(video.id)
-                                        } else {
-                                            if (!wasPreviewing) {
-                                                onNavigateToVideo(video.id)
+                                                val released = tryAwaitRelease()
+                                                previewJob.cancel()
+                                                if (isHeld) {
+                                                    showPreview = false
+                                                } else if (released) {
+                                                    onNavigateToVideo(video.id)
+                                                }
                                             }
-                                            wasPreviewing = false
-                                        }
+                                        )
                                     },
                                 shape = RoundedCornerShape(16.dp),
                                 color = CardBg,

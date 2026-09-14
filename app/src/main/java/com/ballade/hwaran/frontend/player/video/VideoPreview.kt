@@ -110,7 +110,8 @@ fun VideoPreview(
                         isReadyToFade = true
                     }
                     override fun onPlaybackStateChanged(playbackState: Int) {
-                        if (playbackState == Player.STATE_READY && duration <= 0L) {
+                        if (playbackState == Player.STATE_READY) {
+                            isReadyToFade = true
                             val dur = this@apply.duration
                             if (dur > 0L) {
                                 duration = dur
@@ -134,15 +135,19 @@ fun VideoPreview(
         }
     }
     
-    LaunchedEffect(duration, exoPlayer) {
+    LaunchedEffect(exoPlayer) {
         if (duration <= 0L) {
             // Start playing from beginning at 2.0x while waiting for duration to load
             exoPlayer.setPlaybackSpeed(2.0f)
             exoPlayer.seekTo(0)
-            while (duration <= 0L) {
-                delay(250)
-                if (exoPlayer.playbackState == Player.STATE_ENDED) {
-                    exoPlayer.seekTo(0)
+            var waitLoops = 0
+            while (duration <= 0L && waitLoops < 20) {
+                delay(100)
+                waitLoops++
+                val curDur = exoPlayer.duration
+                if (curDur > 0L) {
+                    duration = curDur
+                    break
                 }
             }
         }
