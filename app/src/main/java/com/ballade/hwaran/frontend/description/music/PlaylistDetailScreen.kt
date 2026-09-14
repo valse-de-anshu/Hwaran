@@ -148,16 +148,6 @@ fun PlaylistDetailScreen(
         else -> 100.dp
     }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "rotation")
-    val rotationAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 30000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotationAngle"
-    )
 
     val musicPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenMultipleDocuments()
@@ -279,7 +269,7 @@ fun PlaylistDetailScreen(
                                     Icons.Rounded.Add, 
                                     contentDescription = "Add Music", 
                                     tint = Color.Black,
-                                    modifier = Modifier.size(28.dp).graphicsLayer { rotationZ = rotationAngle }
+                                    modifier = Modifier.size(28.dp)
                                 )
                             }
                         }

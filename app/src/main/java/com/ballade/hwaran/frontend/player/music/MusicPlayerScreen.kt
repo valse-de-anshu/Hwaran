@@ -224,16 +224,11 @@ if (isLandscape) {
                     modifier = Modifier
                         .weight(0.7f)
                         .aspectRatio(1f)
-                        .then(
-                            if (!isLyricsMode) {
-                                Modifier
-                                    .shadow(
-                                        elevation = 40.dp,
-                                        shape = RoundedCornerShape(32.dp),
-                                        spotColor = Color(colorPalette.vibrant).copy(alpha = 0.5f),
-                                        ambientColor = Color.Transparent
-                                    )
-                            } else Modifier
+                        .shadow(
+                            elevation = 12.dp,
+                            shape = RoundedCornerShape(32.dp),
+                            spotColor = Color(colorPalette.vibrant).copy(alpha = 0.35f),
+                            ambientColor = Color.Transparent
                         )
                 ) {
                     Box(
@@ -246,7 +241,7 @@ if (isLandscape) {
                     ) {
                         AnimatedContent(
                             targetState = isLyricsMode,
-                            transitionSpec = { fadeIn(animationSpec = tween(500)) togetherWith fadeOut(animationSpec = tween(500)) },
+                            transitionSpec = { fadeIn(animationSpec = tween(240)) togetherWith fadeOut(animationSpec = tween(240)) },
                             label = "lyrics_transition"
                         ) { targetLyricsMode ->
                             if (targetLyricsMode) {
@@ -637,16 +632,11 @@ if (isLandscape) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .then(
-                        if (!isLyricsMode) {
-                            Modifier
-                                .shadow(
-                                    elevation = 40.dp,
-                                    shape = RoundedCornerShape(32.dp),
-                                    spotColor = Color(colorPalette.vibrant).copy(alpha = 0.5f),
-                                    ambientColor = Color.Transparent
-                                )
-                        } else Modifier
+                    .shadow(
+                        elevation = 12.dp,
+                        shape = RoundedCornerShape(32.dp),
+                        spotColor = Color(colorPalette.vibrant).copy(alpha = 0.35f),
+                        ambientColor = Color.Transparent
                     )
             ) {
                 Box(
@@ -660,7 +650,7 @@ if (isLandscape) {
                     AnimatedContent(
                         targetState = isLyricsMode,
                         transitionSpec = {
-                            fadeIn(animationSpec = tween(500)) togetherWith fadeOut(animationSpec = tween(500))
+                            fadeIn(animationSpec = tween(240)) togetherWith fadeOut(animationSpec = tween(240))
                         },
                         label = "lyrics_transition"
                     ) { targetLyricsMode ->
@@ -1674,130 +1664,65 @@ fun SyncedLyricsView(
             parsedLines.indexOfLast { it.timestampMs <= currentPositionMs }
         }
 
-        val scrollState = rememberScrollState()
-        val itemCenters = remember { mutableStateMapOf<Int, Float>() }
+        val listState = androidx.compose.foundation.lazy.rememberLazyListState()
 
-        BoxWithConstraints(
+        LaunchedEffect(activeIndex) {
+            if (activeIndex in parsedLines.indices) {
+                listState.animateScrollToItem(
+                    index = activeIndex,
+                    scrollOffset = -180
+                )
+            }
+        }
+
+        Box(
             modifier = modifier
                 .fillMaxSize()
-                .fadingEdges(topFade = 56.dp, bottomFade = 56.dp)
+                .fadingEdges(topFade = 48.dp, bottomFade = 48.dp)
         ) {
-            val density = LocalDensity.current
-            val viewportHeightPx = with(density) { maxHeight.toPx() }
-            val halfHeightDp = maxHeight / 2
-
-            // Smooth programmatic auto-scroll centering the active line
-            LaunchedEffect(activeIndex, viewportHeightPx) {
-                if (activeIndex in parsedLines.indices && viewportHeightPx > 0f) {
-                    if (!itemCenters.containsKey(activeIndex)) {
-                        snapshotFlow { itemCenters[activeIndex] }
-                            .filterNotNull()
-                            .first()
-                    }
-
-                    val lineCenter = itemCenters[activeIndex]
-                    if (lineCenter != null) {
-                        val viewportCenter = viewportHeightPx / 2f
-                        val targetScroll = (lineCenter - viewportCenter).roundToInt().coerceIn(0, scrollState.maxValue)
-                        scrollState.animateScrollTo(
-                            value = targetScroll,
-                            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
-                        )
-                    }
-                } else if (activeIndex == -1) {
-                    if (scrollState.value != 0) {
-                        scrollState.animateScrollTo(0, tween(300))
-                    }
-                }
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scrollState, enabled = false),
-                horizontalAlignment = Alignment.CenterHorizontally
+            androidx.compose.foundation.lazy.LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                contentPadding = PaddingValues(vertical = 120.dp)
             ) {
-                // Top spacer so line 0 sits at the exact vertical center
-                Spacer(modifier = Modifier.height(halfHeightDp))
-
-                parsedLines.forEachIndexed { index, line ->
+                items(
+                    count = parsedLines.size,
+                    key = { index -> "${index}_${parsedLines[index].timestampMs}" }
+                ) { index ->
+                    val line = parsedLines[index]
                     val distance = if (activeIndex >= 0) abs(index - activeIndex) else 1
+                    val isCurrent = distance == 0
+                    val isNear = distance in 1..2
 
-                    // Layer 1: Centre (focused playing lyric at this timeline)
-                    // Layer 2: Middle (visible nearby lines)
-                    // Layer 3: Last part / Outer (most blurred and faded look)
-                    val targetScale = when {
-                        distance == 0 -> 1.10f
-                        distance in 1..2 -> 1.0f
-                        else -> 0.94f
+                    val textColor = when {
+                        isCurrent -> Color.White
+                        isNear -> Color.White.copy(alpha = 0.60f)
+                        else -> Color.White.copy(alpha = 0.25f)
                     }
-                    val targetAlpha = when {
-                        distance == 0 -> 1.0f
-                        distance == 1 -> 0.60f
-                        distance == 2 -> 0.40f
-                        else -> 0.15f
-                    }
-                    val targetBlur = when {
-                        distance == 0 -> 0.dp
-                        distance in 1..2 -> 0.dp
-                        distance == 3 -> 2.dp
-                        else -> 4.dp
-                    }
-                    val targetSize = when {
-                        distance == 0 -> 21.sp
-                        distance in 1..2 -> 16.sp
+                    val fontSize = when {
+                        isCurrent -> 20.sp
+                        isNear -> 16.sp
                         else -> 14.5.sp
                     }
-                    val targetWeight = when {
-                        distance == 0 -> FontWeight.Bold
-                        distance in 1..2 -> FontWeight.SemiBold
+                    val fontWeight = when {
+                        isCurrent -> FontWeight.Bold
+                        isNear -> FontWeight.SemiBold
                         else -> FontWeight.Normal
                     }
 
-                    val alpha by animateFloatAsState(
-                        targetValue = targetAlpha,
-                        animationSpec = tween(durationMillis = 300),
-                        label = "lyric_alpha"
-                    )
-                    val scale by animateFloatAsState(
-                        targetValue = targetScale,
-                        animationSpec = tween(durationMillis = 300),
-                        label = "lyric_scale"
-                    )
-                    val blurDp by animateDpAsState(
-                        targetValue = targetBlur,
-                        animationSpec = tween(durationMillis = 300),
-                        label = "lyric_blur"
-                    )
-
                     Text(
                         text = line.text.ifBlank { "• • •" },
-                        color = Color.White,
-                        fontSize = targetSize,
-                        fontWeight = targetWeight,
+                        color = textColor,
+                        fontSize = fontSize,
+                        fontWeight = fontWeight,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 8.dp)
-                            .onGloballyPositioned { coordinates ->
-                                val parent = coordinates.parentLayoutCoordinates
-                                if (parent != null) {
-                                    val localPos = parent.localPositionOf(coordinates, Offset.Zero)
-                                    itemCenters[index] = localPos.y + (coordinates.size.height / 2f)
-                                }
-                            }
-                            .then(if (blurDp > 0.dp) Modifier.blur(blurDp) else Modifier)
-                            .graphicsLayer {
-                                this.alpha = alpha
-                                scaleX = scale
-                                scaleY = scale
-                                transformOrigin = TransformOrigin(0.5f, 0.5f)
-                            }
+                            .clickable { onSeekTo(line.timestampMs) }
+                            .padding(horizontal = 24.dp, vertical = 9.dp)
                     )
                 }
-
-                // Bottom spacer so last line sits at the exact vertical center
-                Spacer(modifier = Modifier.height(halfHeightDp))
             }
         }
     } else {

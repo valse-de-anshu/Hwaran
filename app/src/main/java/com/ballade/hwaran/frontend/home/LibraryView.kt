@@ -165,20 +165,7 @@ fun LibraryView(
                 ),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                    .drawWithContent {
-                        drawContent()
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black),
-                                startY = fadeStartPx,
-                                endY = fadeEndPx
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
-                    }
+                modifier = Modifier.fillMaxSize()
             ) {
                 items(filteredManga, key = { it.id }) { manga ->
                     LibraryMaterialCard(

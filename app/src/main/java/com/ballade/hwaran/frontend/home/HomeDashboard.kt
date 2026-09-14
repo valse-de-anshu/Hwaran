@@ -83,51 +83,50 @@ fun HomeDashboard(
         )
     }
 
-    // Accurate Counts for shortcuts matching LibraryView filters
-    val allCount = remember(allManga) { allManga.count { !it.isNsfw && it.contentType != 3 } }
-    val manhuaCount = remember(allManga) {
-        allManga.count {
-            !it.isNsfw && (
-                (it.contentType == 0 || it.boxPurpose == "manhua") && (
-                    it.boxPurpose == "manhua" ||
-                    it.genre?.contains("manhua", ignoreCase = true) == true ||
-                    it.genre?.contains("manhwa", ignoreCase = true) == true ||
-                    it.genre?.contains("webtoon", ignoreCase = true) == true ||
-                    it.title.contains("manhua", ignoreCase = true) ||
-                    it.title.contains("manhwa", ignoreCase = true)
-                )
-            )
+    // Accurate Counts for shortcuts matching LibraryView filters in a single O(N) pass
+    val shortcutCounts = remember(allManga) {
+        var all = 0
+        var fav = 0
+        var manhua = 0
+        var manga = 0
+        var series = 0
+        var novel = 0
+        var book = 0
+        var channel = 0
+        var music = 0
+        for (item in allManga) {
+            if (item.isNsfw) continue
+            if (item.contentType != 3) all++
+            if (item.isFavorite || item.genre?.contains("favorite", ignoreCase = true) == true) fav++
+            when {
+                item.contentType == 3 -> music++
+                item.contentType == 4 || item.boxPurpose == "novel" -> novel++
+                item.contentType == 1 || item.boxPurpose == "book" -> book++
+                item.contentType == 2 || item.boxPurpose == "series" || item.boxPurpose == "channel" -> {
+                    if (item.boxPurpose == "channel") channel++ else series++
+                }
+                else -> {
+                    val isManhua = item.boxPurpose == "manhua" ||
+                        item.genre?.contains("manhua", ignoreCase = true) == true ||
+                        item.genre?.contains("manhwa", ignoreCase = true) == true ||
+                        item.genre?.contains("webtoon", ignoreCase = true) == true ||
+                        item.title.contains("manhua", ignoreCase = true) ||
+                        item.title.contains("manhwa", ignoreCase = true)
+                    if (isManhua) manhua++ else manga++
+                }
+            }
         }
+        arrayOf(all, fav, manhua, manga, novel, book, series, channel, music)
     }
-    val mangaCount = remember(allManga) {
-        allManga.count {
-            !it.isNsfw && it.contentType == 0 && it.boxPurpose != "manhua" && it.boxPurpose != "book" && (
-                it.genre == null || (
-                    !it.genre.contains("manhua", ignoreCase = true) &&
-                    !it.genre.contains("manhwa", ignoreCase = true) &&
-                    !it.genre.contains("webtoon", ignoreCase = true)
-                )
-            )
-        }
-    }
-    val seriesCount = remember(allManga) {
-        allManga.count { !it.isNsfw && (it.contentType == 2 || it.boxPurpose == "series") && it.boxPurpose != "channel" }
-    }
-    val novelCount = remember(allManga) {
-        allManga.count { !it.isNsfw && (it.contentType == 4 || it.boxPurpose == "novel") }
-    }
-    val bookCount = remember(allManga) {
-        allManga.count { !it.isNsfw && (it.contentType == 1 || it.boxPurpose == "book") && it.contentType != 4 && it.boxPurpose != "novel" }
-    }
-    val channelCount = remember(allManga) {
-        allManga.count { !it.isNsfw && (it.contentType == 2 || it.boxPurpose == "channel") && it.boxPurpose == "channel" }
-    }
-    val musicCount = remember(allManga) {
-        allManga.count { !it.isNsfw && it.contentType == 3 }
-    }
-    val favoriteCount = remember(allManga) {
-        allManga.count { !it.isNsfw && (it.isFavorite || it.genre?.contains("favorite", ignoreCase = true) == true) }
-    }
+    val allCount = shortcutCounts[0]
+    val favoriteCount = shortcutCounts[1]
+    val manhuaCount = shortcutCounts[2]
+    val mangaCount = shortcutCounts[3]
+    val novelCount = shortcutCounts[4]
+    val bookCount = shortcutCounts[5]
+    val seriesCount = shortcutCounts[6]
+    val channelCount = shortcutCounts[7]
+    val musicCount = shortcutCounts[8]
 
     // Pre-index history events for O(1) membership check
     val openedMangaIdsFromHistory = remember(historyEvents) {
@@ -201,7 +200,6 @@ fun HomeDashboard(
                                 val extracted = MusicImportUtils.extractEmbeddedCover(context, parsedUri, manga.title)
                                 if (extracted != null) {
                                     resolvedThumb = extracted
-                                    database.trackDao().insertChapter(target.copy(thumbnailUri = extracted))
                                 }
                             } catch (_: Exception) {}
                         }
@@ -485,6 +483,7 @@ private fun BannerCarouselSection(
     ) {
         HorizontalPager(
             state = pagerState,
+            beyondViewportPageCount = 1,
             contentPadding = PaddingValues(horizontal = 20.dp),
             pageSpacing = 14.dp,
             flingBehavior = PagerDefaults.flingBehavior(
@@ -510,6 +509,7 @@ private fun BannerCarouselSection(
                 AsyncImage(
                     model = ImageRequest.Builder(context)
                         .data(banners[page])
+                        .memoryCacheKey(banners[page])
                         .crossfade(false)
                         .build(),
                     contentDescription = "Hwaran Feature Banner",

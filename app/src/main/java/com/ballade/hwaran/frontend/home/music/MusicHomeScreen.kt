@@ -150,16 +150,16 @@ fun MusicScreen(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(currentChapter?.thumbnailUri ?: currentChapter?.folderUri ?: currentManga?.coverPath)
-                        .size(128, 128)
-                        .crossfade(true)
+                        .size(64, 64)
+                        .crossfade(false)
                         .build(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
-                        .blur(radius = 24.dp)
+                        .blur(radius = 8.dp)
                 )
-                Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)))
+                Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.65f)))
             }
         }
 

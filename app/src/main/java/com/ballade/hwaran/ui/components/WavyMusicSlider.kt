@@ -80,22 +80,16 @@ fun WavyMusicSlider(
         label = "WaveAmplitudeAnim"
     )
 
-    val phaseShiftAnim = remember { Animatable(0f) }
-    val phaseShift = phaseShiftAnim.value
-
-    LaunchedEffect(shouldShowWave, waveAnimationDuration) {
-        if (shouldShowWave && waveAnimationDuration > 0) {
-            val fullRotation = (2 * PI).toFloat()
-            while (shouldShowWave) {
-                val start = (phaseShiftAnim.value % fullRotation).let { if (it < 0f) it + fullRotation else it }
-                phaseShiftAnim.snapTo(start)
-                phaseShiftAnim.animateTo(
-                    targetValue = start + fullRotation,
-                    animationSpec = tween(durationMillis = waveAnimationDuration, easing = LinearEasing)
-                )
-            }
-        }
-    }
+    val infiniteTransition = rememberInfiniteTransition(label = "WavePhaseTransition")
+    val phaseShiftState = infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2 * PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = waveAnimationDuration.coerceAtLeast(1000), easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "wavePhase"
+    )
 
     val trackHeightPx = with(LocalDensity.current) { trackHeight.toPx() }
     val thumbRadiusPx = with(LocalDensity.current) { thumbRadius.toPx() }
@@ -227,14 +221,15 @@ fun WavyMusicSlider(
                                 currentProgressPxEndVisual - (thumbGapPx * thumbInteractionFraction)
 
                             if (waveAmplitudePxInternal > 0.01f && waveFrequency > 0f) {
+                                val phaseShift = if (shouldShowWave) phaseShiftState.value else 0f
                                 wavePath.reset()
                                 val waveStartDrawX = localTrackStart
                                 val waveEndDrawX = activeTrackVisualEnd.coerceAtLeast(waveStartDrawX)
                                 if (waveEndDrawX > waveStartDrawX) {
                                     val periodPx = ((2 * PI) / waveFrequency).toFloat()
-                                    val samplesPerCycle = 20f
+                                    val samplesPerCycle = 16f
                                     val waveStep = (periodPx / samplesPerCycle)
-                                        .coerceAtLeast(1.2f)
+                                        .coerceAtLeast(1.5f)
                                         .coerceAtMost(trackHeightPx)
 
                                     fun yAt(x: Float): Float {
