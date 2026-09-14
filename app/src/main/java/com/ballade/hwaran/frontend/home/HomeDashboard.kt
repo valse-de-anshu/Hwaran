@@ -57,7 +57,6 @@ fun HomeDashboard(
     onNavigateToDescription: (Long) -> Unit,
     onNavigateToMedia: (Long, Int) -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToHistory: () -> Unit,
     onNavigateToSearch: () -> Unit = {},
     onMediaShortcutClick: (tag: String) -> Unit,
     onOpenMusic: () -> Unit = {},
@@ -132,12 +131,12 @@ fun HomeDashboard(
     // Continue watching / in progress covers
     val inProgressItems = remember(allManga, historyEvents) {
         val opened = allManga.filter { manga ->
-            manga.openCount > 0 || manga.lastReadTitle != null || historyEvents.any { event ->
+            manga.openCount > 0 || !manga.lastReadTitle.isNullOrBlank() || ((manga.lastReadPage ?: 0) > 0) || historyEvents.any { event ->
+                (event.eventType in listOf("WATCH", "READ_TOON", "READ_BOOK", "LISTEN", "READ_NOVEL")) &&
                 event.details.contains("mangaId:${manga.id}")
             }
         }.sortedByDescending { it.lastModified }
-        if (opened.isNotEmpty()) opened.take(8)
-        else allManga.take(4)
+        opened.take(8)
     }
 
     val initialItems = remember(inProgressItems) {
@@ -319,10 +318,9 @@ fun HomeDashboard(
             .displayCutoutPadding()
             .padding(bottom = bottomDockClearance)
     ) {
-        // 1. Clean Top Header (3-dot overflow only; redundant top search removed)
+        // 1. Clean Top Header (Settings shortcut)
         DashboardTopHeader(
-            onSettingsClick = onNavigateToSettings,
-            onHistoryClick = onNavigateToHistory
+            onSettingsClick = onNavigateToSettings
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -387,7 +385,6 @@ fun HomeDashboard(
                         }
                     }
                 },
-                onViewAllClick = onNavigateToHistory,
                 glowColor = glowColor
             )
 
@@ -418,11 +415,8 @@ fun HomeDashboard(
 
 @Composable
 private fun DashboardTopHeader(
-    onSettingsClick: () -> Unit,
-    onHistoryClick: () -> Unit
+    onSettingsClick: () -> Unit
 ) {
-    var showMenu by remember { mutableStateOf(false) }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -431,49 +425,21 @@ private fun DashboardTopHeader(
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Three-Dot Overflow Menu Button
-        Box {
-            Surface(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .clickable { showMenu = !showMenu },
-                shape = CircleShape,
-                color = Color.White.copy(alpha = 0.08f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Rounded.MoreVert,
-                        contentDescription = "Options",
-                        tint = Color.White.copy(alpha = 0.9f),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-
-            DropdownMenu(
-                expanded = showMenu,
-                onDismissRequest = { showMenu = false },
-                modifier = Modifier
-                    .background(Color(0xFF1B1924))
-                    .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-            ) {
-                DropdownMenuItem(
-                    text = { Text("History & Insights", color = Color.White) },
-                    leadingIcon = { Icon(Icons.Rounded.History, contentDescription = null, tint = Color.White) },
-                    onClick = {
-                        showMenu = false
-                        onHistoryClick()
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("Settings", color = Color.White) },
-                    leadingIcon = { Icon(Icons.Rounded.Settings, contentDescription = null, tint = Color.White) },
-                    onClick = {
-                        showMenu = false
-                        onSettingsClick()
-                    }
+        Surface(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .clickable { onSettingsClick() },
+            shape = CircleShape,
+            color = Color.White.copy(alpha = 0.08f),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Rounded.Settings,
+                    contentDescription = "Settings",
+                    tint = Color.White.copy(alpha = 0.9f),
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
@@ -757,15 +723,13 @@ private fun ContinueWatchingSection(
     items: List<ContinueWatchingItem>,
     onItemClick: (MangaEntity) -> Unit,
     onPlayItem: (ContinueWatchingItem) -> Unit,
-    onViewAllClick: () -> Unit,
     glowColor: Color
 ) {
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxWidth()) {
         SectionHeader(
-            title = "Continue Watching",
-            onClick = onViewAllClick
+            title = "Continue Watching"
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -900,61 +864,71 @@ private fun RecentlyAddedSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(items, key = { it.id }) { manga ->
-                Column(
+                Surface(
                     modifier = Modifier
                         .width(110.dp)
+                        .height(160.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .clickable { onItemClick(manga) }
+                        .clickable { onItemClick(manga) },
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF161520),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
                 ) {
-                    // Portrait Cover
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(155.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color(0xFF161520),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
                         val coverModel = remember(manga.coverPath, manga.parentUri) {
                             CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
                         }
-                        AsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(coverModel)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = manga.title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
+                        if (coverModel != null) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(coverModel)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = manga.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (manga.contentType == 3) Icons.Rounded.MusicNote else Icons.Rounded.Image,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.18f),
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                        }
+
+                        // Title inside the cover art
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.BottomCenter)
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color.Transparent,
+                                            Color.Black.copy(alpha = 0.55f),
+                                            Color.Black.copy(alpha = 0.88f)
+                                        )
+                                    )
+                                )
+                                .padding(horizontal = 6.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = manga.title,
+                                color = Color(0xFFF0F2F5),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                lineHeight = 13.sp
+                            )
+                        }
                     }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = manga.title,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    val typeLabel = when (manga.contentType) {
-                        0 -> if (manga.genre?.contains("manhua", ignoreCase = true) == true) "Manhua" else "Manga"
-                        1 -> "Book • PDF"
-                        2 -> if (manga.boxPurpose == "channel") "Video • Channel" else "Video • Series"
-                        3 -> "Music"
-                        else -> "Media"
-                    }
-
-                    Text(
-                        text = typeLabel,
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 10.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
                 }
             }
         }
@@ -989,13 +963,15 @@ private fun SectionHeader(
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.width(4.dp))
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                contentDescription = "View all $title",
-                tint = if (onClick != null) Color.White.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.4f),
-                modifier = Modifier.size(18.dp)
-            )
+            if (onClick != null) {
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    contentDescription = "View all $title",
+                    tint = Color.White.copy(alpha = 0.8f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }
@@ -1129,45 +1105,74 @@ private fun RecentlyAddedSheet(
                         .heightIn(max = 480.dp)
                 ) {
                     items(filtered, key = { it.id }) { manga ->
-                        Column(
+                        Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .aspectRatio(0.68f)
                                 .clip(RoundedCornerShape(14.dp))
                                 .clickable {
                                     onDismiss()
                                     onItemClick(manga)
-                                }
+                                },
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFF161520),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
                         ) {
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .aspectRatio(0.68f),
-                                shape = RoundedCornerShape(14.dp),
-                                color = Color(0xFF161520),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
-                            ) {
+                            Box(modifier = Modifier.fillMaxSize()) {
                                 val coverModel = remember(manga.coverPath, manga.parentUri) {
                                     CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
                                 }
-                                AsyncImage(
-                                    model = ImageRequest.Builder(context)
-                                        .data(coverModel)
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = manga.title,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
+                                if (coverModel != null) {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data(coverModel)
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = manga.title,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = if (manga.contentType == 3) Icons.Rounded.MusicNote else Icons.Rounded.Image,
+                                            contentDescription = null,
+                                            tint = Color.White.copy(alpha = 0.18f),
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                    }
+                                }
+
+                                // Title inside the cover art
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .align(Alignment.BottomCenter)
+                                        .background(
+                                            Brush.verticalGradient(
+                                                colors = listOf(
+                                                    Color.Transparent,
+                                                    Color.Black.copy(alpha = 0.55f),
+                                                    Color.Black.copy(alpha = 0.88f)
+                                                )
+                                            )
+                                        )
+                                        .padding(horizontal = 7.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = manga.title,
+                                        color = Color(0xFFF0F2F5),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        lineHeight = 13.sp
+                                    )
+                                }
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = manga.title,
-                                color = Color.White,
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
                         }
                     }
                 }

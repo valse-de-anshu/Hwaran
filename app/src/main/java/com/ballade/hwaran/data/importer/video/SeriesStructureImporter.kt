@@ -129,7 +129,8 @@ object SeriesStructureImporter {
                     destFile.absolutePath
                 } catch (e: Exception) { "" }
             } else {
-                first.uri.toString()
+                com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, first.uri, "series", rootFolderName)
+                    ?: first.uri.toString()
             }
         } else ""
 
@@ -207,9 +208,13 @@ object SeriesStructureImporter {
 
             // Detect cover image for this container
             val containerCoverPath = if (isLocalMode) detectAndCopyCover(context, subfolder, File(containerDestPath)) else {
-                subfolder.listFiles()?.firstOrNull { f ->
+                val coverDoc = subfolder.listFiles()?.firstOrNull { f ->
                     !f.isDirectory && VideoImportUtils.coverExtensions.any { ext -> f.name?.lowercase()?.endsWith(".$ext") == true }
-                }?.uri?.toString() ?: ""
+                }
+                if (coverDoc != null) {
+                    com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, coverDoc.uri, "series_container", containerName)
+                        ?: coverDoc.uri.toString()
+                } else ""
             }
 
             // Create child MangaEntity (container)

@@ -116,11 +116,18 @@ fun MusicScreen(
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var editingPlaylist by remember { mutableStateOf<MangaEntity?>(null) }
     var isMenuExpanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     val musicFolderPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()
     ) { uri: android.net.Uri? ->
         uri?.let {
+            try {
+                val takeFlags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                context.contentResolver.takePersistableUriPermission(it, takeFlags)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
             // No workspaces in Music mode yet, so pass null
             libraryViewModel.importMusicFolder(it, null)
         }
@@ -841,10 +848,19 @@ fun PlaylistCircleItemForeground(
                         indication = null
                     ) { onPlaylistClick() }
             ) {
-                if (playlist.coverPath.isNotEmpty() && playlist.coverPath != "android.resource://android/drawable/ic_menu_gallery") {
+                val bubbleContext = LocalContext.current
+                val resolvedCover = remember(playlist.coverPath, playlist.parentUri) {
+                    com.ballade.hwaran.core.util.CoverArtResolver.resolveCoverModel(
+                        coverPath = playlist.coverPath,
+                        parentUri = playlist.parentUri,
+                        chapters = null,
+                        context = bubbleContext
+                    )
+                }
+                if (resolvedCover != null) {
                     AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(playlist.coverPath)
+                        model = ImageRequest.Builder(bubbleContext)
+                            .data(resolvedCover)
                             .crossfade(true)
                             .build(),
                         contentDescription = playlist.title,

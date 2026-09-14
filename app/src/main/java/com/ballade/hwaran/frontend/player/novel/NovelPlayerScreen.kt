@@ -53,6 +53,7 @@ import com.ballade.hwaran.backend.novel.NovelParser
 import com.ballade.hwaran.core.database.AppDatabase
 import com.ballade.hwaran.core.database.entity.HistoryEventEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
+import com.ballade.hwaran.core.util.HistoryTracker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -236,6 +237,11 @@ fun NovelPlayerScreen(
                     lastReadTitle = chapterTitle
                 )
                 database.mediaDao().insertManga(updated)
+                HistoryTracker.logEvent(
+                    "READ_NOVEL",
+                    chapterTitle,
+                    "mangaId:$mangaId|pages:${chapterIdx + 1}|totalPages:${novelBook?.chapters?.size ?: 0}"
+                )
             }
         }
     }

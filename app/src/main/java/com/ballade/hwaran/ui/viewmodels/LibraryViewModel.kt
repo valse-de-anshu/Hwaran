@@ -75,6 +75,106 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         return database.libraryDao().getDistinctWorkspacesForContentType(mediaMode)
     }
 
+    init {
+        // Self-heal covers in background on startup
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val app = getApplication<Application>()
+                val mediaDao = database.libraryDao()
+                val allItems = mediaDao.getAllMangaList()
+                allItems.forEach { manga ->
+                    var updated = false
+                    var newCover = manga.coverPath
+
+                    // 1. If coverPath is a content:// URI, attempt to cache it locally
+                    if (newCover.startsWith("content://")) {
+                        val cached = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(
+                            context = app,
+                            sourceUri = Uri.parse(newCover),
+                            prefix = if (manga.contentType == 3) "music" else "cover",
+                            title = manga.title
+                        )
+                        if (cached != null) {
+                            newCover = cached
+                            updated = true
+                        }
+                    }
+
+                    // 2. If music mode and coverPath is empty, check track thumbnails
+                    if (manga.contentType == 3 && newCover.isEmpty()) {
+                        val tracks = database.trackDao().getChaptersForMangaList(manga.id)
+                        val trackWithThumb = tracks.firstOrNull { !it.thumbnailUri.isNullOrBlank() }
+                        if (trackWithThumb != null && !trackWithThumb.thumbnailUri.isNullOrBlank()) {
+                            newCover = trackWithThumb.thumbnailUri!!
+                            updated = true
+                        }
+                    }
+
+                    // 3. For toon / manga (contentType == 0) or video (contentType == 2):
+                    // Verify if there is a legitimate dedicated cover in parent directory.
+                    // If no dedicated cover exists, remove any fake cached fallback.
+                    if (manga.contentType == 0 || manga.contentType == 2) {
+                        val folderDoc = if (manga.parentUri.startsWith("content://")) {
+                            try { DocumentFile.fromTreeUri(app, Uri.parse(manga.parentUri)) } catch (e: Exception) { null }
+                        } else if (manga.parentUri.isNotEmpty()) {
+                            val f = File(manga.parentUri)
+                            if (f.exists()) DocumentFile.fromFile(f) else null
+                        } else null
+
+                        if (folderDoc != null && folderDoc.exists() && folderDoc.isDirectory) {
+                            val childFiles = folderDoc.listFiles() ?: emptyArray()
+                            val dedicatedDoc = if (manga.contentType == 0) {
+                                com.ballade.hwaran.data.importer.toon.ToonImportUtils.findCoverInFiles(childFiles)
+                            } else {
+                                val imageFiles = childFiles.filter { file ->
+                                    !file.isDirectory && com.ballade.hwaran.data.importer.video.VideoImportUtils.coverExtensions.any { ext ->
+                                        file.name?.lowercase()?.endsWith(".$ext") == true
+                                    }
+                                }.toTypedArray()
+                                com.ballade.hwaran.data.importer.video.VideoImportUtils.findCoverInFiles(imageFiles)
+                            }
+
+                            if (dedicatedDoc != null) {
+                                val prefix = if (manga.contentType == 0) "toon" else "video"
+                                val cached = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(
+                                    context = app,
+                                    sourceUri = dedicatedDoc.uri,
+                                    prefix = prefix,
+                                    title = manga.title
+                                )
+                                if (cached != null && cached != newCover) {
+                                    newCover = cached
+                                    updated = true
+                                }
+                            } else {
+                                // No dedicated cover! Purge any fake cached cover
+                                if (newCover.isNotEmpty()) {
+                                    if (newCover.startsWith("/data/")) {
+                                        try { File(newCover).delete() } catch (_: Exception) {}
+                                    }
+                                    newCover = ""
+                                    updated = true
+                                }
+                            }
+                        }
+                    }
+
+                    // 4. If cached file path does not exist on disk, clear it
+                    if (newCover.isNotEmpty() && newCover.startsWith("/data/") && !File(newCover).exists()) {
+                        newCover = ""
+                        updated = true
+                    }
+
+                    if (updated && newCover != manga.coverPath) {
+                        mediaDao.insertManga(manga.copy(coverPath = newCover))
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     private val _isImporting = MutableStateFlow(false)
     val isImporting: StateFlow<Boolean> = _isImporting
 
@@ -143,6 +243,13 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         importJob = viewModelScope.launch {
             _megaImportProgress.value = 0f
             _megaImportSummary.value = null
+
+            try {
+                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                getApplication<Application>().contentResolver.takePersistableUriPermission(parentUri, takeFlags)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
 
             val globalSettings = com.ballade.hwaran.core.datastore.GlobalSettings(getApplication())
             val mediaMode = mediaModeOverride ?: globalSettings.mediaModeFlow.first()
@@ -275,13 +382,6 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                     var skippedCount = 0
                     val skippedFolders = mutableListOf<String>()
                     var isCancelled = false
-
-                    try {
-                        val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                        getApplication<Application>().contentResolver.takePersistableUriPermission(parentUri, takeFlags)
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
 
                     withContext(Dispatchers.IO) {
                         val parentDoc = DocumentFile.fromTreeUri(getApplication(), parentUri)

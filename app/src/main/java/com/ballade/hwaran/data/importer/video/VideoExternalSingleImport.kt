@@ -31,13 +31,33 @@ object VideoExternalSingleImport {
 
         val uriStr = uri.toString()
 
+        val folderName = sourceDoc.name ?: "Unknown"
+
         // Duplicate check — no file copy happens, just URI
         val existingManga = repository.getRootMangaByUri(uriStr)
-        if (existingManga != null) return@withContext existingManga.id
+        if (existingManga != null) {
+            val rootFiles = sourceDoc.listFiles() ?: emptyArray()
+            val imageFiles = rootFiles.filter { file ->
+                !file.isDirectory && VideoImportUtils.coverExtensions.any { ext -> file.name?.lowercase()?.endsWith(".$ext") == true }
+            }.toTypedArray()
+            val coverDoc = VideoImportUtils.findCoverInFiles(imageFiles)
+            if (coverDoc != null) {
+                val newCover = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, coverDoc.uri, "video", folderName)
+                if (!newCover.isNullOrBlank() && newCover != existingManga.coverPath) {
+                    repository.insertManga(existingManga.copy(coverPath = newCover))
+                }
+            } else if (existingManga.coverPath.isNotEmpty()) {
+                if (existingManga.coverPath.startsWith("/data/")) {
+                    try { java.io.File(existingManga.coverPath).delete() } catch (_: Exception) {}
+                }
+                repository.insertManga(existingManga.copy(coverPath = ""))
+            }
+            return@withContext existingManga.id
+        }
 
         val rootFiles = sourceDoc.listFiles() ?: emptyArray()
 
-        // Determine cover — if no image, coverPath = "" and UI shows default icon
+        // Determine cover — cache dedicated image if found, otherwise keep empty
         val coverPath: String = run {
             val imageFiles = rootFiles.filter { file ->
                 !file.isDirectory &&
@@ -45,10 +65,12 @@ object VideoExternalSingleImport {
                             file.name?.lowercase()?.endsWith(".$ext") == true
                         }
             }.toTypedArray()
-            VideoImportUtils.findCoverInFiles(imageFiles)?.uri?.toString() ?: ""
+            val coverDoc = VideoImportUtils.findCoverInFiles(imageFiles)
+            if (coverDoc != null) {
+                com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, coverDoc.uri, "video", folderName)
+                    ?: coverDoc.uri.toString()
+            } else ""
         }
-
-        val folderName = sourceDoc.name ?: "Unknown"
 
         val mangaToInsert = MangaEntity(
             id = 0L,

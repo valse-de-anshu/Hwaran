@@ -488,13 +488,23 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
             } else {
                 null
             }
+            val finalCoverPath = if (draftCoverPath.value.startsWith("content://")) {
+                com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(
+                    context = getApplication(),
+                    sourceUri = Uri.parse(draftCoverPath.value),
+                    prefix = "custom",
+                    title = draftTitle.value
+                ) ?: draftCoverPath.value
+            } else {
+                draftCoverPath.value
+            }
 
             val entity = MangaEntity(
                 id = if (currentMangaId == -1L) 0L else currentMangaId,
                 title = draftTitle.value.ifBlank { "Untitled" },
                 description = draftDescription.value.ifBlank { "No description added yet." },
                 thoughts = draftThoughts.value.ifBlank { "No thoughts added." },
-                coverPath = draftCoverPath.value,
+                coverPath = finalCoverPath,
                 isNsfw = draftIsNsfw.value,
                 parentUri = _manga.value?.parentUri ?: "",
                 lastModified = System.currentTimeMillis(),
@@ -1364,15 +1374,24 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
 
     fun updateChapterThumbnail(chapterId: Long, thumbnailUri: String) {
         viewModelScope.launch {
+            val finalThumb = if (thumbnailUri.startsWith("content://")) {
+                com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(
+                    context = getApplication(),
+                    sourceUri = Uri.parse(thumbnailUri),
+                    prefix = "chapter",
+                    title = "thumb_$chapterId"
+                ) ?: thumbnailUri
+            } else thumbnailUri
+
             withContext(Dispatchers.IO) {
                 val chapter = database.trackDao().getChapterById(chapterId)
                 if (chapter != null) {
-                    database.trackDao().insertChapter(chapter.copy(thumbnailUri = thumbnailUri))
+                    database.trackDao().insertChapter(chapter.copy(thumbnailUri = finalThumb))
                 }
             }
             // Update in-memory chapters list
             _chapters.value = _chapters.value.map {
-                if (it.id == chapterId) it.copy(thumbnailUri = thumbnailUri) else it
+                if (it.id == chapterId) it.copy(thumbnailUri = finalThumb) else it
             }
         }
     }

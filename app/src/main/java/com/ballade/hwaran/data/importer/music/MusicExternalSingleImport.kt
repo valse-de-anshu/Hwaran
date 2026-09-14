@@ -24,6 +24,14 @@ object MusicExternalSingleImport {
         // 1. Duplicate check
         val existingAlbum = repository.getAlbumByUri(uriStr)
         if (existingAlbum != null) {
+            if (existingAlbum.coverPath.isEmpty() || existingAlbum.coverPath.startsWith("content://") || !java.io.File(existingAlbum.coverPath).exists()) {
+                val audioFiles = MusicImportUtils.findAudioFiles(folderDoc)
+                val newCover = MusicImportUtils.findCoverImage(context, folderDoc, audioFiles, existingAlbum.title)
+                if (newCover.isNotEmpty() && newCover != existingAlbum.coverPath) {
+                    repository.insertAlbum(existingAlbum.copy(coverPath = newCover))
+                }
+            }
+
             val existingTracks = repository.getTracksForAlbum(existingAlbum.id)
             val audioFiles = MusicImportUtils.findAudioFiles(folderDoc)
             val lyricsFiles = MusicImportUtils.findLyricsFiles(folderDoc)
@@ -127,6 +135,12 @@ object MusicExternalSingleImport {
 
         if (tracksToInsert.isNotEmpty()) {
             repository.insertTracks(tracksToInsert)
+            if (coverUri.isEmpty()) {
+                val trackThumb = tracksToInsert.firstOrNull { !it.thumbnailUri.isNullOrBlank() }?.thumbnailUri
+                if (!trackThumb.isNullOrBlank()) {
+                    repository.insertAlbum(albumToInsert.copy(id = albumId, coverPath = trackThumb))
+                }
+            }
         }
 
         // 5. History logging

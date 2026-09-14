@@ -40,25 +40,28 @@ object ToonImportUtils {
         return if (anyChildHasSubDirs) "MEGA" else "SINGLE"
     }
 
+    private val dedicatedCoverNames = setOf(
+        "cover.jpg", "cover.jpeg", "cover.png", "cover.webp",
+        "folder.jpg", "folder.jpeg", "folder.png", "folder.webp",
+        "poster.jpg", "poster.jpeg", "poster.png", "poster.webp",
+        "thumb.jpg", "thumb.jpeg", "thumb.png", "thumb.webp"
+    )
+
     /**
-     * Finds a cover image among the list of files.
-     * Looks for common names like cover.jpg, folder.png, poster.jpg, etc.
+     * Finds a dedicated cover image among the list of files.
+     * Strictly matches dedicated names: cover, folder, poster, thumb.
      */
     fun findCoverInFiles(files: Array<DocumentFile>): DocumentFile? {
         return files.find { item ->
             val itemName = item.name?.lowercase() ?: ""
-            itemName == "cover.jpg" || itemName == "cover.jpeg" || itemName == "cover.png" || itemName == "cover.gif" ||
-            itemName == "folder.jpg" || itemName == "folder.jpeg" || itemName == "folder.png" || itemName == "folder.gif" ||
-            itemName == "poster.jpg" || itemName == "poster.png" || itemName == "poster.gif"
+            itemName in dedicatedCoverNames
         }
     }
 
     fun findCoverInJavaFiles(files: List<File>): File? {
         return files.find { item ->
             val itemName = item.name.lowercase()
-            itemName == "cover.jpg" || itemName == "cover.jpeg" || itemName == "cover.png" || itemName == "cover.gif" ||
-            itemName == "folder.jpg" || itemName == "folder.jpeg" || itemName == "folder.png" || itemName == "folder.gif" ||
-            itemName == "poster.jpg" || itemName == "poster.png" || itemName == "poster.gif"
+            itemName in dedicatedCoverNames
         }
     }
 }

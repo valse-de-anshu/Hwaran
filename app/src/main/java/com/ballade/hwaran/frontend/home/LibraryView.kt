@@ -320,123 +320,94 @@ private fun LibraryMaterialCard(
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
-    val subtitle = remember(manga) { formatMediaSubtitle(manga) }
 
-    Column(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .aspectRatio(0.68f)
             .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
+            .shadow(
+                elevation = 6.dp,
+                shape = RoundedCornerShape(14.dp),
+                spotColor = Color.Black.copy(alpha = 0.5f)
+            ),
+        shape = RoundedCornerShape(14.dp),
+        color = Color(0xFF14131C),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
     ) {
-        // Cover Card with completely clear artwork (no black shadow on top of cover)
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(0.68f)
-                .shadow(
-                    elevation = 6.dp,
-                    shape = RoundedCornerShape(14.dp),
-                    spotColor = Color.Black.copy(alpha = 0.5f)
-                ),
-            shape = RoundedCornerShape(14.dp),
-            color = Color(0xFF14131C),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                if (isLocked) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (isLocked) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.85f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Lock,
+                        contentDescription = "Locked",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            } else {
+                val coverModel = remember(manga.coverPath, manga.parentUri) {
+                    CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
+                }
+                if (coverModel != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(coverModel)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = manga.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.85f)),
+                            .background(Color(0xFF14131C)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Lock,
-                            contentDescription = "Locked",
-                            tint = Color.White.copy(alpha = 0.7f),
-                            modifier = Modifier.size(28.dp)
+                            imageVector = if (manga.contentType == 3) Icons.Rounded.MusicNote else Icons.Rounded.Image,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.18f),
+                            modifier = Modifier.size(32.dp)
                         )
                     }
-                } else {
-                    val coverModel = remember(manga.coverPath, manga.parentUri) {
-                        CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
-                    }
-                    if (coverModel != null) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(coverModel)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = manga.title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = if (manga.contentType == 3) Icons.Rounded.MusicNote else Icons.Rounded.Image,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.2f),
-                                modifier = Modifier.size(32.dp)
+                }
+
+                // Title inside the cover art with smooth bottom gradient scrim
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.55f),
+                                    Color.Black.copy(alpha = 0.88f)
+                                )
                             )
-                        }
-                    }
+                        )
+                        .padding(horizontal = 8.dp, vertical = 7.dp)
+                ) {
+                    Text(
+                        text = manga.title,
+                        color = Color(0xFFF0F2F5),
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 14.sp
+                    )
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        // Title text directly below the cover
-        Text(
-            text = manga.title,
-            color = Color.White,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 12.5.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        Spacer(modifier = Modifier.height(2.dp))
-
-        // Subtitle format • count directly below title
-        Text(
-            text = subtitle,
-            color = Color.White.copy(alpha = 0.45f),
-            fontSize = 10.5.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-private fun formatMediaSubtitle(manga: MangaEntity): String {
-    return when (manga.contentType) {
-        0 -> {
-            val type = if (manga.genre?.contains("manhua", ignoreCase = true) == true) "Manhua"
-            else if (manga.genre?.contains("manhwa", ignoreCase = true) == true) "Manhwa"
-            else "Manga"
-            val detail = if (!manga.lastReadTitle.isNullOrBlank()) manga.lastReadTitle
-            else if (manga.openCount > 0) "${manga.openCount} ch"
-            else manga.genre ?: "Toon"
-            "$type • $detail"
-        }
-        1 -> {
-            val page = if (manga.lastReadPage != null && manga.lastReadPage > 0) "${manga.lastReadPage} pages" else "Book"
-            "PDF • $page"
-        }
-        2 -> {
-            val type = if (manga.boxPurpose == "channel") "Channel" else "Series"
-            val detail = if (!manga.lastReadTitle.isNullOrBlank()) manga.lastReadTitle else "Video"
-            "$type • $detail"
-        }
-        3 -> {
-            val detail = if (!manga.genre.isNullOrBlank()) manga.genre else "Audio"
-            "Music • $detail"
-        }
-        else -> "Media"
     }
 }

@@ -60,7 +60,6 @@ fun SettingsScreen(
     settingsViewModel: SettingsViewModel = viewModel(),
     onNavigateBack: () -> Unit,
     onNavigateToLockSelection: () -> Unit = {},
-    onNavigateToHistory: () -> Unit = {},
     onNavigateToCanvas: () -> Unit = {}
 ) {
     var activeSection by remember { mutableStateOf<PremiumSection?>(PremiumSection.CONFIG) }
@@ -200,7 +199,7 @@ fun SettingsScreen(
                                     PremiumSection.APPEARANCE -> AppearanceContent(settingsViewModel)
                                     PremiumSection.ENVIRONMENT -> EnvironmentContent(settingsViewModel, onNavigateToCanvas)
                                     PremiumSection.ADD_BUTTON -> AddButtonContent(settingsViewModel)
-                                    PremiumSection.SECURITY -> SecurityContent(settingsViewModel, onNavigateToLockSelection, onNavigateToHistory)
+                                    PremiumSection.SECURITY -> SecurityContent(settingsViewModel, onNavigateToLockSelection)
                                     PremiumSection.ABOUT -> AboutContent(scrollState, settingsViewModel, onNavigateBack)
                                     null -> {}
                                 }
@@ -642,8 +641,7 @@ fun EnvironmentContent(vm: SettingsViewModel, onNavigateToCanvas: () -> Unit = {
 @Composable
 fun SecurityContent(
     vm: SettingsViewModel,
-    onNavigateToLockSelection: () -> Unit,
-    onNavigateToHistory: () -> Unit
+    onNavigateToLockSelection: () -> Unit
 ) {
     val isLibraryLocked by vm.isLibraryLocked.collectAsState()
     val libraryPassword by vm.libraryPassword.collectAsState()
@@ -887,83 +885,39 @@ fun SecurityContent(
 
     Spacer(modifier = Modifier.height(8.dp))
 
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    // Wipe History Button
+    Button(
+        onClick = { showWipeConfirmation = true },
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color.White.copy(alpha = 0.04f),
+            contentColor = Color(0xFFE57373)
+        ),
+        border = BorderStroke(1.dp, Color(0xFFE57373).copy(alpha = 0.25f)),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp)
     ) {
-        // View History Button
-        Button(
-            onClick = onNavigateToHistory,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF222631),
-                contentColor = Color(0xFFE6E8EC)
-            ),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier
-                .weight(1f)
-                .height(48.dp),
-            contentPadding = PaddingValues(horizontal = 8.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    Icons.Rounded.History,
-                    contentDescription = "View History",
-                    tint = Color(0xFFE6E8EC),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "View History",
-                    color = Color(0xFFE6E8EC),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        // Wipe History Button
-        Button(
-            onClick = { showWipeConfirmation = true },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.White.copy(alpha = 0.04f),
-                contentColor = Color(0xFFE57373)
-            ),
-            border = BorderStroke(1.dp, Color(0xFFE57373).copy(alpha = 0.25f)),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier
-                .weight(1f)
-                .height(48.dp),
-            contentPadding = PaddingValues(horizontal = 8.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    Icons.Rounded.Delete,
-                    contentDescription = "Wipe Data",
-                    tint = Color(0xFFE57373),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Wipe History",
-                    color = Color(0xFFE57373),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            Icon(
+                Icons.Rounded.Delete,
+                contentDescription = "Wipe Data",
+                tint = Color(0xFFE57373),
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Wipe History Data",
+                color = Color(0xFFE57373),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

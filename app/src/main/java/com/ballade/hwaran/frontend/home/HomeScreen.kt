@@ -2,6 +2,7 @@ package com.ballade.hwaran.frontend.home
 
 import androidx.activity.compose.BackHandler
 import com.ballade.hwaran.core.database.AppDatabase
+import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -94,7 +95,6 @@ fun HomeScreen(
     musicViewModel: MusicViewModel = viewModel(),
     onNavigateToSettings: () -> Unit,
     onNavigateToDescription: (Long) -> Unit,
-    onNavigateToHistory: () -> Unit = {},
     onNavigateToMedia: (Long, Int) -> Unit = { _, _ -> }
 ) {
     var activeDockTab by rememberSaveable { mutableIntStateOf(if (settingsViewModel.activeTab.value == 1) 4 else 0) }
@@ -214,6 +214,13 @@ fun HomeScreen(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         uri?.let { 
+            try {
+                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                context.contentResolver.takePersistableUriPermission(it, takeFlags)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
             val targetMode = importConfigMediaMode ?: currentMediaModeState
             val targetStorage = importConfigStorageMode ?: chosenStorageModeForImport
             val targetPurpose = importConfigBoxPurpose ?: if (targetMode == 2) {
@@ -250,6 +257,13 @@ fun HomeScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let { 
+            try {
+                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                context.contentResolver.takePersistableUriPermission(it, takeFlags)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
             val targetMode = importConfigMediaMode ?: currentMediaModeState
             val targetStorage = importConfigStorageMode ?: chosenStorageModeForImport
             val targetPurpose = importConfigBoxPurpose ?: if (targetMode == 2) {
@@ -286,6 +300,13 @@ fun HomeScreen(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         uri?.let { 
+            try {
+                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                context.contentResolver.takePersistableUriPermission(it, takeFlags)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
             val targetMode = importConfigMediaMode ?: currentMediaModeState
             val targetStorage = importConfigStorageMode ?: chosenStorageModeForImport
             val targetPurpose = importConfigBoxPurpose ?: if (targetMode == 2) {
@@ -314,6 +335,13 @@ fun HomeScreen(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         uri?.let {
+            try {
+                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                context.contentResolver.takePersistableUriPermission(it, takeFlags)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
             val targetWorkspace = importConfigWorkspace ?: (if (currentScreenState.isNullOrBlank()) null else currentScreenState)
             libraryViewModel.importMusicFolder(it, targetWorkspace)
         }
@@ -354,7 +382,6 @@ fun HomeScreen(
                                 musicViewModel.playPlaylist(manga, chapters, index)
                             },
                             onNavigateToSettings = onNavigateToSettings,
-                            onNavigateToHistory = onNavigateToHistory,
                             onNavigateToSearch = { activeDockTab = 2 },
                             onMediaShortcutClick = { targetTag ->
                                 if (targetTag == "Music") {

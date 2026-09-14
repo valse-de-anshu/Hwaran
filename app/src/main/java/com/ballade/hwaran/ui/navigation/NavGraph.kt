@@ -18,7 +18,6 @@ import com.ballade.hwaran.frontend.player.video.VideoPlayerScreen
 import com.ballade.hwaran.frontend.player.music.MusicPlayerScreen as NowPlayingScreen
 import com.ballade.hwaran.frontend.editor.music.EditPlaylistScreen
 import com.ballade.hwaran.frontend.editor.music.EditSongScreen
-import com.ballade.hwaran.frontend.history.HistoryScreen as FrontendHistoryScreen
 import com.ballade.hwaran.frontend.settings.SettingsScreen
 import com.ballade.hwaran.frontend.lock.LockSelectionScreen
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
@@ -44,7 +43,6 @@ sealed class Screen(val route: String) {
     object Home : Screen("home")
     object Canvas : Screen("canvas")
     object Settings : Screen("settings")
-    object History : Screen("history")
     object LockSelection : Screen("lock_selection")
     object Description : Screen("description/{mangaId}") {
         fun createRoute(mangaId: Long) = "description/$mangaId"
@@ -167,7 +165,6 @@ fun AppNavGraph(
                     musicViewModel = musicViewModel,
                     onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                     onNavigateToDescription = { mangaId -> navController.navigate(Screen.Description.createRoute(mangaId)) },
-                    onNavigateToHistory = { navController.navigate(Screen.History.route) },
                     onNavigateToMedia = { id, contentType ->
                         when (contentType) {
                             1 -> navController.navigate(Screen.PdfReader.createRoute(id))
@@ -185,7 +182,6 @@ fun AppNavGraph(
                     settingsViewModel = settingsViewModel,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToLockSelection = { navController.navigate(Screen.LockSelection.route) },
-                    onNavigateToHistory = { navController.navigate(Screen.History.route) },
                     onNavigateToCanvas = { navController.navigate(Screen.Canvas.route) }
                 )
             }
@@ -200,20 +196,6 @@ fun AppNavGraph(
                     settingsViewModel = settingsViewModel,
                     musicViewModel = musicViewModel,
                     onNavigateBack = { navController.popBackStack() }
-                )
-            }
-        }
-        composable(Screen.History.route) {
-            BlockTouchesWhenExiting {
-                FrontendHistoryScreen(
-                    settingsViewModel = settingsViewModel,
-                    musicViewModel = musicViewModel,
-                    onNavigateBack = { navController.popBackStack() },
-                    onNavigateToReader = { chapterId -> navController.navigate(Screen.Reader.createRoute(chapterId)) },
-                    onNavigateToPdfReader = { mangaId -> navController.navigate(Screen.PdfReader.createRoute(mangaId)) },
-                    onNavigateToVideoPlayer = { chapterId -> navController.navigate(Screen.VideoPlayer.createRoute(chapterId)) },
-                    onNavigateToPlaylist = { mangaId -> navController.navigate(Screen.PlaylistDetail.createRoute(mangaId)) },
-                    onNavigateToNowPlaying = { navController.navigate(Screen.NowPlaying.route) }
                 )
             }
         }

@@ -25,39 +25,43 @@ object CoverArtResolver {
 
         if (clean.isNotEmpty()) {
             when {
-                clean.startsWith("content://") -> return Uri.parse(clean)
-                clean.startsWith("file://") -> return Uri.parse(clean)
                 clean.startsWith("/") -> {
                     val file = File(clean)
-                    if (file.exists()) return file
+                    if (file.exists() && file.length() > 0) return file
+                }
+                clean.startsWith("file://") -> {
+                    val path = Uri.parse(clean).path
+                    if (!path.isNullOrBlank()) {
+                        val file = File(path)
+                        if (file.exists() && file.length() > 0) return file
+                    }
+                    return Uri.parse(clean)
+                }
+                clean.startsWith("content://") -> {
+                    val uri = Uri.parse(clean)
+                    if (context != null) {
+                        try {
+                            val cached = CoverCacheManager.cacheCoverFromUri(context, uri, "cover", "cached")
+                            if (cached != null) {
+                                val cachedFile = File(cached)
+                                if (cachedFile.exists() && cachedFile.length() > 0) return cachedFile
+                            }
+                        } catch (_: Exception) {}
+                    }
+                    return uri
                 }
                 else -> return clean
             }
         }
 
-        // 1. Fallback: check chapter thumbnails
-        val chapterThumb = chapters?.firstOrNull { !it.thumbnailUri.isNullOrBlank() }?.thumbnailUri?.trim()
-        if (!chapterThumb.isNullOrEmpty()) {
-            when {
-                chapterThumb.startsWith("content://") -> return Uri.parse(chapterThumb)
-                chapterThumb.startsWith("file://") -> return Uri.parse(chapterThumb)
-                chapterThumb.startsWith("/") -> {
-                    val file = File(chapterThumb)
-                    if (file.exists()) return file
-                }
-                else -> return chapterThumb
-            }
-        }
-
-        // 2. Fallback: check parent directory for cover image files
+        // Dedicated cover image files in parent directory (strictly cover, folder, poster, thumb)
         if (!parentUri.isNullOrBlank()) {
             if (parentUri.startsWith("/")) {
                 val dir = File(parentUri)
                 if (dir.exists() && dir.isDirectory) {
                     val candidate = dir.listFiles()?.firstOrNull { file ->
                         val n = file.name.lowercase()
-                        (n.startsWith("cover.") || n.startsWith("folder.") || n.startsWith("poster.") ||
-                                n.startsWith("thumb.") || n.startsWith("001.") || n.startsWith("01.")) &&
+                        (n.startsWith("cover.") || n.startsWith("folder.") || n.startsWith("poster.") || n.startsWith("thumb.")) &&
                                 (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp"))
                     }
                     if (candidate != null && candidate.exists()) return candidate
@@ -67,11 +71,17 @@ object CoverArtResolver {
                     val docDir = DocumentFile.fromTreeUri(context, Uri.parse(parentUri))
                     val candidate = docDir?.listFiles()?.firstOrNull { file ->
                         val n = file.name?.lowercase() ?: ""
-                        (n.startsWith("cover.") || n.startsWith("folder.") || n.startsWith("poster.") ||
-                                n.startsWith("thumb.") || n.startsWith("001.") || n.startsWith("01.")) &&
+                        (n.startsWith("cover.") || n.startsWith("folder.") || n.startsWith("poster.") || n.startsWith("thumb.")) &&
                                 (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp"))
                     }
-                    if (candidate != null) return candidate.uri
+                    if (candidate != null) {
+                        val cached = CoverCacheManager.cacheCoverFromUri(context, candidate.uri, "parent", "cover")
+                        if (cached != null) {
+                            val cachedFile = File(cached)
+                            if (cachedFile.exists() && cachedFile.length() > 0) return cachedFile
+                        }
+                        return candidate.uri
+                    }
                 } catch (_: Exception) {}
             }
         }

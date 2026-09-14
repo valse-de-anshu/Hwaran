@@ -306,11 +306,20 @@ object MusicImportUtils {
             val nameWithoutExt = name.substringBeforeLast('.')
             val ext = name.substringAfterLast('.')
             if (ext in VALID_IMAGE_EXTENSIONS && PREFERRED_COVER_NAMES.any { nameWithoutExt.contains(it) }) {
-                return file.uri.toString()
+                val cached = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, file.uri, "music", albumTitle)
+                return cached ?: file.uri.toString()
             }
         }
 
-        // Fallback: Default to music icon if no image file is found
+        // Priority 2: Extract embedded cover from audio files
+        for (audioDoc in audioFiles.take(5)) {
+            val extracted = extractEmbeddedCover(context, audioDoc.uri, albumTitle)
+            if (!extracted.isNullOrBlank()) {
+                return extracted
+            }
+        }
+
+        // Fallback: Default to empty if no image file is found
         return ""
     }
 

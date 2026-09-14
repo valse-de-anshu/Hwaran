@@ -48,6 +48,19 @@ object ToonExternalMegaImport {
 
             val existing = repository.getRootMangaByUri(child.uri.toString())
             if (existing != null) {
+                val childFiles = child.listFiles() ?: emptyArray()
+                val potentialCover = ToonImportUtils.findCoverInFiles(childFiles)
+                if (potentialCover != null) {
+                    val cached = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, potentialCover.uri, "toon", existing.title)
+                    if (cached != null && cached != existing.coverPath) {
+                        repository.insertManga(existing.copy(coverPath = cached))
+                    }
+                } else if (existing.coverPath.isNotEmpty()) {
+                    if (existing.coverPath.startsWith("/data/")) {
+                        try { java.io.File(existing.coverPath).delete() } catch (_: Exception) {}
+                    }
+                    repository.insertManga(existing.copy(coverPath = ""))
+                }
                 skippedCount++
                 skippedFolders.add("$folderName: Already imported")
                 onProgress((index + 1).toFloat() / totalCount)

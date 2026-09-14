@@ -32,27 +32,28 @@ object ToonExternalSingleImport {
 
         val rootFiles = sourceDoc.listFiles() ?: emptyArray()
         
+        val title = existingManga?.title ?: sourceDoc.name ?: "Unknown"
+
         // Determine cover
-        var coverPath = existingManga?.coverPath ?: ""
-        if (coverPath.isEmpty() || existingManga == null) {
+        var coverPath = ""
+        if (existingManga != null && existingManga.coverPath.isNotEmpty() && !existingManga.coverPath.startsWith("content://")) {
+            val f = java.io.File(existingManga.coverPath)
+            if (f.exists() && f.length() > 0) {
+                coverPath = existingManga.coverPath
+            }
+        }
+
+        if (coverPath.isEmpty()) {
             val potentialCover = ToonImportUtils.findCoverInFiles(rootFiles)
             if (potentialCover != null) {
-                coverPath = potentialCover.uri.toString()
-            } else {
-                val imageExts = ToonImportUtils.imageExtensions
-                val coverFile = rootFiles.find { item -> 
-                    val name = item.name?.lowercase() ?: ""
-                    name.contains("cover") || imageExts.any { name.endsWith(it) } 
-                }
-                if (coverFile != null) {
-                    coverPath = coverFile.uri.toString()
-                }
+                coverPath = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, potentialCover.uri, "toon", title)
+                    ?: potentialCover.uri.toString()
             }
         }
 
         val mangaToInsert = MangaEntity(
             id = existingManga?.id ?: 0L,
-            title = existingManga?.title ?: sourceDoc.name ?: "Unknown",
+            title = title,
             description = existingManga?.description ?: "No description added yet.",
             thoughts = existingManga?.thoughts ?: "No thoughts added.",
             coverPath = coverPath,

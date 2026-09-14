@@ -14,7 +14,7 @@ object VideoImportUtils {
      */
     fun isVideoFolderValid(doc: DocumentFile): Pair<Boolean, String?> {
         val files = doc.listFiles()
-        if (files == null || files.isEmpty()) {
+        if (files.isEmpty()) {
             return Pair(false, "Empty folder")
         }
         val hasVideo = files.any { file ->
@@ -35,38 +35,25 @@ object VideoImportUtils {
      * Priority: named covers (cover.*, poster.*, thumb.*, folder.*) → first image file.
      */
     fun findCoverInFiles(files: Array<DocumentFile>): DocumentFile? {
-        val namedCover = files.find { file ->
+        return files.find { file ->
             val name = file.name?.lowercase() ?: return@find false
             !file.isDirectory &&
                     coverExtensions.any { name.endsWith(".$it") } &&
                     (name.startsWith("cover") || name.startsWith("poster") ||
                             name.startsWith("thumb") || name.startsWith("folder"))
         }
-        if (namedCover != null) return namedCover
-
-        return files.firstOrNull { file ->
-            !file.isDirectory &&
-                    coverExtensions.any { ext ->
-                        file.name?.lowercase()?.endsWith(".$ext") == true
-                    }
-        }
     }
 
     /**
      * Find a cover image among local Java File objects.
-     * Priority: named covers → first image file.
+     * Priority: named covers (cover.*, poster.*, thumb.*, folder.*).
      */
     fun findCoverInJavaFiles(files: List<File>): File? {
-        val namedCover = files.find { file ->
+        return files.find { file ->
             val name = file.name.lowercase()
             coverExtensions.any { name.endsWith(".$it") } &&
                     (name.startsWith("cover") || name.startsWith("poster") ||
                             name.startsWith("thumb") || name.startsWith("folder"))
-        }
-        if (namedCover != null) return namedCover
-
-        return files.firstOrNull { file ->
-            coverExtensions.any { ext -> file.name.lowercase().endsWith(".$ext") }
         }
     }
 }
