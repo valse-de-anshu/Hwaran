@@ -344,16 +344,24 @@ fun ToonPlayerScreen(
                     BoxWithConstraints(
                         modifier = Modifier
                             .fillMaxSize()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                // If controls or setting popup are open, tapping strip dismisses them
-                                if (activeSettingTab != null) {
-                                    activeSettingTab = null
-                                } else if (showControls) {
-                                    showControls = false
-                                }
+                            .pointerInput(showControls, activeSettingTab) {
+                                detectTapGestures(
+                                    onTap = { offset ->
+                                        // If controls or setting popup are open, tapping strip dismisses them
+                                        if (activeSettingTab != null) {
+                                            activeSettingTab = null
+                                        } else if (showControls) {
+                                            showControls = false
+                                        } else {
+                                            // Trigger UI on right side (right ~22% zone, matching one-handed thumb tap)
+                                            val rightThreshold = size.width * 0.78f
+                                            if (offset.x >= rightThreshold) {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                showControls = true
+                                            }
+                                        }
+                                    }
+                                )
                             }
                     ) {
                         val containerWidth = maxWidth
@@ -482,23 +490,7 @@ fun ToonPlayerScreen(
                     }
                 }
 
-                // ═════════════════════════════════════════════════════════════════════════
-                // INVISIBLE TOP-RIGHT TAP TRIGGER (Large, effortless corner zone)
-                // ═════════════════════════════════════════════════════════════════════════
-                if (!showControls && !showChapterList) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .size(width = 160.dp, height = 140.dp)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                showControls = true
-                            }
-                    )
-                }
+
 
                 // ═════════════════════════════════════════════════════════════════════════
                 // OVERLAY CONTROLS (Hidden during chapter picker to eliminate interference)
