@@ -53,6 +53,7 @@ fun LibraryView(
     libraryPassword: String = "",
     glowColor: Color = Color(0xFFE2E8F0),
     onOpenMusic: () -> Unit = {},
+    onItemLongClick: (MangaEntity) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
@@ -178,6 +179,9 @@ fun LibraryView(
                             } else {
                                 onNavigateToDescription(manga.id)
                             }
+                        },
+                        onLongClick = {
+                            onItemLongClick(manga)
                         }
                     )
                 }
@@ -300,20 +304,29 @@ fun LibraryView(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LibraryMaterialCard(
     manga: MangaEntity,
     isLocked: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(0.68f)
             .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onLongClick()
+                }
+            )
             .shadow(
                 elevation = 6.dp,
                 shape = RoundedCornerShape(14.dp),

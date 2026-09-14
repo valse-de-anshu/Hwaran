@@ -62,6 +62,7 @@ fun HomeDashboard(
     onMediaShortcutClick: (tag: String) -> Unit,
     onOpenMusic: () -> Unit = {},
     onPlaySong: (MangaEntity, List<ChapterEntity>, Int) -> Unit = { _, _, _ -> },
+    onItemLongClick: (MangaEntity) -> Unit = {},
     glowColor: Color = Color(0xFFE2E8F0),
     modifier: Modifier = Modifier
 ) {
@@ -369,6 +370,7 @@ fun HomeDashboard(
             ContinueWatchingSection(
                 items = continueWatchingItems,
                 onItemClick = { manga -> onNavigateToDescription(manga.id) },
+                onItemLongClick = onItemLongClick,
                 onPlayItem = { item ->
                     if (item.manga.contentType == 3) {
                         onPlaySong(item.manga, item.allChapters, item.targetIndex)
@@ -401,6 +403,7 @@ fun HomeDashboard(
             RecentlyAddedSection(
                 items = recentlyAdded.take(12),
                 onItemClick = { manga -> onNavigateToDescription(manga.id) },
+                onItemLongClick = onItemLongClick,
                 onViewAllClick = { showRecentlyAddedSheet = true }
             )
 
@@ -413,7 +416,8 @@ fun HomeDashboard(
         RecentlyAddedSheet(
             allRecentlyAdded = recentlyAdded,
             onDismiss = { showRecentlyAddedSheet = false },
-            onItemClick = { manga -> onNavigateToDescription(manga.id) }
+            onItemClick = { manga -> onNavigateToDescription(manga.id) },
+            onItemLongClick = onItemLongClick
         )
     }
 }
@@ -712,14 +716,17 @@ data class ContinueWatchingItem(
     val progress: Float = 0f
 )
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ContinueWatchingSection(
     items: List<ContinueWatchingItem>,
     onItemClick: (MangaEntity) -> Unit,
+    onItemLongClick: (MangaEntity) -> Unit = {},
     onPlayItem: (ContinueWatchingItem) -> Unit,
     glowColor: Color
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
 
     Column(modifier = Modifier.fillMaxWidth()) {
         SectionHeader(
@@ -738,7 +745,13 @@ private fun ContinueWatchingSection(
                         .width(220.dp)
                         .height(130.dp)
                         .clip(RoundedCornerShape(18.dp))
-                        .clickable { onItemClick(item.manga) },
+                        .combinedClickable(
+                            onClick = { onItemClick(item.manga) },
+                            onLongClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onItemLongClick(item.manga)
+                            }
+                        ),
                     shape = RoundedCornerShape(18.dp),
                     color = Color(0xFF15141E),
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.09f))
@@ -837,13 +850,16 @@ private fun ContinueWatchingSection(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RecentlyAddedSection(
     items: List<MangaEntity>,
     onItemClick: (MangaEntity) -> Unit,
+    onItemLongClick: (MangaEntity) -> Unit = {},
     onViewAllClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
 
     Column(modifier = Modifier.fillMaxWidth()) {
         SectionHeader(
@@ -863,7 +879,13 @@ private fun RecentlyAddedSection(
                         .width(110.dp)
                         .height(160.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .clickable { onItemClick(manga) },
+                        .combinedClickable(
+                            onClick = { onItemClick(manga) },
+                            onLongClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onItemLongClick(manga)
+                            }
+                        ),
                     shape = RoundedCornerShape(16.dp),
                     color = Color(0xFF161520),
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
@@ -970,17 +992,19 @@ private fun SectionHeader(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun RecentlyAddedSheet(
     allRecentlyAdded: List<MangaEntity>,
     onDismiss: () -> Unit,
-    onItemClick: (MangaEntity) -> Unit
+    onItemClick: (MangaEntity) -> Unit,
+    onItemLongClick: (MangaEntity) -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selectedFilter by remember { mutableStateOf("All") }
     val filters = remember { listOf("All", "Fav", "Manhua", "Manga", "Light Novel", "Book", "Series", "Channel", "Music") }
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
 
     val filtered = remember(allRecentlyAdded, selectedFilter) {
         when (selectedFilter) {
@@ -1104,10 +1128,17 @@ private fun RecentlyAddedSheet(
                                 .fillMaxWidth()
                                 .aspectRatio(0.68f)
                                 .clip(RoundedCornerShape(14.dp))
-                                .clickable {
-                                    onDismiss()
-                                    onItemClick(manga)
-                                },
+                                .combinedClickable(
+                                    onClick = {
+                                        onDismiss()
+                                        onItemClick(manga)
+                                    },
+                                    onLongClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onDismiss()
+                                        onItemLongClick(manga)
+                                    }
+                                ),
                             shape = RoundedCornerShape(14.dp),
                             color = Color(0xFF161520),
                             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))

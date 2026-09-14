@@ -466,6 +466,10 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
         _isEditMode.value = !_isEditMode.value
     }
 
+    fun enterEditMode() {
+        _isEditMode.value = true
+    }
+
     fun saveManga() {
         viewModelScope.launch {
             val currentTags = _assignedTags.value.filterNot { it.equals("Favorite", ignoreCase = true) }

@@ -2,6 +2,7 @@ package com.ballade.hwaran.frontend.home
 
 import androidx.activity.compose.BackHandler
 import com.ballade.hwaran.core.database.AppDatabase
+import com.ballade.hwaran.core.util.LocalVaultMigrator
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -95,6 +96,7 @@ fun HomeScreen(
     musicViewModel: MusicViewModel = viewModel(),
     onNavigateToSettings: () -> Unit,
     onNavigateToDescription: (Long) -> Unit,
+    onNavigateToEditDescription: (Long) -> Unit = onNavigateToDescription,
     onNavigateToMedia: (Long, Int) -> Unit = { _, _ -> }
 ) {
     var activeDockTab by rememberSaveable { mutableIntStateOf(if (settingsViewModel.activeTab.value == 1) 4 else 0) }
@@ -154,6 +156,12 @@ fun HomeScreen(
     
     val database = remember(context) { AppDatabase.getDatabase(context) }
     val historyEvents by database.historyDao().getAllHistoryEventsFlow().collectAsState(initial = emptyList())
+
+    val coroutineScope = rememberCoroutineScope()
+    var quickActionsManga by remember { mutableStateOf<MangaEntity?>(null) }
+    var isMigratingToVault by remember { mutableStateOf(false) }
+    var migrationProgress by remember { mutableIntStateOf(0) }
+    var migrationStatus by remember { mutableStateOf("") }
 
     LaunchedEffect(activeTab) {
         if (activeTab == 1 && activeDockTab != 4) {
@@ -397,6 +405,7 @@ fun HomeScreen(
                                 }
                             },
                             onOpenMusic = { openMusicWindow() },
+                            onItemLongClick = { manga -> quickActionsManga = manga },
                             glowColor = Color(glowColor)
                         )
                     }
@@ -408,7 +417,8 @@ fun HomeScreen(
                             isLibraryLocked = isLibraryLocked,
                             libraryPassword = libraryPassword,
                             glowColor = Color(glowColor),
-                            onOpenMusic = { openMusicWindow() }
+                            onOpenMusic = { openMusicWindow() },
+                            onItemLongClick = { manga -> quickActionsManga = manga }
                         )
                     }
                     2 -> {
@@ -573,6 +583,54 @@ fun HomeScreen(
             summary = summary,
             onDismiss = {
                 libraryViewModel.clearMegaImportSummary()
+            }
+        )
+    }
+
+    quickActionsManga?.let { manga ->
+        MediaQuickActionsSheet(
+            manga = manga,
+            isMigrating = isMigratingToVault,
+            migrationProgress = migrationProgress,
+            migrationStatus = migrationStatus,
+            onShiftToLocal = {
+                if (!isMigratingToVault) {
+                    isMigratingToVault = true
+                    migrationProgress = 0
+                    migrationStatus = "Starting migration..."
+                    coroutineScope.launch {
+                        LocalVaultMigrator.moveToVault(
+                            context = context,
+                            database = database,
+                            manga = manga,
+                            onProgress = { progress, status ->
+                                migrationProgress = progress
+                                migrationStatus = status
+                            }
+                        )
+                        isMigratingToVault = false
+                        quickActionsManga = null
+                    }
+                }
+            },
+            onEditMetadata = {
+                quickActionsManga = null
+                onNavigateToEditDescription(manga.id)
+            },
+            onDelete = {
+                coroutineScope.launch {
+                    LocalVaultMigrator.deleteMedia(
+                        context = context,
+                        database = database,
+                        manga = manga
+                    )
+                    quickActionsManga = null
+                }
+            },
+            onDismiss = {
+                if (!isMigratingToVault) {
+                    quickActionsManga = null
+                }
             }
         )
     }

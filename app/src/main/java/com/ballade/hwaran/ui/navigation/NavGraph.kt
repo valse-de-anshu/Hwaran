@@ -46,8 +46,8 @@ sealed class Screen(val route: String) {
     object Canvas : Screen("canvas")
     object Settings : Screen("settings")
     object LockSelection : Screen("lock_selection")
-    object Description : Screen("description/{mangaId}") {
-        fun createRoute(mangaId: Long) = "description/$mangaId"
+    object Description : Screen("description/{mangaId}?edit={edit}") {
+        fun createRoute(mangaId: Long, edit: Boolean = false) = "description/$mangaId?edit=$edit"
     }
     object Reader : Screen("reader/{chapterId}") {
         fun createRoute(chapterId: Long) = "reader/$chapterId"
@@ -190,6 +190,7 @@ fun AppNavGraph(
                     musicViewModel = musicViewModel,
                     onNavigateToSettings = { navController.navigateSafely(Screen.Settings.route) },
                     onNavigateToDescription = { mangaId -> navController.navigateSafely(Screen.Description.createRoute(mangaId)) },
+                    onNavigateToEditDescription = { mangaId -> navController.navigateSafely(Screen.Description.createRoute(mangaId, edit = true)) },
                     onNavigateToMedia = { id, contentType ->
                         when (contentType) {
                             1 -> navController.navigateSafely(Screen.PdfReader.createRoute(id))
@@ -262,12 +263,16 @@ fun AppNavGraph(
             }
         ) { backStackEntry ->
             val mangaId = backStackEntry.arguments?.getString("mangaId")?.toLongOrNull() ?: 0L
+            val shouldEdit = backStackEntry.arguments?.getString("edit")?.toBooleanStrictOrNull() ?: false
             BlockTouchesWhenExiting {
                 val descriptionViewModel: DescriptionViewModel = viewModel()
                 val manga by descriptionViewModel.manga.collectAsState()
                 
-                LaunchedEffect(mangaId) {
+                LaunchedEffect(mangaId, shouldEdit) {
                     descriptionViewModel.loadManga(mangaId)
+                    if (shouldEdit) {
+                        descriptionViewModel.enterEditMode()
+                    }
                 }
 
                 if (manga?.contentType == 3) {
