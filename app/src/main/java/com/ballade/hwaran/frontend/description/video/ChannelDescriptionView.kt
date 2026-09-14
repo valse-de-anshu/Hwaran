@@ -140,10 +140,14 @@ fun ChannelDescriptionView(
                         Box(
                             modifier = Modifier
                                 .size(96.dp)
+                                .shadow(
+                                    elevation = 8.dp,
+                                    shape = CircleShape,
+                                    spotColor = Color.Black.copy(alpha = 0.5f)
+                                )
                                 .clip(CircleShape)
                                 .background(Color(0xFF1E1A29))
                                 .border(BorderStroke(1.5.dp, Color.White.copy(alpha = 0.20f)), CircleShape)
-                                .shadow(8.dp, CircleShape)
                                 .clickable(enabled = isEditMode) { onPickCover() },
                             contentAlignment = Alignment.Center
                         ) {
@@ -158,12 +162,23 @@ fun ChannelDescriptionView(
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
-                                Icon(
-                                    imageVector = Icons.Rounded.AccountBox,
-                                    contentDescription = null,
-                                    tint = Color(0xFFE6E8EC),
-                                    modifier = Modifier.size(48.dp)
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(Color(0xFF242033), Color(0xFF161421))
+                                            )
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.AccountBox,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                }
                             }
 
                             if (isEditMode) {

@@ -1629,7 +1629,6 @@ private fun SearchSongItemCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
     ) {
         // Cover Art Box with Format Badge & Play Button
@@ -1658,8 +1657,8 @@ private fun SearchSongItemCard(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(
-                                Brush.linearGradient(
-                                    listOf(Color(0xFF181B22), Color(0xFF101216))
+                                Brush.verticalGradient(
+                                    listOf(Color(0xFF1E1D2A), Color(0xFF121118))
                                 )
                             ),
                         contentAlignment = Alignment.Center
@@ -1848,7 +1847,6 @@ private fun SearchMediaItemCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
     ) {
         // Cover Art with Format Badge
@@ -1877,8 +1875,8 @@ private fun SearchMediaItemCard(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(
-                                Brush.linearGradient(
-                                    listOf(Color.White.copy(alpha = 0.05f), Color.White.copy(alpha = 0.02f))
+                                Brush.verticalGradient(
+                                    listOf(Color(0xFF1E1D2A), Color(0xFF121118))
                                 )
                             ),
                         contentAlignment = Alignment.Center

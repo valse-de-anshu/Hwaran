@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -122,9 +123,10 @@ fun BookDescriptionView(
                         modifier = Modifier
                             .width(115.dp)
                             .aspectRatio(0.68f)
+                            .shadow(12.dp, RoundedCornerShape(16.dp), spotColor = Color.Black.copy(alpha = 0.6f))
                             .clip(RoundedCornerShape(16.dp))
                             .background(CardBg)
-                            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
                             .clickable(enabled = isEditMode, onClick = onPickCover)
                     ) {
                         val activeCover = if (isEditMode) (draftCover ?: manga.coverPath) else manga.coverPath
@@ -144,13 +146,19 @@ fun BookDescriptionView(
                             )
                         } else {
                             Box(
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(Color(0xFF1E1D2A), Color(0xFF121118))
+                                        )
+                                    ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Book,
                                     contentDescription = null,
-                                    tint = TextMuted,
+                                    tint = Color.White.copy(alpha = 0.35f),
                                     modifier = Modifier.size(36.dp)
                                 )
                             }

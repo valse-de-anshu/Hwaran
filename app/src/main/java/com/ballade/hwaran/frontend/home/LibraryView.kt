@@ -319,18 +319,17 @@ private fun LibraryMaterialCard(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(0.68f)
-            .clip(RoundedCornerShape(14.dp))
+            .shadow(
+                elevation = 6.dp,
+                shape = RoundedCornerShape(14.dp),
+                spotColor = Color.Black.copy(alpha = 0.5f)
+            )
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     onLongClick()
                 }
-            )
-            .shadow(
-                elevation = 6.dp,
-                shape = RoundedCornerShape(14.dp),
-                spotColor = Color.Black.copy(alpha = 0.5f)
             ),
         shape = RoundedCornerShape(14.dp),
         color = Color(0xFF14131C),
@@ -369,13 +368,17 @@ private fun LibraryMaterialCard(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color(0xFF14131C)),
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color(0xFF1E1D2A), Color(0xFF121118))
+                                )
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = if (manga.contentType == 3) Icons.Rounded.MusicNote else Icons.Rounded.Image,
                             contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.18f),
+                            tint = Color.White.copy(alpha = 0.25f),
                             modifier = Modifier.size(32.dp)
                         )
                     }

@@ -906,13 +906,19 @@ private fun RecentlyAddedSection(
                             )
                         } else {
                             Box(
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(Color(0xFF1E1D2A), Color(0xFF121118))
+                                        )
+                                    ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = if (manga.contentType == 3) Icons.Rounded.MusicNote else Icons.Rounded.Image,
                                     contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.18f),
+                                    tint = Color.White.copy(alpha = 0.25f),
                                     modifier = Modifier.size(32.dp)
                                 )
                             }
@@ -1159,13 +1165,19 @@ private fun RecentlyAddedSheet(
                                     )
                                 } else {
                                     Box(
-                                        modifier = Modifier.fillMaxSize(),
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    listOf(Color(0xFF1E1D2A), Color(0xFF121118))
+                                                )
+                                            ),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = if (manga.contentType == 3) Icons.Rounded.MusicNote else Icons.Rounded.Image,
                                             contentDescription = null,
-                                            tint = Color.White.copy(alpha = 0.18f),
+                                            tint = Color.White.copy(alpha = 0.25f),
                                             modifier = Modifier.size(32.dp)
                                         )
                                     }

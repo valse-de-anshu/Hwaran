@@ -137,10 +137,10 @@ fun ToonDescriptionView(
                         modifier = Modifier
                             .width(136.dp)
                             .height(196.dp)
+                            .shadow(12.dp, RoundedCornerShape(18.dp), spotColor = Color.Black.copy(alpha = 0.6f))
                             .clip(RoundedCornerShape(18.dp))
                             .background(CardBg)
                             .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), RoundedCornerShape(18.dp))
-                            .shadow(10.dp, RoundedCornerShape(18.dp))
                             .clickable(enabled = isEditMode) { onPickCover() },
                         contentAlignment = Alignment.Center
                     ) {
@@ -155,12 +155,23 @@ fun ToonDescriptionView(
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.MenuBook,
-                                contentDescription = null,
-                                tint = TextMuted,
-                                modifier = Modifier.size(40.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(Color(0xFF1E1D2A), Color(0xFF121118))
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.MenuBook,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.35f),
+                                    modifier = Modifier.size(40.dp)
+                                )
+                            }
                         }
 
                         if (isEditMode) {
