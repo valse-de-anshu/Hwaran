@@ -246,7 +246,8 @@ fun NovelPlayerScreen(
     var lineHeightMultiplier by rememberSaveable { mutableFloatStateOf(1.65f) }
     var paragraphSpacingDp by rememberSaveable { mutableIntStateOf(14) }
     var horizontalMarginDp by rememberSaveable { mutableIntStateOf(20) }
-    var textAlign by rememberSaveable { mutableStateOf(TextAlign.Start) }
+    var isJustified by rememberSaveable { mutableStateOf(false) }
+    val textAlign = if (isJustified) TextAlign.Justify else TextAlign.Start
     var keepScreenOn by rememberSaveable { mutableStateOf(false) }
     var brightnessOverride by remember { mutableStateOf<Float?>(null) }
 
@@ -998,7 +999,7 @@ fun NovelPlayerScreen(
                     horizontalMarginDp = horizontalMarginDp,
                     onHorizontalMarginChange = { horizontalMarginDp = it },
                     textAlign = textAlign,
-                    onTextAlignChange = { textAlign = it },
+                    onTextAlignChange = { isJustified = (it == TextAlign.Justify) },
                     currentTheme = currentTheme,
                     onThemeChange = { currentTheme = it },
                     readMode = readMode,
