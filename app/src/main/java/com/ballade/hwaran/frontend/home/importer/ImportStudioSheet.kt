@@ -36,7 +36,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 data class ImportMediaOption(
-    val modeId: Int, // 0: Comic, 1: Book, 4: Novel, 2: Video, 3: Music
+    val id: String,
+    val modeId: Int, // 0: Toon/Comic, 1: Book, 4: Novel, 2: Video, 3: Music
+    val boxPurpose: String?,
     val title: String,
     val subtitle: String,
     val icon: ImageVector,
@@ -46,15 +48,29 @@ data class ImportMediaOption(
 
 private val MEDIA_OPTIONS = listOf(
     ImportMediaOption(
+        id = "manga",
         modeId = 0,
-        title = "Comics",
-        subtitle = "Manga & Webtoons",
+        boxPurpose = "manga",
+        title = "Manga",
+        subtitle = "Japanese & RTL",
         icon = Icons.AutoMirrored.Rounded.MenuBook,
         accentColor = Color(0xFFE2E8F0),
-        supportedFormats = listOf(".jpg", ".png", ".webp", ".bmp", ".gif")
+        supportedFormats = listOf(".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif")
     ),
     ImportMediaOption(
+        id = "manhua",
+        modeId = 0,
+        boxPurpose = "manhua",
+        title = "Manhua",
+        subtitle = "Webtoons & Manhwa",
+        icon = Icons.AutoMirrored.Rounded.ChromeReaderMode,
+        accentColor = Color(0xFFE2E8F0),
+        supportedFormats = listOf(".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif")
+    ),
+    ImportMediaOption(
+        id = "book",
         modeId = 1,
+        boxPurpose = "book",
         title = "Books",
         subtitle = "PDF Documents",
         icon = Icons.Rounded.Book,
@@ -62,23 +78,39 @@ private val MEDIA_OPTIONS = listOf(
         supportedFormats = listOf(".pdf")
     ),
     ImportMediaOption(
+        id = "novel",
         modeId = 4,
+        boxPurpose = "novel",
         title = "Novels",
-        subtitle = "EPUB & Text",
+        subtitle = "Web & Light Novels",
         icon = Icons.Rounded.ImportContacts,
         accentColor = Color(0xFFE2E8F0),
         supportedFormats = listOf(".epub", ".txt", ".md")
     ),
     ImportMediaOption(
+        id = "series",
         modeId = 2,
-        title = "Videos",
-        subtitle = "Shows & Channels",
-        icon = Icons.Rounded.PlayCircle,
+        boxPurpose = "series",
+        title = "Series Video",
+        subtitle = "Shows & Anime",
+        icon = Icons.Rounded.Tv,
         accentColor = Color(0xFFE2E8F0),
         supportedFormats = listOf(".mp4", ".mkv", ".webm", ".mov", ".avi", ".flv")
     ),
     ImportMediaOption(
+        id = "channel",
+        modeId = 2,
+        boxPurpose = "channel",
+        title = "Channel Video",
+        subtitle = "Creators & Clips",
+        icon = Icons.Rounded.Subscriptions,
+        accentColor = Color(0xFFE2E8F0),
+        supportedFormats = listOf(".mp4", ".mkv", ".webm", ".mov", ".avi", ".flv")
+    ),
+    ImportMediaOption(
+        id = "music",
         modeId = 3,
+        boxPurpose = "music",
         title = "Music",
         subtitle = "Albums & Tracks",
         icon = Icons.Rounded.MusicNote,
@@ -107,14 +139,21 @@ fun ImportStudioSheet(
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
     // Selection State
-    var selectedMediaId by remember(initialMediaMode) {
-        mutableIntStateOf(
-            if (MEDIA_OPTIONS.any { it.modeId == initialMediaMode }) initialMediaMode else 0
+    var selectedOptionId by remember(initialMediaMode, initialVideoLayoutMode) {
+        mutableStateOf(
+            when (initialMediaMode) {
+                0 -> "manga"
+                1 -> "book"
+                4 -> "novel"
+                2 -> if (initialVideoLayoutMode == 1) "channel" else "series"
+                3 -> "music"
+                else -> "manga"
+            }
         )
     }
 
-    val activeOption = remember(selectedMediaId) {
-        MEDIA_OPTIONS.firstOrNull { it.modeId == selectedMediaId } ?: MEDIA_OPTIONS[0]
+    val activeOption = remember(selectedOptionId) {
+        MEDIA_OPTIONS.firstOrNull { it.id == selectedOptionId } ?: MEDIA_OPTIONS[0]
     }
     val currentAccent = activeOption.accentColor
 
@@ -263,12 +302,12 @@ fun ImportStudioSheet(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            items(MEDIA_OPTIONS, key = { it.modeId }) { option ->
-                                val isSelected = option.modeId == selectedMediaId
+                            items(MEDIA_OPTIONS, key = { it.id }) { option ->
+                                val isSelected = option.id == selectedOptionId
                                 Surface(
                                     onClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        selectedMediaId = option.modeId
+                                        selectedOptionId = option.id
                                     },
                                     shape = RoundedCornerShape(18.dp),
                                     color = if (isSelected) Color.White.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.03f),
@@ -287,9 +326,9 @@ fun ImportStudioSheet(
                                                 .size(36.dp)
                                                 .clip(RoundedCornerShape(10.dp))
                                                 .background(
-                                                    if (isSelected) Color.White.copy(alpha = 0.12f)
-                                                    else Color.White.copy(alpha = 0.05f)
-                                                ),
+                                                if (isSelected) Color.White.copy(alpha = 0.12f)
+                                                else Color.White.copy(alpha = 0.05f)
+                                            ),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
@@ -352,7 +391,7 @@ fun ImportStudioSheet(
 
                         // ── Material Viability & Directory Structure Guide ──
                         MaterialViabilityGuide(
-                            selectedMediaId = selectedMediaId,
+                            selectedOptionId = selectedOptionId,
                             accentColor = currentAccent
                         )
 
@@ -382,13 +421,7 @@ fun ImportStudioSheet(
                             }
                         }
 
-                        val computedPurpose = when (selectedMediaId) {
-                            2 -> "series"
-                            0 -> "manga"
-                            4 -> "novel"
-                            1 -> "book"
-                            else -> null
-                        }
+                        val computedPurpose = activeOption.boxPurpose
 
                         // ── SECTION 1: FOLDER IMPORT (Single Title / Work) ──
                         Surface(
@@ -413,13 +446,7 @@ fun ImportStudioSheet(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = when (selectedMediaId) {
-                                                1 -> Icons.Rounded.Description
-                                                4 -> Icons.AutoMirrored.Rounded.Article
-                                                2 -> Icons.Rounded.Movie
-                                                3 -> Icons.Rounded.Album
-                                                else -> Icons.Rounded.Folder
-                                            },
+                                            imageVector = activeOption.icon,
                                             contentDescription = null,
                                             tint = currentAccent,
                                             modifier = Modifier.size(22.dp)
@@ -452,12 +479,15 @@ fun ImportStudioSheet(
                                             }
                                         }
                                         Text(
-                                            text = when (selectedMediaId) {
-                                                1 -> "Import a single PDF book folder"
-                                                4 -> "Import a single novel title folder"
-                                                2 -> "Import a show or series folder"
-                                                3 -> "Import an album folder containing tracks"
-                                                else -> "Import a comic or manga title folder"
+                                            text = when (activeOption.id) {
+                                                "manga" -> "Import a single manga title folder"
+                                                "manhua" -> "Import a single manhua or webtoon folder"
+                                                "book" -> "Import a single PDF book folder"
+                                                "novel" -> "Import a single novel title folder"
+                                                "series" -> "Import a show or anime series folder"
+                                                "channel" -> "Import a creator channel video folder"
+                                                "music" -> "Import an album folder containing tracks"
+                                                else -> "Import a single title folder"
                                             },
                                             color = Color.White.copy(alpha = 0.5f),
                                             fontSize = 11.sp,
@@ -471,7 +501,7 @@ fun ImportStudioSheet(
                                     onClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         onImportSingleFolder(
-                                            selectedMediaId,
+                                            activeOption.modeId,
                                             1,
                                             computedPurpose,
                                             currentWorkspace,
@@ -506,7 +536,7 @@ fun ImportStudioSheet(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 onImportBatchFolder(
-                                    selectedMediaId,
+                                    activeOption.modeId,
                                     1,
                                     computedPurpose,
                                     currentWorkspace,
@@ -567,12 +597,15 @@ fun ImportStudioSheet(
                                             }
                                         }
                                         Text(
-                                            text = when (selectedMediaId) {
-                                                1 -> "Pick a master directory containing dozens or hundreds of PDF books"
-                                                4 -> "Pick a root collection containing multiple EPUB / light novel titles"
-                                                2 -> "Pick a parent directory with multiple shows or anime to index all at once"
-                                                3 -> "Pick a music library folder containing multiple artists and albums"
-                                                else -> "Pick a collection folder full of multiple comic / manga titles"
+                                            text = when (activeOption.id) {
+                                                "manga" -> "Pick a collection folder containing multiple manga titles"
+                                                "manhua" -> "Pick a root directory containing multiple webtoon / manhua series"
+                                                "book" -> "Pick a master directory containing dozens or hundreds of PDF books"
+                                                "novel" -> "Pick a root collection containing multiple EPUB / light novel titles"
+                                                "series" -> "Pick a parent directory with multiple shows or anime to index all at once"
+                                                "channel" -> "Pick a directory containing multiple creator channels or video feeds"
+                                                "music" -> "Pick a music library folder containing multiple artists and albums"
+                                                else -> "Pick a collection folder full of multiple titles"
                                             },
                                             color = Color.White.copy(alpha = 0.5f),
                                             fontSize = 11.sp,
@@ -626,7 +659,7 @@ fun ImportStudioSheet(
 
 @Composable
 private fun MaterialViabilityGuide(
-    selectedMediaId: Int,
+    selectedOptionId: String,
     accentColor: Color
 ) {
     var isExpanded by remember { mutableStateOf(true) }
@@ -767,32 +800,56 @@ private fun MaterialViabilityGuide(
                     }
 
                     // Directory Tree Viewport
-                    val treeText = when (selectedMediaId) {
-                        0 -> if (guideTab == 0) {
+                    val treeText = when (selectedOptionId) {
+                        "manga" -> if (guideTab == 0) {
                             """
-📁 Solo Leveling/               ← Select title folder
-├── 🖼️ cover.jpg                (optional title cover)
+📁 One Piece/                   ← Select manga folder
+├── 🖼️ cover.jpg                (optional manga cover)
 ├── 📁 Chapter 01/
 │   ├── 001.webp
 │   └── 002.webp
 └── 📁 Chapter 02/
     └── 001.webp
-Tip: Supported images: JPG, PNG, WEBP, BMP, GIF. Chapters can be subfolders or loose pages.
+Tip: Supported images: JPG, PNG, WEBP, BMP, GIF. Chapters are subfolders of page images.
                             """.trimIndent()
                         } else {
                             """
 📁 Manga Collection/            ← Select master folder
-├── 📁 Solo Leveling/
+├── 📁 One Piece/
 │   ├── 📁 Chapter 01/ ...
 │   └── 📁 Chapter 02/ ...
 └── 📁 Berserk/
     ├── 📁 Chapter 01/ ...
     └── 📁 Chapter 02/ ...
-Tip: Recursively scans and imports all manga/comic title folders.
+Tip: Recursively scans and imports all manga title folders.
                             """.trimIndent()
                         }
 
-                        1 -> if (guideTab == 0) {
+                        "manhua" -> if (guideTab == 0) {
+                            """
+📁 Solo Leveling/               ← Select webtoon folder
+├── 🖼️ cover.jpg                (optional series cover)
+├── 📁 Chapter 01/
+│   ├── 001.webp                (vertical strip slice)
+│   └── 002.webp
+└── 📁 Chapter 02/
+    └── 001.webp
+Tip: Optimized for long-strip reading. Chapters contain vertical slice images.
+                            """.trimIndent()
+                        } else {
+                            """
+📁 Webtoons & Manhua/           ← Select master folder
+├── 📁 Solo Leveling/
+│   ├── 📁 Chapter 01/ ...
+│   └── 📁 Chapter 02/ ...
+└── 📁 Tower of God/
+    ├── 📁 Chapter 01/ ...
+    └── 📁 Chapter 02/ ...
+Tip: Recursively scans and imports all webtoon & manhua folders.
+                            """.trimIndent()
+                        }
+
+                        "book" -> if (guideTab == 0) {
                             """
 📁 Calculus Book/               ← Select book folder
 ├── 🖼️ cover.jpg                (optional custom cover)
@@ -812,7 +869,7 @@ Tip: Recursively indexes all PDF books found across your folder hierarchy.
                             """.trimIndent()
                         }
 
-                        4 -> if (guideTab == 0) {
+                        "novel" -> if (guideTab == 0) {
                             """
 📁 Shadow Slave/                ← Select novel folder
 ├── 🖼️ cover.webp               (optional cover)
@@ -835,30 +892,52 @@ Tip: Fast multi-novel indexing across all subfolders.
                             """.trimIndent()
                         }
 
-                        2 -> if (guideTab == 0) {
+                        "series" -> if (guideTab == 0) {
                             """
-📁 Attack on Titan/             ← Select series or channel folder
+📁 Attack on Titan/             ← Select series or anime folder
 ├── 🖼️ cover.jpg                (optional poster cover)
-├── 📁 Season 1/                (optional season subfolder)
+├── 📁 Season 1/                (season subfolder)
 │   ├── 🎬 S01E01.mp4
 │   └── 🎬 S01E02.mp4
 └── 📁 Season 2/
     └── 🎬 S02E01.mp4
-Tip: For creator channels or movies, place video files directly inside the folder.
+Tip: Groups episodes by season subfolders for organized series viewing.
                             """.trimIndent()
                         } else {
                             """
-📁 Video Library/               ← Select master directory
+📁 Video Series Library/        ← Select master directory
 ├── 📁 Attack on Titan/
 │   ├── 📁 Season 1/ ...
 │   └── 📁 Season 2/ ...
 └── 📁 Jujutsu Kaisen/
     └── 📁 Season 1/ ...
-Tip: Creates a library entry for each show/series subfolder in your directory.
+Tip: Creates a series card for each show/season folder in your directory.
                             """.trimIndent()
                         }
 
-                        3 -> if (guideTab == 0) {
+                        "channel" -> if (guideTab == 0) {
+                            """
+📁 Veritasium/                  ← Select creator channel folder
+├── 🖼️ banner.jpg               (optional channel avatar/banner)
+├── 🎬 The Infinite Pattern.mp4
+├── 🎬 Why Gravity is Weird.mp4
+└── 🎬 Quantum Spin Explained.mp4
+Tip: All videos placed directly in this folder appear in a creator feed layout.
+                            """.trimIndent()
+                        } else {
+                            """
+📁 Creator Channels/            ← Select master directory
+├── 📁 Veritasium/
+│   ├── 🎬 Video1.mp4
+│   └── 🎬 Video2.mp4
+└── 📁 Kurzgesagt/
+│   ├── 🎬 Video1.mp4
+│   └── 🎬 Video2.mp4
+Tip: Each subfolder is imported as a distinct creator channel feed.
+                            """.trimIndent()
+                        }
+
+                        "music" -> if (guideTab == 0) {
                             """
 📁 Random Access Memories/      ← Select album or artist folder
 ├── 🖼️ cover.jpg                (optional album art)
@@ -907,29 +986,39 @@ Tip: Scans all artist and album folders into your library.
                             .padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        val rules = when (selectedMediaId) {
-                            0 -> listOf(
+                        val rules = when (selectedOptionId) {
+                            "manga" -> listOf(
                                 "Supported Formats: .jpg, .jpeg, .png, .webp, .bmp, .gif image files.",
-                                "Folder Layout: Select a title folder with chapter subfolders or loose image pages.",
-                                "Chapter Ordering: Name chapter folders numerically (e.g. 'Chapter 01', '02') for correct page sequence."
+                                "Folder Layout: Select a manga title folder with chapter subfolders (e.g. 'Chapter 01').",
+                                "Library Shelving: Automatically sorted into the Manga shelf in your library and dashboard."
                             )
-                            1 -> listOf(
+                            "manhua" -> listOf(
+                                "Supported Formats: .jpg, .jpeg, .png, .webp, .bmp, .gif image files.",
+                                "Webtoon Strips: Select a manhua/webtoon folder with vertical strip images inside chapters.",
+                                "Library Shelving: Automatically assigned to the Manhua / Webtoon category with strip reader presets."
+                            )
+                            "book" -> listOf(
                                 "Supported Format: .pdf documents only.",
                                 "Folder Import: Select the folder containing your PDF book(s).",
                                 "Auto-Render: First page is automatically extracted as the high-res cover.",
                                 "Reader Engine: Supports page-by-page, vertical scroll, bookmarks, and text search."
                             )
-                            4 -> listOf(
+                            "novel" -> listOf(
                                 "Supported Formats: .epub, .txt, .md, .markdown.",
                                 "Folder Import: Select a folder containing an EPUB or numbered text chapter files.",
                                 "Chapter Ordering: For text novels, prefix file names with numbers (e.g. '001_intro.txt')."
                             )
-                            2 -> listOf(
+                            "series" -> listOf(
                                 "Supported Formats: .mp4, .mkv, .webm, .mov, .avi, .flv.",
-                                "Layouts: Supports multi-season folders (Season 1, Season 2) or direct video files.",
+                                "Series Structure: Subfolders named 'Season 1', 'Season 2' group episodes chronologically.",
                                 "Metadata: Thumbnails, durations, and aspect ratios generated automatically via Media3."
                             )
-                            3 -> listOf(
+                            "channel" -> listOf(
+                                "Supported Formats: .mp4, .mkv, .webm, .mov, .avi, .flv.",
+                                "Channel Layout: Place video files directly in the creator folder for a YouTube-like feed.",
+                                "Video Feed: Ideal for tutorials, creator clips, vlog playlists, and short videos."
+                            )
+                            "music" -> listOf(
                                 "Supported Formats: .mp3, .flac, .wav, .ogg, .m4a, .opus, .aac.",
                                 "Metadata: ID3 and Vorbis tags (artist, album, track, embedded cover) read automatically.",
                                 "Folder Structure: Each folder containing audio files is recognized as an album."
