@@ -40,6 +40,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
 import android.media.MediaMetadataRetriever
+import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.provider.MediaStore
 import android.provider.OpenableColumns
@@ -394,15 +395,25 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun savePlaybackState() {
+        val curCh = _currentChapter.value
+        val curManga = _currentManga.value
+        val curPos = if (Looper.myLooper() == Looper.getMainLooper()) {
+            try {
+                exoPlayer.currentPosition
+            } catch (e: Exception) {
+                _currentPosition.value
+            }
+        } else {
+            _currentPosition.value
+        }
+
         viewModelScope.launch(Dispatchers.IO) {
-            val curCh = _currentChapter.value
-            val curPos = exoPlayer.currentPosition
             if (curCh != null && curPos > 0) {
                 database.trackDao().insertChapter(curCh.copy(position = curPos.toInt()))
             }
             context.dataStore.edit { prefs ->
                 curCh?.let { prefs[KEY_LAST_CHAPTER_ID] = it.id }
-                _currentManga.value?.let { prefs[KEY_LAST_MANGA_ID] = it.id }
+                curManga?.let { prefs[KEY_LAST_MANGA_ID] = it.id }
                 prefs[KEY_LAST_POSITION] = curPos
             }
         }
