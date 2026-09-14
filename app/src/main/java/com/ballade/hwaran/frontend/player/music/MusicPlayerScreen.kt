@@ -13,7 +13,9 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -1644,7 +1646,11 @@ fun SyncedLyricsView(
         }
     } else if (parsedLines.isNotEmpty()) {
         val activeIndex = remember(currentPositionMs, parsedLines) {
-            parsedLines.indexOfLast { it.timestampMs <= currentPositionMs }
+            val idx = parsedLines.indexOfLast { it.timestampMs <= currentPositionMs }
+            if (idx < 0) 0 else idx
+        }
+        val isStarted = remember(currentPositionMs, parsedLines) {
+            parsedLines.any { it.timestampMs <= currentPositionMs }
         }
 
         val listState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -1652,30 +1658,33 @@ fun SyncedLyricsView(
         BoxWithConstraints(
             modifier = modifier
                 .fillMaxSize()
-                .fadingEdges(topFade = 56.dp, bottomFade = 56.dp)
+                .fadingEdges(topFade = 40.dp, bottomFade = 40.dp)
         ) {
             val density = LocalDensity.current
             val halfViewportDp = with(density) { (constraints.maxHeight / 2).toDp() }
 
-            var isInitialized by remember { mutableStateOf(false) }
-
             LaunchedEffect(activeIndex, constraints.maxHeight) {
-                if (activeIndex in parsedLines.indices && constraints.maxHeight > 0) {
-                    val visibleItem = listState.layoutInfo.visibleItemsInfo.find { it.index == activeIndex }
-                    val itemHeightPx = visibleItem?.size ?: with(density) { 40.dp.roundToPx() }
-                    val centerOffset = -(constraints.maxHeight / 2 - itemHeightPx / 2)
-
-                    if (!isInitialized) {
-                        listState.scrollToItem(
-                            index = activeIndex,
-                            scrollOffset = centerOffset
-                        )
-                        isInitialized = true
-                    } else {
-                        listState.animateScrollToItem(
-                            index = activeIndex,
-                            scrollOffset = centerOffset
-                        )
+                if (activeIndex in parsedLines.indices) {
+                    val viewportHeight = listState.layoutInfo.viewportSize.height.takeIf { it > 0 } ?: constraints.maxHeight
+                    if (viewportHeight > 0) {
+                        val item = listState.layoutInfo.visibleItemsInfo.find { it.index == activeIndex }
+                        if (item != null) {
+                            val itemCenter = item.offset + item.size / 2
+                            val targetCenter = viewportHeight / 2
+                            val delta = (itemCenter - targetCenter).toFloat()
+                            if (abs(delta) > 2f) {
+                                listState.animateScrollBy(delta, tween(durationMillis = 350, easing = FastOutSlowInEasing))
+                            }
+                        } else {
+                            listState.scrollToItem(activeIndex)
+                            val updatedItem = listState.layoutInfo.visibleItemsInfo.find { it.index == activeIndex }
+                            if (updatedItem != null) {
+                                val itemCenter = updatedItem.offset + updatedItem.size / 2
+                                val targetCenter = viewportHeight / 2
+                                val delta = (itemCenter - targetCenter).toFloat()
+                                listState.scrollBy(delta)
+                            }
+                        }
                     }
                 }
             }
@@ -1692,8 +1701,8 @@ fun SyncedLyricsView(
                     key = { index -> "${index}_${parsedLines[index].timestampMs}" }
                 ) { index ->
                     val line = parsedLines[index]
-                    val distance = if (activeIndex >= 0) abs(index - activeIndex) else 1
-                    val isCurrent = distance == 0
+                    val isCurrent = isStarted && (index == activeIndex)
+                    val distance = abs(index - activeIndex)
                     val isNear = distance in 1..2
 
                     val textColor = when {
@@ -1702,12 +1711,12 @@ fun SyncedLyricsView(
                         else -> Color.White.copy(alpha = 0.25f)
                     }
                     val fontSize = when {
-                        isCurrent -> 20.sp
-                        isNear -> 16.sp
+                        isCurrent -> 24.sp
+                        isNear -> 17.sp
                         else -> 14.5.sp
                     }
                     val fontWeight = when {
-                        isCurrent -> FontWeight.Bold
+                        isCurrent -> FontWeight.ExtraBold
                         isNear -> FontWeight.SemiBold
                         else -> FontWeight.Normal
                     }
@@ -1718,9 +1727,23 @@ fun SyncedLyricsView(
                         fontSize = fontSize,
                         fontWeight = fontWeight,
                         textAlign = TextAlign.Center,
+                        style = androidx.compose.ui.text.TextStyle(
+                            shadow = if (isCurrent) {
+                                androidx.compose.ui.graphics.Shadow(
+                                    color = Color.Black.copy(alpha = 0.95f),
+                                    blurRadius = 14f,
+                                    offset = androidx.compose.ui.geometry.Offset(0f, 2f)
+                                )
+                            } else {
+                                androidx.compose.ui.graphics.Shadow(
+                                    color = Color.Black.copy(alpha = 0.6f),
+                                    blurRadius = 6f
+                                )
+                            }
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 9.dp)
+                            .padding(horizontal = 24.dp, vertical = 8.dp)
                     )
                 }
             }
