@@ -1,7 +1,13 @@
 package com.ballade.hwaran.frontend.home
 
 import androidx.activity.compose.BackHandler
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import android.widget.Toast
+import androidx.core.content.ContextCompat
 import com.ballade.hwaran.core.database.AppDatabase
+import com.ballade.hwaran.core.service.VaultMigrationService
 import com.ballade.hwaran.core.util.LocalVaultMigrator
 import android.content.Intent
 import android.net.Uri
@@ -162,6 +168,18 @@ fun HomeScreen(
     var isMigratingToVault by remember { mutableStateOf(false) }
     var migrationProgress by remember { mutableIntStateOf(0) }
     var migrationStatus by remember { mutableStateOf("") }
+
+    var pendingVaultMangaId by remember { mutableStateOf<Long?>(null) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        val targetId = pendingVaultMangaId
+        if (targetId != null) {
+            VaultMigrationService.start(context, targetId)
+            Toast.makeText(context, "Shifting to Local Vault in background...", Toast.LENGTH_SHORT).show()
+            pendingVaultMangaId = null
+        }
+    }
 
     LaunchedEffect(activeTab) {
         if (activeTab == 1 && activeDockTab != 4) {
@@ -594,23 +612,22 @@ fun HomeScreen(
             migrationProgress = migrationProgress,
             migrationStatus = migrationStatus,
             onShiftToLocal = {
-                if (!isMigratingToVault) {
-                    isMigratingToVault = true
-                    migrationProgress = 0
-                    migrationStatus = "Starting migration..."
-                    coroutineScope.launch {
-                        LocalVaultMigrator.moveToVault(
-                            context = context,
-                            database = database,
-                            manga = manga,
-                            onProgress = { progress, status ->
-                                migrationProgress = progress
-                                migrationStatus = status
-                            }
-                        )
-                        isMigratingToVault = false
-                        quickActionsManga = null
-                    }
+                val startMigration = {
+                    VaultMigrationService.start(context, manga.id)
+                    Toast.makeText(
+                        context,
+                        "Shifting \"${manga.title}\" to Local Vault in background...",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    pendingVaultMangaId = manga.id
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    startMigration()
                 }
             },
             onEditMetadata = {
@@ -628,9 +645,7 @@ fun HomeScreen(
                 }
             },
             onDismiss = {
-                if (!isMigratingToVault) {
-                    quickActionsManga = null
-                }
+                quickActionsManga = null
             }
         )
     }

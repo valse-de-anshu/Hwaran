@@ -2,6 +2,7 @@ package com.ballade.hwaran.core.util
 
 import android.content.ContentResolver
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import com.ballade.hwaran.core.database.AppDatabase
@@ -49,6 +50,12 @@ object LocalVaultMigrator {
             if (!targetFolder.exists()) targetFolder.mkdirs()
 
             val contentResolver = context.contentResolver
+            val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            if (manga.parentUri.startsWith("content://")) {
+                try {
+                    contentResolver.takePersistableUriPermission(Uri.parse(manga.parentUri), takeFlags)
+                } catch (_: Exception) {}
+            }
             val chapters = database.trackDao().getChaptersForMangaList(manga.id)
 
             when (contentType) {
@@ -56,7 +63,12 @@ object LocalVaultMigrator {
                     // PDF Book: manga.parentUri is the PDF uri or folder
                     val sourceUri = Uri.parse(manga.parentUri)
                     val destPdf = File(targetFolder, "${safeTitle}.pdf")
-                    copyUriToFile(contentResolver, sourceUri, destPdf)
+                    copyUriToFile(contentResolver, sourceUri, destPdf) { copied, total ->
+                        if (total > 0) {
+                            val pct = ((copied.toDouble() / total) * 100).toInt().coerceIn(0, 99)
+                            onProgress(pct, "Migrating ${manga.title} ($pct%)")
+                        }
+                    }
 
                     tryDeleteSafUri(context, sourceUri)
 
@@ -73,13 +85,20 @@ object LocalVaultMigrator {
                     val total = chapters.size.coerceAtLeast(1)
 
                     chapters.forEachIndexed { idx, ch ->
-                        onProgress(((idx.toFloat() / total) * 100).toInt(), ch.title)
                         val safeChTitle = ch.title.replace(Regex("[\\\\/:*?\"<>|]"), "_")
                         val destFile = File(targetFolder, "$safeChTitle.$ext")
 
                         if (ch.folderUri.startsWith("content://")) {
                             val chUri = Uri.parse(ch.folderUri)
-                            copyUriToFile(contentResolver, chUri, destFile)
+                            try {
+                                contentResolver.takePersistableUriPermission(chUri, takeFlags)
+                            } catch (_: Exception) {}
+                            copyUriToFile(contentResolver, chUri, destFile) { copied, fileTotal ->
+                                val base = (idx.toFloat() / total) * 100f
+                                val fraction = if (fileTotal > 0) ((copied.toFloat() / fileTotal) / total) * 100f else 0f
+                                val currentPct = (base + fraction).toInt().coerceIn(0, 99)
+                                onProgress(currentPct, ch.title)
+                            }
                             tryDeleteSafUri(context, chUri)
                             updatedChapters.add(ch.copy(folderUri = destFile.absolutePath))
                         } else {
@@ -91,6 +110,7 @@ object LocalVaultMigrator {
                             } else {
                                 updatedChapters.add(ch)
                             }
+                            onProgress((((idx + 1).toFloat() / total) * 100).toInt().coerceIn(0, 99), ch.title)
                         }
                     }
 
@@ -232,10 +252,28 @@ object LocalVaultMigrator {
         }
     }
 
-    private fun copyUriToFile(contentResolver: ContentResolver, sourceUri: Uri, destFile: File) {
+    private fun copyUriToFile(
+        contentResolver: ContentResolver,
+        sourceUri: Uri,
+        destFile: File,
+        onByteProgress: ((bytesCopied: Long, totalBytes: Long) -> Unit)? = null
+    ) {
+        val totalBytes = try {
+            contentResolver.openFileDescriptor(sourceUri, "r")?.use { it.statSize } ?: -1L
+        } catch (_: Exception) { -1L }
+
+        val buffer = ByteArray(128 * 1024) // 128KB buffer for high-throughput I/O
+        var bytesCopied = 0L
         contentResolver.openInputStream(sourceUri)?.use { input ->
             destFile.outputStream().use { output ->
-                input.copyTo(output)
+                var bytes = input.read(buffer)
+                while (bytes >= 0) {
+                    output.write(buffer, 0, bytes)
+                    bytesCopied += bytes
+                    onByteProgress?.invoke(bytesCopied, totalBytes)
+                    bytes = input.read(buffer)
+                }
+                output.flush()
             }
         }
     }

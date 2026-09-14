@@ -758,7 +758,13 @@ private fun MaterialViabilityGuide(
     selectedOptionId: String,
     accentColor: Color
 ) {
+    var isExpanded by remember { mutableStateOf(false) }
     var guideTab by remember { mutableIntStateOf(0) } // 0: Folder (Single), 1: Batch (Multi)
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = tween(260),
+        label = "guide_chevron_rotation"
+    )
 
     Surface(
         shape = RoundedCornerShape(18.dp),
@@ -768,11 +774,14 @@ private fun MaterialViabilityGuide(
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(if (isExpanded) 12.dp else 0.dp)
         ) {
-            // Header - Explicitly Read-Only Blueprint
+            // Header - Explicitly Read-Only Blueprint (Clickable to expand/collapse)
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { isExpanded = !isExpanded },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -809,29 +818,60 @@ private fun MaterialViabilityGuide(
                             )
                         }
                         Text(
-                            text = "Verify your local file structure before selecting a folder below",
+                            text = if (isExpanded) "Verify your local file structure before selecting a folder below"
+                                   else "Tap to view directory layout specifications",
                             color = Color.White.copy(alpha = 0.45f),
                             fontSize = 10.sp
                         )
                     }
                 }
 
-                Surface(
-                    color = Color.White.copy(alpha = 0.06f),
-                    shape = RoundedCornerShape(6.dp),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "READ-ONLY",
-                        color = Color.White.copy(alpha = 0.75f),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
+                    Surface(
+                        color = Color.White.copy(alpha = 0.06f),
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                    ) {
+                        Text(
+                            text = "READ-ONLY",
+                            color = Color.White.copy(alpha = 0.75f),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.08f))
+                            .graphicsLayer { rotationZ = chevronRotation },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.KeyboardArrowDown,
+                            contentDescription = if (isExpanded) "Collapse guide" else "Expand guide",
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
 
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically(tween(250)) + fadeIn(tween(200)),
+                exit = shrinkVertically(tween(200)) + fadeOut(tween(150))
+            ) {
+                Column(
+                    modifier = Modifier.padding(top = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
             // Structure Mode Tab Selector (Single Folder vs Batch Library)
             Row(
                 modifier = Modifier
@@ -1149,6 +1189,8 @@ Tip: Scans all artist and album folders into your library.
                         color = Color.White.copy(alpha = 0.50f),
                         fontSize = 10.sp
                     )
+                }
+            }
                 }
             }
         }

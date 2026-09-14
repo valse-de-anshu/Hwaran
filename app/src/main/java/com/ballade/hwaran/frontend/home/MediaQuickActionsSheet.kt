@@ -29,6 +29,7 @@ import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.ballade.hwaran.core.database.entity.MangaEntity
+import com.ballade.hwaran.core.service.VaultMigrationManager
 import com.ballade.hwaran.core.util.CoverArtResolver
 import com.ballade.hwaran.core.util.LocalVaultMigrator
 
@@ -49,6 +50,12 @@ fun MediaQuickActionsSheet(
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val isVault = remember(manga.parentUri) { LocalVaultMigrator.isItemInVault(manga) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+
+    val currentMigration by VaultMigrationManager.currentMigration.collectAsState()
+    val isThisItemMigrating = currentMigration?.mangaId == manga.id
+    val effectiveIsMigrating = isMigrating || isThisItemMigrating
+    val effectiveProgress = if (isThisItemMigrating) currentMigration?.progress ?: 0 else migrationProgress
+    val effectiveStatus = if (isThisItemMigrating) currentMigration?.status ?: "" else migrationStatus
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -242,36 +249,51 @@ fun MediaQuickActionsSheet(
                     HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
                     // Migration in progress banner
-                    if (isMigrating) {
+                    if (effectiveIsMigrating) {
                         Surface(
                             shape = RoundedCornerShape(14.dp),
                             color = Color(0xFF161922),
                             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Row(
+                            Column(
                                 modifier = Modifier.padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    color = Color(0xFFE2E8F0),
-                                    strokeWidth = 2.5.dp
-                                )
-                                Column {
-                                    Text(
-                                        text = "Shifting to Local Vault...",
-                                        color = Color.White,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(22.dp),
+                                        color = Color(0xFFE2E8F0),
+                                        strokeWidth = 2.5.dp
                                     )
-                                    Text(
-                                        text = if (migrationStatus.isNotBlank()) migrationStatus else "Moving files into hidden app vault",
-                                        color = Color.White.copy(alpha = 0.5f),
-                                        fontSize = 11.sp
-                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Shifting to Local Vault... $effectiveProgress%",
+                                            color = Color.White,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = if (effectiveStatus.isNotBlank()) effectiveStatus else "Transferring files in background • Safe to close app",
+                                            color = Color.White.copy(alpha = 0.5f),
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
+                                LinearProgressIndicator(
+                                    progress = { effectiveProgress / 100f },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(4.dp)
+                                        .clip(CircleShape),
+                                    color = Color(0xFFE2E8F0),
+                                    trackColor = Color.White.copy(alpha = 0.10f)
+                                )
                             }
                         }
                     }
@@ -280,9 +302,9 @@ fun MediaQuickActionsSheet(
                     QuickActionItem(
                         icon = if (isVault) Icons.Rounded.LockClock else Icons.Rounded.Lock,
                         title = if (isVault) "Already in Local Vault" else "Shift to Local Vault",
-                        subtitle = if (isVault) "Media is encrypted in private app vault (.nomedia protected)"
-                                   else "Move files to local vault so gallery and other apps cannot see it",
-                        enabled = !isVault && !isMigrating,
+                        subtitle = if (isVault) "Media is stored in private app vault (.nomedia protected)"
+                                   else "Background service moves files so other apps cannot see it",
+                        enabled = !isVault && !effectiveIsMigrating,
                         trailingBadge = if (isVault) "PROTECTED" else null,
                         onClick = {
                             haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
@@ -295,7 +317,7 @@ fun MediaQuickActionsSheet(
                         icon = Icons.Rounded.EditNote,
                         title = "Edit Metadata",
                         subtitle = "Modify title, description, cover art, tags, and reading notes",
-                        enabled = !isMigrating,
+                        enabled = !effectiveIsMigrating,
                         onClick = {
                             haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                             onEditMetadata()
@@ -309,7 +331,7 @@ fun MediaQuickActionsSheet(
                         subtitle = if (isVault) "Permanently delete files from vault and remove from library"
                                    else "Delete files and remove entry from your library",
                         isDestructive = true,
-                        enabled = !isMigrating,
+                        enabled = !effectiveIsMigrating,
                         onClick = {
                             haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                             showDeleteConfirmDialog = true
