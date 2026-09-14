@@ -1069,499 +1069,383 @@ fun BookPlayerScreen(
                                 }
                             }
 
-                            // ── Vertical Fast-Scroll UI (Right Side) — kept as requested! ──
-                            BoxWithConstraints(
+                            // ── Floating Flyout Card (Highlighter Palette, Eye Care, Music) ──
+                            AnimatedVisibility(
+                                visible = activeBottomPanel != null,
+                                enter = fadeIn(tween(160)) + slideInHorizontally(tween(180)) { it / 2 },
+                                exit = fadeOut(tween(140)) + slideOutHorizontally(tween(160)) { it / 2 },
                                 modifier = Modifier
-                                    .fillMaxHeight()
                                     .align(Alignment.CenterEnd)
-                                    .padding(top = 100.dp, bottom = 90.dp)
-                                    .wrapContentWidth()
+                                    .padding(end = 76.dp)
                             ) {
-                                val density = LocalDensity.current
-                                val maxHeightPx = with(density) { maxHeight.toPx() }
-                                val thumbHeightPx = with(density) { 52.dp.toPx() }
-
-                                var dragOffset by remember { mutableFloatStateOf(0f) }
-                                var isDragging by remember { mutableStateOf(false) }
-
-                                val scrollFraction by remember {
-                                    derivedStateOf {
-                                        if (pageCount <= 1) 0f
-                                        else (currentPage.toFloat() / (pageCount - 1).toFloat()).coerceIn(0f, 1f)
-                                    }
-                                }
-
-                                val thumbY = if (isDragging) dragOffset else (scrollFraction.coerceIn(0f, 1f) * (maxHeightPx - thumbHeightPx))
-
-                                Row(
-                                    modifier = Modifier
-                                        .offset { IntOffset(0, thumbY.toInt()) }
-                                        .align(Alignment.TopEnd)
-                                        .pointerInput(pageCount) {
-                                            detectDragGestures(
-                                                onDragStart = {
-                                                    isDragging = true
-                                                    dragOffset = (scrollFraction * (maxHeightPx - thumbHeightPx))
-                                                },
-                                                onDragEnd = { isDragging = false },
-                                                onDragCancel = { isDragging = false }
-                                            ) { change, dragAmount ->
-                                                change.consume()
-                                                dragOffset = (dragOffset + dragAmount.y).coerceIn(0f, maxHeightPx - thumbHeightPx)
-                                                val newFraction = dragOffset / (maxHeightPx - thumbHeightPx)
-
-                                                val totalPosition = newFraction * (pageCount - 1)
-                                                val pageIndex = totalPosition.toInt().coerceIn(0, pageCount - 1)
-                                                val pageOffsetFraction = totalPosition - pageIndex
-
-                                                val layoutInfo = listState.layoutInfo
-                                                val pageHeight = layoutInfo.visibleItemsInfo.find { it.index == pageIndex }?.size
-                                                    ?: layoutInfo.visibleItemsInfo.firstOrNull()?.size
-                                                    ?: 1000
-
-                                                val offset = (pageOffsetFraction * pageHeight).toInt()
-                                                coroutineScope.launch {
-                                                    listState.scrollToItem(pageIndex, offset)
-                                                }
-                                            }
-                                        },
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    // Page Counter Pill - Sleek frosted dark styling
-                                    Surface(
-                                        shape = RoundedCornerShape(50),
-                                        color = Color(0xFF14131E).copy(alpha = 0.94f),
-                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
-                                        shadowElevation = 8.dp
-                                    ) {
-                                        Text(
-                                            text = "${currentPage + 1} / $pageCount",
-                                            color = Color.White,
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp
-                                        )
-                                    }
-
-                                    // Dot Handle - Sleek frosted handle
-                                    Surface(
-                                        shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
-                                        color = Color(0xFF14131E).copy(alpha = 0.94f),
-                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
-                                        modifier = Modifier.width(28.dp).height(48.dp),
-                                        shadowElevation = 8.dp
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.fillMaxSize(),
-                                            verticalArrangement = Arrangement.Center,
-                                            horizontalAlignment = Alignment.CenterHorizontally
+                                when (activeBottomPanel) {
+                                    PdfBottomPanel.HIGHLIGHTER -> {
+                                        Surface(
+                                            shape = RoundedCornerShape(22.dp),
+                                            color = Color(0xFF14131E).copy(alpha = 0.96f),
+                                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                            shadowElevation = 16.dp,
+                                            modifier = Modifier.widthIn(min = 280.dp, max = 320.dp)
                                         ) {
-                                            repeat(3) {
-                                                Row {
-                                                    repeat(2) {
-                                                        Box(modifier = Modifier.padding(1.5.dp).size(3.5.dp).background(Color.White.copy(alpha = 0.5f), CircleShape))
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // ── Bottom Navigation & Feature Pill (Safely above Android 3-button / gesture bar) ──
-                            val navBarsBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-                            val systemBarsBottom = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
-                            val maxBottomInset = maxOf(navBarsBottom, systemBarsBottom)
-                            val dockBottomPadding = if (maxBottomInset > 20.dp) maxBottomInset + 16.dp else 60.dp
-
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .align(Alignment.BottomCenter)
-                                    .padding(bottom = dockBottomPadding),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    // Active Floating Card (Highlighter Palette, Eye Care, or Page Navigator)
-                                    AnimatedVisibility(
-                                        visible = activeBottomPanel != null,
-                                        enter = fadeIn(tween(180)) + slideInVertically(initialOffsetY = { 20 }),
-                                        exit = fadeOut(tween(140)) + slideOutVertically(targetOffsetY = { 20 })
-                                    ) {
-                                        when (activeBottomPanel) {
-                                            PdfBottomPanel.HIGHLIGHTER -> {
-                                                // Highlighter Palette Floating Card
-                                                Surface(
-                                                    shape = RoundedCornerShape(24.dp),
-                                                    color = Color(0xFF14131E).copy(alpha = 0.96f),
-                                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                                                    shadowElevation = 16.dp,
-                                                    modifier = Modifier.padding(horizontal = 20.dp)
+                                            Column(
+                                                modifier = Modifier.padding(16.dp),
+                                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    Column(
-                                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                                                        horizontalAlignment = Alignment.CenterHorizontally
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                                                     ) {
-                                                        Row(
-                                                            modifier = Modifier.fillMaxWidth(0.9f),
-                                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                                            verticalAlignment = Alignment.CenterVertically
-                                                        ) {
-                                                            Row(
-                                                                verticalAlignment = Alignment.CenterVertically,
-                                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                                            ) {
-                                                                Box(
-                                                                    modifier = Modifier
-                                                                        .size(10.dp)
-                                                                        .background(Color(activeColor), CircleShape)
-                                                                )
-                                                                Text(
-                                                                    text = "Highlighter Active",
-                                                                    color = Color.White,
-                                                                    fontSize = 13.sp,
-                                                                    fontWeight = FontWeight.Bold
-                                                                )
-                                                            }
-
-                                                            Text(
-                                                                text = "Tap highlights to delete",
-                                                                color = Color.White.copy(alpha = 0.5f),
-                                                                fontSize = 11.sp
-                                                            )
-                                                        }
-
-                                                        // Palette Swatches
-                                                        Row(
-                                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                                            verticalAlignment = Alignment.CenterVertically
-                                                        ) {
-                                                            HighlighterColors.forEach { option ->
-                                                                val isSelected = activeColor == option.colorInt
-                                                                Box(
-                                                                    modifier = Modifier
-                                                                        .size(34.dp)
-                                                                        .clip(CircleShape)
-                                                                        .background(option.displayColor)
-                                                                        .border(
-                                                                            width = if (isSelected) 3.dp else 1.dp,
-                                                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.2f),
-                                                                            shape = CircleShape
-                                                                        )
-                                                                        .clickable {
-                                                                            activeColor = option.colorInt
-                                                                            isMarkerMode = true
-                                                                        },
-                                                                    contentAlignment = Alignment.Center
-                                                                ) {
-                                                                    if (isSelected) {
-                                                                        Icon(
-                                                                            imageVector = Icons.Rounded.Check,
-                                                                            contentDescription = null,
-                                                                            tint = if (option.colorInt == 0xFFFFEB3B.toInt() || option.colorInt == 0xFFA7F3D0.toInt()) Color.Black else Color.White,
-                                                                            modifier = Modifier.size(18.dp)
-                                                                        )
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            PdfBottomPanel.EYE_CARE -> {
-                                                // Eye Protection Floating Card (Symmetrical 4-mode layout, no text wrapping)
-                                                Surface(
-                                                    shape = RoundedCornerShape(24.dp),
-                                                    color = Color(0xFF14131E).copy(alpha = 0.96f),
-                                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                                                    shadowElevation = 16.dp,
-                                                    modifier = Modifier
-                                                        .fillMaxWidth(0.92f)
-                                                        .padding(horizontal = 12.dp)
-                                                ) {
-                                                    Column(
-                                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                                                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                                                        horizontalAlignment = Alignment.CenterHorizontally
-                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(10.dp)
+                                                                .background(Color(activeColor), CircleShape)
+                                                        )
                                                         Text(
-                                                            text = "Reading Comfort & Eye Protection",
+                                                            text = "Highlighter Active",
                                                             color = Color.White,
                                                             fontSize = 13.sp,
                                                             fontWeight = FontWeight.Bold
                                                         )
+                                                    }
 
-                                                        Row(
-                                                            modifier = Modifier.fillMaxWidth(),
-                                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                                            verticalAlignment = Alignment.CenterVertically
+                                                    Text(
+                                                        text = "Tap highlights to delete",
+                                                        color = Color.White.copy(alpha = 0.5f),
+                                                        fontSize = 11.sp
+                                                    )
+                                                }
+
+                                                // Palette Swatches
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    HighlighterColors.forEach { option ->
+                                                        val isSelected = activeColor == option.colorInt
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(34.dp)
+                                                                .clip(CircleShape)
+                                                                .background(option.displayColor)
+                                                                .border(
+                                                                    width = if (isSelected) 3.dp else 1.dp,
+                                                                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.2f),
+                                                                    shape = CircleShape
+                                                                )
+                                                                .clickable {
+                                                                    activeColor = option.colorInt
+                                                                    isMarkerMode = true
+                                                                },
+                                                            contentAlignment = Alignment.Center
                                                         ) {
-                                                            EyeCareMode.values().forEach { mode ->
-                                                                val isSelected = eyeCareMode == mode
-                                                                Surface(
-                                                                    shape = RoundedCornerShape(14.dp),
-                                                                    color = if (isSelected) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.06f),
-                                                                    border = BorderStroke(
-                                                                        1.dp,
-                                                                        if (isSelected) Color.White else Color.White.copy(alpha = 0.12f)
-                                                                    ),
-                                                                    modifier = Modifier
-                                                                        .weight(1f)
-                                                                        .clip(RoundedCornerShape(14.dp))
-                                                                        .clickable { eyeCareMode = mode }
-                                                                ) {
-                                                                    Column(
-                                                                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 2.dp),
-                                                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                                                        verticalArrangement = Arrangement.spacedBy(5.dp)
-                                                                    ) {
-                                                                        val previewColor = when (mode) {
-                                                                            EyeCareMode.OFF -> Color.White
-                                                                            EyeCareMode.SEPIA -> Color(0xFFFAF0D7)
-                                                                            EyeCareMode.MINT -> Color(0xFFE8F5E9)
-                                                                            EyeCareMode.NIGHT -> Color(0xFF1E1E2E)
-                                                                        }
-                                                                        Box(
-                                                                            modifier = Modifier
-                                                                                .size(14.dp)
-                                                                                .clip(CircleShape)
-                                                                                .background(previewColor)
-                                                                                .border(0.8.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.35f), CircleShape)
-                                                                        )
-                                                                        Text(
-                                                                            text = mode.label,
-                                                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.75f),
-                                                                            fontSize = 11.sp,
-                                                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                                            maxLines = 1,
-                                                                            softWrap = false
-                                                                        )
-                                                                    }
-                                                                }
+                                                            if (isSelected) {
+                                                                Icon(
+                                                                    imageVector = Icons.Rounded.Check,
+                                                                    contentDescription = null,
+                                                                    tint = if (option.colorInt == 0xFFFFEB3B.toInt() || option.colorInt == 0xFFA7F3D0.toInt()) Color.Black else Color.White,
+                                                                    modifier = Modifier.size(18.dp)
+                                                                )
                                                             }
                                                         }
                                                     }
                                                 }
                                             }
-
-                                            PdfBottomPanel.MUSIC -> {
-                                                if (musicViewModel != null) {
-                                                    ReaderMusicPlayerCard(
-                                                        musicViewModel = musicViewModel,
-                                                        onClose = { activeBottomPanel = null }
-                                                    )
-                                                }
-                                            }
-                                            null -> {}
                                         }
                                     }
 
-                                    // Main Aesthetic Dock Pill
-                                    Surface(
-                                        shape = RoundedCornerShape(32.dp),
-                                        color = Color(0xFF14131E).copy(alpha = 0.94f),
-                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                                        shadowElevation = 14.dp
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    PdfBottomPanel.EYE_CARE -> {
+                                        Surface(
+                                            shape = RoundedCornerShape(22.dp),
+                                            color = Color(0xFF14131E).copy(alpha = 0.96f),
+                                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                            shadowElevation = 16.dp,
+                                            modifier = Modifier.widthIn(min = 280.dp, max = 320.dp)
                                         ) {
-                                            // 1. Highlighter Toggle (Pure On/Off - NO popup!)
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = if (isMarkerMode) Color(activeColor).copy(alpha = 0.25f) else Color.Transparent,
-                                                border = if (isMarkerMode) BorderStroke(1.dp, Color(activeColor)) else null,
-                                                modifier = Modifier
-                                                    .size(38.dp)
-                                                    .clip(CircleShape)
-                                                    .clickable {
-                                                        isMarkerMode = !isMarkerMode
-                                                        if (!isMarkerMode && activeBottomPanel == PdfBottomPanel.HIGHLIGHTER) {
-                                                            activeBottomPanel = null
-                                                        }
-                                                    }
+                                            Column(
+                                                modifier = Modifier.padding(16.dp),
+                                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally
                                             ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        imageVector = Icons.Rounded.Brush,
-                                                        contentDescription = "Highlighter",
-                                                        tint = if (isMarkerMode) Color(activeColor) else Color.White,
-                                                        modifier = Modifier.size(19.dp)
-                                                    )
-                                                }
-                                            }
+                                                Text(
+                                                    text = "Reading Comfort & Eye Protection",
+                                                    color = Color.White,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
 
-                                            // 2. Color Palette / Section Button (Toggles Color Picker card)
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = if (activeBottomPanel == PdfBottomPanel.HIGHLIGHTER) Color(activeColor).copy(alpha = 0.25f) else Color.Transparent,
-                                                border = if (activeBottomPanel == PdfBottomPanel.HIGHLIGHTER) BorderStroke(1.dp, Color(activeColor)) else null,
-                                                modifier = Modifier
-                                                    .size(38.dp)
-                                                    .clip(CircleShape)
-                                                    .clickable {
-                                                        activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.HIGHLIGHTER) null else PdfBottomPanel.HIGHLIGHTER
-                                                    }
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        imageVector = Icons.Rounded.Palette,
-                                                        contentDescription = "Color Palette",
-                                                        tint = Color(activeColor),
-                                                        modifier = Modifier.size(19.dp)
-                                                    )
-                                                }
-                                            }
-
-                                            // 3. Delete Button (Deletes latest highlight/note on current page)
-                                            val canDeleteOnCurrentPage = markers.any { it.page == currentPage + 1 } || textNotes.any { it.page == currentPage + 1 }
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = Color.Transparent,
-                                                modifier = Modifier
-                                                    .size(38.dp)
-                                                    .clip(CircleShape)
-                                                    .clickable(enabled = canDeleteOnCurrentPage) {
-                                                        deleteLatestHighlightOnCurrentPage()
-                                                    }
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        imageVector = Icons.Rounded.DeleteOutline,
-                                                        contentDescription = "Delete Annotation",
-                                                        tint = if (canDeleteOnCurrentPage) Color.White else Color.White.copy(alpha = 0.3f),
-                                                        modifier = Modifier.size(19.dp)
-                                                    )
-                                                }
-                                            }
-
-                                            // 4. Notes Button (Opens Page Notes dialog)
-                                            val hasPageNotes = textNotes.any { it.page == currentPage + 1 }
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = if (hasPageNotes) Color(0xFFFFD54F).copy(alpha = 0.2f) else Color.Transparent,
-                                                border = if (hasPageNotes) BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.6f)) else null,
-                                                modifier = Modifier
-                                                    .size(38.dp)
-                                                    .clip(CircleShape)
-                                                    .clickable {
-                                                        noteInputText = ""
-                                                        noteDialogPage = currentPage + 1
-                                                        showNotesDialog = true
-                                                    }
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        imageVector = Icons.AutoMirrored.Rounded.StickyNote2,
-                                                        contentDescription = "Notes",
-                                                        tint = if (hasPageNotes) Color(0xFFFFD54F) else Color.White,
-                                                        modifier = Modifier.size(19.dp)
-                                                    )
-                                                }
-                                            }
-
-                                            // 5. Eye Care Tint Button
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = if (eyeCareMode != EyeCareMode.OFF) Color.White.copy(alpha = 0.2f) else Color.Transparent,
-                                                border = if (eyeCareMode != EyeCareMode.OFF) BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)) else null,
-                                                modifier = Modifier
-                                                    .size(38.dp)
-                                                    .clip(CircleShape)
-                                                    .clickable {
-                                                        activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.EYE_CARE) null else PdfBottomPanel.EYE_CARE
-                                                    }
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        imageVector = Icons.Rounded.Visibility,
-                                                        contentDescription = "Eye Protection",
-                                                        tint = when (eyeCareMode) {
-                                                            EyeCareMode.OFF -> Color.White
-                                                            EyeCareMode.SEPIA -> Color(0xFFFAF0D7)
-                                                            EyeCareMode.MINT -> Color(0xFFA7F3D0)
-                                                            EyeCareMode.NIGHT -> Color(0xFFB0BEC5)
-                                                        },
-                                                        modifier = Modifier.size(19.dp)
-                                                    )
-                                                }
-                                            }
-
-                                            // 6. Undo Button (Ctrl+Z)
-                                            val canUndo = undoStack.isNotEmpty()
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = Color.Transparent,
-                                                modifier = Modifier
-                                                    .size(38.dp)
-                                                    .clip(CircleShape)
-                                                    .clickable(enabled = canUndo) {
-                                                        performUndo()
-                                                    }
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        imageVector = Icons.AutoMirrored.Rounded.Undo,
-                                                        contentDescription = "Undo",
-                                                        tint = if (canUndo) Color.White else Color.White.copy(alpha = 0.3f),
-                                                        modifier = Modifier.size(19.dp)
-                                                    )
-                                                }
-                                            }
-
-                                            // 7. Redo Button (Ctrl+Y)
-                                            val canRedo = redoStack.isNotEmpty()
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = Color.Transparent,
-                                                modifier = Modifier
-                                                    .size(38.dp)
-                                                    .clip(CircleShape)
-                                                    .clickable(enabled = canRedo) {
-                                                        performRedo()
-                                                    }
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        imageVector = Icons.AutoMirrored.Rounded.Redo,
-                                                        contentDescription = "Redo",
-                                                        tint = if (canRedo) Color.White else Color.White.copy(alpha = 0.3f),
-                                                        modifier = Modifier.size(19.dp)
-                                                    )
-                                                }
-                                            }
-
-                                            // Music Player Button (only when music from Hwaran is active in background)
-                                            val currentTrack = musicViewModel?.currentChapter?.collectAsState()?.value
-                                            if (currentTrack != null) {
-                                                Surface(
-                                                    shape = CircleShape,
-                                                    color = if (activeBottomPanel == PdfBottomPanel.MUSIC) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.Transparent,
-                                                    border = if (activeBottomPanel == PdfBottomPanel.MUSIC) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
-                                                    modifier = Modifier
-                                                        .size(38.dp)
-                                                        .clip(CircleShape)
-                                                        .clickable {
-                                                            activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.MUSIC) null else PdfBottomPanel.MUSIC
-                                                        }
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    Box(contentAlignment = Alignment.Center) {
-                                                        Icon(
-                                                            imageVector = Icons.Rounded.MusicNote,
-                                                            contentDescription = "Music Player",
-                                                            tint = if (activeBottomPanel == PdfBottomPanel.MUSIC) MaterialTheme.colorScheme.primary else Color.White,
-                                                            modifier = Modifier.size(19.dp)
-                                                        )
+                                                    EyeCareMode.values().forEach { mode ->
+                                                        val isSelected = eyeCareMode == mode
+                                                        Surface(
+                                                            shape = RoundedCornerShape(12.dp),
+                                                            color = if (isSelected) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.06f),
+                                                            border = BorderStroke(
+                                                                1.dp,
+                                                                if (isSelected) Color.White else Color.White.copy(alpha = 0.12f)
+                                                            ),
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .clip(RoundedCornerShape(12.dp))
+                                                                .clickable { eyeCareMode = mode }
+                                                        ) {
+                                                            Column(
+                                                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 2.dp),
+                                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                                verticalArrangement = Arrangement.spacedBy(5.dp)
+                                                            ) {
+                                                                val previewColor = when (mode) {
+                                                                    EyeCareMode.OFF -> Color.White
+                                                                    EyeCareMode.SEPIA -> Color(0xFFFAF0D7)
+                                                                    EyeCareMode.MINT -> Color(0xFFE8F5E9)
+                                                                    EyeCareMode.NIGHT -> Color(0xFF1E1E2E)
+                                                                }
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .size(14.dp)
+                                                                        .clip(CircleShape)
+                                                                        .background(previewColor)
+                                                                        .border(0.8.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.35f), CircleShape)
+                                                                )
+                                                                Text(
+                                                                    text = mode.label,
+                                                                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.75f),
+                                                                    fontSize = 11.sp,
+                                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                                    maxLines = 1,
+                                                                    softWrap = false
+                                                                )
+                                                            }
+                                                        }
                                                     }
                                                 }
+                                            }
+                                        }
+                                    }
+
+                                    PdfBottomPanel.MUSIC -> {
+                                        if (musicViewModel != null) {
+                                            ReaderMusicPlayerCard(
+                                                musicViewModel = musicViewModel,
+                                                onClose = { activeBottomPanel = null }
+                                            )
+                                        }
+                                    }
+
+                                    null -> {}
+                                }
+                            }
+
+                            // ── Vertical Settings Pill (Right Side, matching Toon and Novel readers) ──
+                            Surface(
+                                shape = RoundedCornerShape(32.dp),
+                                color = Color(0xFF14131E).copy(alpha = 0.94f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                shadowElevation = 14.dp,
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .padding(end = 14.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(vertical = 10.dp, horizontal = 6.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    // 1. Highlighter Toggle (Pure On/Off)
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (isMarkerMode) Color(activeColor).copy(alpha = 0.25f) else Color.Transparent,
+                                        border = if (isMarkerMode) BorderStroke(1.dp, Color(activeColor)) else null,
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .clickable {
+                                                isMarkerMode = !isMarkerMode
+                                                if (!isMarkerMode && activeBottomPanel == PdfBottomPanel.HIGHLIGHTER) {
+                                                    activeBottomPanel = null
+                                                }
+                                            }
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Brush,
+                                                contentDescription = "Highlighter",
+                                                tint = if (isMarkerMode) Color(activeColor) else Color.White,
+                                                modifier = Modifier.size(19.dp)
+                                            )
+                                        }
+                                    }
+
+                                    // 2. Color Palette Button (Toggles Color Picker card)
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (activeBottomPanel == PdfBottomPanel.HIGHLIGHTER) Color(activeColor).copy(alpha = 0.25f) else Color.Transparent,
+                                        border = if (activeBottomPanel == PdfBottomPanel.HIGHLIGHTER) BorderStroke(1.dp, Color(activeColor)) else null,
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .clickable {
+                                                activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.HIGHLIGHTER) null else PdfBottomPanel.HIGHLIGHTER
+                                            }
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Palette,
+                                                contentDescription = "Color Palette",
+                                                tint = Color(activeColor),
+                                                modifier = Modifier.size(19.dp)
+                                            )
+                                        }
+                                    }
+
+                                    // 3. Delete Button (Deletes latest highlight/note on current page)
+                                    val canDeleteOnCurrentPage = markers.any { it.page == currentPage + 1 } || textNotes.any { it.page == currentPage + 1 }
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Color.Transparent,
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .clickable(enabled = canDeleteOnCurrentPage) {
+                                                deleteLatestHighlightOnCurrentPage()
+                                            }
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.DeleteOutline,
+                                                contentDescription = "Delete Annotation",
+                                                tint = if (canDeleteOnCurrentPage) Color.White else Color.White.copy(alpha = 0.3f),
+                                                modifier = Modifier.size(19.dp)
+                                            )
+                                        }
+                                    }
+
+                                    // 4. Notes Button (Opens Page Notes dialog)
+                                    val hasPageNotes = textNotes.any { it.page == currentPage + 1 }
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (hasPageNotes) Color(0xFFFFD54F).copy(alpha = 0.2f) else Color.Transparent,
+                                        border = if (hasPageNotes) BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.6f)) else null,
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .clickable {
+                                                noteInputText = ""
+                                                noteDialogPage = currentPage + 1
+                                                showNotesDialog = true
+                                            }
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Rounded.StickyNote2,
+                                                contentDescription = "Notes",
+                                                tint = if (hasPageNotes) Color(0xFFFFD54F) else Color.White,
+                                                modifier = Modifier.size(19.dp)
+                                            )
+                                        }
+                                    }
+
+                                    // 5. Eye Care Tint Button
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (eyeCareMode != EyeCareMode.OFF) Color.White.copy(alpha = 0.2f) else Color.Transparent,
+                                        border = if (eyeCareMode != EyeCareMode.OFF) BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)) else null,
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .clickable {
+                                                activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.EYE_CARE) null else PdfBottomPanel.EYE_CARE
+                                            }
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Visibility,
+                                                contentDescription = "Eye Protection",
+                                                tint = when (eyeCareMode) {
+                                                    EyeCareMode.OFF -> Color.White
+                                                    EyeCareMode.SEPIA -> Color(0xFFFAF0D7)
+                                                    EyeCareMode.MINT -> Color(0xFFA7F3D0)
+                                                    EyeCareMode.NIGHT -> Color(0xFFB0BEC5)
+                                                },
+                                                modifier = Modifier.size(19.dp)
+                                            )
+                                        }
+                                    }
+
+                                    // 6. Undo Button (Ctrl+Z)
+                                    val canUndo = undoStack.isNotEmpty()
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Color.Transparent,
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .clickable(enabled = canUndo) {
+                                                performUndo()
+                                            }
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Rounded.Undo,
+                                                contentDescription = "Undo",
+                                                tint = if (canUndo) Color.White else Color.White.copy(alpha = 0.3f),
+                                                modifier = Modifier.size(19.dp)
+                                            )
+                                        }
+                                    }
+
+                                    // 7. Redo Button (Ctrl+Y)
+                                    val canRedo = redoStack.isNotEmpty()
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Color.Transparent,
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .clickable(enabled = canRedo) {
+                                                performRedo()
+                                            }
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Rounded.Redo,
+                                                contentDescription = "Redo",
+                                                tint = if (canRedo) Color.White else Color.White.copy(alpha = 0.3f),
+                                                modifier = Modifier.size(19.dp)
+                                            )
+                                        }
+                                    }
+
+                                    // 8. Music Player Button (only when music from Hwaran is active in background)
+                                    val currentTrack = musicViewModel?.currentChapter?.collectAsState()?.value
+                                    if (currentTrack != null) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = if (activeBottomPanel == PdfBottomPanel.MUSIC) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.Transparent,
+                                            border = if (activeBottomPanel == PdfBottomPanel.MUSIC) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                                            modifier = Modifier
+                                                .size(38.dp)
+                                                .clip(CircleShape)
+                                            .clickable {
+                                                activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.MUSIC) null else PdfBottomPanel.MUSIC
+                                            }
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.MusicNote,
+                                                    contentDescription = "Music Player",
+                                                    tint = if (activeBottomPanel == PdfBottomPanel.MUSIC) MaterialTheme.colorScheme.primary else Color.White,
+                                                    modifier = Modifier.size(19.dp)
+                                                )
                                             }
                                         }
                                     }
