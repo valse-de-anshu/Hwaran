@@ -544,25 +544,36 @@ private fun BannerCarouselSection(
     glowColor: Color,
     onBannerClick: (Int) -> Unit = {}
 ) {
-    val pagerState = rememberPagerState(pageCount = { banners.size })
+    if (banners.isEmpty()) return
 
-    // Buttery-smooth cyclic auto-scroll that respects user touch and pauses during drags
-    LaunchedEffect(banners.size) {
-        if (banners.size <= 1) return@LaunchedEffect
+    val actualCount = banners.size
+    val isCyclic = actualCount > 1
+    val virtualCount = if (isCyclic) actualCount * 10_000 else actualCount
+    val initialPage = if (isCyclic) actualCount * 5_000 else 0
+
+    val pagerState = rememberPagerState(
+        initialPage = initialPage,
+        pageCount = { virtualCount }
+    )
+
+    // Infinite continuous cyclic auto-scroll: always moves smoothly forward in the same direction
+    LaunchedEffect(actualCount) {
+        if (!isCyclic) return@LaunchedEffect
         while (true) {
             delay(4200)
             if (!pagerState.isScrollInProgress) {
-                val next = (pagerState.currentPage + 1) % banners.size
                 pagerState.animateScrollToPage(
-                    page = next,
+                    page = pagerState.currentPage + 1,
                     animationSpec = tween(
-                        durationMillis = 450,
+                        durationMillis = 500,
                         easing = FastOutSlowInEasing
                     )
                 )
             }
         }
     }
+
+    val currentBannerIndex = pagerState.currentPage % actualCount
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -581,7 +592,8 @@ private fun BannerCarouselSection(
                 )
             ),
             modifier = Modifier.fillMaxWidth()
-        ) { page ->
+        ) { virtualPage ->
+            val page = virtualPage % actualCount
             val context = LocalContext.current
             Surface(
                 modifier = Modifier
@@ -615,8 +627,8 @@ private fun BannerCarouselSection(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            repeat(banners.size) { index ->
-                val isSelected = pagerState.currentPage == index
+            repeat(actualCount) { index ->
+                val isSelected = currentBannerIndex == index
                 val width by animateDpAsState(
                     targetValue = if (isSelected) 18.dp else 6.dp,
                     animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
