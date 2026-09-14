@@ -1658,32 +1658,31 @@ fun SyncedLyricsView(
         BoxWithConstraints(
             modifier = modifier
                 .fillMaxSize()
-                .fadingEdges(topFade = 40.dp, bottomFade = 40.dp)
+                .fadingEdges(topFade = 56.dp, bottomFade = 56.dp)
         ) {
             val density = LocalDensity.current
             val halfViewportDp = with(density) { (constraints.maxHeight / 2).toDp() }
 
-            LaunchedEffect(activeIndex, constraints.maxHeight) {
-                if (activeIndex in parsedLines.indices) {
-                    val viewportHeight = listState.layoutInfo.viewportSize.height.takeIf { it > 0 } ?: constraints.maxHeight
-                    if (viewportHeight > 0) {
-                        val item = listState.layoutInfo.visibleItemsInfo.find { it.index == activeIndex }
-                        if (item != null) {
-                            val itemCenter = item.offset + item.size / 2
-                            val targetCenter = viewportHeight / 2
-                            val delta = (itemCenter - targetCenter).toFloat()
-                            if (abs(delta) > 2f) {
-                                listState.animateScrollBy(delta, tween(durationMillis = 350, easing = FastOutSlowInEasing))
-                            }
-                        } else {
-                            listState.scrollToItem(activeIndex)
-                            val updatedItem = listState.layoutInfo.visibleItemsInfo.find { it.index == activeIndex }
-                            if (updatedItem != null) {
-                                val itemCenter = updatedItem.offset + updatedItem.size / 2
-                                val targetCenter = viewportHeight / 2
-                                val delta = (itemCenter - targetCenter).toFloat()
-                                listState.scrollBy(delta)
-                            }
+            LaunchedEffect(activeIndex, listState.layoutInfo.visibleItemsInfo.isNotEmpty()) {
+                if (activeIndex in parsedLines.indices && listState.layoutInfo.visibleItemsInfo.isNotEmpty()) {
+                    val info = listState.layoutInfo
+                    val targetCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2
+                    val item = info.visibleItemsInfo.find { it.index == activeIndex }
+                    if (item != null) {
+                        val itemCenter = item.offset + item.size / 2
+                        val delta = (itemCenter - targetCenter).toFloat()
+                        if (abs(delta) > 1f) {
+                            listState.animateScrollBy(delta, tween(durationMillis = 350, easing = FastOutSlowInEasing))
+                        }
+                    } else {
+                        listState.scrollToItem(activeIndex)
+                        val postInfo = listState.layoutInfo
+                        val postTarget = (postInfo.viewportStartOffset + postInfo.viewportEndOffset) / 2
+                        val postItem = postInfo.visibleItemsInfo.find { it.index == activeIndex }
+                        if (postItem != null) {
+                            val itemCenter = postItem.offset + postItem.size / 2
+                            val delta = (itemCenter - postTarget).toFloat()
+                            listState.scrollBy(delta)
                         }
                     }
                 }
@@ -1703,27 +1702,18 @@ fun SyncedLyricsView(
                     val line = parsedLines[index]
                     val isCurrent = isStarted && (index == activeIndex)
                     val distance = abs(index - activeIndex)
-                    val isNear = distance in 1..2
 
-                    val textColor = when {
-                        isCurrent -> Color.White
-                        isNear -> Color.White.copy(alpha = 0.60f)
-                        else -> Color.White.copy(alpha = 0.25f)
-                    }
-                    val fontSize = when {
-                        isCurrent -> 24.sp
-                        isNear -> 17.sp
-                        else -> 14.5.sp
-                    }
-                    val fontWeight = when {
-                        isCurrent -> FontWeight.ExtraBold
-                        isNear -> FontWeight.SemiBold
-                        else -> FontWeight.Normal
+                    val (alpha, fontSize, fontWeight) = when {
+                        isCurrent -> Triple(1.0f, 24.sp, FontWeight.ExtraBold)
+                        distance == 1 -> Triple(0.55f, 17.sp, FontWeight.SemiBold)
+                        distance == 2 -> Triple(0.28f, 15.sp, FontWeight.Normal)
+                        distance == 3 -> Triple(0.10f, 14.sp, FontWeight.Normal)
+                        else -> Triple(0.0f, 13.sp, FontWeight.Normal)
                     }
 
                     Text(
                         text = line.text.ifBlank { "• • •" },
-                        color = textColor,
+                        color = Color.White.copy(alpha = alpha),
                         fontSize = fontSize,
                         fontWeight = fontWeight,
                         textAlign = TextAlign.Center,
@@ -1743,7 +1733,7 @@ fun SyncedLyricsView(
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 8.dp)
+                            .padding(horizontal = 28.dp, vertical = 10.dp)
                     )
                 }
             }
