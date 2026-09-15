@@ -32,39 +32,36 @@ object VideoExternalSingleImport {
         if (!isValid) return@withContext null
         if (isCancelled()) return@withContext null
 
-        // If this is a series or structured series, delegate to SeriesStructureImporter
-        if (boxPurpose == "series" || (boxPurpose == null && SeriesStructureImporter.isOrganizedSeries(context, sourceDoc))) {
-            return@withContext SeriesStructureImporter.execute(
-                context = context,
-                repository = repository,
-                rootDoc = sourceDoc,
-                isLocalMode = false,
-                workspace = workspace,
-                isNsfw = isNsfw,
-                isCancelled = isCancelled,
-                onProgress = onProgress
-            )
-        }
-
-        // Channel Mode (flat collection)
         val uriStr = uri.toString()
         val existingManga = repository.getRootMangaByUri(uriStr)
 
         val folderName = sourceDoc.name ?: "Unknown"
 
-        // 1. Extract metadata from .zine/*.json or root *.json
-        val parsedZine = ZineMetadataExtractor.extractFromDocumentFolder(context, sourceDoc)
+        // 1. Extract metadata from .zine/*.json or root *.json, checking subfolders if needed
+        var parsedZine = ZineMetadataExtractor.extractFromDocumentFolder(context, sourceDoc)
+        if (parsedZine == null) {
+            val children = sourceDoc.listFiles()
+            for (child in children) {
+                if (child.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(child.name)) {
+                    parsedZine = ZineMetadataExtractor.extractFromDocumentFolder(context, child)
+                    if (parsedZine != null) break
+                }
+            }
+        }
+
         val finalTitle = parsedZine?.title?.takeIf { it.isNotBlank() } ?: existingManga?.title ?: folderName
         val finalDescription = parsedZine?.description?.takeIf { it.isNotBlank() } ?: existingManga?.description ?: "No description added yet."
         val finalTags = parsedZine?.tags?.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: existingManga?.genre
 
-        // 2. Cover resolution
+        // 2. Cover resolution (root first, then immediate subfolders)
         var coverPath = existingManga?.coverPath ?: ""
-        val coverDoc = ZineMetadataExtractor.findCoverInDocumentFolder(sourceDoc, parsedZine?.coverFileName)
+        val coverDoc = VideoImportUtils.findCover(sourceDoc, parsedZine?.coverFileName)
         if (coverDoc != null) {
             coverPath = CoverCacheManager.cacheCoverFromUri(context, coverDoc.uri, "video", finalTitle)
                 ?: coverDoc.uri.toString()
         }
+
+        val effectiveBoxPurpose = boxPurpose ?: existingManga?.boxPurpose ?: "series"
 
         val mangaToInsert = MangaEntity(
             id = existingManga?.id ?: 0L,
@@ -76,7 +73,7 @@ object VideoExternalSingleImport {
             parentUri = uriStr,
             lastModified = sourceDoc.lastModified(),
             contentType = 2, // Video
-            boxPurpose = boxPurpose ?: "channel",
+            boxPurpose = effectiveBoxPurpose,
             boxLabel = null,
             genre = finalTags,
             workspace = existingManga?.workspace ?: workspace
@@ -85,28 +82,25 @@ object VideoExternalSingleImport {
         val mangaId = repository.insertManga(mangaToInsert)
         if (isCancelled()) return@withContext mangaId
 
-        // 3. Insert video chapters
-        val rootFiles = sourceDoc.listFiles()
-        val videoFiles = rootFiles.filter { file ->
-            !file.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(file.name) &&
-            VideoImportUtils.videoExtensions.any { ext -> file.name?.lowercase()?.endsWith(".$ext") == true }
-        }.sortedWith(compareBy { item ->
-            item.name?.replace(Regex("\\d+")) { match ->
-                match.value.padStart(10, '0')
-            } ?: ""
-        })
+        // 3. Collect all video files (root + subfolders like Videos/, season 1/, etc.)
+        val videoFiles = VideoImportUtils.findVideoFiles(sourceDoc)
+        val totalFiles = videoFiles.size
 
         val chapterEntities = videoFiles.mapIndexed { index, videoFile ->
             val existingChapter = repository.getChapterByUri(videoFile.uri.toString())
+            val episodeTitle = videoFile.name?.substringBeforeLast(".") ?: "Unknown"
+            if (totalFiles > 0) {
+                onProgress(((index + 1).toFloat() / totalFiles * 100).toInt().coerceIn(0, 100))
+            }
             if (existingChapter == null) {
                 ChapterEntity(
                     mangaId = mangaId,
-                    title = videoFile.name?.substringBeforeLast(".") ?: "Unknown",
+                    title = episodeTitle,
                     folderUri = videoFile.uri.toString(),
                     position = index
                 )
             } else {
-                existingChapter.copy(mangaId = mangaId, position = index)
+                existingChapter.copy(mangaId = mangaId, title = episodeTitle, position = index)
             }
         }
 

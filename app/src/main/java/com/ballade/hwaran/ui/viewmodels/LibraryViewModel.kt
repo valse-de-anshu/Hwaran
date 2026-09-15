@@ -342,6 +342,22 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                         isCancelled = toonSummary.isCancelled
                     )
                 } else if (mediaMode == 2) {
+                    val parentDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(getApplication(), parentUri)
+                    if (parentDoc != null) {
+                        val mode = com.ballade.hwaran.data.importer.video.VideoImportUtils.detectImportMode(parentDoc)
+                        if (mode == "SINGLE") {
+                            _isMegaImporting.value = false
+                            importFolder(
+                                uri = parentUri,
+                                boxPurposeOverride = boxPurposeOverride,
+                                workspace = workspace,
+                                isNsfwOverride = isNsfwOverride,
+                                storageModeOverride = storageModeOverride
+                            )
+                            return@launch
+                        }
+                    }
+
                     // Video Mega Import — isolated pipeline
                     val videoRepository = com.ballade.hwaran.data.importer.video.VideoImportRepository(database.libraryDao())
                     val videoSummary = if (isLocalMode) {

@@ -419,19 +419,31 @@ class LibraryRepository(private val context: Context, private val database: AppD
                 }
             }
             val hasVideo = if (isLocalMode) {
-                importResult!!.copiedLooseFiles.any { videoExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }
+                importResult!!.copiedLooseFiles.any { videoExtensions.any { ext -> it.name.lowercase().endsWith(ext) } } ||
+                importResult.copiedChapters.any { dir -> dir.listFiles()?.any { f -> videoExtensions.any { ext -> f.name.lowercase().endsWith(ext) } } == true }
             } else {
                 getRootDocFiles().any { item ->
                     val itemName = item.name
                     itemName != null && videoExtensions.any { itemName.lowercase().endsWith(it) }
+                } || getRootDocFiles().filter { it.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }.any { dir ->
+                    dir.listFiles().any { f ->
+                        val fName = f.name
+                        fName != null && videoExtensions.any { fName.lowercase().endsWith(it) }
+                    }
                 }
             }
             val hasAudio = if (isLocalMode) {
-                importResult!!.copiedLooseFiles.any { audioExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }
+                importResult!!.copiedLooseFiles.any { audioExtensions.any { ext -> it.name.lowercase().endsWith(ext) } } ||
+                importResult.copiedChapters.any { dir -> dir.listFiles()?.any { f -> audioExtensions.any { ext -> f.name.lowercase().endsWith(ext) } } == true }
             } else {
                 getRootDocFiles().any { item ->
                     val itemName = item.name
                     itemName != null && audioExtensions.any { itemName.lowercase().endsWith(it) }
+                } || getRootDocFiles().filter { it.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }.any { dir ->
+                    dir.listFiles().any { f ->
+                        val fName = f.name
+                        fName != null && audioExtensions.any { fName.lowercase().endsWith(it) }
+                    }
                 }
             }
             val hasImages = if (isLocalMode) {
@@ -567,9 +579,19 @@ class LibraryRepository(private val context: Context, private val database: AppD
                 // No chapters for standalone PDF or Novel
             } else {
                 val chaptersToInsert = if (computedContentType == 2) {
-                    if (importResult!!.copiedLooseFiles.any { videoExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }) {
-                        importResult.copiedLooseFiles.filter { videoExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }
-                    } else importResult.copiedChapters
+                    val looseVideos = importResult!!.copiedLooseFiles.filter { videoExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }
+                    if (looseVideos.isNotEmpty()) {
+                        looseVideos
+                    } else {
+                        val subDirVideoFiles = importResult.copiedChapters.flatMap { dir ->
+                            dir.listFiles()?.filter { f ->
+                                !f.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(f.name) &&
+                                !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(f.name) &&
+                                videoExtensions.any { f.name.lowercase().endsWith(it) }
+                            } ?: emptyList()
+                        }
+                        if (subDirVideoFiles.isNotEmpty()) subDirVideoFiles else importResult.copiedChapters
+                    }
                 } else if (computedContentType == 3) {
                     if (importResult!!.copiedLooseFiles.any { audioExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }) {
                         importResult.copiedLooseFiles.filter { audioExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }
@@ -694,7 +716,18 @@ class LibraryRepository(private val context: Context, private val database: AppD
                 val novelFiles = itemsInRoot.filter { file -> !file.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(file.name) && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(file.name) && novelExtensions.any { file.name?.lowercase()?.endsWith(it) == true } }
 
                 val chaptersToInsert = if (computedContentType == 2) {
-                    if (videoFiles.isNotEmpty()) videoFiles else subDirs
+                    if (videoFiles.isNotEmpty()) {
+                        videoFiles
+                    } else {
+                        val subDirVideoFiles = subDirs.flatMap { dir ->
+                            dir.listFiles().filter { f ->
+                                !f.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(f.name) &&
+                                !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(f.name) &&
+                                videoExtensions.any { f.name?.lowercase()?.endsWith(it) == true }
+                            }
+                        }
+                        if (subDirVideoFiles.isNotEmpty()) subDirVideoFiles else subDirs
+                    }
                 } else if (computedContentType == 3) {
                     if (audioFiles.isNotEmpty()) audioFiles else subDirs
                 } else if (computedContentType == 4) {
