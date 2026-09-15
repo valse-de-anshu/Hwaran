@@ -75,7 +75,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.geometry.Offset
 import java.io.File
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SeriesRelatedView(
     manga: MangaEntity,
@@ -194,9 +197,12 @@ fun SeriesRelatedView(
         }
     }
 
-    var customCategories by remember { mutableStateOf(listOf<String>()) }
+    var customCategories by remember(manga.id) { mutableStateOf(listOf<String>()) }
     var showAddCustomCategoryDialog by remember { mutableStateOf(false) }
     var newCustomCategoryName by remember { mutableStateOf("") }
+    var pillToRename by remember { mutableStateOf<String?>(null) }
+    var renameCustomCategoryInput by remember { mutableStateOf("") }
+    var pillToDelete by remember { mutableStateOf<String?>(null) }
 
     val builtInTabs = remember {
         listOf("Videos", "Seasons", "Movies", "OVAs", "ONAs", "Specials", "Blu-ray", "Sequels", "Prequels")
@@ -533,6 +539,9 @@ fun SeriesRelatedView(
                 ) {
                     items(filterTabs) { tab ->
                         val isSel = selectedFilterCategory == tab
+                        val isCustomTab = dynamicCustomTabs.contains(tab)
+                        var showPillMenu by remember { mutableStateOf(false) }
+
                         val tabCount = when (tab) {
                             "Videos" -> videos.size
                             "Seasons" -> childBoxes.count { SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.SEASON || (it.parentMangaId == null && (it.boxPurpose == null || it.boxPurpose == "series")) }
@@ -548,27 +557,63 @@ fun SeriesRelatedView(
 
                         val tabLabel = if (tabCount > 0) "$tab ($tabCount)" else tab
 
-                        Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    if (isDeleteMode && tab != "Videos") {
-                                        isDeleteMode = false
-                                        selectedVideoIds.clear()
-                                    }
-                                    selectedFilterCategory = tab
-                                },
-                            color = if (isSel) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                            border = BorderStroke(1.dp, if (isSel) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text(
-                                text = tabLabel,
-                                color = if (isSel) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.6f),
-                                fontSize = 12.sp,
-                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
-                            )
+                        Box {
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .combinedClickable(
+                                        onClick = {
+                                            if (isDeleteMode && tab != "Videos") {
+                                                isDeleteMode = false
+                                                selectedVideoIds.clear()
+                                            }
+                                            selectedFilterCategory = tab
+                                        },
+                                        onLongClick = if (isCustomTab) {
+                                            {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                showPillMenu = true
+                                            }
+                                        } else null
+                                    ),
+                                color = if (isSel) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                                border = BorderStroke(1.dp, if (isSel) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    text = tabLabel,
+                                    color = if (isSel) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.6f),
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                                )
+                            }
+
+                            if (isCustomTab) {
+                                HwaranDropdownMenu(
+                                    expanded = showPillMenu,
+                                    onDismissRequest = { showPillMenu = false }
+                                ) {
+                                    HwaranDropdownMenuItem(
+                                        text = "Rename Category",
+                                        onClick = {
+                                            showPillMenu = false
+                                            pillToRename = tab
+                                            renameCustomCategoryInput = tab
+                                        },
+                                        leadingIcon = Icons.Rounded.Edit
+                                    )
+                                    HwaranDropdownMenuItem(
+                                        text = "Delete Category",
+                                        onClick = {
+                                            showPillMenu = false
+                                            pillToDelete = tab
+                                        },
+                                        leadingIcon = Icons.Rounded.Delete,
+                                        isDanger = true
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -1653,6 +1698,88 @@ fun SeriesRelatedView(
             },
             dismissButton = {
                 TextButton(onClick = { showAddCustomCategoryDialog = false }) {
+                    Text("Cancel", color = TextMuted)
+                }
+            },
+            containerColor = CardBg
+        )
+    }
+
+    // ── Rename Custom Category Dialog ──
+    pillToRename?.let { oldName ->
+        AlertDialog(
+            onDismissRequest = { pillToRename = null },
+            title = { Text("Rename '$oldName'", color = Color.White) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Enter new category name:", color = TextMuted, fontSize = 13.sp)
+                    OutlinedTextField(
+                        value = renameCustomCategoryInput,
+                        onValueChange = { renameCustomCategoryInput = it },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val trimmed = renameCustomCategoryInput.trim()
+                        if (trimmed.isNotBlank() && !trimmed.equals(oldName, ignoreCase = true)) {
+                            val newFormatted = trimmed.replaceFirstChar { it.uppercase() }
+                            customCategories = customCategories.map { if (it.equals(oldName, ignoreCase = true)) newFormatted else it }
+                            childBoxes.filter { it.boxPurpose?.equals(oldName, ignoreCase = true) == true }.forEach { item ->
+                                onLinkExistingMedia(item.id, newFormatted.lowercase(), item.boxLabel)
+                            }
+                            if (selectedFilterCategory.equals(oldName, ignoreCase = true)) {
+                                selectedFilterCategory = newFormatted
+                            }
+                        }
+                        pillToRename = null
+                    }
+                ) {
+                    Text("Rename", color = Color(0xFFE6E8EC), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pillToRename = null }) {
+                    Text("Cancel", color = TextMuted)
+                }
+            },
+            containerColor = CardBg
+        )
+    }
+
+    // ── Delete Custom Category Dialog ──
+    pillToDelete?.let { targetPill ->
+        AlertDialog(
+            onDismissRequest = { pillToDelete = null },
+            title = { Text("Delete '$targetPill' Category?", color = DangerRed) },
+            text = { Text("Are you sure you want to delete the '$targetPill' category pill? Linked media in this category will be preserved and reassigned as Seasons.", color = TextMuted) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        customCategories = customCategories.filter { !it.equals(targetPill, ignoreCase = true) }
+                        childBoxes.filter { it.boxPurpose?.equals(targetPill, ignoreCase = true) == true }.forEach { item ->
+                            onLinkExistingMedia(item.id, "season", item.boxLabel)
+                        }
+                        if (selectedFilterCategory.equals(targetPill, ignoreCase = true)) {
+                            selectedFilterCategory = "Videos"
+                        }
+                        pillToDelete = null
+                    }
+                ) {
+                    Text("Delete", color = DangerRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pillToDelete = null }) {
                     Text("Cancel", color = TextMuted)
                 }
             },
