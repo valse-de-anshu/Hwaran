@@ -1,15 +1,20 @@
 package com.ballade.hwaran.frontend.lock
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.ballade.hwaran.core.database.entity.MangaEntity
+import com.ballade.hwaran.core.util.CoverArtResolver
 import com.ballade.hwaran.ui.viewmodels.LibraryViewModel
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
 
@@ -40,17 +46,37 @@ fun LockSelectionScreen(
 ) {
     val allManga by libraryViewModel.allMangaState.collectAsState()
     val libraryPassword by settingsViewModel.libraryPassword.collectAsState()
-    
+    val coverTransparency by settingsViewModel.coverTransparency.collectAsState()
+
     var showPasswordDialog by remember { mutableStateOf(false) }
     var passwordInput by remember { mutableStateOf("") }
-    
-    val toons = allManga.filter { it.contentType == 0 }
-    val books = allManga.filter { it.contentType == 1 }
-    val videos = allManga.filter { it.contentType == 2 }
+    var selectedCategory by remember { mutableStateOf("All") }
 
-    val BgDark = MaterialTheme.colorScheme.background
+    val toons = remember(allManga) { allManga.filter { it.contentType == 0 } }
+    val books = remember(allManga) { allManga.filter { it.contentType == 1 } }
+    val videos = remember(allManga) { allManga.filter { it.contentType == 2 } }
+    val music = remember(allManga) { allManga.filter { it.contentType == 3 } }
+    val novels = remember(allManga) { allManga.filter { it.contentType == 4 } }
+
+    val categories = listOf("All", "Toons", "Books", "Videos", "Music", "Novels")
+
+    val allSections = listOf(
+        "Toons" to toons,
+        "Books" to books,
+        "Videos" to videos,
+        "Music" to music,
+        "Novels" to novels
+    )
+
+    val displayedSections = remember(selectedCategory, allManga) {
+        if (selectedCategory == "All") {
+            allSections.filter { it.second.isNotEmpty() }
+        } else {
+            allSections.filter { it.first.equals(selectedCategory, ignoreCase = true) && it.second.isNotEmpty() }
+        }
+    }
+
     val PrimaryPurple = MaterialTheme.colorScheme.primary
-    val CardSurface = MaterialTheme.colorScheme.surface
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -63,7 +89,7 @@ fun LockSelectionScreen(
                         showPasswordDialog = false 
                         passwordInput = ""
                     },
-                    title = { Text("Set Library Password", color = Color.White) },
+                    title = { Text("Set Library Password", color = Color.White, fontWeight = FontWeight.Bold) },
                     text = {
                         OutlinedTextField(
                             value = passwordInput,
@@ -72,7 +98,9 @@ fun LockSelectionScreen(
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = PrimaryPurple,
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
                             )
                         )
                     },
@@ -80,12 +108,12 @@ fun LockSelectionScreen(
                         TextButton(onClick = {
                             if (passwordInput.isNotBlank()) {
                                 settingsViewModel.setLibraryPassword(passwordInput)
-                                settingsViewModel.setIsLibraryLocked(true) // Auto-lock when setting for the first time
+                                settingsViewModel.setIsLibraryLocked(true)
                                 showPasswordDialog = false
                                 onNavigateBack()
                             }
                         }) {
-                            Text("Set Password", color = PrimaryPurple)
+                            Text("Set Password", color = PrimaryPurple, fontWeight = FontWeight.Bold)
                         }
                     },
                     dismissButton = {
@@ -108,7 +136,7 @@ fun LockSelectionScreen(
                 modifier = Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())
             ) {
                 item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(this.maxLineSpan) }) {
-                    Spacer(modifier = Modifier.height(60.dp))
+                    Spacer(modifier = Modifier.height(72.dp))
                 }
                 
                 item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(this.maxLineSpan) }) {
@@ -121,36 +149,88 @@ fun LockSelectionScreen(
                         textAlign = TextAlign.Center
                     )
                 }
-                
+
+                // Category Filter Pills
                 item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(this.maxLineSpan) }) {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 10.dp)
+                    ) {
+                        items(categories) { cat ->
+                            val isSelected = cat == selectedCategory
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = if (isSelected) PrimaryPurple.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
+                                border = BorderStroke(
+                                    1.dp, 
+                                    if (isSelected) PrimaryPurple.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.1f)
+                                ),
+                                modifier = Modifier.clickable { selectedCategory = cat }
+                            ) {
+                                Text(
+                                    text = cat,
+                                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                                )
+                            }
+                        }
+                    }
                 }
 
-                val sections = listOf(
-                    "Toons" to toons,
-                    "Books" to books,
-                    "Videos" to videos
-                )
+                if (displayedSections.isEmpty()) {
+                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(this.maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 48.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "No media found in this category",
+                                color = Color.White.copy(alpha = 0.4f),
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
 
-                sections.forEach { (title, items) ->
-                    if (items.isNotEmpty()) {
-                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(this.maxLineSpan) }) {
+                displayedSections.forEach { (title, items) ->
+                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(this.maxLineSpan) }) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp)
+                        ) {
                             Text(
                                 text = title,
                                 color = PrimaryPurple,
                                 style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.padding(vertical = 8.dp)
+                                fontWeight = FontWeight.SemiBold
                             )
+                            val lockedCount = items.count { it.isLocked }
+                            if (lockedCount > 0) {
+                                Text(
+                                    text = "$lockedCount locked",
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    fontSize = 12.sp
+                                )
+                            }
                         }
-                        items(items, key = { it.id }) { manga ->
-                            LockSelectionCard(
-                                manga = manga,
-                                coverTransparency = settingsViewModel.coverTransparency.collectAsState().value,
-                                onToggle = { 
-                                    libraryViewModel.updateMangaLockState(manga, !manga.isLocked)
-                                }
-                            )
-                        }
+                    }
+                    items(items, key = { it.id }) { manga ->
+                        LockSelectionCard(
+                            manga = manga,
+                            coverTransparency = coverTransparency,
+                            primaryColor = PrimaryPurple,
+                            onToggle = { 
+                                libraryViewModel.updateMangaLockState(manga, !manga.isLocked)
+                            }
+                        )
                     }
                 }
                 
@@ -204,7 +284,17 @@ fun LockSelectionScreen(
 }
 
 @Composable
-fun LockSelectionCard(manga: MangaEntity, coverTransparency: Float, onToggle: () -> Unit) {
+fun LockSelectionCard(
+    manga: MangaEntity, 
+    coverTransparency: Float, 
+    primaryColor: Color,
+    onToggle: () -> Unit
+) {
+    val context = LocalContext.current
+    val coverModel = remember(manga.coverPath, manga.parentUri) {
+        CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -217,10 +307,10 @@ fun LockSelectionCard(manga: MangaEntity, coverTransparency: Float, onToggle: ()
     ) {
         Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp))) {
             Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)).graphicsLayer { alpha = coverTransparency }) {
-                if (manga.coverPath.isNotEmpty()) {
+                if (coverModel != null) {
                     AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(manga.coverPath)
+                        model = ImageRequest.Builder(context)
+                            .data(coverModel)
                             .crossfade(true)
                             .build(),
                         contentDescription = manga.title,
@@ -229,27 +319,38 @@ fun LockSelectionCard(manga: MangaEntity, coverTransparency: Float, onToggle: ()
                     )
                 } else {
                     Box(
-                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.05f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("No Cover", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                        Text("No Cover", color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
                     }
                 }
 
-                // Checkmark overlay (darkened slightly to highlight checkmark)
+                // Lock badge overlay
                 if (manga.isLocked) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                            .background(primaryColor.copy(alpha = 0.45f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = "Selected",
-                            tint = Color.White,
-                            modifier = Modifier.size(48.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.65f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Lock,
+                                contentDescription = "Locked",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
                 }
 
@@ -260,7 +361,7 @@ fun LockSelectionCard(manga: MangaEntity, coverTransparency: Float, onToggle: ()
                         .height(48.dp)
                         .align(Alignment.TopCenter)
                         .background(
-                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                            Brush.verticalGradient(
                                 colors = listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent)
                             )
                         )
@@ -273,7 +374,7 @@ fun LockSelectionCard(manga: MangaEntity, coverTransparency: Float, onToggle: ()
                         .height(64.dp)
                         .align(Alignment.BottomCenter)
                         .background(
-                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                            Brush.verticalGradient(
                                 colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
                             )
                         )
@@ -294,3 +395,4 @@ fun LockSelectionCard(manga: MangaEntity, coverTransparency: Float, onToggle: ()
         }
     }
 }
+

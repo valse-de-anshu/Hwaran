@@ -103,6 +103,8 @@ fun MusicScreen(
     
     val homeUiTransparency by settingsViewModel.homeUiTransparency.collectAsState()
     val glowColor by settingsViewModel.glowColor.collectAsState()
+    val isLibraryLocked by settingsViewModel.isLibraryLocked.collectAsState()
+    val libraryPassword by settingsViewModel.libraryPassword.collectAsState()
     
     val currentManga by musicViewModel.currentManga.collectAsState()
     val currentChapter by musicViewModel.currentChapter.collectAsState()
@@ -115,6 +117,9 @@ fun MusicScreen(
     var selectedPlaylistIdsForDelete by remember { mutableStateOf(setOf<Long>()) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var editingPlaylist by remember { mutableStateOf<MangaEntity?>(null) }
+    var playlistToUnlock by remember { mutableStateOf<MangaEntity?>(null) }
+    var unlockPasswordInput by remember { mutableStateOf("") }
+    var showIncorrectPassword by remember { mutableStateOf(false) }
     var isMenuExpanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
@@ -295,6 +300,8 @@ fun MusicScreen(
                                                 } else {
                                                     selectedPlaylistIdsForDelete + favoritesPlaylist.id
                                                 }
+                                            } else if (isLibraryLocked && favoritesPlaylist.isLocked) {
+                                                playlistToUnlock = favoritesPlaylist
                                             } else {
                                                 onNavigateToPlaylistDetail(favoritesPlaylist.id)
                                             }
@@ -328,6 +335,8 @@ fun MusicScreen(
                                         } else {
                                             selectedPlaylistIdsForDelete + playlist.id
                                         }
+                                    } else if (isLibraryLocked && playlist.isLocked) {
+                                        playlistToUnlock = playlist
                                     } else {
                                         onNavigateToPlaylistDetail(playlist.id)
                                     }
@@ -614,6 +623,61 @@ fun MusicScreen(
             },
             containerColor = Color(0xFF1A1A1A),
             shape = RoundedCornerShape(24.dp)
+        )
+    }
+
+    if (playlistToUnlock != null) {
+        AlertDialog(
+            onDismissRequest = {
+                playlistToUnlock = null
+                unlockPasswordInput = ""
+                showIncorrectPassword = false
+            },
+            title = { Text("Unlock Playlist", color = Color.White, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = unlockPasswordInput,
+                        onValueChange = { unlockPasswordInput = it },
+                        label = { Text("Password", color = Color.White.copy(alpha = 0.5f)) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(glowColor),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                        )
+                    )
+                    if (showIncorrectPassword) {
+                        Text("Incorrect password", color = Color(0xFFE57373), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (unlockPasswordInput == libraryPassword) {
+                        val id = playlistToUnlock!!.id
+                        playlistToUnlock = null
+                        unlockPasswordInput = ""
+                        showIncorrectPassword = false
+                        onNavigateToPlaylistDetail(id)
+                    } else {
+                        showIncorrectPassword = true
+                    }
+                }) {
+                    Text("Unlock", color = Color(glowColor), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    playlistToUnlock = null
+                    unlockPasswordInput = ""
+                    showIncorrectPassword = false
+                }) {
+                    Text("Cancel", color = Color.White.copy(alpha = 0.5f))
+                }
+            },
+            containerColor = Color(0xFF1B1924)
         )
     }
 

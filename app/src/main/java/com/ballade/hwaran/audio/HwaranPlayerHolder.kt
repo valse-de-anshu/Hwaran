@@ -62,6 +62,16 @@ object HwaranPlayerHolder {
             }
     }
 
+    /** Pauses music playback if currently playing. Useful when video starts. */
+    @Synchronized
+    fun pauseIfPlaying() {
+        player?.let { p ->
+            if (p.isPlaying) {
+                p.pause()
+            }
+        }
+    }
+
     /** Call only from [MusicNotificationService.onDestroy] when the process is ending. */
     @Synchronized
     fun release() {

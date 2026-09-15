@@ -426,7 +426,8 @@ fun HomeScreen(
                             },
                             onOpenMusic = { openMusicWindow() },
                             onItemLongClick = { manga -> quickActionsManga = manga },
-                            glowColor = Color(glowColor)
+                            glowColor = Color(glowColor),
+                            isLibraryLocked = isLibraryLocked
                         )
                     }
                     1 -> {
@@ -455,7 +456,8 @@ fun HomeScreen(
                                 musicViewModel.playPlaylist(manga, chapters, index)
                             },
                             onBack = { activeDockTab = 0 },
-                            glowColor = Color(glowColor)
+                            glowColor = Color(glowColor),
+                            isLibraryLocked = isLibraryLocked
                         )
                     }
                     4 -> {

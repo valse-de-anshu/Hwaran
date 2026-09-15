@@ -212,6 +212,8 @@ class MainActivity : ComponentActivity() {
                                     currentRoute != Screen.Settings.route &&
                                     currentRoute != Screen.Canvas.route &&
                                     currentRoute != Screen.Intro.route &&
+                                    currentRoute != Screen.LockSelection.route &&
+                                    currentRoute?.startsWith("lock_selection") == false &&
                                     currentRoute?.startsWith("description") == false &&
                                     currentRoute?.startsWith("reader") == false &&
                                     currentRoute?.startsWith("pdf_reader") == false &&

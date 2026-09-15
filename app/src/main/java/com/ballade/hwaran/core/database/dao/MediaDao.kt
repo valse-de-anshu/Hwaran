@@ -57,4 +57,10 @@ interface MediaDao {
 
     @Query("DELETE FROM manga WHERE parentMangaId = :parentId")
     suspend fun deleteChildrenByParentId(parentId: Long)
+
+    @Query("UPDATE manga SET lastReadTitle = NULL, lastReadPage = NULL, openCount = 0, position = 0")
+    suspend fun clearAllMediaHistory()
+
+    @Query("SELECT * FROM manga")
+    suspend fun getAllMangaEverywhere(): List<MangaEntity>
 }

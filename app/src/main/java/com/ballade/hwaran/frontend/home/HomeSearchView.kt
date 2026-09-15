@@ -169,6 +169,7 @@ fun HomeSearchView(
     onPlaySong: ((MangaEntity, List<ChapterEntity>, Int) -> Unit)? = null,
     onBack: () -> Unit,
     glowColor: Color = Color(0xFFE2E8F0),
+    isLibraryLocked: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -340,7 +341,7 @@ fun HomeSearchView(
         val durationFilter = selectedDuration
         val progressFilter = selectedProgress
         val chapterCountFilter = selectedChapterCount
-        val nonNsfwManga = allManga.filter { !it.isNsfw }
+        val nonNsfwManga = allManga.filter { !it.isNsfw && (!isLibraryLocked || !it.isLocked) }
         val musicMangaMap = nonNsfwManga.filter { it.contentType == 3 || it.boxPurpose == "music" }.associateBy { it.id }
 
         // Determine if we should evaluate songs

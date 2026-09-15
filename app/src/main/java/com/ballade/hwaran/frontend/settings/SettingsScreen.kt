@@ -56,6 +56,7 @@ import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class PremiumSection {
     CONFIG, APPEARANCE, ENVIRONMENT, ADD_BUTTON, SECURITY, ABOUT
@@ -796,26 +797,32 @@ fun SecurityContent(
     if (showWipeConfirmation) {
         AlertDialog(
             onDismissRequest = { showWipeConfirmation = false },
-            title = { Text("Wipe History", color = Color.White) },
+            title = { Text("Wipe All History", color = Color.White, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    text = "Do you really want to completely wipe all your history data?",
-                    color = Color.White.copy(alpha = 0.8f)
+                    text = "Do you really want to wipe all history? This will reset recent activity, continue playing/reading progress, watch timestamps, and page positions across all media.",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 13.sp
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch(Dispatchers.IO) {
                         database.historyDao().clearAllHistoryEvents()
+                        database.mediaDao().clearAllMediaHistory()
+                        database.trackDao().clearAllChapterProgress()
+                        withContext(Dispatchers.Main) {
+                            android.widget.Toast.makeText(context, "All history and playback progress wiped", android.widget.Toast.LENGTH_SHORT).show()
+                        }
                     }
                     showWipeConfirmation = false
                 }) {
-                    Text("Yes", color = MaterialTheme.colorScheme.primary)
+                    Text("Wipe All", color = Color(0xFFE57373), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showWipeConfirmation = false }) {
-                    Text("No", color = Color.Gray)
+                    Text("Cancel", color = Color.Gray)
                 }
             },
             containerColor = MaterialTheme.colorScheme.surface

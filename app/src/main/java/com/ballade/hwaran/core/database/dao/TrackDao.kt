@@ -36,4 +36,10 @@ interface TrackDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChapters(chapters: List<ChapterEntity>)
+
+    @Query("UPDATE chapter SET position = 0, openCount = 0")
+    suspend fun clearAllChapterProgress()
+
+    @Query("SELECT * FROM chapter")
+    suspend fun getAllChaptersList(): List<ChapterEntity>
 }

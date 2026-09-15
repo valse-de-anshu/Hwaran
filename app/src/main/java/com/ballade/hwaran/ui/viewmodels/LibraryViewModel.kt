@@ -668,8 +668,12 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun updateMangaLockState(manga: MangaEntity, isLocked: Boolean) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             database.libraryDao().insertManga(manga.copy(isLocked = isLocked))
+            val children = database.mediaDao().getChildrenForMangaList(manga.id)
+            for (child in children) {
+                database.mediaDao().insertManga(child.copy(isLocked = isLocked))
+            }
         }
     }
 

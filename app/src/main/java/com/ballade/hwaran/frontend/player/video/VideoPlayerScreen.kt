@@ -56,12 +56,15 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.ui.PlayerView
+import com.ballade.hwaran.audio.HwaranPlayerHolder
 import com.ballade.hwaran.core.database.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -234,7 +237,13 @@ fun VideoPlayerScreen(
             }
 
             val exoPlayer = remember(videoUri) {
+                HwaranPlayerHolder.pauseIfPlaying()
+                val audioAttributes = AudioAttributes.Builder()
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                    .setUsage(C.USAGE_MEDIA)
+                    .build()
                 ExoPlayer.Builder(context).build().apply {
+                    setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
                     setMediaItem(MediaItem.fromUri(videoUri!!))
                     setSeekParameters(SeekParameters.CLOSEST_SYNC)
                     prepare()

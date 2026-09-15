@@ -65,6 +65,7 @@ fun HomeDashboard(
     onPlaySong: (MangaEntity, List<ChapterEntity>, Int) -> Unit = { _, _, _ -> },
     onItemLongClick: (MangaEntity) -> Unit = {},
     glowColor: Color = Color(0xFFE2E8F0),
+    isLibraryLocked: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -140,8 +141,9 @@ fun HomeDashboard(
     }
 
     // Continue watching / in progress covers
-    val inProgressItems = remember(allManga, openedMangaIdsFromHistory) {
+    val inProgressItems = remember(allManga, openedMangaIdsFromHistory, isLibraryLocked) {
         val opened = allManga.filter { manga ->
+            if (isLibraryLocked && manga.isLocked) return@filter false
             manga.openCount > 0 || !manga.lastReadTitle.isNullOrBlank() || ((manga.lastReadPage ?: 0) > 0) || openedMangaIdsFromHistory.contains(manga.id)
         }.sortedByDescending { it.lastModified }
         opened.take(8)
