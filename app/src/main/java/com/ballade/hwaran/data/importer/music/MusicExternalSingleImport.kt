@@ -158,12 +158,6 @@ object MusicExternalSingleImport {
 
         if (tracksToInsert.isNotEmpty()) {
             repository.insertTracks(tracksToInsert)
-            if (coverUri.isEmpty()) {
-                val trackThumb = tracksToInsert.firstOrNull { !it.thumbnailUri.isNullOrBlank() }?.thumbnailUri
-                if (!trackThumb.isNullOrBlank()) {
-                    repository.insertAlbum(albumToInsert.copy(id = albumId, coverPath = trackThumb))
-                }
-            }
         }
 
         // 5. History logging

@@ -112,9 +112,12 @@ fun DescriptionScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let {
-            val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION
-            context.contentResolver.takePersistableUriPermission(it, takeFlags)
-            descriptionViewModel.draftCoverPath.value = it.toString()
+            try {
+                val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                context.contentResolver.takePersistableUriPermission(it, takeFlags)
+            } catch (_: Exception) {}
+            val cached = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, it, "custom", draftTitle.ifBlank { "custom" })
+            descriptionViewModel.draftCoverPath.value = cached ?: it.toString()
         }
     }
 
@@ -137,10 +140,13 @@ fun DescriptionScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let {
-            val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION
-            context.contentResolver.takePersistableUriPermission(it, takeFlags)
+            try {
+                val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                context.contentResolver.takePersistableUriPermission(it, takeFlags)
+            } catch (_: Exception) {}
             chapterToUpdateThumbnail?.let { chapterId ->
-                descriptionViewModel.updateChapterThumbnail(chapterId, it.toString())
+                val cached = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, it, "chapter", "thumb_$chapterId")
+                descriptionViewModel.updateChapterThumbnail(chapterId, cached ?: it.toString())
                 chapterToUpdateThumbnail = null
             }
         }

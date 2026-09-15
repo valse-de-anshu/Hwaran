@@ -217,7 +217,6 @@ class MainActivity : ComponentActivity() {
                                 val isMiniPlayerVisible = remember(currentRoute, currentChapter, activeTab, currentLifecycleState) {
                                     currentChapter != null &&
                                     currentLifecycleState == androidx.lifecycle.Lifecycle.State.RESUMED &&
-                                    !(currentRoute == Screen.Home.route && activeTab == 1) &&
                                     currentRoute != Screen.NowPlaying.route && 
                                     currentRoute != Screen.Settings.route &&
                                     currentRoute != Screen.Canvas.route &&

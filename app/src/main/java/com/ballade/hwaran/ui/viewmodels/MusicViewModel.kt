@@ -99,7 +99,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 _currentPosition.value = 0L
                 _playbackProgress.value = 0f
                 _totalDuration.value = 0L
-                updateDominantColor(chapter.thumbnailUri ?: chapter.folderUri ?: _currentManga.value?.coverPath)
+                updateDominantColor(chapter.thumbnailUri?.takeIf { it.isNotBlank() } ?: _currentManga.value?.coverPath?.takeIf { it.isNotBlank() })
                 // ADD OPEN COUNT INCREMENT HERE & RESOLVE MISSING LYRICS
                 viewModelScope.launch(Dispatchers.IO) {
                     var dbChapter = database.trackDao().getChapterById(chapter.id)
@@ -441,7 +441,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 Uri.parse(path)
             }
             
-            val artPath = chapter.thumbnailUri ?: manga.coverPath
+            val artPath = chapter.thumbnailUri?.takeIf { it.isNotBlank() } ?: manga.coverPath.takeIf { it.isNotBlank() } ?: ""
             val artUri = if (artPath.isNotEmpty()) {
                 getOrCreateSquareCover(context, artPath)
             } else null
@@ -515,7 +515,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
                         exoPlayer.seekTo(index, position)
                         exoPlayer.prepare()
-                        updateDominantColor(chapters[index].thumbnailUri ?: chapters[index].folderUri ?: manga.coverPath)
+                        val activeTrack = chapters.getOrNull(index)
+                        updateDominantColor(activeTrack?.thumbnailUri?.takeIf { it.isNotBlank() } ?: manga.coverPath.takeIf { it.isNotBlank() })
                     }
                 }
             }
@@ -859,7 +860,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             android.util.Log.e("MusicViewModel", "Failed to start service", e)
         }
         
-        updateDominantColor(chapters.getOrNull(startIndex)?.thumbnailUri ?: chapters.getOrNull(startIndex)?.folderUri ?: manga.coverPath)
+        val activeTrack = chapters.getOrNull(startIndex)
+        updateDominantColor(activeTrack?.thumbnailUri?.takeIf { it.isNotBlank() } ?: manga.coverPath.takeIf { it.isNotBlank() })
         savePlaybackState()
     }
 

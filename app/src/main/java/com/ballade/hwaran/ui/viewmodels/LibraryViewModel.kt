@@ -100,20 +100,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                         }
                     }
 
-                    // 2. If music mode and coverPath is empty, check track thumbnails
-                    if (manga.contentType == 3 && newCover.isEmpty()) {
-                        val tracks = database.trackDao().getChaptersForMangaList(manga.id)
-                        val trackWithThumb = tracks.firstOrNull { !it.thumbnailUri.isNullOrBlank() }
-                        if (trackWithThumb != null && !trackWithThumb.thumbnailUri.isNullOrBlank()) {
-                            newCover = trackWithThumb.thumbnailUri!!
-                            updated = true
-                        }
-                    }
-
                     // 3. For toon / manga (contentType == 0) or video (contentType == 2):
-                    // Verify if there is a legitimate dedicated cover in parent directory.
-                    // If no dedicated cover exists, remove any fake cached fallback.
-                    if (manga.contentType == 0 || manga.contentType == 2) {
+                    // If coverPath is empty, check if there is a legitimate dedicated cover in parent directory.
+                    if ((manga.contentType == 0 || manga.contentType == 2) && newCover.isEmpty()) {
                         val folderDoc = if (manga.parentUri.startsWith("content://")) {
                             try { DocumentFile.fromTreeUri(app, Uri.parse(manga.parentUri)) } catch (e: Exception) { null }
                         } else if (manga.parentUri.isNotEmpty()) {
@@ -144,15 +133,6 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                                 )
                                 if (cached != null && cached != newCover) {
                                     newCover = cached
-                                    updated = true
-                                }
-                            } else {
-                                // No dedicated cover! Purge any fake cached cover
-                                if (newCover.isNotEmpty()) {
-                                    if (newCover.startsWith("/data/")) {
-                                        try { File(newCover).delete() } catch (_: Exception) {}
-                                    }
-                                    newCover = ""
                                     updated = true
                                 }
                             }

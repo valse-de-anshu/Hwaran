@@ -154,7 +154,7 @@ fun MusicScreen(
             Box(modifier = Modifier.fillMaxSize()) {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
-                        .data(currentChapter?.thumbnailUri ?: currentChapter?.folderUri ?: currentManga?.coverPath)
+                        .data(currentChapter?.thumbnailUri?.takeIf { it.isNotBlank() } ?: currentManga?.coverPath?.takeIf { it.isNotBlank() })
                         .size(64, 64)
                         .crossfade(false)
                         .build(),
@@ -998,7 +998,8 @@ fun EditPlaylistDialog(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let { 
-            coverPath = it.toString()
+            val cached = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, it, "playlist", title.ifBlank { "playlist" })
+            coverPath = cached ?: it.toString()
         }
     }
 

@@ -45,7 +45,6 @@ fun ReaderMusicPlayerCard(
 
     val coverPath = currentTrack?.thumbnailUri?.takeIf { it.isNotBlank() }
         ?: currentManga?.coverPath?.takeIf { it.isNotBlank() }
-        ?: currentTrack?.folderUri?.takeIf { it.endsWith(".jpg", true) || it.endsWith(".jpeg", true) || it.endsWith(".png", true) || it.endsWith(".webp", true) }
 
     Surface(
         shape = RoundedCornerShape(22.dp),
