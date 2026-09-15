@@ -1581,47 +1581,82 @@ fun HomeSearchView(
                 }
             }
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                items(filteredResults, key = { it.id }) { item ->
-                    when (item) {
-                        is SearchResultItem.Song -> {
-                            SearchSongItemCard(
-                                song = item,
-                                glowColor = glowColor,
-                                context = context,
-                                onPlay = {
-                                    Toast.makeText(context, "Playing: ${item.chapter.title}", Toast.LENGTH_SHORT).show()
-                                    item.parentManga?.let { parent ->
-                                        onPlaySong?.invoke(parent, item.allChaptersInPlaylist, item.trackIndex)
-                                    }
-                                },
-                                onClick = {
-                                    item.parentManga?.let { parent ->
-                                        onPlaySong?.invoke(parent, item.allChaptersInPlaylist, item.trackIndex)
-                                        onNavigateToDescription(parent.id)
-                                    } ?: run {
-                                        Toast.makeText(context, "Playing: ${item.chapter.title}", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            )
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    contentPadding = PaddingValues(top = 14.dp, bottom = 80.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            val fadeTopPx = 36.dp.toPx()
+                            val fadeBottomPx = 70.dp.toPx()
+                            if (size.height > fadeBottomPx) {
+                                drawRect(
+                                    brush = Brush.verticalGradient(
+                                        0f to Color.Transparent,
+                                        fadeTopPx / size.height to Color.Black,
+                                        (size.height - fadeBottomPx) / size.height to Color.Black,
+                                        1f to Color.Transparent
+                                    ),
+                                    blendMode = BlendMode.DstIn
+                                )
+                            }
                         }
-                        is SearchResultItem.Media -> {
-                            SearchMediaItemCard(
-                                manga = item.manga,
-                                trackCount = item.trackCount,
-                                context = context,
-                                glowColor = glowColor,
-                                onClick = { onNavigateToDescription(item.manga.id) }
-                            )
+                ) {
+                    items(filteredResults, key = { it.id }) { item ->
+                        when (item) {
+                            is SearchResultItem.Song -> {
+                                SearchSongItemCard(
+                                    song = item,
+                                    glowColor = glowColor,
+                                    context = context,
+                                    onPlay = {
+                                        Toast.makeText(context, "Playing: ${item.chapter.title}", Toast.LENGTH_SHORT).show()
+                                        item.parentManga?.let { parent ->
+                                            onPlaySong?.invoke(parent, item.allChaptersInPlaylist, item.trackIndex)
+                                        }
+                                    },
+                                    onClick = {
+                                        item.parentManga?.let { parent ->
+                                            onPlaySong?.invoke(parent, item.allChaptersInPlaylist, item.trackIndex)
+                                            onNavigateToDescription(parent.id)
+                                        } ?: run {
+                                            Toast.makeText(context, "Playing: ${item.chapter.title}", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                )
+                            }
+                            is SearchResultItem.Media -> {
+                                SearchMediaItemCard(
+                                    manga = item.manga,
+                                    trackCount = item.trackCount,
+                                    context = context,
+                                    glowColor = glowColor,
+                                    onClick = { onNavigateToDescription(item.manga.id) }
+                                )
+                            }
                         }
                     }
                 }
+
+                // Top Graceful Fading Blur / Gradient Scrim right below header
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(20.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF0F0E17).copy(alpha = 0.85f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
+                )
             }
         }
     }
