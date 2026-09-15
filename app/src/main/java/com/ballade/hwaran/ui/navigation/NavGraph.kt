@@ -119,27 +119,27 @@ fun AppNavGraph(
         startDestination = startDestination,
         enterTransition = {
             slideInHorizontally(
-                initialOffsetX = { (it * 0.30f).toInt() },
-                animationSpec = tween(280, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(240, easing = LinearOutSlowInEasing))
+                initialOffsetX = { (it * 0.25f).toInt() },
+                animationSpec = tween(240, easing = EmphasizedDecelerate)
+            ) + fadeIn(animationSpec = tween(200, easing = LinearOutSlowInEasing))
         },
         exitTransition = {
             slideOutHorizontally(
                 targetOffsetX = { (-it * 0.10f).toInt() },
-                animationSpec = tween(260, easing = FastOutSlowInEasing)
-            ) + fadeOut(animationSpec = tween(200))
+                animationSpec = tween(200, easing = EmphasizedAccelerate)
+            ) + fadeOut(animationSpec = tween(160))
         },
         popEnterTransition = {
             slideInHorizontally(
                 initialOffsetX = { (-it * 0.10f).toInt() },
-                animationSpec = tween(280, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(240, easing = LinearOutSlowInEasing))
+                animationSpec = tween(240, easing = EmphasizedDecelerate)
+            ) + fadeIn(animationSpec = tween(200, easing = LinearOutSlowInEasing))
         },
         popExitTransition = {
             slideOutHorizontally(
                 targetOffsetX = { it },
-                animationSpec = tween(280, easing = FastOutSlowInEasing)
-            ) + fadeOut(animationSpec = tween(280))
+                animationSpec = tween(220, easing = EmphasizedAccelerate)
+            ) + fadeOut(animationSpec = tween(180))
         }
     ) {
         composable(
@@ -241,26 +241,26 @@ fun AppNavGraph(
             enterTransition = {
                 slideInHorizontally(
                     initialOffsetX = { it },
-                    animationSpec = tween(280, easing = FastOutSlowInEasing)
-                ) + fadeIn(animationSpec = tween(200))
+                    animationSpec = tween(260, easing = EmphasizedDecelerate)
+                ) + fadeIn(animationSpec = tween(180))
             },
             exitTransition = {
                 slideOutHorizontally(
                     targetOffsetX = { (-it * 0.10f).toInt() },
-                    animationSpec = tween(240, easing = FastOutSlowInEasing)
-                ) + fadeOut(animationSpec = tween(200))
+                    animationSpec = tween(200, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(160))
             },
             popEnterTransition = {
                 slideInHorizontally(
                     initialOffsetX = { (-it * 0.10f).toInt() },
-                    animationSpec = tween(260, easing = FastOutSlowInEasing)
-                ) + fadeIn(animationSpec = tween(200))
+                    animationSpec = tween(240, easing = EmphasizedDecelerate)
+                ) + fadeIn(animationSpec = tween(180))
             },
             popExitTransition = {
                 slideOutHorizontally(
                     targetOffsetX = { it },
-                    animationSpec = tween(280, easing = FastOutSlowInEasing)
-                ) + fadeOut(animationSpec = tween(280))
+                    animationSpec = tween(220, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(180))
             }
         ) { backStackEntry ->
             val mangaId = backStackEntry.arguments?.getString("mangaId")?.toLongOrNull() ?: 0L
@@ -323,26 +323,26 @@ fun AppNavGraph(
             enterTransition = {
                 slideInHorizontally(
                     initialOffsetX = { it },
-                    animationSpec = tween(280, easing = FastOutSlowInEasing)
-                ) + fadeIn(animationSpec = tween(200))
+                    animationSpec = tween(260, easing = EmphasizedDecelerate)
+                ) + fadeIn(animationSpec = tween(180))
             },
             exitTransition = {
                 slideOutHorizontally(
                     targetOffsetX = { (-it * 0.10f).toInt() },
-                    animationSpec = tween(240, easing = FastOutSlowInEasing)
-                ) + fadeOut(animationSpec = tween(200))
+                    animationSpec = tween(200, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(160))
             },
             popEnterTransition = {
                 slideInHorizontally(
                     initialOffsetX = { (-it * 0.10f).toInt() },
-                    animationSpec = tween(260, easing = FastOutSlowInEasing)
-                ) + fadeIn(animationSpec = tween(200))
+                    animationSpec = tween(240, easing = EmphasizedDecelerate)
+                ) + fadeIn(animationSpec = tween(180))
             },
             popExitTransition = {
                 slideOutHorizontally(
                     targetOffsetX = { it },
-                    animationSpec = tween(280, easing = FastOutSlowInEasing)
-                ) + fadeOut(animationSpec = tween(280))
+                    animationSpec = tween(220, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(180))
             }
         ) { backStackEntry ->
             val mangaId = backStackEntry.arguments?.getString("mangaId")?.toLongOrNull() ?: 0L
@@ -480,23 +480,23 @@ fun AppNavGraph(
             enterTransition = {
                 slideInVertically(
                     initialOffsetY = { it },
-                    animationSpec = tween(300, easing = FastOutSlowInEasing)
-                ) + fadeIn(animationSpec = tween(240))
+                    animationSpec = tween(260, easing = EmphasizedDecelerate)
+                ) + fadeIn(animationSpec = tween(180))
             },
             exitTransition = {
                 slideOutVertically(
                     targetOffsetY = { it },
-                    animationSpec = tween(260, easing = FastOutSlowInEasing)
-                ) + fadeOut(animationSpec = tween(240))
+                    animationSpec = tween(220, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(180))
             },
             popEnterTransition = {
-                fadeIn(animationSpec = tween(240))
+                fadeIn(animationSpec = tween(180))
             },
             popExitTransition = {
                 slideOutVertically(
                     targetOffsetY = { it },
-                    animationSpec = tween(260, easing = FastOutSlowInEasing)
-                ) + fadeOut(animationSpec = tween(240))
+                    animationSpec = tween(220, easing = EmphasizedAccelerate)
+                ) + fadeOut(animationSpec = tween(180))
             }
         ) {
             BlockTouchesWhenExiting {

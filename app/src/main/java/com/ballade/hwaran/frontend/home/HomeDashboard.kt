@@ -41,6 +41,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.TextStyle
 import com.ballade.hwaran.core.database.AppDatabase
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.HistoryEventEntity
@@ -594,7 +603,26 @@ private fun BannerCarouselSection(
                     dampingRatio = Spring.DampingRatioNoBouncy
                 )
             ),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    val fadeWidth = 16.dp.toPx()
+                    if (fadeWidth > 0f && size.width > fadeWidth * 2) {
+                        val showLeftFade = pagerState.canScrollBackward
+                        val showRightFade = pagerState.canScrollForward
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                0f to (if (showLeftFade) Color.Transparent else Color.Black),
+                                (fadeWidth / size.width) to Color.Black,
+                                ((size.width - fadeWidth) / size.width) to Color.Black,
+                                1f to (if (showRightFade) Color.Transparent else Color.Black)
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+                }
         ) { virtualPage ->
             val page = virtualPage % actualCount
             val context = LocalContext.current
@@ -667,84 +695,90 @@ private fun MediaShortcutsSection(
     onShortcutClick: (tag: String) -> Unit,
     onMusicClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    SmoothFadingLazyRow(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp)
     ) {
-        // 1. All
-        ShortcutCard(
-            icon = Icons.Rounded.GridView,
-            title = "All",
-            count = allCount,
-            onClick = { onShortcutClick("All") }
-        )
+        item {
+            ShortcutCard(
+                icon = Icons.Rounded.GridView,
+                title = "All",
+                count = allCount,
+                onClick = { onShortcutClick("All") }
+            )
+        }
 
-        // 2. Fav
-        ShortcutCard(
-            icon = Icons.Rounded.Star,
-            title = "Fav",
-            count = favoriteCount,
-            onClick = { onShortcutClick("Fav") }
-        )
+        item {
+            ShortcutCard(
+                icon = Icons.Rounded.Star,
+                title = "Fav",
+                count = favoriteCount,
+                onClick = { onShortcutClick("Fav") }
+            )
+        }
 
-        // 3. Manhua
-        ShortcutCard(
-            icon = Icons.AutoMirrored.Rounded.MenuBook,
-            title = "Manhua",
-            count = manhuaCount,
-            onClick = { onShortcutClick("Manhua") }
-        )
+        item {
+            ShortcutCard(
+                icon = Icons.AutoMirrored.Rounded.MenuBook,
+                title = "Manhua",
+                count = manhuaCount,
+                onClick = { onShortcutClick("Manhua") }
+            )
+        }
 
-        // 4. Manga
-        ShortcutCard(
-            icon = Icons.Rounded.AutoStories,
-            title = "Manga",
-            count = mangaCount,
-            onClick = { onShortcutClick("Manga") }
-        )
+        item {
+            ShortcutCard(
+                icon = Icons.Rounded.AutoStories,
+                title = "Manga",
+                count = mangaCount,
+                onClick = { onShortcutClick("Manga") }
+            )
+        }
 
-        // 5. Light Novel
-        ShortcutCard(
-            icon = Icons.Rounded.ImportContacts,
-            title = "Light Novel",
-            count = novelCount,
-            onClick = { onShortcutClick("Light Novel") }
-        )
+        item {
+            ShortcutCard(
+                icon = Icons.Rounded.ImportContacts,
+                title = "Light Novel",
+                count = novelCount,
+                onClick = { onShortcutClick("Light Novel") }
+            )
+        }
 
-        // 6. Book
-        ShortcutCard(
-            icon = Icons.Rounded.Book,
-            title = "Book",
-            count = bookCount,
-            onClick = { onShortcutClick("Book") }
-        )
+        item {
+            ShortcutCard(
+                icon = Icons.Rounded.Book,
+                title = "Book",
+                count = bookCount,
+                onClick = { onShortcutClick("Book") }
+            )
+        }
 
-        // 7. Series
-        ShortcutCard(
-            icon = Icons.Rounded.PlayCircle,
-            title = "Series",
-            count = seriesCount,
-            onClick = { onShortcutClick("Series") }
-        )
+        item {
+            ShortcutCard(
+                icon = Icons.Rounded.PlayCircle,
+                title = "Series",
+                count = seriesCount,
+                onClick = { onShortcutClick("Series") }
+            )
+        }
 
-        // 8. Channel
-        ShortcutCard(
-            icon = Icons.Rounded.Subscriptions,
-            title = "Channel",
-            count = channelCount,
-            onClick = { onShortcutClick("Channel") }
-        )
+        item {
+            ShortcutCard(
+                icon = Icons.Rounded.Subscriptions,
+                title = "Channel",
+                count = channelCount,
+                onClick = { onShortcutClick("Channel") }
+            )
+        }
 
-        // 9. Music
-        ShortcutCard(
-            icon = Icons.Rounded.MusicNote,
-            title = "Music",
-            count = musicCount,
-            onClick = onMusicClick
-        )
+        item {
+            ShortcutCard(
+                icon = Icons.Rounded.MusicNote,
+                title = "Music",
+                count = musicCount,
+                onClick = onMusicClick
+            )
+        }
     }
 }
 
@@ -833,7 +867,7 @@ private fun ContinueWatchingSection(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        LazyRow(
+        SmoothFadingLazyRow(
             contentPadding = PaddingValues(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -910,14 +944,29 @@ private fun ContinueWatchingSection(
                                 color = Color.White,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
+                                style = TextStyle(
+                                    shadow = Shadow(
+                                        color = Color.Black,
+                                        offset = Offset(0f, 2f),
+                                        blurRadius = 8f
+                                    )
+                                ),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
 
                             Text(
                                 text = item.displaySubtitle,
-                                color = Color.White.copy(alpha = 0.65f),
+                                color = Color.White.copy(alpha = 0.85f),
                                 fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                style = TextStyle(
+                                    shadow = Shadow(
+                                        color = Color.Black,
+                                        offset = Offset(0f, 2f),
+                                        blurRadius = 6f
+                                    )
+                                ),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -967,7 +1016,7 @@ private fun RecentlyAddedSection(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        LazyRow(
+        SmoothFadingLazyRow(
             contentPadding = PaddingValues(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -1026,23 +1075,33 @@ private fun RecentlyAddedSection(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .fillMaxHeight(0.6f)
                                 .align(Alignment.BottomCenter)
                                 .background(
                                     Brush.verticalGradient(
                                         colors = listOf(
                                             Color.Transparent,
-                                            Color.Black.copy(alpha = 0.55f),
-                                            Color.Black.copy(alpha = 0.88f)
+                                            Color.Black.copy(alpha = 0.35f),
+                                            Color.Black.copy(alpha = 0.75f),
+                                            Color.Black.copy(alpha = 0.95f)
                                         )
                                     )
                                 )
-                                .padding(horizontal = 6.dp, vertical = 6.dp)
+                                .padding(horizontal = 7.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.BottomStart
                         ) {
                             Text(
                                 text = manga.title,
-                                color = Color(0xFFF0F2F5),
+                                color = Color.White,
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = FontWeight.Bold,
+                                style = TextStyle(
+                                    shadow = Shadow(
+                                        color = Color.Black,
+                                        offset = Offset(0f, 2f),
+                                        blurRadius = 8f
+                                    )
+                                ),
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                                 lineHeight = 13.sp
@@ -1180,9 +1239,9 @@ private fun RecentlyAddedSheet(
             Spacer(modifier = Modifier.height(14.dp))
 
             // Filter pills
-            LazyRow(
+            SmoothFadingLazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
+                contentPadding = PaddingValues(0.dp)
             ) {
                 items(filters) { filter ->
                     val isSel = selectedFilter == filter
@@ -1325,3 +1384,40 @@ private fun RecentlyAddedSheet(
         }
     }
 }
+
+@Composable
+private fun SmoothFadingLazyRow(
+    modifier: Modifier = Modifier,
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(8.dp),
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    content: LazyListScope.() -> Unit
+) {
+    val state = rememberLazyListState()
+    LazyRow(
+        state = state,
+        horizontalArrangement = horizontalArrangement,
+        contentPadding = contentPadding,
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                val fadeWidth = 16.dp.toPx()
+                if (fadeWidth > 0f && size.width > fadeWidth * 2) {
+                    val leftFade = if (state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0) (fadeWidth / size.width) else 0f
+                    val rightFade = if (state.canScrollForward) ((size.width - fadeWidth) / size.width) else 1f
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            0f to (if (state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0) Color.Transparent else Color.Black),
+                            leftFade to Color.Black,
+                            rightFade to Color.Black,
+                            1f to (if (state.canScrollForward) Color.Transparent else Color.Black)
+                        ),
+                        blendMode = BlendMode.DstIn
+                    )
+                }
+            },
+        content = content
+    )
+}
+

@@ -61,6 +61,11 @@ import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.core.util.CoverArtResolver
 import com.ballade.hwaran.frontend.player.video.VideoPreview
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.geometry.Offset
 import java.io.File
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
@@ -81,6 +86,7 @@ fun SeriesRelatedView(
     onNavigateToRelated: (Long) -> Unit,
     onCreateRelatedBox: (String, String) -> Unit = { _, _ -> },
     onLinkExistingMedia: (Long, String, String?) -> Unit,
+    onLinkMultipleExistingMedia: (List<Long>, String) -> Unit = { _, _ -> },
     onUnlinkRelated: (Long) -> Unit,
     onDeleteRelated: (Long) -> Unit,
     onRefreshAvailableMedia: () -> Unit
@@ -189,11 +195,11 @@ fun SeriesRelatedView(
         when (selectedFilterCategory) {
             "Seasons" -> childBoxes.filter {
                 val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
-                rel == SeriesRelationType.SEASON
+                rel == SeriesRelationType.SEASON || (it.parentMangaId == null && (it.boxPurpose == null || it.boxPurpose == "series"))
             }
             "Movies" -> childBoxes.filter {
                 val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
-                rel == SeriesRelationType.MOVIE
+                rel == SeriesRelationType.MOVIE || it.boxPurpose?.contains("movie", ignoreCase = true) == true
             }
             "OVAs & ONAs" -> childBoxes.filter {
                 val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
@@ -1400,357 +1406,16 @@ fun SeriesRelatedView(
         )
     }
 
-    // ── Luxury Modal Bottom Sheet: Link Media from Library ──
+    // ── Full-Screen Library Media Link Picker ──
     if (showLinkSheet) {
-        var selectedExistingMedia by remember { mutableStateOf<MangaEntity?>(null) }
-        var selectedRelationType by remember { mutableStateOf(SeriesRelationType.SEASON) }
-        var customLabel by remember { mutableStateOf("") }
-        var searchQuery by remember { mutableStateOf("") }
-        var typeFilter by remember { mutableStateOf("All") }
-
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-        ModalBottomSheet(
-            onDismissRequest = { showLinkSheet = false },
-            sheetState = sheetState,
-            containerColor = Color(0xFF14121A),
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 36.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Sheet Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Link from Library",
-                            color = Color.White,
-                            fontSize = 19.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Choose media to link to \"${manga.title}\"",
-                            color = TextMuted,
-                            fontSize = 12.sp
-                        )
-                    }
-                    IconButton(
-                        onClick = { showLinkSheet = false },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(Icons.Rounded.Close, contentDescription = "Close", tint = TextMuted)
-                    }
-                }
-
-                // Search Bar
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search library anime, movies, series...", color = TextMuted, fontSize = 13.sp) },
-                    leadingIcon = {
-                        Icon(Icons.Rounded.Search, contentDescription = null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Rounded.Close, contentDescription = "Clear", tint = TextMuted, modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color.White.copy(alpha = 0.25f),
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.12f),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // Media Type Filter Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf("All", "Series", "Movies", "Books", "Manga").forEach { filter ->
-                        val isSel = typeFilter == filter
-                        Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable { typeFilter = filter },
-                            color = if (isSel) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                            border = BorderStroke(1.dp, if (isSel) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text(
-                                text = filter,
-                                color = if (isSel) Color(0xFFE6E8EC) else TextMuted,
-                                fontSize = 11.5.sp,
-                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
-                            )
-                        }
-                    }
-                }
-
-                // Filtered Candidates from Library
-                val candidates = remember(availableMediaForLinking, searchQuery, typeFilter) {
-                    availableMediaForLinking.filter { candidate ->
-                        val matchesSearch = searchQuery.isBlank() || candidate.title.contains(searchQuery.trim(), ignoreCase = true)
-                        val matchesType = when (typeFilter) {
-                            "Series" -> candidate.contentType == 2 && candidate.boxPurpose != "channel"
-                            "Movies" -> candidate.contentType == 2 && candidate.boxPurpose?.contains("movie", ignoreCase = true) == true
-                            "Books" -> candidate.contentType == 1
-                            "Manga" -> candidate.contentType == 0
-                            else -> true
-                        }
-                        matchesSearch && matchesType
-                    }
-                }
-
-                // Candidates Selection Area
-                if (candidates.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (searchQuery.isNotBlank()) "No library items match \"$searchQuery\"" else "No available media in library to link",
-                            color = TextMuted,
-                            fontSize = 13.sp
-                        )
-                    }
-                } else {
-                    Text(
-                        text = "SELECT MEDIA TO LINK",
-                        color = TextMuted,
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.8.sp
-                    )
-
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 200.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(candidates, key = { it.id }) { candidate ->
-                            val isSelected = selectedExistingMedia?.id == candidate.id
-                            val candidateCover = remember(candidate.coverPath, candidate.parentUri) {
-                                CoverArtResolver.resolveCoverModel(candidate.coverPath, candidate.parentUri, null, context)
-                            }
-
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .clickable {
-                                        selectedExistingMedia = candidate
-                                        if (customLabel.isBlank()) {
-                                            customLabel = candidate.title
-                                        }
-                                    },
-                                color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (isSelected) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.08f)
-                                ),
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    // Cover art
-                                    Box(
-                                        modifier = Modifier
-                                            .size(width = 38.dp, height = 52.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color.Black.copy(alpha = 0.4f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        if (candidateCover != null) {
-                                            AsyncImage(
-                                                model = ImageRequest.Builder(context)
-                                                    .data(candidateCover)
-                                                    .crossfade(true)
-                                                    .build(),
-                                                contentDescription = candidate.title,
-                                                contentScale = ContentScale.Crop,
-                                                modifier = Modifier.fillMaxSize()
-                                            )
-                                        } else {
-                                            Icon(Icons.Rounded.Movie, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
-                                        }
-                                    }
-
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = candidate.title,
-                                            color = Color.White,
-                                            fontSize = 13.5.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            text = when (candidate.contentType) {
-                                                1 -> "Book / Novel"
-                                                2 -> if (candidate.boxPurpose == "channel") "Channel" else "Series"
-                                                else -> "Manga / Manhua"
-                                            },
-                                            color = TextMuted,
-                                            fontSize = 11.sp
-                                        )
-                                    }
-
-                                    if (isSelected) {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = Color(0xFF222631),
-                                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)),
-                                            modifier = Modifier.size(22.dp)
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(Icons.Rounded.Check, contentDescription = null, tint = Color(0xFFE6E8EC), modifier = Modifier.size(14.dp))
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Relation Type Classification Section (Shown when media is selected)
-                if (selectedExistingMedia != null) {
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "ASSIGN RELATION TAG",
-                            color = TextMuted,
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.8.sp
-                        )
-
-                        // Rich Visual Relation Tags
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(7.dp),
-                            verticalArrangement = Arrangement.spacedBy(7.dp)
-                        ) {
-                            SeriesRelationType.allOptions.forEach { type ->
-                                val isSel = selectedRelationType == type
-                                Surface(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .clickable { selectedRelationType = type },
-                                    color = if (isSel) type.color.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.05f),
-                                    border = BorderStroke(
-                                        if (isSel) 1.5.dp else 1.dp,
-                                        if (isSel) type.color else Color.White.copy(alpha = 0.10f)
-                                    ),
-                                    shape = RoundedCornerShape(10.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = type.icon,
-                                            contentDescription = null,
-                                            tint = if (isSel) type.color else TextMuted,
-                                            modifier = Modifier.size(13.dp)
-                                        )
-                                        Text(
-                                            text = type.displayName,
-                                            color = if (isSel) type.color else Color.White.copy(alpha = 0.85f),
-                                            fontSize = 11.5.sp,
-                                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Optional Custom Label
-                    OutlinedTextField(
-                        value = customLabel,
-                        onValueChange = { customLabel = it },
-                        label = { Text("Display Label in Series (Optional)", fontSize = 12.sp) },
-                        placeholder = { Text(selectedExistingMedia?.title ?: "e.g. Season 2, Movie 1", color = TextMuted, fontSize = 12.sp) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color.White.copy(alpha = 0.25f),
-                            focusedLabelColor = Color(0xFFE6E8EC),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        )
-                    )
-                }
-
-                // Link Action Button
-                Button(
-                    onClick = {
-                        selectedExistingMedia?.let { media ->
-                            onLinkExistingMedia(
-                                media.id,
-                                selectedRelationType.id,
-                                customLabel.trim().ifBlank { null }
-                            )
-                            showLinkSheet = false
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF222631),
-                        contentColor = Color(0xFFE6E8EC),
-                        disabledContainerColor = Color.White.copy(alpha = 0.05f),
-                        disabledContentColor = Color.White.copy(alpha = 0.3f)
-                    ),
-                    border = BorderStroke(1.dp, if (selectedExistingMedia != null) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.08f)),
-                    enabled = selectedExistingMedia != null
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(Icons.Rounded.Link, contentDescription = null, tint = if (selectedExistingMedia != null) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.3f), modifier = Modifier.size(18.dp))
-                        Text(
-                            text = if (selectedExistingMedia != null) "Link \"${selectedExistingMedia!!.title}\"" else "Select Media from Library",
-                            color = if (selectedExistingMedia != null) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.3f),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
+        FullLibraryLinkPickerModal(
+            targetManga = manga,
+            availableMedia = availableMediaForLinking,
+            onDismiss = { showLinkSheet = false },
+            onLinkSelected = { selectedIds, relationType ->
+                onLinkMultipleExistingMedia(selectedIds, relationType)
             }
-        }
+        )
     }
 
     // ── Unlink Confirmation Dialog ──
@@ -1799,3 +1464,374 @@ fun SeriesRelatedView(
         )
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FullLibraryLinkPickerModal(
+    targetManga: MangaEntity,
+    availableMedia: List<MangaEntity>,
+    onDismiss: () -> Unit,
+    onLinkSelected: (List<Long>, String) -> Unit
+) {
+    val context = LocalContext.current
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("All") }
+    var selectedRelation by remember { mutableStateOf(SeriesRelationType.SEASON) }
+    val selectedIds = remember { mutableStateListOf<Long>() }
+
+    val categoryPills = remember {
+        listOf("All", "Videos", "Series", "Channels", "Movies", "OVAs & ONAs", "Specials")
+    }
+
+    val filteredMedia = remember(availableMedia, searchQuery, selectedCategory) {
+        availableMedia.filter { item ->
+            val matchesQuery = searchQuery.isBlank() || item.title.contains(searchQuery, ignoreCase = true)
+            val rel = SeriesRelationType.fromPurpose(item.boxPurpose)
+            val matchesCategory = when (selectedCategory) {
+                "Videos" -> item.contentType == 2
+                "Series" -> item.contentType == 2 && (item.boxPurpose == null || item.boxPurpose == "series")
+                "Channels" -> item.contentType == 2 && item.boxPurpose == "channel"
+                "Movies" -> rel == SeriesRelationType.MOVIE || item.boxPurpose?.contains("movie", ignoreCase = true) == true
+                "OVAs & ONAs" -> rel == SeriesRelationType.OVA || rel == SeriesRelationType.ONA
+                "Specials" -> rel == SeriesRelationType.SPECIAL || rel == SeriesRelationType.BLURAY
+                else -> true
+            }
+            matchesQuery && matchesCategory
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color(0xFF0F0F13)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+            ) {
+                // ── Top Header ──
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "Link Media to Series",
+                                color = Color.White,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Target: ${targetManga.title}",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    if (selectedIds.isNotEmpty()) {
+                        Button(
+                            onClick = {
+                                onLinkSelected(selectedIds.toList(), selectedRelation.id)
+                                onDismiss()
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            ),
+                            shape = RoundedCornerShape(20.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Link,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Link (${selectedIds.size})",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+
+                // ── Search Bar ──
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    placeholder = { Text("Search media to link...", color = Color.Gray) },
+                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = Color.Gray) },
+                    trailingIcon = if (searchQuery.isNotEmpty()) {
+                        {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Rounded.Close, contentDescription = "Clear", tint = Color.Gray)
+                            }
+                        }
+                    } else null,
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.White.copy(alpha = 0.05f),
+                        unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+
+                // ── Category Pills (Media Type Filter) ──
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(categoryPills) { cat ->
+                        val isSelected = cat == selectedCategory
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedCategory = cat },
+                            label = { Text(cat, fontSize = 13.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                containerColor = Color.White.copy(alpha = 0.07f),
+                                labelColor = Color.White
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = isSelected,
+                                borderColor = Color.White.copy(alpha = 0.15f),
+                                selectedBorderColor = MaterialTheme.colorScheme.primary
+                            ),
+                            shape = RoundedCornerShape(20.dp)
+                        )
+                    }
+                }
+
+                // ── Relation Selector ──
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Assign As:",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(SeriesRelationType.entries) { rel: SeriesRelationType ->
+                            val isSelected = rel == selectedRelation
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.White.copy(alpha = 0.06f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.12f)
+                                ),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable { selectedRelation = rel }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = rel.icon,
+                                        contentDescription = null,
+                                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else Color.White,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = rel.displayName,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else Color.White
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // ── Grid of Available Media ──
+                if (filteredMedia.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.SearchOff,
+                                contentDescription = null,
+                                tint = Color.Gray,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Text(
+                                text = if (searchQuery.isNotEmpty()) "No matching media found" else "No available media to link",
+                                color = Color.Gray,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 120.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentPadding = PaddingValues(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(filteredMedia, key = { it.id }) { item ->
+                            val isSelected = selectedIds.contains(item.id)
+                            val coverModel = remember(item.id) {
+                                CoverArtResolver.resolveCoverModel(item.coverPath, item.parentUri, null, context)
+                            }
+
+                            Card(
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
+                                border = BorderStroke(
+                                    width = if (isSelected) 2.dp else 1.dp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.1f)
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(0.72f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        if (isSelected) {
+                                            selectedIds.remove(item.id)
+                                        } else {
+                                            selectedIds.add(item.id)
+                                        }
+                                    }
+                            ) {
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    if (coverModel != null) {
+                                        AsyncImage(
+                                            model = ImageRequest.Builder(context)
+                                                .data(coverModel)
+                                                .crossfade(true)
+                                                .build(),
+                                            contentDescription = item.title,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(Color.White.copy(alpha = 0.08f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Movie,
+                                                contentDescription = null,
+                                                tint = Color.White.copy(alpha = 0.4f),
+                                                modifier = Modifier.size(36.dp)
+                                            )
+                                        }
+                                    }
+
+                                    // Gradient overlay at bottom for title legibility
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .fillMaxHeight(0.5f)
+                                            .align(Alignment.BottomCenter)
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+                                                )
+                                            )
+                                    )
+
+                                    // Title at bottom
+                                    Text(
+                                        text = item.title,
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier
+                                            .align(Alignment.BottomStart)
+                                            .padding(8.dp)
+                                    )
+
+                                    // Selection badge (Top Right)
+                                    if (isSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(6.dp)
+                                                .size(24.dp)
+                                                .background(MaterialTheme.colorScheme.primary, CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Check,
+                                                contentDescription = "Selected",
+                                                tint = MaterialTheme.colorScheme.onPrimary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

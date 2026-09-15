@@ -213,8 +213,11 @@ class MainActivity : ComponentActivity() {
                                 val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
                                 val currentChapter by musicViewModel.currentChapter.collectAsState()
-                                val isMiniPlayerVisible = remember(currentRoute, currentChapter) {
+                                val currentLifecycleState by (navBackStackEntry?.lifecycle?.currentStateFlow ?: remember { kotlinx.coroutines.flow.MutableStateFlow(androidx.lifecycle.Lifecycle.State.RESUMED) }).collectAsState(androidx.lifecycle.Lifecycle.State.RESUMED)
+                                val isMiniPlayerVisible = remember(currentRoute, currentChapter, activeTab, currentLifecycleState) {
                                     currentChapter != null &&
+                                    currentLifecycleState == androidx.lifecycle.Lifecycle.State.RESUMED &&
+                                    !(currentRoute == Screen.Home.route && activeTab == 1) &&
                                     currentRoute != Screen.NowPlaying.route && 
                                     currentRoute != Screen.Settings.route &&
                                     currentRoute != Screen.Canvas.route &&

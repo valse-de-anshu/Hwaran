@@ -407,6 +407,9 @@ fun DescriptionScreen(
                             onLinkExistingMedia = { targetId, purpose, label ->
                                 descriptionViewModel.linkExistingMediaAsRelated(targetId, purpose, label)
                             },
+                            onLinkMultipleExistingMedia = { targetIds, purpose ->
+                                descriptionViewModel.linkMultipleExistingMedia(targetIds, purpose)
+                            },
                             onUnlinkRelated = { descriptionViewModel.unlinkRelatedMedia(it) },
                             onDeleteRelated = { descriptionViewModel.deleteRelatedMedia(it) },
                             onRefreshAvailableMedia = { descriptionViewModel.loadAvailableMediaForLinking() }

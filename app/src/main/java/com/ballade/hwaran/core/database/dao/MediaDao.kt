@@ -25,6 +25,12 @@ interface MediaDao {
     @Query("SELECT * FROM manga WHERE parentMangaId = :parentId ORDER BY position ASC, id ASC")
     fun getChildrenForManga(parentId: Long): Flow<List<MangaEntity>>
 
+    @Query("SELECT * FROM manga WHERE id = :rootId OR parentMangaId = :rootId ORDER BY position ASC, id ASC")
+    fun getFranchiseClusterForManga(rootId: Long): Flow<List<MangaEntity>>
+
+    @Query("SELECT * FROM manga WHERE id = :rootId OR parentMangaId = :rootId ORDER BY position ASC, id ASC")
+    suspend fun getFranchiseClusterList(rootId: Long): List<MangaEntity>
+
     @Query("SELECT * FROM manga WHERE id = :id LIMIT 1")
     suspend fun getMangaById(id: Long): MangaEntity?
 

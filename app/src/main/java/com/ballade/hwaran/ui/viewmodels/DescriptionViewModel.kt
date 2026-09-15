@@ -188,7 +188,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                 childBoxesJob?.cancel()
                 childBoxesJob = launch {
                     val parentIdForChildren = m?.parentMangaId ?: mangaId
-                    libraryDao.getChildrenForManga(parentIdForChildren).collect { list ->
+                    libraryDao.getFranchiseClusterForManga(parentIdForChildren).collect { list ->
                         _childBoxes.value = list
                     }
                 }
@@ -382,10 +382,34 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
     fun loadAvailableMediaForLinking() {
         viewModelScope.launch {
             val root = _manga.value ?: return@launch
-            val all = withContext(Dispatchers.IO) { libraryDao.getAllMangaList() }
             val rootId = root.parentMangaId ?: root.id
-            val linkedIds = _childBoxes.value.map { it.id }.toSet() + rootId
-            _availableMediaForLinking.value = all.filter { it.id !in linkedIds }
+            val cluster = withContext(Dispatchers.IO) { libraryDao.getFranchiseClusterList(rootId) }
+            val clusterIds = cluster.map { it.id }.toSet()
+            val all = withContext(Dispatchers.IO) { libraryDao.getAllMangaEverywhere() }
+            _availableMediaForLinking.value = all.filter { candidate ->
+                candidate.id !in clusterIds && candidate.parentMangaId == null
+            }
+        }
+    }
+
+    fun linkMultipleExistingMedia(targetMangaIds: List<Long>, relationType: String, onLinked: () -> Unit = {}) {
+        val root = _manga.value ?: return
+        viewModelScope.launch {
+            val rootId = root.parentMangaId ?: root.id
+            withContext(Dispatchers.IO) {
+                targetMangaIds.forEachIndexed { index, targetId ->
+                    val target = libraryDao.getMangaById(targetId) ?: return@forEachIndexed
+                    val updated = target.copy(
+                        parentMangaId = rootId,
+                        boxPurpose = relationType,
+                        boxLabel = target.title,
+                        position = _childBoxes.value.size + index
+                    )
+                    libraryDao.insertManga(updated)
+                }
+            }
+            loadManga(currentMangaId)
+            onLinked()
         }
     }
 

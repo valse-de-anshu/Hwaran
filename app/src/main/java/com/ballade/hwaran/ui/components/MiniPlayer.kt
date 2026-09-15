@@ -158,8 +158,8 @@ fun MiniPlayer(
         // Ultra-compact vertical mini player for Home screen (right side)
         AnimatedVisibility(
             visible = isVisible && currentChapter != null,
-            enter = fadeIn(tween(500)) + slideInHorizontally(tween(500, easing = EaseOutBack)) { it },
-            exit = fadeOut(tween(350)) + slideOutHorizontally(tween(350)) { it }
+            enter = fadeIn(tween(220, easing = LinearOutSlowInEasing)) + slideInHorizontally(tween(260, easing = FastOutSlowInEasing)) { it },
+            exit = fadeOut(tween(160, easing = LinearOutSlowInEasing)) + slideOutHorizontally(tween(180, easing = FastOutSlowInEasing)) { it }
         ) {
             AnimatedContent(
                 targetState = isCollapsed,
@@ -425,8 +425,8 @@ fun MiniPlayer(
         // Full horizontal MiniPlayer for description/playlist detail/history screens
         AnimatedVisibility(
             visible = isVisible && currentChapter != null,
-            enter = fadeIn(tween(600)) + slideInVertically(tween(600, easing = EaseOutBack)) { it },
-            exit = fadeOut(tween(400)) + slideOutVertically(tween(400)) { it }
+            enter = fadeIn(tween(220, easing = LinearOutSlowInEasing)) + slideInVertically(tween(260, easing = FastOutSlowInEasing)) { it / 2 },
+            exit = fadeOut(tween(160, easing = LinearOutSlowInEasing)) + slideOutVertically(tween(180, easing = FastOutSlowInEasing)) { it / 2 }
         ) {
         Box(
             modifier = Modifier
