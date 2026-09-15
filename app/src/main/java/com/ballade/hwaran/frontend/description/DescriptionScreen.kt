@@ -22,8 +22,13 @@ import com.ballade.hwaran.frontend.description.video.ChannelDescriptionView
 import com.ballade.hwaran.frontend.description.video.ChannelVideosView
 import com.ballade.hwaran.frontend.description.video.SeriesDescriptionView
 import com.ballade.hwaran.frontend.description.video.SeriesRelatedView
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ballade.hwaran.ui.viewmodels.DescriptionViewModel
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
+import com.ballade.hwaran.core.database.entity.MangaEntity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,7 +78,14 @@ fun DescriptionScreen(
     val draftMaterialTag by descriptionViewModel.draftMaterialTag.collectAsState()
     val draftIsFavorite by descriptionViewModel.draftIsFavorite.collectAsState()
 
+    val isLibraryLocked by settingsViewModel.isLibraryLocked.collectAsState()
+    val libraryPassword by settingsViewModel.libraryPassword.collectAsState()
     val storageMode by settingsViewModel.storageMode.collectAsState()
+
+    var mangaToUnlockInSeries by remember { mutableStateOf<MangaEntity?>(null) }
+    var unlockPasswordInputInSeries by remember { mutableStateOf("") }
+    var showIncorrectPasswordInSeries by remember { mutableStateOf(false) }
+    var pendingRelatedIdInSeries by remember { mutableStateOf<Long?>(null) }
 
     var showChaptersWindow by remember { mutableStateOf(false) }
     var showSeriesRelatedWindow by remember { mutableStateOf(false) }
@@ -398,7 +410,17 @@ fun DescriptionScreen(
                                 chapterToUpdateThumbnail = videoId
                                 chapterThumbnailLauncher.launch(arrayOf("image/*"))
                             },
-                            onNavigateToRelated = { relatedId -> onNavigateToDescription(relatedId) },
+                            onNavigateToRelated = { relatedId ->
+                                val target = availableMediaForLinking.find { it.id == relatedId }
+                                if (isLibraryLocked && target != null && target.isLocked) {
+                                    mangaToUnlockInSeries = target
+                                    pendingRelatedIdInSeries = relatedId
+                                    unlockPasswordInputInSeries = ""
+                                    showIncorrectPasswordInSeries = false
+                                } else {
+                                    onNavigateToDescription(relatedId)
+                                }
+                            },
                             onCreateRelatedBox = { label, purpose ->
                                 descriptionViewModel.createChildBox(label, purpose) { newId ->
                                     onNavigateToDescription(newId)
@@ -473,6 +495,72 @@ fun DescriptionScreen(
                     }
                 }
             }
+    if (mangaToUnlockInSeries != null) {
+        AlertDialog(
+            onDismissRequest = {
+                mangaToUnlockInSeries = null
+                pendingRelatedIdInSeries = null
+                unlockPasswordInputInSeries = ""
+                showIncorrectPasswordInSeries = false
+            },
+            title = { Text("Unlock Item", color = Color.White, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        text = mangaToUnlockInSeries?.title ?: "",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    OutlinedTextField(
+                        value = unlockPasswordInputInSeries,
+                        onValueChange = { unlockPasswordInputInSeries = it },
+                        label = { Text("Password", color = Color.White.copy(alpha = 0.5f)) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = PrimaryPurple,
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                        )
+                    )
+                    if (showIncorrectPasswordInSeries) {
+                        Text("Incorrect password", color = Color(0xFFE57373), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (unlockPasswordInputInSeries == libraryPassword) {
+                        val id = pendingRelatedIdInSeries
+                        mangaToUnlockInSeries = null
+                        pendingRelatedIdInSeries = null
+                        unlockPasswordInputInSeries = ""
+                        showIncorrectPasswordInSeries = false
+                        if (id != null) {
+                            onNavigateToDescription(id)
+                        }
+                    } else {
+                        showIncorrectPasswordInSeries = true
+                    }
+                }) {
+                    Text("Unlock", color = PrimaryPurple, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    mangaToUnlockInSeries = null
+                    pendingRelatedIdInSeries = null
+                    unlockPasswordInputInSeries = ""
+                    showIncorrectPasswordInSeries = false
+                }) {
+                    Text("Cancel", color = Color.White.copy(alpha = 0.5f))
+                }
+            }
+        )
+    }
         }
     }
 }

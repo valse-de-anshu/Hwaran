@@ -322,6 +322,7 @@ fun MiniPlayer(
                                 Box(
                                     modifier = Modifier
                                         .size(42.dp)
+                                        .clip(CircleShape)
                                         .clickable { onClick() },
                                     contentAlignment = Alignment.Center
                                 ) {

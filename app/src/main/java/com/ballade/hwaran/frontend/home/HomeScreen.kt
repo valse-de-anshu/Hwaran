@@ -166,6 +166,22 @@ fun HomeScreen(
 
     val coroutineScope = rememberCoroutineScope()
     var quickActionsManga by remember { mutableStateOf<MangaEntity?>(null) }
+    var mangaToUnlockInHome by remember { mutableStateOf<MangaEntity?>(null) }
+    var unlockPasswordInputInHome by remember { mutableStateOf("") }
+    var showIncorrectPasswordInHome by remember { mutableStateOf(false) }
+    var pendingActionInHome by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    fun checkLockAndExecute(manga: MangaEntity?, action: () -> Unit) {
+        if (isLibraryLocked && manga != null && manga.isLocked) {
+            mangaToUnlockInHome = manga
+            pendingActionInHome = action
+            unlockPasswordInputInHome = ""
+            showIncorrectPasswordInHome = false
+        } else {
+            action()
+        }
+    }
+
     var isMigratingToVault by remember { mutableStateOf(false) }
     var migrationProgress by remember { mutableIntStateOf(0) }
     var migrationStatus by remember { mutableStateOf("") }
@@ -408,11 +424,20 @@ fun HomeScreen(
                         HomeDashboard(
                             allManga = allManga,
                             historyEvents = historyEvents,
-                            onNavigateToDescription = onNavigateToDescription,
-                            onNavigateToPlaylistDetail = onNavigateToPlaylistDetail,
-                            onNavigateToMedia = onNavigateToMedia,
+                            onNavigateToDescription = { id ->
+                                val m = allManga.find { it.id == id }
+                                checkLockAndExecute(m) { onNavigateToDescription(id) }
+                            },
+                            onNavigateToPlaylistDetail = { id ->
+                                val m = allManga.find { it.id == id }
+                                checkLockAndExecute(m) { onNavigateToPlaylistDetail(id) }
+                            },
+                            onNavigateToMedia = { mediaId, type ->
+                                val m = allManga.find { it.id == mediaId }
+                                checkLockAndExecute(m) { onNavigateToMedia(mediaId, type) }
+                            },
                             onPlaySong = { manga, chapters, index ->
-                                musicViewModel.playPlaylist(manga, chapters, index)
+                                checkLockAndExecute(manga) { musicViewModel.playPlaylist(manga, chapters, index) }
                             },
                             onNavigateToSettings = onNavigateToSettings,
                             onNavigateToSearch = { activeDockTab = 2 },
@@ -450,10 +475,12 @@ fun HomeScreen(
                             allManga = allManga,
                             onNavigateToDescription = { id ->
                                 val m = allManga.find { it.id == id }
-                                if (m?.contentType == 3) onNavigateToPlaylistDetail(id) else onNavigateToDescription(id)
+                                checkLockAndExecute(m) {
+                                    if (m?.contentType == 3) onNavigateToPlaylistDetail(id) else onNavigateToDescription(id)
+                                }
                             },
                             onPlaySong = { manga, chapters, index ->
-                                musicViewModel.playPlaylist(manga, chapters, index)
+                                checkLockAndExecute(manga) { musicViewModel.playPlaylist(manga, chapters, index) }
                             },
                             onBack = { activeDockTab = 0 },
                             glowColor = Color(glowColor),
@@ -656,6 +683,71 @@ fun HomeScreen(
             },
             onDismiss = {
                 quickActionsManga = null
+            }
+        )
+    }
+
+    if (mangaToUnlockInHome != null) {
+        AlertDialog(
+            onDismissRequest = {
+                mangaToUnlockInHome = null
+                pendingActionInHome = null
+                unlockPasswordInputInHome = ""
+                showIncorrectPasswordInHome = false
+            },
+            title = { Text("Unlock Item", color = Color.White, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        text = mangaToUnlockInHome?.title ?: "",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    OutlinedTextField(
+                        value = unlockPasswordInputInHome,
+                        onValueChange = { unlockPasswordInputInHome = it },
+                        label = { Text("Password", color = Color.White.copy(alpha = 0.5f)) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(glowColor),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                        )
+                    )
+                    if (showIncorrectPasswordInHome) {
+                        Text("Incorrect password", color = Color(0xFFE57373), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (unlockPasswordInputInHome == libraryPassword) {
+                        val action = pendingActionInHome
+                        mangaToUnlockInHome = null
+                        pendingActionInHome = null
+                        unlockPasswordInputInHome = ""
+                        showIncorrectPasswordInHome = false
+                        action?.invoke()
+                    } else {
+                        showIncorrectPasswordInHome = true
+                    }
+                }) {
+                    Text("Unlock", color = Color(glowColor), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    mangaToUnlockInHome = null
+                    pendingActionInHome = null
+                    unlockPasswordInputInHome = ""
+                    showIncorrectPasswordInHome = false
+                }) {
+                    Text("Cancel", color = Color.White.copy(alpha = 0.5f))
+                }
             }
         )
     }
