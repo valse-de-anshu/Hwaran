@@ -62,11 +62,14 @@ private data class AnimationItem(
 )
 
 private val ANIMATIONS = listOf(
-    AnimationItem(0, "Stars", "Cosmic drifting starlight", R.drawable.bg_thumb_stars),
-    AnimationItem(1, "Jellyfish", "Deep ocean bioluminescence", R.drawable.bg_thumb_jellyfish),
-    AnimationItem(4, "Kaleidoscope", "Hypnotic geometric blooms", R.drawable.bg_thumb_kaleidoscopio),
-    AnimationItem(5, "Flower", "Harmonic floral petals", R.drawable.bg_thumb_flower),
-    AnimationItem(6, "Liquid Fluid", "Interactive touch particle fluid", R.drawable.bg_thumb_liquid)
+    AnimationItem(0,  "Stars",          "Cosmic drifting starlight",               R.drawable.bg_thumb_stars),
+    AnimationItem(1,  "Jellyfish",      "Deep ocean bioluminescence",              R.drawable.bg_thumb_jellyfish),
+    AnimationItem(4,  "Kaleidoscope",   "Hypnotic geometric blooms",               R.drawable.bg_thumb_kaleidoscopio),
+    AnimationItem(5,  "Flower",         "Harmonic floral petals",                  R.drawable.bg_thumb_flower),
+    AnimationItem(6,  "Liquid Fluid",   "Interactive touch particle fluid",         R.drawable.bg_thumb_liquid),
+    AnimationItem(8,  "Constellation",  "Drifting stars linked by stardust lines", R.drawable.bg_thumb_constellation),
+    AnimationItem(9,  "Neon Ripple",    "Expanding sapphire rings from the void",  R.drawable.bg_thumb_ripple),
+    AnimationItem(10, "Crystal Snow",   "Geometric ice crystals floating down",    R.drawable.bg_thumb_crystalsnow),
 )
 
 @Composable
@@ -101,21 +104,28 @@ fun CanvasScreen(
     // Pointer state for Liquid interactive fluid
     val pointerState = remember { LiquidPointerState() }
 
+    // Shared interaction state for Constellation / Ripple / Crystal Snow
+    val canvasInteractionState = remember { CanvasInteractionState() }
+
     // Ambient background gradient corresponding to the active theme or animation
     val baseGradient = remember(animationType, appGradient) {
         if (appGradient != null) {
             appGradient
         } else {
             when (animationType) {
-                0 -> Brush.verticalGradient(listOf(Color(0xFF020617), Color(0xFF0F172A)))
-                1 -> Brush.verticalGradient(listOf(Color(0xFF0C071E), Color(0xFF1D1442)))
-                4 -> Brush.verticalGradient(listOf(Color(0xFF2E1065), Color(0xFF020617)))
-                5 -> Brush.verticalGradient(listOf(Color(0xFF0B0B1A), Color(0xFF160B24)))
-                6 -> Brush.verticalGradient(listOf(Color(0xFF050510), Color(0xFF0A1020)))
+                0  -> Brush.verticalGradient(listOf(Color(0xFF020617), Color(0xFF0F172A)))
+                1  -> Brush.verticalGradient(listOf(Color(0xFF0C071E), Color(0xFF1D1442)))
+                4  -> Brush.verticalGradient(listOf(Color(0xFF2E1065), Color(0xFF020617)))
+                5  -> Brush.verticalGradient(listOf(Color(0xFF0B0B1A), Color(0xFF160B24)))
+                6  -> Brush.verticalGradient(listOf(Color(0xFF050510), Color(0xFF0A1020)))
+                8  -> Brush.verticalGradient(listOf(Color(0xFF04060F), Color(0xFF07090F))) // Constellation
+                9  -> Brush.verticalGradient(listOf(Color(0xFF030509), Color(0xFF05080E))) // Neon Ripple
+                10 -> Brush.verticalGradient(listOf(Color(0xFF04060C), Color(0xFF070A12))) // Crystal Snow
                 else -> Brush.verticalGradient(listOf(Color(0xFF0A0A0E), Color(0xFF000000)))
             }
         }
     }
+
 
     Box(
         modifier = Modifier
@@ -128,22 +138,42 @@ fun CanvasScreen(
                 .fillMaxSize()
                 .background(baseGradient)
                 .pointerInput(animationType) {
-                    if (animationType == 6) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent(PointerEventPass.Initial)
-                                val change = event.changes.firstOrNull()
-                                if (change != null) {
-                                    pointerState.x = change.position.x
-                                    pointerState.y = change.position.y
-                                    if (change.changedToDown()) {
-                                        pointerState.triggerExplosion()
-                                        pointerState.isPressed = true
-                                    } else if (change.position != change.previousPosition) {
-                                        pointerState.isPressed = false
+                    when {
+                        animationType == 6 -> {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    val change = event.changes.firstOrNull()
+                                    if (change != null) {
+                                        pointerState.x = change.position.x
+                                        pointerState.y = change.position.y
+                                        if (change.changedToDown()) {
+                                            pointerState.triggerExplosion()
+                                            pointerState.isPressed = true
+                                        } else if (change.position != change.previousPosition) {
+                                            pointerState.isPressed = false
+                                        }
+                                        if (!event.changes.any { it.pressed }) {
+                                            pointerState.isPressed = false
+                                        }
                                     }
-                                    if (!event.changes.any { it.pressed }) {
-                                        pointerState.isPressed = false
+                                }
+                            }
+                        }
+                        animationType in 8..10 -> {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    val change = event.changes.firstOrNull()
+                                    if (change != null) {
+                                        if (change.changedToDown()) {
+                                            canvasInteractionState.onTapDown(change.position.x, change.position.y)
+                                        } else if (change.pressed) {
+                                            canvasInteractionState.onMove(change.position.x, change.position.y)
+                                        }
+                                        if (!event.changes.any { it.pressed }) {
+                                            canvasInteractionState.onRelease()
+                                        }
                                     }
                                 }
                             }
@@ -151,11 +181,14 @@ fun CanvasScreen(
                     }
                 }
         ) {
-            val starsAlpha by animateFloatAsState(targetValue = if (animationType == 0) 1f else 0f, animationSpec = tween(800), label = "stars")
-            val jellyfishAlpha by animateFloatAsState(targetValue = if (animationType == 1) 1f else 0f, animationSpec = tween(800), label = "jellyfish")
-            val kaleidoscopeAlpha by animateFloatAsState(targetValue = if (animationType == 4) 1f else 0f, animationSpec = tween(800), label = "kaleidoscope")
-            val flowerAlpha by animateFloatAsState(targetValue = if (animationType == 5) 1f else 0f, animationSpec = tween(800), label = "flower")
-            val liquidAlpha by animateFloatAsState(targetValue = if (animationType == 6) 1f else 0f, animationSpec = tween(800), label = "liquid")
+            val starsAlpha        by animateFloatAsState(targetValue = if (animationType == 0)  1f else 0f, animationSpec = tween(800), label = "stars")
+            val jellyfishAlpha    by animateFloatAsState(targetValue = if (animationType == 1)  1f else 0f, animationSpec = tween(800), label = "jellyfish")
+            val kaleidoscopeAlpha by animateFloatAsState(targetValue = if (animationType == 4)  1f else 0f, animationSpec = tween(800), label = "kaleidoscope")
+            val flowerAlpha       by animateFloatAsState(targetValue = if (animationType == 5)  1f else 0f, animationSpec = tween(800), label = "flower")
+            val liquidAlpha       by animateFloatAsState(targetValue = if (animationType == 6)  1f else 0f, animationSpec = tween(800), label = "liquid")
+            val constellAlpha     by animateFloatAsState(targetValue = if (animationType == 8)  1f else 0f, animationSpec = tween(800), label = "constellation")
+            val rippleAlpha       by animateFloatAsState(targetValue = if (animationType == 9)  1f else 0f, animationSpec = tween(800), label = "ripple")
+            val crystalSnowAlpha  by animateFloatAsState(targetValue = if (animationType == 10) 1f else 0f, animationSpec = tween(800), label = "crystalSnow")
 
             if (starsAlpha > 0.01f) {
                 DrunkStarsBackground(
@@ -194,7 +227,32 @@ fun CanvasScreen(
                     modifier = Modifier.fillMaxSize().graphicsLayer { alpha = liquidAlpha }
                 )
             }
+            if (constellAlpha > 0.01f) {
+                ConstellationBackground(
+                    animationSpeed = animationSpeed,
+                    isEnabled = animationType == 8,
+                    interactionState = canvasInteractionState,
+                    modifier = Modifier.fillMaxSize().graphicsLayer { alpha = constellAlpha }
+                )
+            }
+            if (rippleAlpha > 0.01f) {
+                NeonRippleBackground(
+                    animationSpeed = animationSpeed,
+                    isEnabled = animationType == 9,
+                    interactionState = canvasInteractionState,
+                    modifier = Modifier.fillMaxSize().graphicsLayer { alpha = rippleAlpha }
+                )
+            }
+            if (crystalSnowAlpha > 0.01f) {
+                CrystalSnowBackground(
+                    animationSpeed = animationSpeed,
+                    isEnabled = animationType == 10,
+                    interactionState = canvasInteractionState,
+                    modifier = Modifier.fillMaxSize().graphicsLayer { alpha = crystalSnowAlpha }
+                )
+            }
         }
+
 
         // --- 2. FULLSCREEN DISMISS LAYER (Tap anywhere to hide UI) ---
         if (uiVisible) {

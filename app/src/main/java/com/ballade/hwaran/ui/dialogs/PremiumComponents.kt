@@ -242,3 +242,89 @@ fun SidebarIcon(
         }
     }
 }
+
+@Composable
+fun HwaranDropdownMenu(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    offset: androidx.compose.ui.unit.DpOffset = androidx.compose.ui.unit.DpOffset(0.dp, 0.dp),
+    properties: androidx.compose.ui.window.PopupProperties = androidx.compose.ui.window.PopupProperties(focusable = true, clippingEnabled = false),
+    content: @Composable ColumnScope.() -> Unit
+) {
+    MaterialTheme(
+        colorScheme = MaterialTheme.colorScheme.copy(
+            surface = Color(0xFF1B1E28),
+            onSurface = Color.White
+        )
+    ) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = onDismissRequest,
+            modifier = modifier
+                .background(
+                    color = Color(0xFF1B1E28),
+                    shape = RoundedCornerShape(16.dp)
+                )
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(16.dp)
+                )
+                .padding(vertical = 4.dp, horizontal = 4.dp),
+            offset = offset,
+            shape = RoundedCornerShape(16.dp),
+            properties = properties,
+            content = content
+        )
+    }
+}
+
+@Composable
+fun HwaranDropdownMenuItem(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    leadingIcon: ImageVector? = null,
+    isDanger: Boolean = false,
+    isActive: Boolean = false,
+    activeColor: Color = Color.White,
+    enabled: Boolean = true
+) {
+    val contentColor = when {
+        isActive -> activeColor
+        isDanger -> Color(0xFFE57373)
+        else -> Color(0xFFE6E8EC)
+    }
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(enabled = enabled, onClick = onClick),
+        color = if (isActive) activeColor.copy(alpha = 0.08f) else Color.Transparent,
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (leadingIcon != null) {
+                Icon(
+                    imageVector = leadingIcon,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Text(
+                text = text,
+                color = contentColor,
+                fontSize = 13.sp,
+                fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold
+            )
+        }
+    }
+}

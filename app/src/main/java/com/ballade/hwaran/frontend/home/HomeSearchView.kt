@@ -7,6 +7,8 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -23,11 +25,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -198,6 +204,7 @@ fun HomeSearchView(
 
     LaunchedEffect(selectedMedia) {
         selectedWorkspace = null
+        selectedTags = emptySet()
         when (selectedMedia) {
             "Book", "Light Novel" -> {
                 selectedArtist = null
@@ -228,17 +235,18 @@ fun HomeSearchView(
 
     // Extract unique tags present in the user's library filtered by selected media genre
     val libraryTags = remember(allManga, allChapters, selectedMedia) {
+        val formatKeywords = setOf("book", "novel", "light novel", "manhua", "manga", "series", "channel", "music", "favorite", "fav")
         val filteredManga = when (selectedMedia) {
             "All" -> allManga
             "Fav", "Favorite" -> allManga.filter { it.isFavorite }
             else -> allManga.filter { matchesMediaType(it, selectedMedia) }
         }
         val mangaTags = filteredManga.flatMap { manga ->
-            manga.genre?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() && !it.equals("favorite", ignoreCase = true) } ?: emptyList()
+            manga.genre?.split(",", ";", "•")?.map { it.trim() }?.filter { it.isNotBlank() && !formatKeywords.contains(it.lowercase()) } ?: emptyList()
         }
         val chapterTags = if (selectedMedia in listOf("All", "Music", "Fav", "Favorite")) {
             allChapters.flatMap { chapter ->
-                chapter.genre?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() && !it.equals("favorite", ignoreCase = true) } ?: emptyList()
+                chapter.genre?.split(",", ";", "•")?.map { it.trim() }?.filter { it.isNotBlank() && !formatKeywords.contains(it.lowercase()) } ?: emptyList()
             }
         } else emptyList()
 
@@ -821,10 +829,30 @@ fun HomeSearchView(
         }
 
         // ── 2. Quick Media Type Selector Pills ──
+        val topMediaPillsState = rememberLazyListState()
         LazyRow(
+            state = topMediaPillsState,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 10.dp),
+                .padding(bottom = 10.dp)
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    val fadeWidth = 18.dp.toPx()
+                    if (fadeWidth > 0f && size.width > fadeWidth * 2) {
+                        val leftFade = if (topMediaPillsState.firstVisibleItemIndex > 0 || topMediaPillsState.firstVisibleItemScrollOffset > 0) (fadeWidth / size.width) else 0f
+                        val rightFade = if (topMediaPillsState.canScrollForward) ((size.width - fadeWidth) / size.width) else 1f
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                0f to (if (topMediaPillsState.firstVisibleItemIndex > 0 || topMediaPillsState.firstVisibleItemScrollOffset > 0) Color.Transparent else Color.Black),
+                                leftFade to Color.Black,
+                                rightFade to Color.Black,
+                                1f to (if (topMediaPillsState.canScrollForward) Color.Transparent else Color.Black)
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+                },
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(mediaTypes) { media ->
@@ -931,8 +959,7 @@ fun HomeSearchView(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
+                    SmoothFadingLazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(SearchScope.getAvailableScopes(selectedMedia)) { scope ->
@@ -975,8 +1002,7 @@ fun HomeSearchView(
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        LazyRow(
-                            modifier = Modifier.fillMaxWidth(),
+                        SmoothFadingLazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(ProgressFilter.values()) { prog ->
@@ -1022,8 +1048,7 @@ fun HomeSearchView(
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        LazyRow(
-                            modifier = Modifier.fillMaxWidth(),
+                        SmoothFadingLazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(ChapterCountFilter.values()) { cFilter ->
@@ -1089,8 +1114,7 @@ fun HomeSearchView(
                             }
                         }
                         Spacer(modifier = Modifier.height(6.dp))
-                        LazyRow(
-                            modifier = Modifier.fillMaxWidth(),
+                        SmoothFadingLazyRow(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             items(libraryWorkspaces) { ws ->
@@ -1153,8 +1177,7 @@ fun HomeSearchView(
                             }
                         }
                         Spacer(modifier = Modifier.height(6.dp))
-                        LazyRow(
-                            modifier = Modifier.fillMaxWidth(),
+                        SmoothFadingLazyRow(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             items(libraryArtists) { artist ->
@@ -1212,8 +1235,7 @@ fun HomeSearchView(
                             }
                         }
                         Spacer(modifier = Modifier.height(6.dp))
-                        LazyRow(
-                            modifier = Modifier.fillMaxWidth(),
+                        SmoothFadingLazyRow(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             items(libraryAlbums) { album ->
@@ -1261,8 +1283,7 @@ fun HomeSearchView(
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        LazyRow(
-                            modifier = Modifier.fillMaxWidth(),
+                        SmoothFadingLazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(DurationFilter.values()) { dur ->
@@ -1412,8 +1433,7 @@ fun HomeSearchView(
                         }
                     }
 
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
+                    SmoothFadingLazyRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(availableTagsToPick.take(25)) { tag ->
@@ -1451,8 +1471,7 @@ fun HomeSearchView(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
+                    SmoothFadingLazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(SearchSort.getAvailableSorts(selectedMedia)) { sort ->
@@ -2002,4 +2021,38 @@ private fun matchesMediaType(manga: MangaEntity, selectedMedia: String): Boolean
         "Music" -> manga.contentType == 3 || manga.boxPurpose == "music"
         else -> true
     }
+}
+
+@Composable
+private fun SmoothFadingLazyRow(
+    modifier: Modifier = Modifier,
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(8.dp),
+    content: LazyListScope.() -> Unit
+) {
+    val state = rememberLazyListState()
+    LazyRow(
+        state = state,
+        horizontalArrangement = horizontalArrangement,
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                val fadeWidth = 14.dp.toPx()
+                if (fadeWidth > 0f && size.width > fadeWidth * 2) {
+                    val leftFade = if (state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0) (fadeWidth / size.width) else 0f
+                    val rightFade = if (state.canScrollForward) ((size.width - fadeWidth) / size.width) else 1f
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            0f to (if (state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0) Color.Transparent else Color.Black),
+                            leftFade to Color.Black,
+                            rightFade to Color.Black,
+                            1f to (if (state.canScrollForward) Color.Transparent else Color.Black)
+                        ),
+                        blendMode = BlendMode.DstIn
+                    )
+                }
+            },
+        content = content
+    )
 }

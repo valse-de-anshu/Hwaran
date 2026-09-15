@@ -196,13 +196,6 @@ fun EditSongScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                GenreDropdown(
-                    selectedGenre = genre,
-                    onGenreSelected = { genre = it }
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
                 RefineInputField(
                     value = lyrics,
                     onValueChange = { lyrics = it },

@@ -54,6 +54,17 @@ import android.os.Build
 class MainActivity : ComponentActivity() {
     private var intentState = mutableStateOf<android.content.Intent?>(null)
 
+    private fun hideSystemBars() {
+        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
+        windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        hideSystemBars()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         intentState.value = intent
         
@@ -71,8 +82,7 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             window.attributes.layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
-        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
-        windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        hideSystemBars()
 
         setContent {
             val settingsViewModel: SettingsViewModel = viewModel()
@@ -97,10 +107,7 @@ class MainActivity : ComponentActivity() {
                 val activeTab by settingsViewModel.activeTab.collectAsState()
                 val hasSeenIntro by settingsViewModel.hasSeenIntro.collectAsState()
 
-                // Hide system bars globally for immersive premium experience
-                LaunchedEffect(Unit) {
-                    windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
-                }
+
 
                 // Request notification permission for Media3 background controls
                 val permissionState = rememberLauncherForActivityResult(

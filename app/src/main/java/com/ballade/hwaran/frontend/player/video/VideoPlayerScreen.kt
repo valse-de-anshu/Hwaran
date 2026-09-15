@@ -93,6 +93,8 @@ fun VideoPlayerScreen(
     val context = LocalContext.current
     val activity = context as? Activity
     val database = remember { AppDatabase.getDatabase(context) }
+    var currentChapterId by remember(chapterId) { mutableLongStateOf(chapterId) }
+    val currentChapterIdState = rememberUpdatedState(currentChapterId)
     var videoUri by remember { mutableStateOf<Uri?>(null) }
     var chapterTitle by remember { mutableStateOf("Episode") }
     var seriesTitle by remember { mutableStateOf<String?>(null) }
@@ -101,6 +103,7 @@ fun VideoPlayerScreen(
     var allChapters by remember { mutableStateOf<List<com.ballade.hwaran.core.database.entity.ChapterEntity>>(emptyList()) }
 
     var isPlaying by remember { mutableStateOf(true) }
+    var isBuffering by remember { mutableStateOf(false) }
     var currentPosition by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
     var dragPosition by remember { mutableStateOf<Float?>(null) }
@@ -124,7 +127,7 @@ fun VideoPlayerScreen(
 
     BackHandler(onBack = handleBack)
 
-    // Auto-hide UI logic: Hides HUD after 1 second of inactivity if playing
+    // Auto-hide UI logic: Hides HUD after 2 seconds of inactivity if playing
     LaunchedEffect(showUi, showUnlockButton, lastInteractionTime, isPlaying) {
         if (showUi && isPlaying) {
             delay(2000)
@@ -136,7 +139,90 @@ fun VideoPlayerScreen(
         }
     }
 
-    LaunchedEffect(chapterId, externalUri) {
+    val exoPlayer = remember {
+        HwaranPlayerHolder.pauseIfPlaying()
+        val audioAttributes = AudioAttributes.Builder()
+            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+            .setUsage(C.USAGE_MEDIA)
+            .build()
+        ExoPlayer.Builder(context).build().apply {
+            setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
+            setSeekParameters(SeekParameters.CLOSEST_SYNC)
+        }
+    }
+
+    val currentIndex = remember(allChapters, currentChapterId) { allChapters.indexOfFirst { it.id == currentChapterId } }
+    val hasPrev = currentIndex > 0
+    val hasNext = currentIndex >= 0 && currentIndex < allChapters.size - 1
+
+    val switchToChapter: (Long) -> Unit = { newChapterId ->
+        val finalPos = exoPlayer.currentPosition
+        val finalDur = exoPlayer.duration.coerceAtLeast(0L)
+        val chId = currentChapterIdState.value
+        if (chId != -1L) {
+            videoViewModel.saveLastPosition(chId, finalPos, finalDur)
+        }
+        exoPlayer.pause()
+        currentPosition = 0L
+        duration = 0L
+        dragPosition = null
+        seekDeltaMs = 0L
+        dragStartPos = 0L
+        lastInteractionTime = System.currentTimeMillis()
+        currentChapterId = newChapterId
+        onNavigateToChapter(newChapterId)
+    }
+
+    val onNextEpisode = rememberUpdatedState {
+        if (hasNext) {
+            val nextChapter = allChapters.getOrNull(currentIndex + 1)
+            if (nextChapter != null) {
+                switchToChapter(nextChapter.id)
+            }
+        }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(exoPlayer, lifecycleOwner) {
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+            }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                isBuffering = (playbackState == Player.STATE_BUFFERING)
+                if (playbackState == Player.STATE_ENDED) {
+                    onNextEpisode.value()
+                }
+            }
+        }
+        exoPlayer.addListener(listener)
+        
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
+                val finalPos = exoPlayer.currentPosition
+                val finalDur = exoPlayer.duration.coerceAtLeast(0L)
+                val chId = currentChapterIdState.value
+                if (chId != -1L) {
+                    videoViewModel.saveLastPosition(chId, finalPos, finalDur)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            val finalPos = exoPlayer.currentPosition
+            val finalDur = exoPlayer.duration.coerceAtLeast(0L)
+            val chId = currentChapterIdState.value
+            if (chId != -1L) {
+                videoViewModel.saveLastPosition(chId, finalPos, finalDur)
+            }
+            exoPlayer.removeListener(listener)
+            exoPlayer.release()
+        }
+    }
+
+    LaunchedEffect(currentChapterId, externalUri) {
         if (externalUri != null) {
             val parsedUri = Uri.parse(externalUri)
             // Try to extract real embedded title from media file metadata first
@@ -160,32 +246,35 @@ fun VideoPlayerScreen(
             return@LaunchedEffect
         }
         withContext(Dispatchers.IO) {
-            val chapter = database.trackDao().getChapterById(chapterId)
+            val chapter = database.trackDao().getChapterById(currentChapterId)
             chapter?.let {
-                chapterTitle = it.title
+                val resolvedTitle = it.title
                 val manga = database.libraryDao().getMangaById(it.mangaId)
-                if (manga != null && manga.title.isNotBlank() && manga.title != "Standalone Videos") {
-                    seriesTitle = manga.title
-                }
+                val resolvedSeries = if (manga != null && manga.title.isNotBlank() && manga.title != "Standalone Videos") {
+                    manga.title
+                } else null
+
                 com.ballade.hwaran.core.util.HistoryTracker.logEvent(
                     "WATCH",
                     it.title,
                     "mangaId:${manga?.id ?: -1L}|chapterId:${it.id}|fallback:Series/Channel: ${manga?.title ?: "Unknown"}"
                 )
                 
-                allChapters = database.trackDao().getChaptersForManga(it.mangaId).first().sortedWith(compareBy<com.ballade.hwaran.core.database.entity.ChapterEntity> { 
+                val chaptersList = database.trackDao().getChaptersForManga(it.mangaId).first().sortedWith(compareBy<com.ballade.hwaran.core.database.entity.ChapterEntity> { 
                     Regex("(\\d+(\\.\\d+)?)").find(it.title)?.value?.toFloat() ?: Float.MAX_VALUE 
                 }.thenBy {
                     it.title.replace(Regex("\\d+")) { matchResult ->
                         matchResult.value.padStart(10, '0')
                     }
                 })
+
+                var resolvedUri: Uri? = null
                 if (it.folderUri.startsWith("content://")) {
                     val uri = Uri.parse(it.folderUri)
                     // Robust SAF resolution
                     val doc = androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri)
                     if (doc != null && doc.exists() && !doc.isDirectory) {
-                        videoUri = uri
+                        resolvedUri = uri
                     } else {
                         val treeDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, uri)
                         if (treeDoc != null && treeDoc.isDirectory) {
@@ -194,27 +283,71 @@ fun VideoPlayerScreen(
                                 f.name?.endsWith(".mkv", true) == true || 
                                 f.name?.endsWith(".avi", true) == true
                             }
-                            videoUri = videoFile?.uri
+                            resolvedUri = videoFile?.uri
                         } else {
-                            videoUri = uri
+                            resolvedUri = uri
                         }
                     }
                 } else {
                     val file = File(it.folderUri)
                     if (file.exists() && file.isFile) {
-                        videoUri = Uri.fromFile(file)
+                        resolvedUri = Uri.fromFile(file)
                     } else if (file.exists() && file.isDirectory) {
                         val videoFile = file.listFiles()?.find { f -> 
                             f.name.endsWith(".mp4", true) || f.name.endsWith(".mkv", true) || f.name.endsWith(".avi", true)
                         }
                         if (videoFile != null) {
-                            videoUri = Uri.fromFile(videoFile)
+                            resolvedUri = Uri.fromFile(videoFile)
                         }
+                    }
+                }
+
+                withContext(Dispatchers.Main) {
+                    chapterTitle = resolvedTitle
+                    seriesTitle = resolvedSeries
+                    allChapters = chaptersList
+                    if (resolvedUri != null) {
+                        videoUri = resolvedUri
+                    }
+                    isLoadingMetadata = false
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(videoUri, currentChapterId) {
+        val uri = videoUri ?: return@LaunchedEffect
+        exoPlayer.setMediaItem(MediaItem.fromUri(uri))
+        exoPlayer.prepare()
+
+        if (currentChapterId != -1L) {
+            val chapter = withContext(Dispatchers.IO) { database.trackDao().getChapterById(currentChapterId) }
+            if (chapter != null) {
+                val seekPos = chapter.position * 1L
+                if (seekPos > 0) {
+                    exoPlayer.seekTo(seekPos)
+                } else {
+                    exoPlayer.seekTo(0L)
+                }
+                videoViewModel.incrementOpenCount(currentChapterId)
+
+                val currentManga = withContext(Dispatchers.IO) { database.libraryDao().getMangaById(chapter.mangaId) }
+                if (currentManga != null) {
+                    withContext(Dispatchers.IO) {
+                        database.libraryDao().insertManga(currentManga.copy(lastReadTitle = chapter.title))
                     }
                 }
             }
         }
-        isLoadingMetadata = false
+        exoPlayer.playWhenReady = true
+    }
+
+    LaunchedEffect(exoPlayer) {
+        while (true) {
+            currentPosition = exoPlayer.currentPosition
+            duration = exoPlayer.duration.coerceAtLeast(0L)
+            delay(500)
+        }
     }
 
     // Hoist isPortrait here so ALL overlays (including 2x Speed outside AnimatedVisibility) can use it
@@ -223,99 +356,6 @@ fun VideoPlayerScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         if (videoUri != null) {
-            val currentIndex = remember(allChapters, chapterId) { allChapters.indexOfFirst { it.id == chapterId } }
-            val hasPrev = currentIndex > 0
-            val hasNext = currentIndex >= 0 && currentIndex < allChapters.size - 1
-
-            val onNextEpisode = androidx.compose.runtime.rememberUpdatedState {
-                if (hasNext) {
-                    val currentOrientation = activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                    onNavigateToChapter(allChapters[currentIndex + 1].id)
-                    // Re-apply orientation after navigation
-                    activity?.requestedOrientation = currentOrientation
-                }
-            }
-
-            val exoPlayer = remember(videoUri) {
-                HwaranPlayerHolder.pauseIfPlaying()
-                val audioAttributes = AudioAttributes.Builder()
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-                    .setUsage(C.USAGE_MEDIA)
-                    .build()
-                ExoPlayer.Builder(context).build().apply {
-                    setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
-                    setMediaItem(MediaItem.fromUri(videoUri!!))
-                    setSeekParameters(SeekParameters.CLOSEST_SYNC)
-                    prepare()
-                    playWhenReady = true
-                }
-            }
-
-            var initialSeekDone by remember(videoUri) { mutableStateOf(false) }
-
-            LaunchedEffect(exoPlayer) {
-                if (!initialSeekDone && chapterId != -1L) {
-                    val chapter = withContext(Dispatchers.IO) { database.trackDao().getChapterById(chapterId) }
-                    if (chapter != null) {
-                        val seekPos = chapter.position * 1L
-                        if (seekPos > 0) {
-                            exoPlayer.seekTo(seekPos)
-                        }
-                    }
-                    initialSeekDone = true
-                    
-                    videoViewModel.incrementOpenCount(chapterId)
-                    
-                    // Update tracker AFTER initial seek check, so we don't accidentally seek to an old timestamp for a new video
-                    if (chapter != null) {
-                        val currentManga = withContext(Dispatchers.IO) { database.libraryDao().getMangaById(chapter.mangaId) }
-                        if (currentManga != null) {
-                            withContext(Dispatchers.IO) {
-                                database.libraryDao().insertManga(currentManga.copy(lastReadTitle = chapter.title))
-                            }
-                        }
-                    }
-                }
-                while(true) {
-                    currentPosition = exoPlayer.currentPosition
-                    duration = exoPlayer.duration.coerceAtLeast(0L)
-                    delay(500)
-                }
-            }
-
-            val lifecycleOwner = LocalLifecycleOwner.current
-            DisposableEffect(exoPlayer, lifecycleOwner) {
-                val listener = object : Player.Listener {
-                    override fun onIsPlayingChanged(playing: Boolean) {
-                        isPlaying = playing
-                    }
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        if (playbackState == Player.STATE_ENDED) {
-                            onNextEpisode.value()
-                        }
-                    }
-                }
-                exoPlayer.addListener(listener)
-                
-                val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-                    if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                        val finalPos = exoPlayer.currentPosition
-                        val finalDur = exoPlayer.duration.coerceAtLeast(0L)
-                        videoViewModel.saveLastPosition(chapterId, finalPos, finalDur)
-                    }
-                }
-                lifecycleOwner.lifecycle.addObserver(observer)
-                
-                onDispose {
-                    lifecycleOwner.lifecycle.removeObserver(observer)
-                    val finalPos = exoPlayer.currentPosition
-                    val finalDur = exoPlayer.duration.coerceAtLeast(0L)
-                    videoViewModel.saveLastPosition(chapterId, finalPos, finalDur)
-                    exoPlayer.removeListener(listener)
-                    exoPlayer.release()
-                }
-            }
-
             AndroidView(
                 modifier = Modifier.fillMaxSize()
                     .pointerInput(isLocked) {
@@ -426,8 +466,27 @@ fun VideoPlayerScreen(
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
                     }
+                },
+                update = { view ->
+                    if (view.player != exoPlayer) {
+                        view.player = exoPlayer
+                    }
                 }
             )
+
+            // Buffering Indicator when controls are hidden
+            AnimatedVisibility(
+                visible = !showUi && isBuffering,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.align(Alignment.Center)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(48.dp),
+                    color = Color.White,
+                    strokeWidth = 3.dp
+                )
+            }
 
             // UI Overlay
             AnimatedVisibility(
@@ -473,9 +532,6 @@ fun VideoPlayerScreen(
                     }
 
                     // Center Playback Controls
-                    val hasPrev = currentIndex > 0
-                    val hasNext = currentIndex >= 0 && currentIndex < allChapters.size - 1
-
                     Row(
                         modifier = Modifier.align(Alignment.Center),
                         horizontalArrangement = Arrangement.spacedBy(32.dp),
@@ -485,9 +541,10 @@ fun VideoPlayerScreen(
                             IconButton(
                                 onClick = { 
                                     if (hasPrev) {
-                                        val currentOrientation = activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                                        onNavigateToChapter(allChapters[currentIndex - 1].id)
-                                        activity?.requestedOrientation = currentOrientation
+                                        val prevChapter = allChapters.getOrNull(currentIndex - 1)
+                                        if (prevChapter != null) {
+                                            switchToChapter(prevChapter.id)
+                                        }
                                     }
                                 },
                                 enabled = hasPrev
@@ -512,21 +569,30 @@ fun VideoPlayerScreen(
                                 },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                contentDescription = "Play/Pause",
-                                tint = Color.White,
-                                modifier = Modifier.size(28.dp)
-                            )
+                            if (isBuffering) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(28.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.5.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                    contentDescription = "Play/Pause",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
                         }
 
                         if (allChapters.size > 1) {
                             IconButton(
                                 onClick = { 
                                     if (hasNext) {
-                                        val currentOrientation = activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                                        onNavigateToChapter(allChapters[currentIndex + 1].id)
-                                        activity?.requestedOrientation = currentOrientation
+                                        val nextChapter = allChapters.getOrNull(currentIndex + 1)
+                                        if (nextChapter != null) {
+                                            switchToChapter(nextChapter.id)
+                                        }
                                     }
                                 },
                                 enabled = hasNext

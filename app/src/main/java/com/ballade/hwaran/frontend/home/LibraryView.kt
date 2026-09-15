@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -134,13 +135,21 @@ fun LibraryView(
     val fadeStartPx = with(density) { 86.dp.toPx() }
     val fadeEndPx = with(density) { 128.dp.toPx() }
 
+    val libraryGridState = rememberLazyGridState()
+    val canScrollTagBackward by remember {
+        derivedStateOf { tagListState.firstVisibleItemIndex > 0 || tagListState.firstVisibleItemScrollOffset > 0 }
+    }
+    val canScrollTagForward by remember {
+        derivedStateOf { tagListState.canScrollForward }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .statusBarsPadding()
             .displayCutoutPadding()
     ) {
-        // 1. Clean 3-Column Material Grid (Offscreen alpha mask gives smooth fading under pills without opaque color blocks)
+        // 1. Clean 3-Column Material Grid with vertical fading mask at bottom of top tag pills row
         if (filteredManga.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -157,16 +166,35 @@ fun LibraryView(
             }
         } else {
             LazyVerticalGrid(
+                state = libraryGridState,
                 columns = GridCells.Fixed(3),
                 contentPadding = PaddingValues(
                     start = 16.dp,
                     end = 16.dp,
-                    top = 124.dp,
+                    top = 120.dp,
                     bottom = bottomDockClearance
                 ),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                    .drawWithContent {
+                        drawContent()
+                        val fadeTopPx = 90.dp.toPx()
+                        val fadeBottomPx = 160.dp.toPx()
+                        if (size.height > fadeBottomPx) {
+                            drawRect(
+                                brush = Brush.verticalGradient(
+                                    0f to Color.Transparent,
+                                    fadeTopPx / size.height to Color.Transparent,
+                                    fadeBottomPx / size.height to Color.Black,
+                                    1f to Color.Black
+                                ),
+                                blendMode = BlendMode.DstIn
+                            )
+                        }
+                    }
             ) {
                 items(filteredManga, key = { it.id }) { manga ->
                     LibraryMaterialCard(
@@ -188,12 +216,30 @@ fun LibraryView(
             }
         }
 
-        // 2. Floating Top Tags Bar
-        Column(
+        // 2. Floating Top Tags Bar with Smooth Fading Edges
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
                 .padding(top = 48.dp, bottom = 8.dp)
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    val fadeWidth = 24.dp.toPx()
+                    if (fadeWidth > 0f && size.width > fadeWidth * 2) {
+                        val leftFadeFraction = if (canScrollTagBackward) (fadeWidth / size.width) else 0f
+                        val rightFadeFraction = if (canScrollTagForward) ((size.width - fadeWidth) / size.width) else 1f
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                0f to (if (canScrollTagBackward) Color.Transparent else Color.Black),
+                                leftFadeFraction to Color.Black,
+                                rightFadeFraction to Color.Black,
+                                1f to (if (canScrollTagForward) Color.Transparent else Color.Black)
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+                }
         ) {
             LazyRow(
                 state = tagListState,
@@ -384,27 +430,37 @@ private fun LibraryMaterialCard(
                     }
                 }
 
-                // Title inside the cover art with smooth bottom gradient scrim
+                // Title inside the cover art with smooth bottom gradient scrim & text depth
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .fillMaxHeight(0.6f)
                         .align(Alignment.BottomCenter)
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(
                                     Color.Transparent,
-                                    Color.Black.copy(alpha = 0.55f),
-                                    Color.Black.copy(alpha = 0.88f)
+                                    Color.Black.copy(alpha = 0.35f),
+                                    Color.Black.copy(alpha = 0.75f),
+                                    Color.Black.copy(alpha = 0.95f)
                                 )
                             )
                         )
-                        .padding(horizontal = 8.dp, vertical = 7.dp)
+                        .padding(horizontal = 8.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.BottomStart
                 ) {
                     Text(
                         text = manga.title,
-                        color = Color(0xFFF0F2F5),
+                        color = Color.White,
                         fontSize = 11.5.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
+                        style = androidx.compose.ui.text.TextStyle(
+                            shadow = androidx.compose.ui.graphics.Shadow(
+                                color = Color.Black,
+                                offset = androidx.compose.ui.geometry.Offset(0f, 2f),
+                                blurRadius = 8f
+                            )
+                        ),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         lineHeight = 14.sp

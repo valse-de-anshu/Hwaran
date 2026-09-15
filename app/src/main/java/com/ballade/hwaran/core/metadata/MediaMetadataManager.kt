@@ -16,17 +16,38 @@ data class EntryMetadata(
     val author: String = "",
     val artist: String = "",
     val description: String = "",
-    val type: String = "Manga",
-    val status: String = "Ongoing",
-    val rating: String = "8.7 (152K)",
+    val type: String = "",
+    val status: String = "",
+    val rating: String = "",
     val tags: List<String> = emptyList(),
     val publisher: String = "",
     val serialization: String = "",
     val year: String = "",
-    val language: String = "English",
+    val language: String = "",
     val pages: String = "",
     val totalChapters: Int = 0,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    // Online / source URL
+    val url: String = "",
+    // Online statistics (empty string = not available)
+    val views: String = "",
+    val likes: String = "",
+    val comments: String = "",
+    // Individual video/chapter statistics and rankings from JSON (e.g. most_viewed, top_rated)
+    val videoItems: List<VideoItemMetadata> = emptyList()
+)
+
+data class VideoItemMetadata(
+    val id: String = "",
+    val title: String = "",
+    val viewCount: Long = 0L,
+    val likeCount: Long = 0L,
+    val duration: Long = 0L,
+    val uploadDate: String = "",
+    val url: String = "",
+    val topRatedRank: Int = -1,
+    val mostViewedRank: Int = -1,
+    val latestRank: Int = -1
 )
 
 data class MasterTagItem(
@@ -159,14 +180,14 @@ object MediaMetadataManager {
             author = "",
             artist = "",
             description = manga?.description?.takeIf { it != "No description added yet." } ?: "",
-            type = manga?.boxPurpose ?: if (manga?.contentType == 1) "Book" else "Manga",
-            status = "Ongoing",
-            rating = "8.7 (152K)",
+            type = manga?.boxPurpose ?: if (manga?.contentType == 1) "Book" else "",
+            status = "",
+            rating = "",
             tags = defaultTags,
             publisher = "",
             serialization = "",
             year = "",
-            language = "English",
+            language = "",
             pages = "",
             totalChapters = 0,
             isFavorite = manga?.isFavorite == true
@@ -210,6 +231,10 @@ object MediaMetadataManager {
         if (metadata.pages.isNotBlank() || obj.has("pages")) obj.put("pages", metadata.pages)
         if (metadata.totalChapters > 0 || obj.has("totalChapters")) obj.put("totalChapters", metadata.totalChapters)
         obj.put("isFavorite", metadata.isFavorite)
+        if (metadata.url.isNotBlank() || obj.has("url")) obj.put("url", metadata.url)
+        if (metadata.views.isNotBlank() || obj.has("views")) obj.put("views", metadata.views)
+        if (metadata.likes.isNotBlank() || obj.has("likes")) obj.put("likes", metadata.likes)
+        if (metadata.comments.isNotBlank() || obj.has("comments")) obj.put("comments", metadata.comments)
 
         return obj.toString(2)
     }

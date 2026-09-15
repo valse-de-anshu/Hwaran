@@ -152,48 +152,59 @@ fun VideoPreview(
             }
         }
 
-        if (duration <= 60_000L) {
-            // 1 minute or less: Play whole video in 2x mode
-            exoPlayer.setPlaybackSpeed(2.0f)
-            exoPlayer.seekTo(0)
-            while (true) {
-                delay(250)
-                if (exoPlayer.playbackState == Player.STATE_ENDED || exoPlayer.currentPosition >= (duration - 400L)) {
-                    exoPlayer.seekTo(0)
-                }
-            }
-        } else {
-            // Video > 1 minute (e.g. 1:10 - 5:00 min, or full episodes):
-            // 1. Play first 30 seconds in 2x mode
-            // 2. Then show rapid preview snippets across the timeline to tell the full story
-            while (true) {
-                try {
-                    // Phase 1: First 30 seconds at 2.0x (or first half if duration < 70s)
-                    val introLimit = if (duration < 70_000L) (duration / 2).coerceAtLeast(15_000L) else 30_000L
+        while (true) {
+            try {
+                if (duration <= 60_000L) {
+                    // Video <= 1 minute: Play whole video in 2x mode
                     exoPlayer.setPlaybackSpeed(2.0f)
                     exoPlayer.seekTo(0)
-                    while (exoPlayer.currentPosition < introLimit && exoPlayer.playbackState != Player.STATE_ENDED) {
+                    while (exoPlayer.playbackState != Player.STATE_ENDED) {
+                        delay(250)
+                        if (duration > 0L && exoPlayer.currentPosition >= (duration - 300L)) break
+                    }
+                    exoPlayer.seekTo(0)
+                } else {
+                    // Video > 1 minute:
+                    // 1. Play starting 40% in 2x mode
+                    // 2. Keep middle 20% as rapid preview snippets across the timeline
+                    // 3. Play last 40% in 2x mode
+                    val first40Limit = (duration * 0.40).toLong()
+                    val last40Start = (duration * 0.60).toLong()
+
+                    // Phase 1: Starting 40% in 2x mode
+                    exoPlayer.setPlaybackSpeed(2.0f)
+                    exoPlayer.seekTo(0)
+                    while (exoPlayer.currentPosition < first40Limit && exoPlayer.playbackState != Player.STATE_ENDED) {
                         delay(200)
                     }
 
-                    // Phase 2: Rapid story preview (Netflix / Disney / YouTube style)
-                    val previewRatios = floatArrayOf(0.20f, 0.35f, 0.50f, 0.65f, 0.80f, 0.92f)
+                    // Phase 2: Middle 20% rapid preview snippets (e.g. 45%, 50%, 55%)
+                    val middleRatios = floatArrayOf(0.45f, 0.50f, 0.55f)
                     exoPlayer.setPlaybackSpeed(2.5f)
-                    
-                    for (ratio in previewRatios) {
-                        val seekTarget = (duration * ratio).toLong().coerceIn(introLimit, (duration - 1800L).coerceAtLeast(0L))
+                    for (ratio in middleRatios) {
+                        val seekTarget = (duration * ratio).toLong().coerceIn(first40Limit, last40Start)
                         exoPlayer.seekTo(seekTarget)
-                        
                         var waitCount = 0
-                        while (exoPlayer.playbackState == Player.STATE_BUFFERING && waitCount < 25) {
+                        while (exoPlayer.playbackState == Player.STATE_BUFFERING && waitCount < 20) {
                             delay(20)
                             waitCount++
                         }
-                        delay(1500L)
+                        delay(1200L)
                     }
-                } catch (e: Exception) {
-                    break 
+
+                    // Phase 3: Last 40% in 2x mode
+                    exoPlayer.setPlaybackSpeed(2.0f)
+                    exoPlayer.seekTo(last40Start)
+                    while (exoPlayer.playbackState != Player.STATE_ENDED) {
+                        delay(200)
+                        if (exoPlayer.currentPosition >= (duration - 400L)) break
+                    }
+
+                    // Loop back to beginning
+                    exoPlayer.seekTo(0)
                 }
+            } catch (e: Exception) {
+                break
             }
         }
     }

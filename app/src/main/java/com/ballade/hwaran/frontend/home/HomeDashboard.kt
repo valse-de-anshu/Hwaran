@@ -1285,23 +1285,33 @@ private fun RecentlyAddedSheet(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .fillMaxHeight(0.6f)
                                         .align(Alignment.BottomCenter)
                                         .background(
                                             Brush.verticalGradient(
                                                 colors = listOf(
                                                     Color.Transparent,
-                                                    Color.Black.copy(alpha = 0.55f),
-                                                    Color.Black.copy(alpha = 0.88f)
+                                                    Color.Black.copy(alpha = 0.35f),
+                                                    Color.Black.copy(alpha = 0.75f),
+                                                    Color.Black.copy(alpha = 0.95f)
                                                 )
                                             )
                                         )
-                                        .padding(horizontal = 7.dp, vertical = 6.dp)
+                                        .padding(horizontal = 7.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.BottomStart
                                 ) {
                                     Text(
                                         text = manga.title,
-                                        color = Color(0xFFF0F2F5),
+                                        color = Color.White,
                                         fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
+                                        fontWeight = FontWeight.Bold,
+                                        style = androidx.compose.ui.text.TextStyle(
+                                            shadow = androidx.compose.ui.graphics.Shadow(
+                                                color = Color.Black,
+                                                offset = androidx.compose.ui.geometry.Offset(0f, 2f),
+                                                blurRadius = 8f
+                                            )
+                                        ),
                                         maxLines = 2,
                                         overflow = TextOverflow.Ellipsis,
                                         lineHeight = 13.sp

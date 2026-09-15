@@ -23,6 +23,8 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenu
+import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenuItem
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1026,53 +1028,43 @@ fun ToonDescriptionView(
                         }
                     }
 
-                    DropdownMenu(
+                    HwaranDropdownMenu(
                         expanded = showMoreMenu,
                         onDismissRequest = { showMoreMenu = false }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("Edit Description") },
+                        HwaranDropdownMenuItem(
+                            text = "Edit Description",
                             onClick = {
                                 showMoreMenu = false
                                 onToggleEditMode()
                             },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Rounded.Edit,
-                                    contentDescription = null
-                                )
-                            }
+                            leadingIcon = Icons.Rounded.Edit
                         )
-                        DropdownMenuItem(
-                            text = { Text("Change Cover") },
+                        HwaranDropdownMenuItem(
+                            text = "Change Cover",
                             onClick = {
                                 showMoreMenu = false
                                 onPickCover()
                             },
-                            leadingIcon = {
-                                Icon(Icons.Rounded.Image, contentDescription = null)
-                            }
+                            leadingIcon = Icons.Rounded.Image
                         )
-                        DropdownMenuItem(
-                            text = { Text("Open Chapters") },
+                        HwaranDropdownMenuItem(
+                            text = "Open Chapters",
                             onClick = {
                                 showMoreMenu = false
                                 onOpenChapters()
                             },
-                            leadingIcon = {
-                                Icon(Icons.AutoMirrored.Rounded.MenuBook, contentDescription = null)
-                            }
+                            leadingIcon = Icons.AutoMirrored.Rounded.MenuBook
                         )
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = { Text("Delete Entry", color = Color(0xFFE57373)) },
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
+                        HwaranDropdownMenuItem(
+                            text = "Delete Entry",
                             onClick = {
                                 showMoreMenu = false
                                 onDeleteManga()
                             },
-                            leadingIcon = {
-                                Icon(Icons.Rounded.Delete, contentDescription = null, tint = Color(0xFFE57373))
-                            }
+                            leadingIcon = Icons.Rounded.Delete,
+                            isDanger = true
                         )
                     }
                 }

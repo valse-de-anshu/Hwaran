@@ -401,8 +401,9 @@ fun AppNavGraph(
                     musicViewModel = musicViewModel,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToChapter = { newChapterId ->
-                        navController.popBackStack()
-                        navController.navigateSafely(Screen.Reader.createRoute(newChapterId))
+                        navController.navigateSafely(Screen.Reader.createRoute(newChapterId)) {
+                            popUpTo(Screen.Reader.route) { inclusive = true }
+                        }
                     }
                 )
             }
@@ -470,10 +471,6 @@ fun AppNavGraph(
                     chapterId = chapterId,
                     onNavigateBack = { 
                         navController.popBackStack()
-                    },
-                    onNavigateToChapter = { newChapterId ->
-                        navController.popBackStack()
-                        navController.navigateSafely(Screen.VideoPlayer.createRoute(newChapterId))
                     }
                 )
             }

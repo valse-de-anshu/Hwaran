@@ -21,6 +21,8 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenu
+import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenuItem
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -354,35 +356,24 @@ fun PlaylistDetailScreen(
                                     modifier = Modifier.size(28.dp)
                                 )
                             }
-                            DropdownMenu(
+                            HwaranDropdownMenu(
                                 expanded = showOverflowMenu,
-                                onDismissRequest = { showOverflowMenu = false },
-                                shape = RoundedCornerShape(20.dp),
-                                containerColor = Color(0xFF1E1E1E),
-                                modifier = Modifier
-                                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
-                                    .padding(vertical = 4.dp)
+                                onDismissRequest = { showOverflowMenu = false }
                             ) {
-                                DropdownMenuItem(
-                                    text = { Text("Share Songs", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium) },
-                                    leadingIcon = {
-                                        Icon(Icons.Rounded.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                                    },
+                                HwaranDropdownMenuItem(
+                                    text = "Share Songs",
+                                    leadingIcon = Icons.Rounded.Share,
                                     onClick = {
                                         showOverflowMenu = false
                                         selectionMode = SelectionMode.SHARE
                                         selectedChapterIds.clear()
                                     }
                                 )
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                                    color = Color.White.copy(alpha = 0.08f)
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Delete Songs", color = Color(0xFFE57373), fontSize = 14.sp, fontWeight = FontWeight.Medium) },
-                                    leadingIcon = {
-                                        Icon(Icons.Rounded.DeleteSweep, contentDescription = null, tint = Color(0xFFE57373), modifier = Modifier.size(20.dp))
-                                    },
+                                HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
+                                HwaranDropdownMenuItem(
+                                    text = "Delete Songs",
+                                    leadingIcon = Icons.Rounded.DeleteSweep,
+                                    isDanger = true,
                                     onClick = {
                                         showOverflowMenu = false
                                         selectionMode = SelectionMode.DELETE
@@ -727,35 +718,31 @@ fun SongItem(
                 IconButton(onClick = { showMenu = true }) {
                     Icon(Icons.Rounded.MoreHoriz, contentDescription = "Menu", tint = Color.White.copy(alpha = 0.4f))
                 }
-                DropdownMenu(
+                HwaranDropdownMenu(
                     expanded = showMenu,
-                    onDismissRequest = { showMenu = false },
-                    shape = RoundedCornerShape(20.dp),
-                    containerColor = Color(0xFF161616),
-                    modifier = Modifier
-                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
-                        .padding(vertical = 4.dp)
+                    onDismissRequest = { showMenu = false }
                 ) {
-                    DropdownMenuItem(
-                        text = { Text("Add in Playlist", color = Color.White, fontSize = 14.sp) },
-                        leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(20.dp)) },
+                    HwaranDropdownMenuItem(
+                        text = "Add in Playlist",
+                        leadingIcon = Icons.AutoMirrored.Rounded.PlaylistAdd,
                         onClick = { 
                             showMenu = false
                             onAddToPlaylist()
                         }
                     )
-                    DropdownMenuItem(
-                        text = { Text("Refine Tag", color = Color.White, fontSize = 14.sp) },
-                        leadingIcon = { Icon(Icons.Rounded.AutoFixHigh, contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(20.dp)) },
+                    HwaranDropdownMenuItem(
+                        text = "Refine Tag",
+                        leadingIcon = Icons.Rounded.AutoFixHigh,
                         onClick = { 
                             showMenu = false
                             onEditTag()
                         }
                     )
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), color = Color.White.copy(alpha = 0.05f))
-                    DropdownMenuItem(
-                        text = { Text("Delete", color = Color(0xFFE57373).copy(alpha = 0.7f), fontSize = 14.sp) },
-                        leadingIcon = { Icon(Icons.Rounded.DeleteSweep, contentDescription = null, tint = Color(0xFFE57373).copy(alpha = 0.5f), modifier = Modifier.size(20.dp)) },
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
+                    HwaranDropdownMenuItem(
+                        text = "Delete",
+                        leadingIcon = Icons.Rounded.DeleteSweep,
+                        isDanger = true,
                         onClick = { 
                             showMenu = false
                             onDelete()

@@ -16,13 +16,20 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenu
+import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenuItem
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -204,8 +211,29 @@ fun BookDescriptionView(
                         val currentActiveTag = if (isEditMode) draftMaterialTag else "Book"
 
                         if (isEditMode) {
+                            val pillsState = rememberLazyListState()
                             LazyRow(
-                                modifier = Modifier.fillMaxWidth(),
+                                state = pillsState,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                                    .drawWithContent {
+                                        drawContent()
+                                        val fadeWidth = 14.dp.toPx()
+                                        if (fadeWidth > 0f && size.width > fadeWidth * 2) {
+                                            val leftFade = if (pillsState.firstVisibleItemIndex > 0 || pillsState.firstVisibleItemScrollOffset > 0) (fadeWidth / size.width) else 0f
+                                            val rightFade = if (pillsState.canScrollForward) ((size.width - fadeWidth) / size.width) else 1f
+                                            drawRect(
+                                                brush = Brush.horizontalGradient(
+                                                    0f to (if (pillsState.firstVisibleItemIndex > 0 || pillsState.firstVisibleItemScrollOffset > 0) Color.Transparent else Color.Black),
+                                                    leftFade to Color.Black,
+                                                    rightFade to Color.Black,
+                                                    1f to (if (pillsState.canScrollForward) Color.Transparent else Color.Black)
+                                                ),
+                                                blendMode = BlendMode.DstIn
+                                            )
+                                        }
+                                    },
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 items(primaryPills) { pill ->
@@ -848,49 +876,35 @@ fun BookDescriptionView(
                         }
                     }
 
-                    DropdownMenu(
+                    HwaranDropdownMenu(
                         expanded = showMoreMenu,
                         onDismissRequest = { showMoreMenu = false }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("Edit Information") },
+                        HwaranDropdownMenuItem(
+                            text = "Edit Information",
                             onClick = {
                                 showMoreMenu = false
                                 onToggleEditMode()
                             },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Rounded.Edit,
-                                    contentDescription = null
-                                )
-                            }
+                            leadingIcon = Icons.Rounded.Edit
                         )
-                        DropdownMenuItem(
-                            text = { Text("Change Cover") },
+                        HwaranDropdownMenuItem(
+                            text = "Change Cover",
                             onClick = {
                                 showMoreMenu = false
                                 onPickCover()
                             },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Rounded.Image,
-                                    contentDescription = null
-                                )
-                            }
+                            leadingIcon = Icons.Rounded.Image
                         )
-                        DropdownMenuItem(
-                            text = { Text("Delete Book", color = Color(0xFFE57373)) },
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
+                        HwaranDropdownMenuItem(
+                            text = "Delete Book",
                             onClick = {
                                 showMoreMenu = false
                                 onDeleteManga()
                             },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Rounded.DeleteOutline,
-                                    contentDescription = null,
-                                    tint = Color(0xFFE57373)
-                                )
-                            }
+                            leadingIcon = Icons.Rounded.DeleteOutline,
+                            isDanger = true
                         )
                     }
                 }

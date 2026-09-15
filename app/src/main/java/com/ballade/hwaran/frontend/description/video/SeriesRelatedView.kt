@@ -12,16 +12,22 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.NavigateBefore
+import androidx.compose.material.icons.automirrored.rounded.NavigateNext
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenu
+import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenuItem
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +51,12 @@ import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.decode.VideoFrameDecoder
 import coil.request.ImageRequest
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.ballade.hwaran.core.metadata.EntryMetadata
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.core.util.CoverArtResolver
@@ -59,6 +71,7 @@ fun SeriesRelatedView(
     childBoxes: List<MangaEntity>,
     availableMediaForLinking: List<MangaEntity>,
     initialTab: String = "Videos",
+    entryMetadata: EntryMetadata = EntryMetadata(),
     onNavigateBack: () -> Unit,
     onNavigateToVideo: (Long) -> Unit,
     onPickVideos: () -> Unit,
@@ -80,8 +93,11 @@ fun SeriesRelatedView(
     val DangerRed = Color(0xFFE57373)
 
     var selectedFilterCategory by remember(initialTab) { mutableStateOf(initialTab) }
-    var selectedSort by remember { mutableStateOf(ChannelVideoSortOption.FIRST_TO_LAST) }
-    var showSortSheet by remember { mutableStateOf(false) }
+    // Filter pill for video sorting (Videos tab only)
+    var selectedPill by remember { mutableStateOf<VideoFilterPill?>(null) }
+    var showFilters by remember { mutableStateOf(false) }
+    // Pagination state (Videos tab only)
+    var currentPage by remember { mutableIntStateOf(0) }
     var isDeleteMode by remember { mutableStateOf(false) }
     val selectedVideoIds = remember { mutableStateListOf<Long>() }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
@@ -107,19 +123,61 @@ fun SeriesRelatedView(
             .build()
     }
 
-    val sortedVideos = remember(videos, selectedSort) {
-        when (selectedSort) {
-            ChannelVideoSortOption.FIRST_TO_LAST -> videos.sortedWith(compareBy {
+    fun normalizeTitle(raw: String): String {
+        return raw.lowercase()
+            .replace(Regex("^\\s*\\d+\\s*[.\\-_)]\\s*"), "")
+            .replace(Regex("[^\\p{L}0-9]"), "")
+    }
+
+    val videoStatsMap = remember(entryMetadata.videoItems) {
+        entryMetadata.videoItems.associateBy { normalizeTitle(it.title) }
+    }
+
+    val hasViewsData = remember(entryMetadata.videoItems) {
+        entryMetadata.videoItems.any { it.viewCount > 0L }
+    }
+    val hasLikesData = remember(entryMetadata.videoItems) {
+        entryMetadata.videoItems.any { it.likeCount > 0L }
+    }
+    val hasRatedData = remember(entryMetadata.videoItems) {
+        entryMetadata.videoItems.any { it.topRatedRank >= 0 }
+    }
+
+    val sortedVideos = remember(videos, selectedPill, videoStatsMap) {
+        when (selectedPill) {
+            VideoFilterPill.SHORTEST -> videos.sortedBy { it.duration }
+            VideoFilterPill.LONGEST -> videos.sortedByDescending { it.duration }
+            VideoFilterPill.ASCENDING -> videos.sortedBy { it.title.lowercase() }
+            VideoFilterPill.DESCENDING -> videos.sortedByDescending { it.title.lowercase() }
+            VideoFilterPill.MOST_VIEWS -> {
+                if (hasViewsData) {
+                    videos.sortedWith(
+                        compareByDescending<ChapterEntity> { videoStatsMap[normalizeTitle(it.title)]?.viewCount ?: 0L }
+                            .thenBy { it.position }
+                    )
+                } else videos
+            }
+            VideoFilterPill.MOST_LIKED -> {
+                if (hasLikesData) {
+                    videos.sortedWith(
+                        compareByDescending<ChapterEntity> { videoStatsMap[normalizeTitle(it.title)]?.likeCount ?: 0L }
+                            .thenBy { it.position }
+                    )
+                } else videos
+            }
+            VideoFilterPill.MOST_RATED -> {
+                if (hasRatedData) {
+                    videos.sortedWith(
+                        compareBy<ChapterEntity> {
+                            val rank = videoStatsMap[normalizeTitle(it.title)]?.topRatedRank
+                            if (rank != null && rank >= 0) rank else Int.MAX_VALUE
+                        }.thenBy { it.position }
+                    )
+                } else videos
+            }
+            null -> videos.sortedWith(compareBy {
                 Regex("(\\d+(\\.\\d+)?)").find(it.title)?.value?.toFloatOrNull() ?: Float.MAX_VALUE
             })
-            ChannelVideoSortOption.LAST_TO_FIRST -> videos.sortedWith(compareByDescending {
-                Regex("(\\d+(\\.\\d+)?)").find(it.title)?.value?.toFloatOrNull() ?: Float.MIN_VALUE
-            })
-            ChannelVideoSortOption.TITLE_AZ -> videos.sortedBy { it.title.lowercase() }
-            ChannelVideoSortOption.TITLE_ZA -> videos.sortedByDescending { it.title.lowercase() }
-            ChannelVideoSortOption.LONGEST -> videos.sortedByDescending { it.duration }
-            ChannelVideoSortOption.SHORTEST -> videos.sortedBy { it.duration }
-            ChannelVideoSortOption.SHUFFLE -> videos.shuffled()
         }
     }
 
@@ -157,9 +215,43 @@ fun SeriesRelatedView(
         }
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    var lastSnackbarTime by remember { mutableLongStateOf(0L) }
+    val videoGridState = rememberLazyGridState()
+
+    // Reset page and scroll to top when filter or data changes
+    LaunchedEffect(selectedPill) {
+        currentPage = 0
+        videoGridState.scrollToItem(0)
+    }
+    LaunchedEffect(sortedVideos.size) {
+        currentPage = 0
+        videoGridState.scrollToItem(0)
+    }
+    LaunchedEffect(currentPage) {
+        videoGridState.scrollToItem(0)
+    }
+
+    val videoPageSize = 10
+    val videoTotalPages = maxOf(1, (sortedVideos.size + videoPageSize - 1) / videoPageSize)
+    val pagedVideos = remember(sortedVideos, currentPage) {
+        sortedVideos.drop(currentPage * videoPageSize).take(videoPageSize)
+    }
+
     Scaffold(
         containerColor = Color.Transparent,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = Color(0xFF2A2733),
+                    contentColor = Color.White,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+        }
     ) { _ ->
         Column(
             modifier = Modifier
@@ -178,6 +270,7 @@ fun SeriesRelatedView(
             ) {
                 // Back Button + Title
                 Row(
+                    modifier = Modifier.weight(1f, fill = false),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -207,7 +300,7 @@ fun SeriesRelatedView(
                         }
                     }
 
-                    Column {
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
                         Text(
                             text = manga.title,
                             color = Color.White,
@@ -223,10 +316,14 @@ fun SeriesRelatedView(
                                 "${childBoxes.size} Franchise Links"
                             },
                             color = TextMuted,
-                            fontSize = 11.sp
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.width(8.dp))
 
                 // Action Row based on active tab
                 if (selectedFilterCategory == "Videos") {
@@ -234,23 +331,51 @@ fun SeriesRelatedView(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Filter / Sort Button
-                        Surface(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(CircleShape)
-                                .clickable { showSortSheet = true },
-                            shape = CircleShape,
-                            color = Color.White.copy(alpha = 0.08f),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Rounded.SwapVert,
-                                    contentDescription = "Filter and Sort",
-                                    tint = Color.White.copy(alpha = 0.85f),
-                                    modifier = Modifier.size(22.dp)
+                        // Clear Filter Button (shown if a filter is active)
+                        if (selectedPill != null && !isDeleteMode) {
+                            Surface(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .clickable { selectedPill = null },
+                                shape = CircleShape,
+                                color = Color.White.copy(alpha = 0.08f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.FilterListOff,
+                                        contentDescription = "Clear Filter",
+                                        tint = Color(0xFFE6E8EC),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Filter Toggle Button
+                        if (!isDeleteMode) {
+                            val isFilterActive = selectedPill != null || showFilters
+                            Surface(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .clickable { showFilters = !showFilters },
+                                shape = CircleShape,
+                                color = if (isFilterActive) Color(0xFF222631) else Color.White.copy(alpha = 0.08f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isFilterActive) Color.White.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.12f)
                                 )
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.FilterList,
+                                        contentDescription = "Filter",
+                                        tint = if (isFilterActive) Color(0xFFE6E8EC) else Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
                         }
 
@@ -332,61 +457,190 @@ fun SeriesRelatedView(
                 }
             }
 
-            // ── Category Filter Pills (Videos default, followed by franchise relation tags) ──
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            // ── Category Filter Pills (Videos default, followed by franchise relation tags) with Smooth Fading Edges ──
+            val categoryListState = rememberLazyListState()
+            val canScrollCategoryBackward by remember {
+                derivedStateOf { categoryListState.firstVisibleItemIndex > 0 || categoryListState.firstVisibleItemScrollOffset > 0 }
+            }
+            val canScrollCategoryForward by remember {
+                derivedStateOf { categoryListState.canScrollForward }
+            }
+
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 14.dp)
-            ) {
-                items(filterTabs) { tab ->
-                    val isSel = selectedFilterCategory == tab
-                    val tabCount = when (tab) {
-                        "Videos" -> videos.size
-                        "Seasons" -> childBoxes.count { SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.SEASON }
-                        "Movies" -> childBoxes.count { SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.MOVIE }
-                        "OVAs & ONAs" -> childBoxes.count {
-                            val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
-                            rel == SeriesRelationType.OVA || rel == SeriesRelationType.ONA
+                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                    .drawWithContent {
+                        drawContent()
+                        val fadeWidth = 24.dp.toPx()
+                        if (fadeWidth > 0f && size.width > fadeWidth * 2) {
+                            val leftFadeFraction = if (canScrollCategoryBackward) (fadeWidth / size.width) else 0f
+                            val rightFadeFraction = if (canScrollCategoryForward) ((size.width - fadeWidth) / size.width) else 1f
+                            drawRect(
+                                brush = Brush.horizontalGradient(
+                                    0f to (if (canScrollCategoryBackward) Color.Transparent else Color.Black),
+                                    leftFadeFraction to Color.Black,
+                                    rightFadeFraction to Color.Black,
+                                    1f to (if (canScrollCategoryForward) Color.Transparent else Color.Black)
+                                ),
+                                blendMode = BlendMode.DstIn
+                            )
                         }
-                        "Specials & BD" -> childBoxes.count {
-                            val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
-                            rel == SeriesRelationType.SPECIAL || rel == SeriesRelationType.BLURAY
-                        }
-                        "Prequels & Sequels" -> childBoxes.count {
-                            val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
-                            rel == SeriesRelationType.PREQUEL || rel == SeriesRelationType.SEQUEL
-                        }
-                        "Other" -> childBoxes.count {
-                            val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
-                            rel == SeriesRelationType.SPINOFF || rel == SeriesRelationType.SUMMARY || rel == SeriesRelationType.ALT_VERSION
-                        }
-                        else -> 0
                     }
+            ) {
+                LazyRow(
+                    state = categoryListState,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 14.dp)
+                ) {
+                    items(filterTabs) { tab ->
+                        val isSel = selectedFilterCategory == tab
+                        val tabCount = when (tab) {
+                            "Videos" -> videos.size
+                            "Seasons" -> childBoxes.count { SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.SEASON }
+                            "Movies" -> childBoxes.count { SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.MOVIE }
+                            "OVAs & ONAs" -> childBoxes.count {
+                                val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
+                                rel == SeriesRelationType.OVA || rel == SeriesRelationType.ONA
+                            }
+                            "Specials & BD" -> childBoxes.count {
+                                val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
+                                rel == SeriesRelationType.SPECIAL || rel == SeriesRelationType.BLURAY
+                            }
+                            "Prequels & Sequels" -> childBoxes.count {
+                                val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
+                                rel == SeriesRelationType.PREQUEL || rel == SeriesRelationType.SEQUEL
+                            }
+                            "Other" -> childBoxes.count {
+                                val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
+                                rel == SeriesRelationType.SPINOFF || rel == SeriesRelationType.SUMMARY || rel == SeriesRelationType.ALT_VERSION
+                            }
+                            else -> 0
+                        }
 
-                    val tabLabel = if (tabCount > 0) "$tab ($tabCount)" else tab
+                        val tabLabel = if (tabCount > 0) "$tab ($tabCount)" else tab
 
-                    Surface(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable {
-                                if (isDeleteMode && tab != "Videos") {
-                                    isDeleteMode = false
-                                    selectedVideoIds.clear()
-                                }
-                                selectedFilterCategory = tab
-                            },
-                        color = if (isSel) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                        border = BorderStroke(1.dp, if (isSel) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)),
-                        shape = RoundedCornerShape(12.dp)
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    if (isDeleteMode && tab != "Videos") {
+                                        isDeleteMode = false
+                                        selectedVideoIds.clear()
+                                    }
+                                    selectedFilterCategory = tab
+                                },
+                            color = if (isSel) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                            border = BorderStroke(1.dp, if (isSel) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                text = tabLabel,
+                                color = if (isSel) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.6f),
+                                fontSize = 12.sp,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Video Sort Filter Pills (Only shown in Videos tab) with Smooth Fading Edges ──
+            AnimatedVisibility(
+                visible = selectedFilterCategory == "Videos" && sortedVideos.isNotEmpty() && (showFilters || selectedPill != null)
+            ) {
+                val pillListState = rememberLazyListState()
+                val canScrollBackward by remember {
+                    derivedStateOf { pillListState.firstVisibleItemIndex > 0 || pillListState.firstVisibleItemScrollOffset > 0 }
+                }
+                val canScrollForward by remember {
+                    derivedStateOf { pillListState.canScrollForward }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            val fadeWidth = 24.dp.toPx()
+                            if (fadeWidth > 0f && size.width > fadeWidth * 2) {
+                                val leftFadeFraction = if (canScrollBackward) (fadeWidth / size.width) else 0f
+                                val rightFadeFraction = if (canScrollForward) ((size.width - fadeWidth) / size.width) else 1f
+                                drawRect(
+                                    brush = Brush.horizontalGradient(
+                                        0f to (if (canScrollBackward) Color.Transparent else Color.Black),
+                                        leftFadeFraction to Color.Black,
+                                        rightFadeFraction to Color.Black,
+                                        1f to (if (canScrollForward) Color.Transparent else Color.Black)
+                                    ),
+                                    blendMode = BlendMode.DstIn
+                                )
+                            }
+                        }
+                ) {
+                    LazyRow(
+                        state = pillListState,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                        modifier = Modifier.padding(bottom = 10.dp)
                     ) {
-                        Text(
-                            text = tabLabel,
-                            color = if (isSel) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.6f),
-                            fontSize = 12.sp,
-                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
-                        )
+                        items(VideoFilterPill.values().size) { idx ->
+                            val pill = VideoFilterPill.values()[idx]
+                            val isSelected = selectedPill == pill
+
+                            val isDataAvailable = when (pill) {
+                                VideoFilterPill.MOST_VIEWS -> hasViewsData
+                                VideoFilterPill.MOST_LIKED -> hasLikesData
+                                VideoFilterPill.MOST_RATED -> hasRatedData
+                                else -> true
+                            }
+
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .clickable {
+                                        if (pill.requiresJsonData && !isDataAvailable) {
+                                            val now = System.currentTimeMillis()
+                                            if (now - lastSnackbarTime > 1500L) {
+                                                lastSnackbarTime = now
+                                                coroutineScope.launch {
+                                                    snackbarHostState.currentSnackbarData?.dismiss()
+                                                    snackbarHostState.showSnackbar("No data present")
+                                                }
+                                            }
+                                        } else {
+                                            selectedPill = if (isSelected) null else pill
+                                        }
+                                    },
+                                color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.06f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    when {
+                                        isSelected -> Color.White.copy(alpha = 0.22f)
+                                        pill.requiresJsonData && !isDataAvailable -> Color.White.copy(alpha = 0.06f)
+                                        else -> Color.White.copy(alpha = 0.10f)
+                                    }
+                                ),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text(
+                                    text = pill.label,
+                                    color = when {
+                                        isSelected -> Color(0xFFE6E8EC)
+                                        pill.requiresJsonData && !isDataAvailable -> Color.White.copy(alpha = 0.35f)
+                                        else -> Color.White.copy(alpha = 0.75f)
+                                    },
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -460,14 +714,16 @@ fun SeriesRelatedView(
                         }
                     }
                 } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(minSize = 300.dp),
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                        contentPadding = PaddingValues(bottom = 100.dp)
-                    ) {
-                        items(sortedVideos, key = { it.id }) { video ->
+                    Box(modifier = Modifier.weight(1f)) {
+                        LazyVerticalGrid(
+                            state = videoGridState,
+                            columns = GridCells.Adaptive(minSize = 300.dp),
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
+                            contentPadding = PaddingValues(top = 8.dp, bottom = 12.dp)
+                        ) {
+                            items(pagedVideos, key = { it.id }) { video ->
                             val isSelected = selectedVideoIds.contains(video.id)
                             var showPreview by remember { mutableStateOf(false) }
                             var wasPreviewing by remember { mutableStateOf(false) }
@@ -547,7 +803,7 @@ fun SeriesRelatedView(
                                         AsyncImage(
                                             model = ImageRequest.Builder(context)
                                                 .data(modelData)
-                                                .crossfade(true)
+                                                .crossfade(false)
                                                 .memoryCacheKey(cacheKey)
                                                 .diskCacheKey(cacheKey)
                                                 .build(),
@@ -624,9 +880,23 @@ fun SeriesRelatedView(
                                                 maxLines = 2,
                                                 overflow = TextOverflow.Ellipsis
                                             )
-                                            if (durationStr != null) {
+                                            val stat = videoStatsMap[normalizeTitle(video.title)]
+                                            val viewsStr = if (stat != null && stat.viewCount > 0L) {
+                                                when {
+                                                    stat.viewCount >= 1_000_000 -> String.format("%.1fM views", stat.viewCount / 1_000_000.0)
+                                                    stat.viewCount >= 1_000 -> String.format("%.1fK views", stat.viewCount / 1_000.0)
+                                                    else -> "${stat.viewCount} views"
+                                                }
+                                            } else null
+
+                                            val subtitleText = listOfNotNull(
+                                                durationStr?.let { "Duration • $it" },
+                                                viewsStr
+                                            ).joinToString(" • ")
+
+                                            if (subtitleText.isNotBlank()) {
                                                 Text(
-                                                    text = "Duration • $durationStr",
+                                                    text = subtitleText,
                                                     color = TextMuted,
                                                     fontSize = 11.sp,
                                                     modifier = Modifier.padding(top = 2.dp)
@@ -648,29 +918,26 @@ fun SeriesRelatedView(
                                                 )
                                             }
 
-                                            DropdownMenu(
+                                            HwaranDropdownMenu(
                                                 expanded = showItemMenu,
                                                 onDismissRequest = { showItemMenu = false }
                                             ) {
-                                                DropdownMenuItem(
-                                                    text = { Text("Change Thumbnail") },
+                                                HwaranDropdownMenuItem(
+                                                    text = "Change Thumbnail",
                                                     onClick = {
                                                         showItemMenu = false
                                                         onChangeVideoThumbnail(video.id)
                                                     },
-                                                    leadingIcon = {
-                                                        Icon(Icons.Rounded.Image, contentDescription = null)
-                                                    }
+                                                    leadingIcon = Icons.Rounded.Image
                                                 )
-                                                DropdownMenuItem(
-                                                    text = { Text("Delete Video", color = DangerRed) },
+                                                HwaranDropdownMenuItem(
+                                                    text = "Delete Video",
                                                     onClick = {
                                                         showItemMenu = false
                                                         videoPendingDelete = video
                                                     },
-                                                    leadingIcon = {
-                                                        Icon(Icons.Rounded.Delete, contentDescription = null, tint = DangerRed)
-                                                    }
+                                                    leadingIcon = Icons.Rounded.Delete,
+                                                    isDanger = true
                                                 )
                                             }
                                         }
@@ -678,8 +945,107 @@ fun SeriesRelatedView(
                                 }
                             }
                         }
+
+                        // ── Pagination as footer inside the grid ──
+                        if (videoTotalPages > 1) {
+                            item(
+                                span = { GridItemSpan(maxLineSpan) },
+                                key = "pagination"
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 16.dp)
+                                        .navigationBarsPadding(),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .clickable(enabled = currentPage > 0) { currentPage-- },
+                                        shape = CircleShape,
+                                        color = if (currentPage > 0) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.03f),
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = if (currentPage > 0) 0.15f else 0.05f))
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Rounded.NavigateBefore,
+                                                contentDescription = "Previous",
+                                                tint = if (currentPage > 0) Color.White else Color.White.copy(alpha = 0.25f),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(16.dp))
+
+                                    Text(
+                                        text = "${currentPage + 1} / $videoTotalPages",
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+
+                                    Spacer(modifier = Modifier.width(16.dp))
+
+                                    Surface(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .clickable(enabled = currentPage < videoTotalPages - 1) { currentPage++ },
+                                        shape = CircleShape,
+                                        color = if (currentPage < videoTotalPages - 1) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.03f),
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = if (currentPage < videoTotalPages - 1) 0.15f else 0.05f))
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Rounded.NavigateNext,
+                                                contentDescription = "Next",
+                                                tint = if (currentPage < videoTotalPages - 1) Color.White else Color.White.copy(alpha = 0.25f),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            item(
+                                span = { GridItemSpan(maxLineSpan) },
+                                key = "nav_spacer"
+                            ) {
+                                Spacer(modifier = Modifier.navigationBarsPadding())
+                            }
+                        }
+                    } // end LazyVerticalGrid
+
+                    // Top fading edge overlay as user scrolls up
+                    val showTopFade by remember {
+                        derivedStateOf {
+                            videoGridState.firstVisibleItemIndex > 0 || videoGridState.firstVisibleItemScrollOffset > 0
+                        }
                     }
-                }
+                    if (showTopFade) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .fillMaxWidth()
+                                .height(28.dp)
+                                .background(
+                                    brush = Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color(0xFF0D0F14),
+                                            Color.Transparent
+                                        )
+                                    )
+                                )
+                        )
+                    }
+                } // end Box
+            } // end else (sortedVideos not empty)
+
+
             } else {
                 // ── Franchise Media List (Seasons, Movies, OVAs, etc.) ──
                 if (filteredBoxes.isEmpty()) {
@@ -880,40 +1246,35 @@ fun SeriesRelatedView(
                                             )
                                         }
 
-                                        DropdownMenu(
+                                        HwaranDropdownMenu(
                                             expanded = showItemMenu,
                                             onDismissRequest = { showItemMenu = false }
                                         ) {
-                                            DropdownMenuItem(
-                                                text = { Text("Open Details") },
+                                            HwaranDropdownMenuItem(
+                                                text = "Open Details",
                                                 onClick = {
                                                     showItemMenu = false
                                                     onNavigateToRelated(boxItem.id)
                                                 },
-                                                leadingIcon = {
-                                                    Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null)
-                                                }
+                                                leadingIcon = Icons.AutoMirrored.Rounded.OpenInNew
                                             )
-                                            DropdownMenuItem(
-                                                text = { Text("Unlink from Series") },
+                                            HwaranDropdownMenuItem(
+                                                text = "Unlink from Series",
                                                 onClick = {
                                                     showItemMenu = false
                                                     itemToUnlink = boxItem
                                                 },
-                                                leadingIcon = {
-                                                    Icon(Icons.Rounded.LinkOff, contentDescription = null)
-                                                }
+                                                leadingIcon = Icons.Rounded.LinkOff
                                             )
-                                            HorizontalDivider()
-                                            DropdownMenuItem(
-                                                text = { Text("Delete Entry", color = DangerRed) },
+                                            HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
+                                            HwaranDropdownMenuItem(
+                                                text = "Delete Entry",
                                                 onClick = {
                                                     showItemMenu = false
                                                     itemToDelete = boxItem
                                                 },
-                                                leadingIcon = {
-                                                    Icon(Icons.Rounded.Delete, contentDescription = null, tint = DangerRed)
-                                                }
+                                                leadingIcon = Icons.Rounded.Delete,
+                                                isDanger = true
                                             )
                                         }
                                     }
@@ -926,79 +1287,6 @@ fun SeriesRelatedView(
         }
     }
 
-    // ── Luxury Sort Modal Bottom Sheet (Matching Manhua & Channel Screens) ──
-    if (showSortSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showSortSheet = false },
-            containerColor = CardBg,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 36.dp)
-            ) {
-                Text(
-                    text = "Sort Order",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-
-                ChannelVideoSortOption.values().forEach { option ->
-                    val isSelected = selectedSort == option
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable {
-                                selectedSort = option
-                                showSortSheet = false
-                            },
-                        shape = RoundedCornerShape(14.dp),
-                        color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.03f),
-                        border = BorderStroke(
-                            1.dp,
-                            if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f)
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(
-                                    text = option.displayName,
-                                    color = if (isSelected) Color(0xFFE6E8EC) else Color.White,
-                                    fontSize = 14.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                )
-                                Text(
-                                    text = option.subtitle,
-                                    color = TextMuted,
-                                    fontSize = 11.sp
-                                )
-                            }
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Check,
-                                    contentDescription = null,
-                                    tint = Color(0xFFE6E8EC),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     // ── Bulk Delete Confirmation Dialog (Videos) ──
     if (showDeleteConfirmDialog) {

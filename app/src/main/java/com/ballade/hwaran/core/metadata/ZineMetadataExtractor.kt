@@ -27,7 +27,12 @@ data class ParsedZineMetadata(
     val pages: String? = null,
     val totalChapters: Int = 0,
     val coverFileName: String? = null,
-    val rawJson: String? = null
+    val rawJson: String? = null,
+    val url: String? = null,
+    val views: String? = null,
+    val likes: String? = null,
+    val comments: String? = null,
+    val videoItems: List<VideoItemMetadata> = emptyList()
 ) {
     fun toEntryMetadata(existing: EntryMetadata? = null): EntryMetadata {
         return EntryMetadata(
@@ -36,17 +41,22 @@ data class ParsedZineMetadata(
             author = author?.takeIf { it.isNotBlank() } ?: existing?.author ?: "",
             artist = artist?.takeIf { it.isNotBlank() } ?: existing?.artist ?: "",
             description = description?.takeIf { it.isNotBlank() } ?: existing?.description ?: "",
-            type = type?.takeIf { it.isNotBlank() } ?: existing?.type ?: "Manga",
-            status = status?.takeIf { it.isNotBlank() } ?: existing?.status ?: "Ongoing",
-            rating = rating?.takeIf { it.isNotBlank() } ?: existing?.rating ?: "8.7 (152K)",
+            type = type?.takeIf { it.isNotBlank() } ?: existing?.type ?: "",
+            status = status?.takeIf { it.isNotBlank() } ?: existing?.status ?: "",
+            rating = rating?.takeIf { it.isNotBlank() } ?: existing?.rating ?: "",
             tags = if (tags.isNotEmpty()) tags else existing?.tags ?: emptyList(),
             publisher = publisher?.takeIf { it.isNotBlank() } ?: existing?.publisher ?: "",
             serialization = serialization?.takeIf { it.isNotBlank() } ?: existing?.serialization ?: "",
             year = year?.takeIf { it.isNotBlank() } ?: existing?.year ?: "",
-            language = language?.takeIf { it.isNotBlank() } ?: existing?.language ?: "English",
+            language = language?.takeIf { it.isNotBlank() } ?: existing?.language ?: "",
             pages = pages?.takeIf { it.isNotBlank() } ?: existing?.pages ?: "",
             totalChapters = if (totalChapters > 0) totalChapters else existing?.totalChapters ?: 0,
-            isFavorite = existing?.isFavorite ?: false
+            isFavorite = existing?.isFavorite ?: false,
+            url = url?.takeIf { it.isNotBlank() } ?: existing?.url ?: "",
+            views = views?.takeIf { it.isNotBlank() } ?: existing?.views ?: "",
+            likes = likes?.takeIf { it.isNotBlank() } ?: existing?.likes ?: "",
+            comments = comments?.takeIf { it.isNotBlank() } ?: existing?.comments ?: "",
+            videoItems = videoItems.ifEmpty { existing?.videoItems ?: emptyList() }
         )
     }
 }
@@ -368,11 +378,13 @@ object ZineMetadataExtractor {
         return try {
             val obj = JSONObject(jsonString.trim().removePrefix("\uFEFF"))
 
-            // Title resolution (multiple field name candidates)
+            // Title resolution (multiple field name candidates across books, manga, channels, video creators)
             val title = optFirstString(
                 obj,
                 "title", "name", "series_title", "seriesTitle",
-                "book_title", "bookTitle", "album_title", "albumTitle", "album"
+                "book_title", "bookTitle", "album_title", "albumTitle", "album",
+                "model_name", "modelName", "model", "channel_name", "channelName", "channel",
+                "creator_name", "creatorName"
             )
 
             // Alt title resolution
@@ -380,19 +392,21 @@ object ZineMetadataExtractor {
                 obj,
                 "altTitle", "alt_title", "alternative_title", "alternativeTitle",
                 "nativeTitle", "native_title", "original_title", "originalTitle",
-                "japanese_title", "korean_title", "romaji_title", "english_title"
+                "japanese_title", "korean_title", "romaji_title", "english_title",
+                "handle", "channel_handle", "username"
             )
 
             // Description resolution
             val description = optFirstString(
                 obj,
-                "description", "synopsis", "summary", "overview", "intro", "about"
+                "description", "synopsis", "summary", "overview", "intro", "about", "bio"
             )
 
             // Author resolution
             val author = optFirstStringOrArray(
                 obj,
-                "author", "writer", "creator", "author_name", "authorName", "authors"
+                "author", "writer", "creator", "author_name", "authorName", "authors",
+                "model_name", "modelName", "model", "channel_name", "channelName", "channel", "uploader"
             )
 
             // Artist resolution
@@ -425,10 +439,10 @@ object ZineMetadataExtractor {
                 "publisher", "studio", "network", "label", "imprint"
             )
 
-            // Serialization resolution
+            // Serialization / Platform / Source resolution
             val serialization = optFirstString(
                 obj,
-                "serialization", "magazine"
+                "serialization", "magazine", "platform", "source", "site", "website_name"
             )
 
             // Year / Release date resolution
@@ -444,12 +458,17 @@ object ZineMetadataExtractor {
             // Pages resolution
             val pages = optFirstString(obj, "pages", "pageCount", "page_count")
 
+            // Parse any video / chapter lists generically (e.g. most_viewed, top_rated, latest, longest, videos, items)
+            val videoItems = extractVideoItems(obj)
+
             // Total chapters / episodes resolution
-            val totalChapters = optFirstInt(
+            val totalChaptersRaw = optFirstInt(
                 obj,
                 "totalChapters", "total_chapters", "totalEpisodes", "total_episodes",
-                "episodes", "chapters"
+                "total_videos", "totalVideos", "total_tracks", "totalTracks",
+                "videos_count", "videoCount", "episodes", "chapters", "total_items"
             )
+            val totalChapters = if (totalChaptersRaw > 0) totalChaptersRaw else videoItems.size
 
             // Cover file name specified in JSON
             val coverFileName = optFirstString(
@@ -457,6 +476,41 @@ object ZineMetadataExtractor {
                 "cover", "cover_image", "coverImage", "cover_art", "coverArt",
                 "poster", "thumbnail", "image"
             )
+
+            // URL / source link resolution (must look like a link or URL, not just a plain name)
+            val url = optFirstUrl(
+                obj,
+                "url", "link", "source_url", "sourceUrl",
+                "channelUrl", "channel_url", "seriesUrl", "series_url",
+                "websiteUrl", "website_url", "website", "homepage", "webpage", "source"
+            )
+
+            // Online statistics (stored as strings to preserve human-readable formats like "1.2M")
+            var views = optFirstStringOrNumber(obj, "views", "view_count", "viewCount", "watchCount", "watch_count", "total_views")
+            if (views.isNullOrBlank() && videoItems.isNotEmpty()) {
+                val totalV = videoItems.sumOf { it.viewCount }
+                if (totalV > 0L) {
+                    views = when {
+                        totalV >= 1_000_000 -> String.format("%.1fM", totalV / 1_000_000.0)
+                        totalV >= 1_000 -> String.format("%.1fK", totalV / 1_000.0)
+                        else -> totalV.toString()
+                    }
+                }
+            }
+
+            var likes = optFirstStringOrNumber(obj, "likes", "like_count", "likeCount", "favorites", "favourites", "total_likes")
+            if (likes.isNullOrBlank() && videoItems.isNotEmpty()) {
+                val totalL = videoItems.sumOf { it.likeCount }
+                if (totalL > 0L) {
+                    likes = when {
+                        totalL >= 1_000_000 -> String.format("%.1fM", totalL / 1_000_000.0)
+                        totalL >= 1_000 -> String.format("%.1fK", totalL / 1_000.0)
+                        else -> totalL.toString()
+                    }
+                }
+            }
+
+            val comments = optFirstStringOrNumber(obj, "comments", "comment_count", "commentCount")
 
             ParsedZineMetadata(
                 title = title,
@@ -475,7 +529,12 @@ object ZineMetadataExtractor {
                 pages = pages,
                 totalChapters = totalChapters,
                 coverFileName = coverFileName,
-                rawJson = jsonString
+                rawJson = jsonString,
+                url = url,
+                views = views,
+                likes = likes,
+                comments = comments,
+                videoItems = videoItems
             )
         } catch (e: Exception) {
             e.printStackTrace()
@@ -483,11 +542,97 @@ object ZineMetadataExtractor {
         }
     }
 
+    private fun extractVideoItems(obj: JSONObject): List<VideoItemMetadata> {
+        val result = linkedMapOf<String, VideoItemMetadata>()
+
+        fun processArray(key: String, onIndex: (VideoItemMetadata, Int) -> VideoItemMetadata) {
+            val arr = obj.optJSONArray(key) ?: return
+            for (i in 0 until arr.length()) {
+                val itemObj = arr.optJSONObject(i) ?: continue
+                val rawTitle = optFirstString(itemObj, "title", "name", "video_title") ?: continue
+                val normKey = rawTitle.trim().lowercase()
+                val existing = result[normKey] ?: VideoItemMetadata(
+                    id = optFirstString(itemObj, "id", "video_id", "videoId") ?: "",
+                    title = rawTitle,
+                    viewCount = optFirstLong(itemObj, "view_count", "viewCount", "views"),
+                    likeCount = optFirstLong(itemObj, "like_count", "likeCount", "likes"),
+                    duration = optFirstLong(itemObj, "duration", "duration_seconds", "length"),
+                    uploadDate = optFirstString(itemObj, "upload_date", "uploadDate", "date") ?: "",
+                    url = optFirstUrl(itemObj, "url", "link") ?: ""
+                )
+                val updated = onIndex(
+                    existing.copy(
+                        viewCount = if (existing.viewCount == 0L) optFirstLong(itemObj, "view_count", "viewCount", "views") else existing.viewCount,
+                        likeCount = if (existing.likeCount == 0L) optFirstLong(itemObj, "like_count", "likeCount", "likes") else existing.likeCount,
+                        duration = if (existing.duration == 0L) optFirstLong(itemObj, "duration", "duration_seconds", "length") else existing.duration,
+                        url = if (existing.url.isBlank()) (optFirstUrl(itemObj, "url", "link") ?: "") else existing.url,
+                        uploadDate = if (existing.uploadDate.isBlank()) (optFirstString(itemObj, "upload_date", "uploadDate", "date") ?: "") else existing.uploadDate
+                    ),
+                    i
+                )
+                result[normKey] = updated
+            }
+        }
+
+        // Process various list types if present
+        processArray("most_viewed") { item, idx -> item.copy(mostViewedRank = idx) }
+        processArray("top_rated") { item, idx -> item.copy(topRatedRank = idx) }
+        processArray("latest") { item, idx -> item.copy(latestRank = idx) }
+        processArray("longest") { item, _ -> item }
+        processArray("videos") { item, _ -> item }
+        processArray("chapters") { item, _ -> item }
+        processArray("items") { item, _ -> item }
+        processArray("episodes") { item, _ -> item }
+
+        return result.values.toList()
+    }
+
+    private fun optFirstLong(obj: JSONObject, vararg keys: String): Long {
+        for (k in keys) {
+            if (obj.has(k) && !obj.isNull(k)) {
+                val v = obj.optDouble(k, -1.0)
+                if (v >= 0.0) return v.toLong()
+                val str = obj.optString(k, "").trim()
+                val parsed = str.toDoubleOrNull()
+                if (parsed != null && parsed >= 0.0) return parsed.toLong()
+            }
+        }
+        return 0L
+    }
+
+    private fun optFirstUrl(obj: JSONObject, vararg keys: String): String? {
+        for (k in keys) {
+            if (obj.has(k) && !obj.isNull(k)) {
+                val str = obj.optString(k, "").trim()
+                if (str.startsWith("http://", ignoreCase = true) ||
+                    str.startsWith("https://", ignoreCase = true) ||
+                    str.startsWith("www.", ignoreCase = true)
+                ) {
+                    return str
+                }
+            }
+        }
+        return null
+
+    }
+
     private fun optFirstString(obj: JSONObject, vararg keys: String): String? {
         for (k in keys) {
             if (obj.has(k) && !obj.isNull(k)) {
                 val str = obj.optString(k, "").trim()
                 if (str.isNotBlank()) return str
+            }
+        }
+        return null
+    }
+
+    /** Reads a stat field that may be a number or a string (e.g. "1.2M" or 1200000). */
+    private fun optFirstStringOrNumber(obj: JSONObject, vararg keys: String): String? {
+        for (k in keys) {
+            if (obj.has(k) && !obj.isNull(k)) {
+                val raw = obj.opt(k)
+                val str = raw?.toString()?.trim().orEmpty()
+                if (str.isNotBlank() && str != "0") return str
             }
         }
         return null

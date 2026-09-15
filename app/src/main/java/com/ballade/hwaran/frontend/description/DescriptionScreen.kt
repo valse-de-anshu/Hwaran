@@ -314,6 +314,7 @@ fun DescriptionScreen(
                         ChannelVideosView(
                             channel = manga!!,
                             videos = chapters,
+                            entryMetadata = entryMetadata,
                             onNavigateBack = { showChannelVideosWindow = false },
                             onNavigateToVideo = { videoId -> onNavigateToMedia(videoId, 2) },
                             onPickVideos = { multipleVideoPickerLauncher.launch(arrayOf("video/*")) },
@@ -387,6 +388,7 @@ fun DescriptionScreen(
                             childBoxes = childBoxes,
                             availableMediaForLinking = availableMediaForLinking,
                             initialTab = seriesInitialTab,
+                            entryMetadata = entryMetadata,
                             onNavigateBack = { showSeriesRelatedWindow = false },
                             onNavigateToVideo = { videoId -> onNavigateToMedia(videoId, 2) },
                             onPickVideos = { multipleVideoPickerLauncher.launch(arrayOf("video/*")) },

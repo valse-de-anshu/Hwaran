@@ -25,6 +25,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenu
+import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenuItem
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -404,32 +406,29 @@ if (isLandscape) {
                                     tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) Color.White else Color.White.copy(alpha = 0.5f)
                                 )
                             }
-                            DropdownMenu(
+                            HwaranDropdownMenu(
                                 expanded = showRepeatMenu,
-                                onDismissRequest = { showRepeatMenu = false },
-                                shape = RoundedCornerShape(16.dp),
-                                containerColor = Color(0xFF1A1A1A),
-                                modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                                onDismissRequest = { showRepeatMenu = false }
                             ) {
-                                DropdownMenuItem(
-                                    text = { Text("Play next song", color = Color.White) },
-                                    leadingIcon = { Icon(Icons.AutoMirrored.Rounded.ArrowRightAlt, contentDescription = null, tint = Color.White) },
+                                HwaranDropdownMenuItem(
+                                    text = "Play next song",
+                                    leadingIcon = Icons.AutoMirrored.Rounded.ArrowRightAlt,
                                     onClick = { 
                                         showRepeatMenu = false
                                         musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_OFF)
                                     }
                                 )
-                                DropdownMenuItem(
-                                    text = { Text("Repeat the same queue", color = Color.White) },
-                                    leadingIcon = { Icon(Icons.Rounded.Repeat, contentDescription = null, tint = Color.White) },
+                                HwaranDropdownMenuItem(
+                                    text = "Repeat the same queue",
+                                    leadingIcon = Icons.Rounded.Repeat,
                                     onClick = { 
                                         showRepeatMenu = false
                                         musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ALL)
                                     }
                                 )
-                                DropdownMenuItem(
-                                    text = { Text("Repeat the same song", color = Color.White) },
-                                    leadingIcon = { Icon(Icons.Rounded.RepeatOne, contentDescription = null, tint = Color.White) },
+                                HwaranDropdownMenuItem(
+                                    text = "Repeat the same song",
+                                    leadingIcon = Icons.Rounded.RepeatOne,
                                     onClick = { 
                                         showRepeatMenu = false
                                         musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ONE)
@@ -482,41 +481,39 @@ if (isLandscape) {
                                 Icon(Icons.Rounded.MoreVert, contentDescription = "Menu", tint = Color.White.copy(alpha = 0.7f))
                             }
                             
-                            DropdownMenu(
+                            HwaranDropdownMenu(
                                 expanded = showMenu,
-                                onDismissRequest = { showMenu = false },
-                                shape = RoundedCornerShape(16.dp),
-                                containerColor = Color(0xFF1A1A1A),
-                                modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                                onDismissRequest = { showMenu = false }
                             ) {
-                                DropdownMenuItem(
-                                    text = { Text("Refine Tag", color = Color.White) },
-                                    leadingIcon = { Icon(Icons.Rounded.AutoFixHigh, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
+                                HwaranDropdownMenuItem(
+                                    text = "Refine Tag",
+                                    leadingIcon = Icons.Rounded.AutoFixHigh,
                                     onClick = { 
                                         showMenu = false
                                         currentChapter?.let { onNavigateToEditSong(it.id) }
                                     }
                                 )
-                                DropdownMenuItem(
-                                    text = { Text("Add in Playlist", color = Color.White) },
-                                    leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
+                                HwaranDropdownMenuItem(
+                                    text = "Add in Playlist",
+                                    leadingIcon = Icons.AutoMirrored.Rounded.PlaylistAdd,
                                     onClick = { 
                                         showMenu = false
                                         showPlaylistDialog = true
                                     }
                                 )
-                                DropdownMenuItem(
-                                    text = { Text(if (musicMode == 1) "Show Album Art" else "Show Conductor", color = Color.White) },
-                                    leadingIcon = { Icon(if (musicMode == 1) Icons.Rounded.Image else Icons.Rounded.GraphicEq, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
+                                HwaranDropdownMenuItem(
+                                    text = if (musicMode == 1) "Show Album Art" else "Show Conductor",
+                                    leadingIcon = if (musicMode == 1) Icons.Rounded.Image else Icons.Rounded.GraphicEq,
                                     onClick = { 
                                         showMenu = false
                                         settingsViewModel.setMusicMode(if (musicMode == 1) 0 else 1)
                                     }
                                 )
-                                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), color = Color.White.copy(alpha = 0.05f))
-                                DropdownMenuItem(
-                                    text = { Text("Delete", color = Color(0xFFE57373).copy(alpha = 0.8f)) },
-                                    leadingIcon = { Icon(Icons.Rounded.DeleteSweep, contentDescription = null, tint = Color(0xFFE57373).copy(alpha = 0.6f)) },
+                                HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
+                                HwaranDropdownMenuItem(
+                                    text = "Delete",
+                                    leadingIcon = Icons.Rounded.DeleteSweep,
+                                    isDanger = true,
                                     onClick = { 
                                         showMenu = false
                                         showDeleteDialog = true
@@ -553,41 +550,39 @@ if (isLandscape) {
                     IconButton(onClick = { showMenu = true }) {
                         Icon(Icons.Rounded.MoreVert, contentDescription = "Menu", tint = Color.White)
                     }
-                    DropdownMenu(
+                    HwaranDropdownMenu(
                         expanded = showMenu,
-                        onDismissRequest = { showMenu = false },
-                        shape = RoundedCornerShape(16.dp),
-                        containerColor = Color(0xFF1A1A1A),
-                        modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                        onDismissRequest = { showMenu = false }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("Refine Tag", color = Color.White) },
-                            leadingIcon = { Icon(Icons.Rounded.AutoFixHigh, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
+                        HwaranDropdownMenuItem(
+                            text = "Refine Tag",
+                            leadingIcon = Icons.Rounded.AutoFixHigh,
                             onClick = { 
                                 showMenu = false
                                 currentChapter?.let { onNavigateToEditSong(it.id) }
                             }
                         )
-                        DropdownMenuItem(
-                            text = { Text("Add in Playlist", color = Color.White) },
-                            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
+                        HwaranDropdownMenuItem(
+                            text = "Add in Playlist",
+                            leadingIcon = Icons.AutoMirrored.Rounded.PlaylistAdd,
                             onClick = { 
                                 showMenu = false
                                 showPlaylistDialog = true
                             }
                         )
-                        DropdownMenuItem(
-                            text = { Text(if (musicMode == 1) "Show Album Art" else "Show Conductor", color = Color.White) },
-                            leadingIcon = { Icon(if (musicMode == 1) Icons.Rounded.Image else Icons.Rounded.GraphicEq, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
+                        HwaranDropdownMenuItem(
+                            text = if (musicMode == 1) "Show Album Art" else "Show Conductor",
+                            leadingIcon = if (musicMode == 1) Icons.Rounded.Image else Icons.Rounded.GraphicEq,
                             onClick = { 
                                 showMenu = false
                                 settingsViewModel.setMusicMode(if (musicMode == 1) 0 else 1)
                             }
                         )
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), color = Color.White.copy(alpha = 0.05f))
-                        DropdownMenuItem(
-                            text = { Text("Delete", color = Color(0xFFE57373).copy(alpha = 0.8f)) },
-                            leadingIcon = { Icon(Icons.Rounded.DeleteSweep, contentDescription = null, tint = Color(0xFFE57373).copy(alpha = 0.6f)) },
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
+                        HwaranDropdownMenuItem(
+                            text = "Delete",
+                            leadingIcon = Icons.Rounded.DeleteSweep,
+                            isDanger = true,
                             onClick = { 
                                 showMenu = false
                                 showDeleteDialog = true
@@ -830,32 +825,29 @@ if (isLandscape) {
                             tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) Color.White else Color.White.copy(alpha = 0.5f)
                         )
                     }
-                    DropdownMenu(
+                    HwaranDropdownMenu(
                         expanded = showRepeatMenu,
-                        onDismissRequest = { showRepeatMenu = false },
-                        shape = RoundedCornerShape(16.dp),
-                        containerColor = Color(0xFF1A1A1A),
-                        modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                        onDismissRequest = { showRepeatMenu = false }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("Play next song", color = Color.White) },
-                            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.ArrowRightAlt, contentDescription = null, tint = Color.White) },
+                        HwaranDropdownMenuItem(
+                            text = "Play next song",
+                            leadingIcon = Icons.AutoMirrored.Rounded.ArrowRightAlt,
                             onClick = { 
                                 showRepeatMenu = false
                                 musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_OFF)
                             }
                         )
-                        DropdownMenuItem(
-                            text = { Text("Repeat the same queue", color = Color.White) },
-                            leadingIcon = { Icon(Icons.Rounded.Repeat, contentDescription = null, tint = Color.White) },
+                        HwaranDropdownMenuItem(
+                            text = "Repeat the same queue",
+                            leadingIcon = Icons.Rounded.Repeat,
                             onClick = { 
                                 showRepeatMenu = false
                                 musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ALL)
                             }
                         )
-                        DropdownMenuItem(
-                            text = { Text("Repeat the same song", color = Color.White) },
-                            leadingIcon = { Icon(Icons.Rounded.RepeatOne, contentDescription = null, tint = Color.White) },
+                        HwaranDropdownMenuItem(
+                            text = "Repeat the same song",
+                            leadingIcon = Icons.Rounded.RepeatOne,
                             onClick = { 
                                 showRepeatMenu = false
                                 musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ONE)
@@ -1494,88 +1486,45 @@ fun ShuffleControlMenu(
                 tint = if (currentShuffleMode != ShuffleMode.OFF) Color.White else Color.White.copy(alpha = 0.5f)
             )
         }
-        DropdownMenu(
+        HwaranDropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false },
-            shape = RoundedCornerShape(16.dp),
-            containerColor = Color(0xFF1A1A1A),
-            modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+            onDismissRequest = { expanded = false }
         ) {
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        "Smart shuffle mode",
-                        color = if (currentShuffleMode == ShuffleMode.SMART) themeColor else Color.White,
-                        fontWeight = if (currentShuffleMode == ShuffleMode.SMART) FontWeight.Bold else FontWeight.Normal
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        Icons.Rounded.AutoAwesome,
-                        contentDescription = null,
-                        tint = if (currentShuffleMode == ShuffleMode.SMART) themeColor else Color.White
-                    )
-                },
+            HwaranDropdownMenuItem(
+                text = "Smart shuffle mode",
+                leadingIcon = Icons.Rounded.AutoAwesome,
+                isActive = currentShuffleMode == ShuffleMode.SMART,
+                activeColor = themeColor,
                 onClick = {
                     expanded = false
                     onSelectMode(ShuffleMode.SMART)
                 }
             )
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        "Advance shuffle mode",
-                        color = if (currentShuffleMode == ShuffleMode.ADVANCE) themeColor else Color.White,
-                        fontWeight = if (currentShuffleMode == ShuffleMode.ADVANCE) FontWeight.Bold else FontWeight.Normal
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        Icons.Rounded.Tune,
-                        contentDescription = null,
-                        tint = if (currentShuffleMode == ShuffleMode.ADVANCE) themeColor else Color.White
-                    )
-                },
+            HwaranDropdownMenuItem(
+                text = "Advance shuffle mode",
+                leadingIcon = Icons.Rounded.Tune,
+                isActive = currentShuffleMode == ShuffleMode.ADVANCE,
+                activeColor = themeColor,
                 onClick = {
                     expanded = false
                     onSelectMode(ShuffleMode.ADVANCE)
                 }
             )
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        "Normal shuffle mode",
-                        color = if (currentShuffleMode == ShuffleMode.NORMAL) themeColor else Color.White,
-                        fontWeight = if (currentShuffleMode == ShuffleMode.NORMAL) FontWeight.Bold else FontWeight.Normal
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        Icons.Rounded.Shuffle,
-                        contentDescription = null,
-                        tint = if (currentShuffleMode == ShuffleMode.NORMAL) themeColor else Color.White
-                    )
-                },
+            HwaranDropdownMenuItem(
+                text = "Normal shuffle mode",
+                leadingIcon = Icons.Rounded.Shuffle,
+                isActive = currentShuffleMode == ShuffleMode.NORMAL,
+                activeColor = themeColor,
                 onClick = {
                     expanded = false
                     onSelectMode(ShuffleMode.NORMAL)
                 }
             )
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        "Shuffle mode off",
-                        color = if (currentShuffleMode == ShuffleMode.OFF) themeColor else Color.White,
-                        fontWeight = if (currentShuffleMode == ShuffleMode.OFF) FontWeight.Bold else FontWeight.Normal
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowRightAlt,
-                        contentDescription = null,
-                        tint = if (currentShuffleMode == ShuffleMode.OFF) themeColor else Color.White
-                    )
-                },
+            HwaranDropdownMenuItem(
+                text = "Shuffle mode off",
+                leadingIcon = Icons.AutoMirrored.Rounded.ArrowRightAlt,
+                isActive = currentShuffleMode == ShuffleMode.OFF,
+                activeColor = themeColor,
                 onClick = {
                     expanded = false
                     onSelectMode(ShuffleMode.OFF)

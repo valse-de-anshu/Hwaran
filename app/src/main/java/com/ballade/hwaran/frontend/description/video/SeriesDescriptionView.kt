@@ -18,8 +18,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenu
+import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenuItem
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -347,9 +350,9 @@ fun SeriesDescriptionView(
                             )
                         }
 
-                        // Status & Rating Line
-                        val status = if (isEditMode) draftStatus else entryMetadata.status.ifBlank { "Completed" }
-                        val rating = if (isEditMode) draftRating else entryMetadata.rating.ifBlank { "8.8 (120K)" }
+                        // Status & Rating Line — only shown if actual data exists
+                        val status = if (isEditMode) draftStatus else entryMetadata.status
+                        val rating = if (isEditMode) draftRating else entryMetadata.rating
 
                         if (isEditMode) {
                             Row(
@@ -383,31 +386,35 @@ fun SeriesDescriptionView(
                                     )
                                 )
                             }
-                        } else {
+                        } else if (rating.isNotBlank() || status.isNotBlank()) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 modifier = Modifier.padding(top = 2.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Star,
-                                    contentDescription = null,
-                                    tint = Color(0xFFFFB800),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = rating,
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text("•", color = TextMuted, fontSize = 12.sp)
-                                Text(
-                                    text = status,
-                                    color = if (status.contains("ongoing", ignoreCase = true) || status.contains("airing", ignoreCase = true)) Color(0xFF4CAF50) else Color(0xFFE6E8EC),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                                if (rating.isNotBlank()) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Star,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFFB800),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = rating,
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    if (status.isNotBlank()) Text("•", color = TextMuted, fontSize = 12.sp)
+                                }
+                                if (status.isNotBlank()) {
+                                    Text(
+                                        text = status,
+                                        color = if (status.contains("ongoing", ignoreCase = true) || status.contains("airing", ignoreCase = true)) Color(0xFF4CAF50) else Color(0xFFE6E8EC),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                             }
                         }
 
@@ -917,6 +924,98 @@ fun SeriesDescriptionView(
                 }
             }
 
+            // ── Source URL Card (shown only if URL is present in metadata) ──
+            val seriesUrl = entryMetadata.url
+            if (seriesUrl.isNotBlank()) {
+                item {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(seriesUrl))
+                                context.startActivity(intent)
+                            },
+                        shape = RoundedCornerShape(14.dp),
+                        color = CardBg,
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Language,
+                                contentDescription = "Open URL",
+                                tint = Color(0xFF64B5F6),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = seriesUrl,
+                                color = Color(0xFF64B5F6),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.4f),
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Online Statistics Card (shown only if data is present in JSON) ──
+            val hasOnlineStats = entryMetadata.views.isNotBlank() || entryMetadata.likes.isNotBlank() || entryMetadata.comments.isNotBlank()
+            if (hasOnlineStats) {
+                item {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = CardBg,
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = "Online Statistics",
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                if (entryMetadata.views.isNotBlank()) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("VIEWS", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                        Text(entryMetadata.views, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                                if (entryMetadata.likes.isNotBlank()) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("LIKES", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                        Text(entryMetadata.likes, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                                if (entryMetadata.comments.isNotBlank()) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("COMMENTS", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                        Text(entryMetadata.comments, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // ── Additional Series Details Card ──
             item {
                 Surface(
@@ -941,14 +1040,14 @@ fun SeriesDescriptionView(
                             MetadataItemView(
                                 modifier = Modifier.weight(1f),
                                 label = "Studio / Director",
-                                value = if (isEditMode) draftArtist else entryMetadata.artist.ifBlank { "Unknown Studio" },
+                                value = if (isEditMode) draftArtist else entryMetadata.artist.ifBlank { "—" },
                                 isEditMode = isEditMode,
                                 onValueChange = onUpdateDraftArtist
                             )
                             MetadataItemView(
                                 modifier = Modifier.weight(1f),
                                 label = "Network / Platform",
-                                value = if (isEditMode) draftSerialization else entryMetadata.serialization.ifBlank { "Original" },
+                                value = if (isEditMode) draftSerialization else entryMetadata.serialization.ifBlank { "—" },
                                 isEditMode = isEditMode,
                                 onValueChange = onUpdateDraftSerialization
                             )
@@ -961,14 +1060,14 @@ fun SeriesDescriptionView(
                             MetadataItemView(
                                 modifier = Modifier.weight(1f),
                                 label = "Release Year",
-                                value = if (isEditMode) draftYear else entryMetadata.year.ifBlank { "2024" },
+                                value = if (isEditMode) draftYear else entryMetadata.year.ifBlank { "—" },
                                 isEditMode = isEditMode,
                                 onValueChange = onUpdateDraftYear
                             )
                             MetadataItemView(
                                 modifier = Modifier.weight(1f),
                                 label = "Audio / Subtitles",
-                                value = if (isEditMode) draftLanguage else entryMetadata.language.ifBlank { "Japanese / Sub" },
+                                value = if (isEditMode) draftLanguage else entryMetadata.language.ifBlank { "—" },
                                 isEditMode = isEditMode,
                                 onValueChange = onUpdateDraftLanguage
                             )
@@ -981,7 +1080,7 @@ fun SeriesDescriptionView(
                             MetadataItemView(
                                 modifier = Modifier.weight(1f),
                                 label = "Status",
-                                value = if (isEditMode) draftStatus else entryMetadata.status.ifBlank { "Completed" },
+                                value = if (isEditMode) draftStatus else entryMetadata.status.ifBlank { "—" },
                                 isEditMode = isEditMode,
                                 onValueChange = onUpdateDraftStatus
                             )
@@ -1055,70 +1154,59 @@ fun SeriesDescriptionView(
                         }
                     }
 
-                    DropdownMenu(
+                    HwaranDropdownMenu(
                         expanded = showMoreMenu,
                         onDismissRequest = { showMoreMenu = false }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("Edit Description") },
+                        HwaranDropdownMenuItem(
+                            text = "Edit Description",
                             onClick = {
                                 showMoreMenu = false
                                 onToggleEditMode()
                             },
-                            leadingIcon = {
-                                Icon(Icons.Rounded.Edit, contentDescription = null)
-                            }
+                            leadingIcon = Icons.Rounded.Edit
                         )
-                        DropdownMenuItem(
-                            text = { Text("Change Cover") },
+                        HwaranDropdownMenuItem(
+                            text = "Change Cover",
                             onClick = {
                                 showMoreMenu = false
                                 onPickCover()
                             },
-                            leadingIcon = {
-                                Icon(Icons.Rounded.Image, contentDescription = null)
-                            }
+                            leadingIcon = Icons.Rounded.Image
                         )
-                        DropdownMenuItem(
-                            text = { Text("Add / Import Episodes") },
+                        HwaranDropdownMenuItem(
+                            text = "Add / Import Episodes",
                             onClick = {
                                 showMoreMenu = false
                                 onPickEpisodes()
                             },
-                            leadingIcon = {
-                                Icon(Icons.Rounded.VideoFile, contentDescription = null)
-                            }
+                            leadingIcon = Icons.Rounded.VideoFile
                         )
-                        DropdownMenuItem(
-                            text = { Text("Videos (${chapters.size})") },
+                        HwaranDropdownMenuItem(
+                            text = "Videos (${chapters.size})",
                             onClick = {
                                 showMoreMenu = false
                                 onOpenRelated("Videos")
                             },
-                            leadingIcon = {
-                                Icon(Icons.Rounded.VideoLibrary, contentDescription = null)
-                            }
+                            leadingIcon = Icons.Rounded.VideoLibrary
                         )
-                        DropdownMenuItem(
-                            text = { Text("Franchise & Related (${childBoxes.size})") },
+                        HwaranDropdownMenuItem(
+                            text = "Franchise & Related (${childBoxes.size})",
                             onClick = {
                                 showMoreMenu = false
                                 onOpenRelated("Seasons")
                             },
-                            leadingIcon = {
-                                Icon(Icons.Rounded.Hub, contentDescription = null)
-                            }
+                            leadingIcon = Icons.Rounded.Hub
                         )
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = { Text("Delete Series", color = Color(0xFFE57373)) },
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
+                        HwaranDropdownMenuItem(
+                            text = "Delete Series",
                             onClick = {
                                 showMoreMenu = false
                                 onDeleteManga()
                             },
-                            leadingIcon = {
-                                Icon(Icons.Rounded.Delete, contentDescription = null, tint = Color(0xFFE57373))
-                            }
+                            leadingIcon = Icons.Rounded.Delete,
+                            isDanger = true
                         )
                     }
                 }

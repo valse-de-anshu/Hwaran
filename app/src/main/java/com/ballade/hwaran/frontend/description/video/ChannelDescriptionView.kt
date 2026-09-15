@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenu
+import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenuItem
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -368,6 +370,37 @@ fun ChannelDescriptionView(
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium
                             )
+                        }
+
+                        // Channel URL (shown only if present in metadata)
+                        val channelUrl = entryMetadata.url
+                        if (channelUrl.isNotBlank()) {
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(channelUrl))
+                                        context.startActivity(intent)
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Language,
+                                    contentDescription = "Open channel URL",
+                                    tint = Color(0xFF64B5F6),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text(
+                                    text = channelUrl,
+                                    color = Color(0xFF64B5F6),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
@@ -823,6 +856,51 @@ fun ChannelDescriptionView(
                 }
             }
 
+            // ── Online Statistics Card (shown only if JSON data is present) ──
+            val hasChannelStats = entryMetadata.views.isNotBlank() || entryMetadata.likes.isNotBlank() || entryMetadata.comments.isNotBlank()
+            if (hasChannelStats) {
+                item {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = CardBg,
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = "Online Statistics",
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                if (entryMetadata.views.isNotBlank()) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("VIEWS", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                        Text(entryMetadata.views, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                                if (entryMetadata.likes.isNotBlank()) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("LIKES", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                        Text(entryMetadata.likes, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                                if (entryMetadata.comments.isNotBlank()) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("COMMENTS", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                        Text(entryMetadata.comments, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // ── Additional Channel Info Card ──
             item {
                 Surface(
@@ -847,14 +925,14 @@ fun ChannelDescriptionView(
                             MetadataItemView(
                                 modifier = Modifier.weight(1f),
                                 label = "Creator / Host",
-                                value = if (isEditMode) draftAuthor else entryMetadata.author.ifBlank { "Creator" },
+                                value = if (isEditMode) draftAuthor else entryMetadata.author.ifBlank { "—" },
                                 isEditMode = isEditMode,
                                 onValueChange = onUpdateDraftAuthor
                             )
                             MetadataItemView(
                                 modifier = Modifier.weight(1f),
                                 label = "Platform / Source",
-                                value = if (isEditMode) draftSerialization else entryMetadata.serialization.ifBlank { "Local" },
+                                value = if (isEditMode) draftSerialization else entryMetadata.serialization.ifBlank { "—" },
                                 isEditMode = isEditMode,
                                 onValueChange = onUpdateDraftSerialization
                             )
@@ -867,14 +945,14 @@ fun ChannelDescriptionView(
                             MetadataItemView(
                                 modifier = Modifier.weight(1f),
                                 label = "Started / Year",
-                                value = if (isEditMode) draftYear else entryMetadata.year.ifBlank { "2024" },
+                                value = if (isEditMode) draftYear else entryMetadata.year.ifBlank { "—" },
                                 isEditMode = isEditMode,
                                 onValueChange = onUpdateDraftYear
                             )
                             MetadataItemView(
                                 modifier = Modifier.weight(1f),
                                 label = "Primary Language",
-                                value = if (isEditMode) draftLanguage else entryMetadata.language.ifBlank { "English" },
+                                value = if (isEditMode) draftLanguage else entryMetadata.language.ifBlank { "—" },
                                 isEditMode = isEditMode,
                                 onValueChange = onUpdateDraftLanguage
                             )
@@ -954,60 +1032,51 @@ fun ChannelDescriptionView(
                         }
                     }
 
-                    DropdownMenu(
+                    HwaranDropdownMenu(
                         expanded = showMoreMenu,
                         onDismissRequest = { showMoreMenu = false }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("Edit Channel") },
+                        HwaranDropdownMenuItem(
+                            text = "Edit Channel",
                             onClick = {
                                 showMoreMenu = false
                                 onToggleEditMode()
                             },
-                            leadingIcon = {
-                                Icon(Icons.Rounded.Edit, contentDescription = null)
-                            }
+                            leadingIcon = Icons.Rounded.Edit
                         )
-                        DropdownMenuItem(
-                            text = { Text("Change Avatar / Cover") },
+                        HwaranDropdownMenuItem(
+                            text = "Change Avatar / Cover",
                             onClick = {
                                 showMoreMenu = false
                                 onPickCover()
                             },
-                            leadingIcon = {
-                                Icon(Icons.Rounded.Image, contentDescription = null)
-                            }
+                            leadingIcon = Icons.Rounded.Image
                         )
-                        DropdownMenuItem(
-                            text = { Text("Add / Import Videos") },
+                        HwaranDropdownMenuItem(
+                            text = "Add / Import Videos",
                             onClick = {
                                 showMoreMenu = false
                                 onPickVideos()
                             },
-                            leadingIcon = {
-                                Icon(Icons.Rounded.VideoFile, contentDescription = null)
-                            }
+                            leadingIcon = Icons.Rounded.VideoFile
                         )
-                        DropdownMenuItem(
-                            text = { Text("Open Videos (${chapters.size})") },
+                        HwaranDropdownMenuItem(
+                            text = "Open Videos (${chapters.size})",
                             onClick = {
                                 showMoreMenu = false
                                 onOpenVideos()
                             },
-                            leadingIcon = {
-                                Icon(Icons.Rounded.VideoLibrary, contentDescription = null)
-                            }
+                            leadingIcon = Icons.Rounded.VideoLibrary
                         )
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = { Text("Delete Channel", color = Color(0xFFE57373)) },
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
+                        HwaranDropdownMenuItem(
+                            text = "Delete Channel",
                             onClick = {
                                 showMoreMenu = false
                                 onDeleteManga()
                             },
-                            leadingIcon = {
-                                Icon(Icons.Rounded.Delete, contentDescription = null, tint = Color(0xFFE57373))
-                            }
+                            leadingIcon = Icons.Rounded.Delete,
+                            isDanger = true
                         )
                     }
                 }
