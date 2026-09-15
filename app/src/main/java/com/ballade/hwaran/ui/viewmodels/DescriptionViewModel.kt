@@ -399,9 +399,15 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
             withContext(Dispatchers.IO) {
                 targetMangaIds.forEachIndexed { index, targetId ->
                     val target = libraryDao.getMangaById(targetId) ?: return@forEachIndexed
+                    val isChannel = target.boxPurpose == "channel" || target.genre?.contains("channel", ignoreCase = true) == true
+                    val updatedGenre = if (isChannel && !(target.genre?.contains("channel", ignoreCase = true) == true)) {
+                        if (target.genre.isNullOrBlank()) "channel" else "${target.genre},channel"
+                    } else target.genre
+
                     val updated = target.copy(
                         parentMangaId = rootId,
                         boxPurpose = relationType,
+                        genre = updatedGenre,
                         boxLabel = target.title,
                         position = _childBoxes.value.size + index
                     )
@@ -418,10 +424,16 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             val rootId = root.parentMangaId ?: root.id
             val target = withContext(Dispatchers.IO) { libraryDao.getMangaById(targetMangaId) } ?: return@launch
+            val isChannel = target.boxPurpose == "channel" || target.genre?.contains("channel", ignoreCase = true) == true
+            val updatedGenre = if (isChannel && !(target.genre?.contains("channel", ignoreCase = true) == true)) {
+                if (target.genre.isNullOrBlank()) "channel" else "${target.genre},channel"
+            } else target.genre
+
             val nextPosition = _childBoxes.value.size
             val updated = target.copy(
                 parentMangaId = rootId,
                 boxPurpose = relationType,
+                genre = updatedGenre,
                 boxLabel = if (!customLabel.isNullOrBlank()) customLabel else target.title,
                 position = nextPosition
             )
@@ -434,9 +446,18 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
     fun unlinkRelatedMedia(targetMangaId: Long, onUnlinked: () -> Unit = {}) {
         viewModelScope.launch {
             val target = withContext(Dispatchers.IO) { libraryDao.getMangaById(targetMangaId) } ?: return@launch
+            val isChannel = target.boxPurpose == "channel" || target.genre?.contains("channel", ignoreCase = true) == true
+            val restoredPurpose = when {
+                isChannel -> "channel"
+                target.contentType == 0 -> "manga"
+                target.contentType == 1 -> "book"
+                target.contentType == 4 -> "novel"
+                target.contentType == 2 -> "series"
+                else -> target.boxPurpose
+            }
             val updated = target.copy(
                 parentMangaId = null,
-                boxPurpose = if (target.contentType == 2) "series" else target.boxPurpose
+                boxPurpose = restoredPurpose
             )
             withContext(Dispatchers.IO) { libraryDao.insertManga(updated) }
             loadManga(currentMangaId)
