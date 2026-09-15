@@ -204,8 +204,10 @@ fun SeriesRelatedView(
 
     val dynamicCustomTabs = remember(childBoxes, customCategories) {
         val childPurposes = childBoxes.mapNotNull { it.boxPurpose?.trim() }.filter { purpose ->
-            purpose.isNotBlank() && builtInTabs.none { tab -> tab.equals(purpose, ignoreCase = true) } &&
-            SeriesRelationType.entries.none { rel -> rel.id.equals(purpose, ignoreCase = true) }
+            val clean = purpose.lowercase()
+            clean.isNotBlank() && clean != "series" && clean != "season" && clean != "seasons" && clean != "video" && clean != "videos" &&
+            builtInTabs.none { tab -> tab.equals(clean, ignoreCase = true) } &&
+            SeriesRelationType.entries.none { rel -> rel.id.equals(clean, ignoreCase = true) }
         }.map { it.replaceFirstChar { char -> char.uppercase() } }
         (childPurposes + customCategories).distinct()
     }
