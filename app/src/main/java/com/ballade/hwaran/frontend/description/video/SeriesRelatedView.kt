@@ -64,6 +64,12 @@ import com.ballade.hwaran.frontend.player.video.VideoPreview
 import com.ballade.hwaran.frontend.home.LibraryView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import android.os.Build
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.geometry.Offset
@@ -1413,11 +1419,79 @@ fun SeriesRelatedView(
             onDismissRequest = { showLinkSheet = false },
             properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
         ) {
+            val view = LocalView.current
+            DisposableEffect(view) {
+                val window = (view.parent as? DialogWindowProvider)?.window
+                if (window != null) {
+                    WindowCompat.setDecorFitsSystemWindows(window, false)
+                    window.statusBarColor = android.graphics.Color.TRANSPARENT
+                    window.navigationBarColor = android.graphics.Color.TRANSPARENT
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        window.attributes.layoutInDisplayCutoutMode =
+                            android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                    }
+                    val controller = WindowCompat.getInsetsController(window, window.decorView)
+                    controller.hide(WindowInsetsCompat.Type.systemBars())
+                    controller.systemBarsBehavior =
+                        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+                onDispose {}
+            }
+
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = Color(0xFF0F0F13)
             ) {
-                Box(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .displayCutoutPadding()
+                ) {
+                    // ── Safe Header Bar (Below Camera Cutout & Status Bar) ──
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        IconButton(
+                            onClick = { showLinkSheet = false },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White
+                            )
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Select Media to Link",
+                                color = Color.White,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            val targetRelation = when (selectedFilterCategory) {
+                                "Movies" -> "Movie"
+                                "OVAs & ONAs" -> "OVA"
+                                "Specials & BD" -> "Special"
+                                "Prequels & Sequels" -> "Sequel / Prequel"
+                                "Other" -> "Related"
+                                else -> "Season"
+                            }
+                            Text(
+                                text = "Linking to '${manga.title}' as $targetRelation",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
                     val currentRelationId = remember(selectedFilterCategory) {
                         when (selectedFilterCategory) {
                             "Movies" -> SeriesRelationType.MOVIE.id
@@ -1435,30 +1509,9 @@ fun SeriesRelatedView(
                             onLinkExistingMedia(selectedId, currentRelationId, null)
                             showLinkSheet = false
                         },
-                        initialTag = "Series"
+                        initialTag = "Series",
+                        modifier = Modifier.weight(1f)
                     )
-
-                    // Floating Top-Left Close Button
-                    Surface(
-                        modifier = Modifier
-                            .statusBarsPadding()
-                            .padding(start = 16.dp, top = 8.dp),
-                        shape = CircleShape,
-                        color = Color.Black.copy(alpha = 0.7f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
-                    ) {
-                        IconButton(
-                            onClick = { showLinkSheet = false },
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = "Close",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
                 }
             }
         }
