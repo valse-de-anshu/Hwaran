@@ -194,8 +194,24 @@ fun SeriesRelatedView(
         }
     }
 
-    val filterTabs = remember {
-        listOf("Videos", "Seasons", "Movies", "OVAs & ONAs", "Specials & BD", "Prequels & Sequels", "Other")
+    var customCategories by remember { mutableStateOf(listOf<String>()) }
+    var showAddCustomCategoryDialog by remember { mutableStateOf(false) }
+    var newCustomCategoryName by remember { mutableStateOf("") }
+
+    val builtInTabs = remember {
+        listOf("Videos", "Seasons", "Movies", "OVAs", "ONAs", "Specials", "Blu-ray", "Sequels", "Prequels")
+    }
+
+    val dynamicCustomTabs = remember(childBoxes, customCategories) {
+        val childPurposes = childBoxes.mapNotNull { it.boxPurpose?.trim() }.filter { purpose ->
+            purpose.isNotBlank() && builtInTabs.none { tab -> tab.equals(purpose, ignoreCase = true) } &&
+            SeriesRelationType.entries.none { rel -> rel.id.equals(purpose, ignoreCase = true) }
+        }.map { it.replaceFirstChar { char -> char.uppercase() } }
+        (childPurposes + customCategories).distinct()
+    }
+
+    val filterTabs = remember(dynamicCustomTabs) {
+        builtInTabs + dynamicCustomTabs
     }
 
     val filteredBoxes = remember(childBoxes, selectedFilterCategory) {
@@ -208,23 +224,27 @@ fun SeriesRelatedView(
                 val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
                 rel == SeriesRelationType.MOVIE || it.boxPurpose?.contains("movie", ignoreCase = true) == true
             }
-            "OVAs & ONAs" -> childBoxes.filter {
-                val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
-                rel == SeriesRelationType.OVA || rel == SeriesRelationType.ONA
+            "OVAs" -> childBoxes.filter {
+                SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.OVA
             }
-            "Specials & BD" -> childBoxes.filter {
-                val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
-                rel == SeriesRelationType.SPECIAL || rel == SeriesRelationType.BLURAY
+            "ONAs" -> childBoxes.filter {
+                SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.ONA
             }
-            "Prequels & Sequels" -> childBoxes.filter {
-                val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
-                rel == SeriesRelationType.PREQUEL || rel == SeriesRelationType.SEQUEL
+            "Specials" -> childBoxes.filter {
+                SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.SPECIAL
             }
-            "Other" -> childBoxes.filter {
-                val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
-                rel == SeriesRelationType.SPINOFF || rel == SeriesRelationType.SUMMARY || rel == SeriesRelationType.ALT_VERSION
+            "Blu-ray" -> childBoxes.filter {
+                SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.BLURAY
             }
-            else -> childBoxes
+            "Sequels" -> childBoxes.filter {
+                SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.SEQUEL
+            }
+            "Prequels" -> childBoxes.filter {
+                SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.PREQUEL
+            }
+            else -> childBoxes.filter {
+                it.boxPurpose?.equals(selectedFilterCategory, ignoreCase = true) == true
+            }
         }
     }
 
@@ -513,25 +533,15 @@ fun SeriesRelatedView(
                         val isSel = selectedFilterCategory == tab
                         val tabCount = when (tab) {
                             "Videos" -> videos.size
-                            "Seasons" -> childBoxes.count { SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.SEASON }
-                            "Movies" -> childBoxes.count { SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.MOVIE }
-                            "OVAs & ONAs" -> childBoxes.count {
-                                val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
-                                rel == SeriesRelationType.OVA || rel == SeriesRelationType.ONA
-                            }
-                            "Specials & BD" -> childBoxes.count {
-                                val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
-                                rel == SeriesRelationType.SPECIAL || rel == SeriesRelationType.BLURAY
-                            }
-                            "Prequels & Sequels" -> childBoxes.count {
-                                val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
-                                rel == SeriesRelationType.PREQUEL || rel == SeriesRelationType.SEQUEL
-                            }
-                            "Other" -> childBoxes.count {
-                                val rel = SeriesRelationType.fromPurpose(it.boxPurpose)
-                                rel == SeriesRelationType.SPINOFF || rel == SeriesRelationType.SUMMARY || rel == SeriesRelationType.ALT_VERSION
-                            }
-                            else -> 0
+                            "Seasons" -> childBoxes.count { SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.SEASON || (it.parentMangaId == null && (it.boxPurpose == null || it.boxPurpose == "series")) }
+                            "Movies" -> childBoxes.count { SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.MOVIE || it.boxPurpose?.contains("movie", ignoreCase = true) == true }
+                            "OVAs" -> childBoxes.count { SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.OVA }
+                            "ONAs" -> childBoxes.count { SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.ONA }
+                            "Specials" -> childBoxes.count { SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.SPECIAL }
+                            "Blu-ray" -> childBoxes.count { SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.BLURAY }
+                            "Sequels" -> childBoxes.count { SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.SEQUEL }
+                            "Prequels" -> childBoxes.count { SeriesRelationType.fromPurpose(it.boxPurpose) == SeriesRelationType.PREQUEL }
+                            else -> childBoxes.count { it.boxPurpose?.equals(tab, ignoreCase = true) == true }
                         }
 
                         val tabLabel = if (tabCount > 0) "$tab ($tabCount)" else tab
@@ -557,6 +567,34 @@ fun SeriesRelatedView(
                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
                             )
+                        }
+                    }
+
+                    // ── '+' Icon Pill to Add Custom Category ──
+                    item {
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    newCustomCategoryName = ""
+                                    showAddCustomCategoryDialog = true
+                                },
+                            color = Color.White.copy(alpha = 0.04f),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Add,
+                                    contentDescription = "Add Custom Category",
+                                    tint = Color.White.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -1476,11 +1514,15 @@ fun SeriesRelatedView(
                             )
                             val targetRelation = when (selectedFilterCategory) {
                                 "Movies" -> "Movie"
-                                "OVAs & ONAs" -> "OVA"
-                                "Specials & BD" -> "Special"
-                                "Prequels & Sequels" -> "Sequel / Prequel"
-                                "Other" -> "Related"
-                                else -> "Season"
+                                "OVAs" -> "OVA"
+                                "ONAs" -> "ONA"
+                                "Specials" -> "Special"
+                                "Blu-ray" -> "Blu-ray"
+                                "Sequels" -> "Sequel"
+                                "Prequels" -> "Prequel"
+                                "Videos" -> "Season"
+                                "Seasons" -> "Season"
+                                else -> selectedFilterCategory
                             }
                             Text(
                                 text = "Linking to '${manga.title}' as $targetRelation",
@@ -1495,11 +1537,15 @@ fun SeriesRelatedView(
                     val currentRelationId = remember(selectedFilterCategory) {
                         when (selectedFilterCategory) {
                             "Movies" -> SeriesRelationType.MOVIE.id
-                            "OVAs & ONAs" -> SeriesRelationType.OVA.id
-                            "Specials & BD" -> SeriesRelationType.SPECIAL.id
-                            "Prequels & Sequels" -> SeriesRelationType.SEQUEL.id
-                            "Other" -> SeriesRelationType.SPINOFF.id
-                            else -> SeriesRelationType.SEASON.id
+                            "OVAs" -> SeriesRelationType.OVA.id
+                            "ONAs" -> SeriesRelationType.ONA.id
+                            "Specials" -> SeriesRelationType.SPECIAL.id
+                            "Blu-ray" -> SeriesRelationType.BLURAY.id
+                            "Sequels" -> SeriesRelationType.SEQUEL.id
+                            "Prequels" -> SeriesRelationType.PREQUEL.id
+                            "Videos" -> SeriesRelationType.SEASON.id
+                            "Seasons" -> SeriesRelationType.SEASON.id
+                            else -> selectedFilterCategory.lowercase().trim()
                         }
                     }
 
@@ -1556,6 +1602,55 @@ fun SeriesRelatedView(
             },
             dismissButton = {
                 TextButton(onClick = { itemToDelete = null }) {
+                    Text("Cancel", color = TextMuted)
+                }
+            },
+            containerColor = CardBg
+        )
+    }
+
+    // ── Add Custom Category Dialog ──
+    if (showAddCustomCategoryDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddCustomCategoryDialog = false },
+            title = { Text("Add Custom Category", color = Color.White) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Enter a custom category name for this franchise (e.g. BTS, Drama CD, Trailer):", color = TextMuted, fontSize = 13.sp)
+                    OutlinedTextField(
+                        value = newCustomCategoryName,
+                        onValueChange = { newCustomCategoryName = it },
+                        placeholder = { Text("Category name...", color = Color.Gray) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val trimmed = newCustomCategoryName.trim()
+                        if (trimmed.isNotBlank()) {
+                            val formatted = trimmed.replaceFirstChar { it.uppercase() }
+                            if (!customCategories.contains(formatted)) {
+                                customCategories = customCategories + formatted
+                            }
+                            selectedFilterCategory = formatted
+                        }
+                        showAddCustomCategoryDialog = false
+                    }
+                ) {
+                    Text("Add", color = Color(0xFFE6E8EC), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddCustomCategoryDialog = false }) {
                     Text("Cancel", color = TextMuted)
                 }
             },
