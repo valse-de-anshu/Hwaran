@@ -382,9 +382,27 @@ fun NovelPlayerScreen(
             val chapterTitle = novelBook!!.chapters[chapterIdx].title
             coroutineScope.launch(Dispatchers.IO) {
                 val current = database.mediaDao().getMangaById(mangaId) ?: return@launch
+                val now = System.currentTimeMillis()
                 database.mediaDao().insertManga(
-                    current.copy(lastReadPage = chapterIdx, lastReadTitle = chapterTitle)
+                    current.copy(
+                        lastReadPage = chapterIdx,
+                        lastReadTitle = chapterTitle,
+                        openCount = current.openCount + 1,
+                        lastModified = now
+                    )
                 )
+                if (current.parentMangaId != null) {
+                    database.mediaDao().getMangaById(current.parentMangaId)?.let { parent ->
+                        database.mediaDao().insertManga(
+                            parent.copy(
+                                lastReadPage = chapterIdx,
+                                lastReadTitle = chapterTitle,
+                                openCount = parent.openCount + 1,
+                                lastModified = now
+                            )
+                        )
+                    }
+                }
                 HistoryTracker.logEvent(
                     "READ_NOVEL",
                     chapterTitle,

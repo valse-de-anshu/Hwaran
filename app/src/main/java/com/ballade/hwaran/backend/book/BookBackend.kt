@@ -64,8 +64,14 @@ class BookBackend(private val application: Application) {
     fun updateReadingProgress(mangaId: Long, page: Int) {
         scope.launch {
             val manga = database.mediaDao().getMangaById(mangaId) ?: return@launch
-            database.mediaDao().insertManga(manga.copy(lastReadPage = page, openCount = manga.openCount + 1))
-            HistoryTracker.logEvent("READ_BOOK", manga.title, "page:$page")
+            val now = System.currentTimeMillis()
+            database.mediaDao().insertManga(manga.copy(lastReadPage = page, openCount = manga.openCount + 1, lastModified = now))
+            if (manga.parentMangaId != null) {
+                database.mediaDao().getMangaById(manga.parentMangaId)?.let { parent ->
+                    database.mediaDao().insertManga(parent.copy(lastReadPage = page, openCount = parent.openCount + 1, lastModified = now))
+                }
+            }
+            HistoryTracker.logEvent("READ_BOOK", manga.title, "mangaId:$mangaId|page:$page")
         }
     }
 

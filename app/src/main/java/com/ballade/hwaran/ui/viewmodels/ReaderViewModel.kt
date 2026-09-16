@@ -58,10 +58,21 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                         _startPage.value = 0
                     }
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        val now = System.currentTimeMillis()
                         database.libraryDao().insertManga(mangaEntity.copy(
                             lastReadTitle = chapterEntity.title,
-                            openCount = mangaEntity.openCount + 1
+                            openCount = mangaEntity.openCount + 1,
+                            lastModified = now
                         ))
+                        if (mangaEntity.parentMangaId != null) {
+                            database.libraryDao().getMangaById(mangaEntity.parentMangaId)?.let { parent ->
+                                database.libraryDao().insertManga(parent.copy(
+                                    lastReadTitle = chapterEntity.title,
+                                    openCount = parent.openCount + 1,
+                                    lastModified = now
+                                ))
+                            }
+                        }
                         database.trackDao().insertChapter(chapterEntity.copy(openCount = chapterEntity.openCount + 1))
                     }
                     // Log Toon Read Event
@@ -123,7 +134,13 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val manga = database.libraryDao().getMangaById(currentChapter.mangaId)
             if (manga != null) {
-                database.libraryDao().insertManga(manga.copy(lastReadPage = page))
+                val now = System.currentTimeMillis()
+                database.libraryDao().insertManga(manga.copy(lastReadPage = page, lastModified = now))
+                if (manga.parentMangaId != null) {
+                    database.libraryDao().getMangaById(manga.parentMangaId)?.let { parent ->
+                        database.libraryDao().insertManga(parent.copy(lastReadPage = page, lastModified = now))
+                    }
+                }
             }
         }
     }

@@ -21,7 +21,13 @@ class PdfViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             val manga = database.libraryDao().getMangaById(mangaId)
             if (manga != null) {
-                database.libraryDao().insertManga(manga.copy(lastReadPage = page))
+                val now = System.currentTimeMillis()
+                database.libraryDao().insertManga(manga.copy(lastReadPage = page, lastModified = now))
+                if (manga.parentMangaId != null) {
+                    database.libraryDao().getMangaById(manga.parentMangaId)?.let { parent ->
+                        database.libraryDao().insertManga(parent.copy(lastReadPage = page, lastModified = now))
+                    }
+                }
             }
         }
     }
@@ -31,7 +37,13 @@ class PdfViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             val manga = database.libraryDao().getMangaById(mangaId)
             if (manga != null) {
-                database.libraryDao().insertManga(manga.copy(openCount = manga.openCount + 1))
+                val now = System.currentTimeMillis()
+                database.libraryDao().insertManga(manga.copy(openCount = manga.openCount + 1, lastModified = now))
+                if (manga.parentMangaId != null) {
+                    database.libraryDao().getMangaById(manga.parentMangaId)?.let { parent ->
+                        database.libraryDao().insertManga(parent.copy(openCount = parent.openCount + 1, lastModified = now))
+                    }
+                }
             }
         }
     }

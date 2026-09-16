@@ -71,6 +71,16 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             initialValue = emptyList()
         )
 
+    val allMangaEverywhereState: StateFlow<List<MangaEntity>> = database.libraryDao().getAllMangaEverywhereFlow()
+        .combine(MutableStateFlow(Unit)) { allManga, _ ->
+            _isLoading.value = false
+            allManga
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
     fun getScreenNamesForMode(mediaMode: Int): kotlinx.coroutines.flow.Flow<List<String>> {
         return database.libraryDao().getDistinctWorkspacesForContentType(mediaMode)
     }

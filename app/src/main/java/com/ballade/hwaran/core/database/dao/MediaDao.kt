@@ -13,6 +13,9 @@ interface MediaDao {
     @Query("SELECT * FROM manga WHERE parentMangaId IS NULL ORDER BY position ASC, title ASC")
     fun getAllManga(): Flow<List<MangaEntity>>
 
+    @Query("SELECT * FROM manga ORDER BY position ASC, title ASC")
+    fun getAllMangaEverywhereFlow(): Flow<List<MangaEntity>>
+
     @Query("SELECT * FROM manga WHERE parentMangaId IS NULL")
     suspend fun getAllMangaList(): List<MangaEntity>
 

@@ -52,6 +52,7 @@ import com.ballade.hwaran.ui.components.JellyToggle3
 import com.ballade.hwaran.ui.dialogs.PremiumGlassPanel
 import com.ballade.hwaran.ui.dialogs.PremiumSlider
 import com.ballade.hwaran.ui.dialogs.SidebarIcon
+import com.ballade.hwaran.ui.dialogs.ZineScraperDialog
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -82,31 +83,64 @@ fun SettingsScreen(
         isRailVisible = true
     }
 
+    var showZineScraperDialog by remember { mutableStateOf(false) }
+
+    if (showZineScraperDialog) {
+        ZineScraperDialog(onDismiss = { showZineScraperDialog = false })
+    }
+
     Scaffold(
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize()) {
 
-            // Top Back Button (Floating above everything)
+            // Top Header Bar (Back button on left, Tool icon button on right)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
                     .background(Brush.verticalGradient(colors = listOf(Color.Black.copy(alpha = 0.9f), Color.Transparent)))
                     .statusBarsPadding()
-                    .padding(top = 40.dp, bottom = 32.dp)
+                    .padding(top = 40.dp, bottom = 32.dp, start = 8.dp, end = 16.dp)
                     .zIndex(10f)
             ) {
-                IconButton(
-                    onClick = onNavigateBack,
-                    modifier = Modifier.padding(start = 8.dp, top = 20.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color.White
-                    )
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.padding(top = 16.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+
+                    // Tool Icon Button (Zine Scraper CLI Tool)
+                    Surface(
+                        modifier = Modifier
+                            .padding(top = 16.dp)
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .clickable { showZineScraperDialog = true },
+                        shape = CircleShape,
+                        color = Color.White.copy(alpha = 0.08f),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Rounded.Construction,
+                                contentDescription = "Zine Scraper CLI Tool",
+                                tint = Color.White.copy(alpha = 0.9f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -1094,10 +1128,11 @@ fun AboutContent(scrollState: ScrollState, vm: SettingsViewModel, onNavigateBack
             .graphicsLayer { this.alpha = alpha },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Hwaran App Info Header Section
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(380.dp)
+                .height(340.dp)
         ) {
             AndroidView(
                 factory = { ctx ->
@@ -1135,13 +1170,22 @@ fun AboutContent(scrollState: ScrollState, vm: SettingsViewModel, onNavigateBack
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Developed with ꨄ by Anshu",
-            style = MaterialTheme.typography.titleMedium,
+            text = "Hwaran Media Player",
+            style = MaterialTheme.typography.titleLarge,
             color = Color.White,
             fontWeight = FontWeight.Bold
         )
 
         Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = "Developed with ꨄ by Anshu",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
             text = "I built this app as an offline reader/watcher for manhua, manga, books and videos. I'd love to know how I can improve this app for you. Hwaran is free and open-source!",
@@ -1152,6 +1196,52 @@ fun AboutContent(scrollState: ScrollState, vm: SettingsViewModel, onNavigateBack
         )
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        // Open Source Repository Button
+        Button(
+            onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/valse-de-anshu/Hwaran.git"))
+                context.startActivity(intent)
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF222631),
+                contentColor = Color(0xFFE6E8EC)
+            ),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth().height(52.dp)
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_github),
+                contentDescription = null,
+                tint = Color(0xFFE6E8EC),
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Hwaran Open Source", fontWeight = FontWeight.Bold, color = Color(0xFFE6E8EC))
+        }
+
+        Spacer(modifier = Modifier.height(28.dp))
+
+        // Socials & Community Section
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Socials & Community",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            HorizontalDivider(
+                modifier = Modifier.weight(1f),
+                color = Color.White.copy(alpha = 0.12f)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
 
         Button(
             onClick = {
@@ -1199,56 +1289,6 @@ fun AboutContent(scrollState: ScrollState, vm: SettingsViewModel, onNavigateBack
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text("Join our Discord Community", fontWeight = FontWeight.Bold, color = Color(0xFFE6E8EC))
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Button(
-            onClick = {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/valse-de-anshu/Hwaran.git"))
-                context.startActivity(intent)
-            },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF222631),
-                contentColor = Color(0xFFE6E8EC)
-            ),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth().height(52.dp)
-        ) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_github),
-                contentDescription = null,
-                tint = Color(0xFFE6E8EC),
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Open Source GitHub Repository", fontWeight = FontWeight.Bold, color = Color(0xFFE6E8EC))
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Button(
-            onClick = {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/valse-de-anshu/zine-scraper.git"))
-                context.startActivity(intent)
-            },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF222631),
-                contentColor = Color(0xFFE6E8EC)
-            ),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth().height(52.dp)
-        ) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_github),
-                contentDescription = null,
-                tint = Color(0xFFE6E8EC),
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Zine Scraper CLI (Scrape Media)", fontWeight = FontWeight.Bold, color = Color(0xFFE6E8EC))
         }
     }
 }

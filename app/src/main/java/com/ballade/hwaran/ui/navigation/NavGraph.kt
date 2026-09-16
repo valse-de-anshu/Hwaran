@@ -102,9 +102,58 @@ fun NavHostController.navigateSafely(route: String, builder: androidx.navigation
     }
 }
 
+/**
+ * Safe backstack pop extension that prevents rapid double-back pops
+ * from popping the root destination and causing a black screen / app crash.
+ */
+fun NavHostController.popBackStackSafely(): Boolean {
+    val currentEntry = currentBackStackEntry
+    if (currentEntry != null && currentEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+        if (currentEntry.destination.route != Screen.Home.route) {
+            return popBackStack()
+        }
+    }
+    return false
+}
+
+fun NavHostController.popBackStackSafely(route: String, inclusive: Boolean = false): Boolean {
+    val currentEntry = currentBackStackEntry
+    if (currentEntry != null && currentEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+        val popped = popBackStack(route, inclusive)
+        if (!popped && currentBackStackEntry?.destination?.route == null) {
+            navigate(Screen.Home.route) {
+                popUpTo(0) { this.inclusive = true }
+                launchSingleTop = true
+            }
+        }
+        return popped
+    }
+    return false
+}
+
 @Composable
 fun BlockTouchesWhenExiting(content: @Composable () -> Unit) {
-    content()
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
+    val isResumed = lifecycleState == androidx.lifecycle.Lifecycle.State.RESUMED
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        content()
+        if (!isResumed) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+            )
+        }
+    }
 }
 
 @Composable
@@ -207,7 +256,7 @@ fun AppNavGraph(
             BlockTouchesWhenExiting {
                 SettingsScreen(
                     settingsViewModel = settingsViewModel,
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackSafely() },
                     onNavigateToLockSelection = { navController.navigate(Screen.LockSelection.route) },
                     onNavigateToCanvas = { navController.navigate(Screen.Canvas.route) }
                 )
@@ -222,7 +271,7 @@ fun AppNavGraph(
                 CanvasScreen(
                     settingsViewModel = settingsViewModel,
                     musicViewModel = musicViewModel,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStackSafely() }
                 )
             }
         }
@@ -232,7 +281,7 @@ fun AppNavGraph(
                 LockSelectionScreen(
                     libraryViewModel = libraryViewModel,
                     settingsViewModel = settingsViewModel,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStackSafely() }
                 )
             }
         }
@@ -291,13 +340,7 @@ fun AppNavGraph(
                         descriptionViewModel = descriptionViewModel,
                         settingsViewModel = settingsViewModel,
                         onNavigateBack = { 
-                            val popped = navController.popBackStack(Screen.Home.route, inclusive = false)
-                            if (!popped) {
-                                navController.navigate(Screen.Home.route) {
-                                    popUpTo(0) { inclusive = true }
-                                    launchSingleTop = true
-                                }
-                            }
+                            navController.popBackStackSafely(Screen.Home.route, inclusive = false)
                         },
                         onNavigateToMedia = { id, contentType -> 
                             when (contentType) {

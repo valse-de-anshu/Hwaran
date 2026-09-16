@@ -109,6 +109,7 @@ fun HomeDashboard(
         var music = 0
         for (item in allManga) {
             if (item.isNsfw) continue
+            if (item.parentMangaId != null) continue
             if (item.contentType != 3) all++
             if (item.isFavorite || item.genre?.contains("favorite", ignoreCase = true) == true) fav++
             when {
@@ -144,8 +145,8 @@ fun HomeDashboard(
     // Pre-index history events for O(1) membership check
     val openedMangaIdsFromHistory = remember(historyEvents) {
         historyEvents.mapNotNull { event ->
-            if (event.eventType in listOf("WATCH", "READ_TOON", "READ_BOOK", "LISTEN", "READ_NOVEL")) {
-                Regex("mangaId:(\\d+)").find(event.details)?.groupValues?.getOrNull(1)?.toLongOrNull()
+            if (event.eventType in listOf("WATCH", "PLAY_VIDEO", "READ_TOON", "READ_MANGA", "READ_BOOK", "LISTEN", "READ_NOVEL", "READ", "OPEN")) {
+                Regex("(?:mangaId|seriesId|channelId|id):(\\d+)").find(event.details)?.groupValues?.getOrNull(1)?.toLongOrNull()
             } else null
         }.toSet()
     }
@@ -154,9 +155,15 @@ fun HomeDashboard(
     val inProgressItems = remember(allManga, openedMangaIdsFromHistory, isLibraryLocked) {
         val opened = allManga.filter { manga ->
             if (isLibraryLocked && manga.isLocked) return@filter false
-            manga.openCount > 0 || !manga.lastReadTitle.isNullOrBlank() || ((manga.lastReadPage ?: 0) > 0) || openedMangaIdsFromHistory.contains(manga.id)
+            if (manga.boxPurpose in listOf("season", "specials", "container")) return@filter false
+            val hasProgress = manga.openCount > 0 ||
+                !manga.lastReadTitle.isNullOrBlank() ||
+                ((manga.lastReadPage ?: 0) > 0) ||
+                openedMangaIdsFromHistory.contains(manga.id) ||
+                (manga.parentMangaId != null && openedMangaIdsFromHistory.contains(manga.parentMangaId))
+            hasProgress
         }.sortedByDescending { it.lastModified }
-        opened.take(8)
+        opened.take(12)
     }
 
     val initialItems = remember(inProgressItems) {
@@ -412,7 +419,6 @@ fun HomeDashboard(
     if (showZineScraperDialog) {
         ZineScraperDialog(onDismiss = { showZineScraperDialog = false })
     }
-
     val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val gestureBottom = WindowInsets.systemGestures.asPaddingValues().calculateBottomPadding()
     val bottomDockClearance = maxOf(navBarBottom + 16.dp, maxOf(gestureBottom + 12.dp, 32.dp)) + 68.dp + 20.dp
@@ -423,17 +429,10 @@ fun HomeDashboard(
             .verticalScroll(scrollState)
             .statusBarsPadding()
             .displayCutoutPadding()
+            .padding(top = 34.dp)
             .padding(bottom = bottomDockClearance)
     ) {
-        // 1. Clean Top Header (Settings & Tool shortcuts)
-        DashboardTopHeader(
-            onSettingsClick = onNavigateToSettings,
-            onToolClick = { showZineScraperDialog = true }
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // 2. Large Horizontally Swipeable Promo Banner Carousel
+        // 1. Large Horizontally Swipeable Promo Banner Carousel
         BannerCarouselSection(
             banners = promoBanners,
             glowColor = glowColor,
@@ -448,9 +447,9 @@ fun HomeDashboard(
             }
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // 3. Media Shortcuts (All, Fav, Manhua, Manga, Light Novel, Book, Series, Channel, Music)
+        // 2. Media Shortcuts (All, Fav, Manhua, Manga, Light Novel, Book, Series, Channel, Music)
         MediaShortcutsSection(
             allCount = allCount,
             favoriteCount = favoriteCount,
@@ -465,9 +464,9 @@ fun HomeDashboard(
             onMusicClick = onOpenMusic
         )
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(22.dp))
 
-        // 4. Continue Watching / Reading
+        // 3. Continue Watching / Reading
         if (inProgressItems.isNotEmpty()) {
             ContinueWatchingSection(
                 items = continueWatchingItems,
@@ -497,10 +496,10 @@ fun HomeDashboard(
                 glowColor = glowColor
             )
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(22.dp))
         }
 
-        // 5. Recently Added Covers
+        // 4. Recently Added Covers
         if (recentlyAdded.isNotEmpty()) {
             RecentlyAddedSection(
                 items = recentlyAdded.take(12),
@@ -509,7 +508,7 @@ fun HomeDashboard(
                 onViewAllClick = { showRecentlyAddedSheet = true }
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
         }
     }
 
@@ -524,62 +523,7 @@ fun HomeDashboard(
     }
 }
 
-@Composable
-private fun DashboardTopHeader(
-    onSettingsClick: () -> Unit,
-    onToolClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .padding(top = 18.dp, bottom = 10.dp),
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Aesthetic Tool Icon Button
-        Surface(
-            modifier = Modifier
-                .size(42.dp)
-                .clip(CircleShape)
-                .clickable { onToolClick() },
-            shape = CircleShape,
-            color = Color(0xFFA855F7).copy(alpha = 0.15f),
-            border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.35f))
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Rounded.Build,
-                    contentDescription = "Zine Scraper CLI Tool",
-                    tint = Color(0xFFD8B4FE),
-                    modifier = Modifier.size(19.dp)
-                )
-            }
-        }
 
-        Spacer(modifier = Modifier.width(10.dp))
-
-        // Settings Icon Button
-        Surface(
-            modifier = Modifier
-                .size(42.dp)
-                .clip(CircleShape)
-                .clickable { onSettingsClick() },
-            shape = CircleShape,
-            color = Color.White.copy(alpha = 0.08f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Rounded.Settings,
-                    contentDescription = "Settings",
-                    tint = Color.White.copy(alpha = 0.9f),
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun BannerCarouselSection(
@@ -674,7 +618,7 @@ private fun BannerCarouselSection(
                         .crossfade(false)
                         .build(),
                     contentDescription = "Hwaran Feature Banner",
-                    contentScale = ContentScale.Fit,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(RoundedCornerShape(18.dp))

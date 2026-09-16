@@ -17,15 +17,15 @@ class HistoryBackend(private val application: Application) {
     val allHistoryFlow: Flow<List<HistoryEventEntity>> = database.historyDao().getAllHistoryEventsFlow()
 
     val videoHistoryFlow: Flow<List<HistoryEventEntity>> = allHistoryFlow.map { events ->
-        events.filter { it.eventType == "WATCH" }
+        events.filter { it.eventType == "WATCH" || it.eventType == "PLAY_VIDEO" }
     }
 
     val toonHistoryFlow: Flow<List<HistoryEventEntity>> = allHistoryFlow.map { events ->
-        events.filter { it.eventType == "READ_TOON" }
+        events.filter { it.eventType == "READ_TOON" || it.eventType == "READ_MANGA" }
     }
 
     val bookHistoryFlow: Flow<List<HistoryEventEntity>> = allHistoryFlow.map { events ->
-        events.filter { it.eventType == "READ_BOOK" }
+        events.filter { it.eventType == "READ_BOOK" || it.eventType == "READ_NOVEL" }
     }
 
     val musicHistoryFlow: Flow<List<HistoryEventEntity>> = allHistoryFlow.map { events ->

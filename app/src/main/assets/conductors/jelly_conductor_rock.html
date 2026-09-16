@@ -3,138 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JellyBall Music Player - Master Conductor</title>
+    <title>JellyBall Music Player - Heavy Rock Conductor</title>
     <style>
         :root { --bg-color: transparent; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: transparent !important; display: flex; flex-direction: column; justify-content: center; align-items: center; overflow: hidden; font-family: -apple-system, sans-serif; user-select: none; }
         .stage { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: transparent !important; }
-        #shadow { position: absolute; bottom: 25%; width: 80px; height: 12px; background: radial-gradient(ellipse at center, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 75%); border-radius: 50%; z-index: 1; transform-origin: center center; will-change: transform, opacity; }
+        #shadow { position: absolute; bottom: 25%; width: 80px; height: 12px; background: radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 75%); border-radius: 50%; z-index: 1; transform-origin: center center; will-change: transform, opacity; }
         #body-wrapper { position: relative; width: 100px; height: 100px; transform-origin: center bottom; z-index: 5; display: flex; justify-content: center; will-change: transform; }
-        .orb { position: absolute; width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle at 35% 35%, rgba(140, 140, 140, 0.45) 0%, rgba(40, 40, 40, 0.7) 50%, rgba(10, 10, 10, 0.9) 100%); box-shadow: inset 4px 4px 12px rgba(255, 255, 255, 0.2), inset -6px -6px 15px rgba(0, 0, 0, 0.5); overflow: hidden; border: 1px solid rgba(255,255,255,0.1); transition: all 0.8s ease; will-change: transform, box-shadow, border; }
-        .internal-smoke { position: absolute; width: 100%; height: 100%; top: 0; left: 0; border-radius: 50%; opacity: 0.4; background: radial-gradient(circle at center, rgba(255,255,255,0.2) 0%, transparent 70%); animation: swirl 15s linear infinite; pointer-events: none; }
+        .orb { position: absolute; width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle at 35% 35%, rgba(200, 30, 50, 0.65) 0%, rgba(80, 10, 20, 0.85) 50%, rgba(20, 2, 5, 0.98) 100%); box-shadow: inset 4px 4px 12px rgba(255, 120, 140, 0.4), inset -6px -6px 15px rgba(0, 0, 0, 0.8); overflow: hidden; border: 1.5px solid rgba(255,50,80,0.4); transition: all 0.8s ease; will-change: transform, box-shadow, border; }
+        .internal-smoke { position: absolute; width: 100%; height: 100%; top: 0; left: 0; border-radius: 50%; opacity: 0.5; background: radial-gradient(circle at center, rgba(255,80,100,0.3) 0%, transparent 70%); animation: swirl 10s linear infinite; pointer-events: none; }
         @keyframes swirl { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         #face-mover { position: absolute; top: 50%; left: 50%; width: 70px; height: 50px; transform: translate(-50%, -50%); z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; will-change: transform; }
         .eyes-row { display: flex; justify-content: space-between; width: 35px; z-index: 2; transform-origin: center center; }
 
         .eye {
-            position: relative; width: 7px; height: 17px; background: #fff; border-radius: 10px; box-shadow: 0 0 8px rgba(255,255,255,0.9), 0 0 3px #fff; transform-origin: center center; will-change: width, height, transform, border-radius;
-            transition: height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.4s ease, border-radius 0.4s ease, box-shadow 0.4s ease, opacity 0.4s ease;
+            position: relative; width: 8px; height: 14px; background: #ffffff; border-radius: 4px 8px 3px 3px; box-shadow: 0 0 12px #ff2244, inset 0 0 4px #ff0000; transform-origin: center center; will-change: width, height, transform, border-radius;
+            transition: height 0.3s ease, width 0.3s ease, transform 0.3s ease;
         }
-        .eye.blink { transform: scaleY(0) !important; transition: transform 0.1s !important; }
+        .eye.blink { transform: scaleY(0) !important; transition: transform 0.08s !important; }
 
-        .face-state-focused .eye { height: 13px; width: 7px; border-radius: 7px 7px 4px 4px; transform: translateY(-1px); }
-        .face-state-joy .eye { height: 8px; width: 11px; border-radius: 10px 10px 3px 3px; transform: translateY(-3px); box-shadow: 0 0 10px #fff; }
-        .face-state-joy .blush-row { opacity: 0.8; transform: scale(1); }
-        .face-state-sorrow .eye { height: 8px; width: 11px; border-radius: 4px 4px 12px 12px; transform: translateY(6px) rotate(-15deg); background: #eef7ff; }
-        .face-state-sorrow #eye-r { transform: translateY(6px) rotate(15deg); }
-        .face-state-fierce .eye { height: 13px; width: 7px; border-radius: 7px 7px 4px 4px; transform: translateY(-1px); }
-        .face-state-depression .eye { height: 19px; width: 9px; border-radius: 5px; transform: translateY(-4px); box-shadow: 0 0 15px #fff; }
-        .face-state-peaceful .eye { height: 3px; width: 11px; border-radius: 5px; opacity: 0.6; transform: translateY(5px); }
+        #eye-l { transform: translateY(-2px) rotate(18deg); }
+        #eye-r { transform: translateY(-2px) rotate(-18deg); }
 
-        .eye.sleep { height: 3px; width: 10px; background: #aaa; box-shadow: none; border-radius: 5px; transform: translateY(6px) rotate(-5deg); opacity: 0.7; }
-        #eye-r.sleep { transform: translateY(6px) rotate(5deg); }
+        .face-state-headbang #eye-l { height: 16px; width: 9px; transform: translateY(-1px) rotate(22deg); box-shadow: 0 0 16px #ff0000; }
+        .face-state-headbang #eye-r { height: 16px; width: 9px; transform: translateY(-1px) rotate(-22deg); box-shadow: 0 0 16px #ff0000; }
 
-        .genre-sleep .eye { height: 3px; width: 10px; background: #aaa; box-shadow: none; border-radius: 5px; transform: translateY(6px) rotate(-5deg); opacity: 0.7; }
-        .genre-sleep #eye-r { transform: translateY(6px) rotate(5deg); }
+        .face-state-riff #eye-l { height: 12px; width: 10px; border-radius: 3px; transform: translateY(0px) rotate(15deg); }
+        .face-state-riff #eye-r { height: 12px; width: 10px; border-radius: 3px; transform: translateY(0px) rotate(-15deg); }
 
-        .genre-pop .eye { height: 7px; width: 12px; border-radius: 12px 12px 2px 2px; transform: translateY(-2px); box-shadow: 0 0 8px #fff; }
-        .genre-rock .eye, .genre-phonk .eye { height: 3.5px !important; width: 18px !important; border-radius: 3px !important; transform: translateY(2px) rotate(16deg) !important; background: #fff !important; box-shadow: 0 0 12px rgba(255,0,0,0.9), inset 0 0 4px rgba(255,0,0,0.6) !important; }
-        .genre-rock #eye-r, .genre-phonk #eye-r { transform: translateY(2px) rotate(-16deg) !important; }
-        .genre-folk .eye { height: 11px; width: 11px; border-radius: 50%; opacity: 0.9; background: #fffaee; box-shadow: 0 0 10px #ffcc88; }
-        .genre-jazz .orb { background: radial-gradient(circle at 35% 35%, rgba(180, 140, 80, 0.4) 0%, rgba(60, 40, 20, 0.6) 50%, rgba(20, 10, 0, 0.9) 100%); }
-        .genre-jazz .eye { height: 6px; width: 11px; border-radius: 3px 3px 8px 8px; opacity: 0.9; }
-        .genre-jazz #eye-l { transform: translateY(2px); }
-        .genre-jazz #eye-r { transform: translateY(5px) scaleY(0.6); }
-        .genre-ambient .orb { background: radial-gradient(circle at center, rgba(30, 50, 70, 0.5) 0%, rgba(10, 20, 30, 0.7) 50%, rgba(0, 0, 0, 0.9) 100%); }
-        .genre-ambient .eye { height: 4px; width: 13px; border-radius: 5px; opacity: 0.6; transform: translateY(5px); }
-        .genre-dreamcore .orb { background: radial-gradient(circle at 35% 35%, rgba(180, 100, 180, 0.45) 0%, rgba(60, 20, 60, 0.7) 50%, rgba(10, 5, 10, 0.9) 100%); }
-        .genre-dreamcore .eye { height: 14px; width: 14px; border-radius: 50%; background: #ffffff; box-shadow: 0 0 15px #ffffff; opacity: 0.9; }
-        .genre-emotional .orb { background: radial-gradient(circle at 35% 35%, rgba(40, 40, 60, 0.6) 0%, rgba(15, 15, 30, 0.8) 50%, rgba(5, 5, 15, 0.95) 100%); }
-        .genre-emotional .eye { height: 7px; width: 11px; background: #e0f0ff; border-radius: 4px 4px 10px 10px; transform: translateY(6px) rotate(-12deg); }
-        .genre-emotional #eye-r { transform: translateY(6px) rotate(12deg); }
+        .face-state-shred #eye-l { height: 6px; width: 14px; border-radius: 2px; transform: translateY(-4px) rotate(25deg); box-shadow: 0 0 18px #ff2255; }
+        .face-state-shred #eye-r { height: 6px; width: 14px; border-radius: 2px; transform: translateY(-4px) rotate(-25deg); box-shadow: 0 0 18px #ff2255; }
 
-        .blush-row { display: flex; justify-content: space-between; width: 58px; margin-top: 2px; opacity: 0; transform: scale(0.85); transition: opacity 1.5s ease, transform 1.5s ease; pointer-events: none; z-index: 1; }
-        .genre-pop .blush-row, .genre-folk .blush-row, .genre-jazz .blush-row, .face-state-joy .blush-row { opacity: 0.7; transform: scale(1); }
-        .blush-spot { position: relative; width: 26px; height: 13px; background: radial-gradient(ellipse at center, rgba(255, 100, 160, 0.4) 0%, rgba(255, 100, 160, 0) 75%); border-radius: 50%; }
+        .face-state-jump #eye-l { height: 16px; width: 12px; border-radius: 50%; transform: translateY(-2px); box-shadow: 0 0 20px #ffffff; }
+        .face-state-jump #eye-r { height: 16px; width: 12px; border-radius: 50%; transform: translateY(-2px); box-shadow: 0 0 20px #ffffff; }
+
+        .eye.sleep { height: 3px; width: 12px; background: #aa4444; box-shadow: none; border-radius: 4px; transform: translateY(5px) rotate(-5deg); opacity: 0.7; }
+        #eye-r.sleep { transform: translateY(5px) rotate(5deg); }
 
         .hands-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 15; pointer-events: none; will-change: transform; }
-        .hand { position: absolute; width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.4) 0%, rgba(80,80,80,0.6) 70%); box-shadow: inset 2px 2px 5px rgba(255,255,255,0.3), 0 0 8px rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); transform: translate(-50%, -50%) scale(0); opacity: 0; transition: opacity 1s ease; will-change: transform; }
+        .hand { position: absolute; width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, rgba(255,200,200,0.5) 0%, rgba(120,20,30,0.8) 70%); box-shadow: inset 2px 2px 5px rgba(255,255,255,0.4), 0 0 10px rgba(255,0,50,0.4); border: 1px solid rgba(255,100,120,0.4); transform: translate(-50%, -50%) scale(0); opacity: 0; transition: opacity 0.5s ease; will-change: transform; }
         .hand.visible { opacity: 1; }
-        #baton { position: absolute; bottom: 11px; left: 11px; width: 2px; height: 55px; background: linear-gradient(to top, #222 20%, #e0e0e0 25%, #fff 95%, #fff 100%); border-radius: 2px; transform-origin: bottom center; box-shadow: 0 -3px 8px rgba(255,255,255,0.8); opacity: 0; transition: opacity 0.5s ease; will-change: transform; }
-        .baton-glow { position: absolute; top: -4px; left: -1.5px; width: 5px; height: 5px; background: #fff; border-radius: 50%; box-shadow: 0 0 10px 3px rgba(255, 255, 255, 0.9), 0 0 20px rgba(100, 200, 255, 0.6); }
-
-        .genre-lyrics #baton { opacity: 0 !important; }
-        .mouth { position: relative; width: 8px; height: 2px; background: #fff; border-radius: 20px; margin-top: 4px; box-shadow: 0 0 6px rgba(255,255,255,0.8); opacity: 0; transition: opacity 0.5s ease, height 0.08s ease, width 0.08s ease, border-radius 0.08s ease; will-change: height, width, transform; }
-        .genre-lyrics .mouth { opacity: 0.9; }
-
-        #mic { position: absolute; bottom: 12px; left: 7px; width: 8px; height: 22px; background: #222; border-radius: 3px; transform-origin: bottom center; transform: rotate(-10deg); opacity: 0; transition: opacity 0.5s ease; will-change: transform; z-index: 20; }
-        .genre-lyrics #mic { opacity: 1; }
-        .mic-grill { position: absolute; top: -6px; left: -2px; width: 12px; height: 12px; background: radial-gradient(circle at 35% 35%, #fff 0%, #aaa 50%, #444 100%); border-radius: 50%; box-shadow: 0 0 6px rgba(255, 255, 255, 0.8), inset 1px 1px 3px rgba(255,255,255,0.6); border: 0.5px solid rgba(255,255,255,0.2); }
-        .mic-handle { position: absolute; bottom: 0; left: 1px; width: 6px; height: 16px; background: linear-gradient(to right, #444, #222); border-radius: 2px; }
+        #baton { position: absolute; bottom: 11px; left: 11px; width: 3px; height: 58px; background: linear-gradient(to top, #330000 15%, #ff2244 50%, #ffffff 100%); border-radius: 2px; transform-origin: bottom center; box-shadow: 0 0 12px rgba(255,0,50,0.9); opacity: 0; transition: opacity 0.3s ease; will-change: transform; }
+        .baton-glow { position: absolute; top: -5px; left: -2px; width: 7px; height: 7px; background: #ffffff; border-radius: 50%; box-shadow: 0 0 12px 4px #ff2244, 0 0 22px #ffffff; }
     </style>
 </head>
 <body>
     <div class="stage">
         <div id="shadow"></div>
-        <div id="body-wrapper" class="genre-sleep">
+        <div id="body-wrapper" class="genre-rock">
             <div class="orb"><div class="internal-smoke"></div></div>
             <div id="face-mover">
                 <div class="eyes-row">
                     <div class="eye sleep" id="eye-l"></div>
                     <div class="eye sleep" id="eye-r"></div>
                 </div>
-                <div id="mouth" class="mouth"></div>
-                <div class="blush-row" id="blush">
-                    <div class="blush-spot"></div>
-                    <div class="blush-spot"></div>
-                </div>
             </div>
         </div>
         <div class="hands-container">
-            <div class="hand" id="hand-l"><div id="mic"><div class="mic-grill"></div><div class="mic-handle"></div></div></div>
+            <div class="hand" id="hand-l"></div>
             <div class="hand" id="hand-r"><div id="baton"><div class="baton-glow"></div></div></div>
         </div>
     </div>
 
     <script>
-        ////////////////////////////////////////////////////////////////////////////////
-        // JELLY CONDUCTOR WEBVIEW ASSET CONTEXT & DOCUMENTATION
-        //
-        // PURPOSE:
-        // This HTML/JS file displays the physics-based JellyBall conductor mascot,
-        // which animates in response to music playback states and genre selection.
-        // It renders custom visual assets (micro-blushes, eye styling, gradients,
-        // baton, and microphone) inside a transparent Android WebView.
-        //
-        // TRIGGERING FILE & LOCATION:
-        // - Triggered by: ConductorAnimation Composable
-        // - Path: app/src/main/java/com/ballade/hwaran/ui/screens/NowPlayingScreen.kt
-        // - Loaded via URL: "file:///android_asset/jelly_conductor.html"
-        //
-        // SYSTEM MUSIC GENRES (11 Genres Total):
-        // 1. Classical (evaluates to activeGenre: 'classic')
-        // 2. Pop
-        // 3. Rock
-        // 4. Jazz
-        // 5. Folk
-        // 6. Ambient
-        // 7. Phonk
-        // 8. Dreamcore
-        // 9. Emotional
-        // 10. Depression
-        // 11. Lyrics (shows dynamic microphone and singing mouth)
-        //
-        // ANDROID TO WEBVIEW INTERFACE:
-        // - window.setPlaybackState(isPlaying) -> Wakes up/sleeps the mascot.
-        // - window.setGenre(genre) -> Selects theme and styling.
-        //
-        // WAKE & SLEEP ANIMATIONS (Pause & Play):
-        // - transitionToWake() and triggerSleep() are the default untouched routines.
-        //
-        // WRITE YOUR CUSTOM CONDUCTING ANIMATIONS IN:
-        // - updateConduct(dt, tempo) (called continuously when playing/conducting)
-        ////////////////////////////////////////////////////////////////////////////////
-
         const bodyWrapper = document.getElementById('body-wrapper');
         const shadow = document.getElementById('shadow');
         const face = document.getElementById('face-mover');
@@ -143,27 +74,24 @@
         const handL = document.getElementById('hand-l');
         const handR = document.getElementById('hand-r');
         const baton = document.getElementById('baton');
-        const orb = document.querySelector('.orb');
 
         const physics = {
-            bodyY:   { current: 0,   target: 0,   vel: 0, spring: 0.08, friction: 0.75 },
-            scaleX:  { current: 1,   target: 1,   vel: 0, spring: 0.1,  friction: 0.7  },
-            scaleY:  { current: 1,   target: 1,   vel: 0, spring: 0.1,  friction: 0.7  },
-            rotate:  { current: 0,   target: 0,   vel: 0, spring: 0.05, friction: 0.8  },
-            faceX:   { current: 0,   target: 0,   vel: 0, spring: 0.08, friction: 0.8  },
-            faceY:   { current: 0,   target: 0,   vel: 0, spring: 0.08, friction: 0.8  },
-            handLX:  { current: -30, target: -30, vel: 0, spring: 0.1,  friction: 0.7  },
-            handLY:  { current: 25,  target: 25,  vel: 0, spring: 0.1,  friction: 0.7  },
-            handRX:  { current: 30,  target: 30,  vel: 0, spring: 0.1,  friction: 0.7  },
-            handRY:  { current: 25,  target: 25,  vel: 0, spring: 0.1,  friction: 0.7  },
-            batonRot:{ current: 0,   target: 0,   vel: 0, spring: 0.15, friction: 0.6  }
+            bodyY:   { current: 0,   target: 0,   vel: 0, spring: 0.16, friction: 0.62 },
+            scaleX:  { current: 1,   target: 1,   vel: 0, spring: 0.18, friction: 0.58 },
+            scaleY:  { current: 1,   target: 1,   vel: 0, spring: 0.18, friction: 0.58 },
+            rotate:  { current: 0,   target: 0,   vel: 0, spring: 0.12, friction: 0.65 },
+            faceX:   { current: 0,   target: 0,   vel: 0, spring: 0.15, friction: 0.65 },
+            faceY:   { current: 0,   target: 0,   vel: 0, spring: 0.15, friction: 0.65 },
+            handLX:  { current: -30, target: -30, vel: 0, spring: 0.18, friction: 0.60 },
+            handLY:  { current: 25,  target: 25,  vel: 0, spring: 0.18, friction: 0.60 },
+            handRX:  { current: 30,  target: 30,  vel: 0, spring: 0.18, friction: 0.60 },
+            handRY:  { current: 25,  target: 25,  vel: 0, spring: 0.18, friction: 0.60 },
+            batonRot:{ current: 0,   target: 0,   vel: 0, spring: 0.22, friction: 0.52 }
         };
 
         let appState = 'SLEEP';
         let globalTime = Math.random() * 1000;
         let lastFrameTime = performance.now();
-        let activeGenre = 'classic';
-        let wakeTimeouts = [];
 
         window.onload = () => { loop(); };
 
@@ -172,35 +100,15 @@
             else if (!isPlaying && appState !== 'SLEEP') triggerSleep();
         };
 
-        window.setGenre = function(genre) {
-            let g = (genre || 'classic').toLowerCase();
-            if (g === 'classical') g = 'classic';
-            let oldGenre = activeGenre;
-            activeGenre = g;
-            if (oldGenre !== activeGenre && (oldGenre === 'rock' || oldGenre === 'phonk' || activeGenre === 'rock' || activeGenre === 'phonk')) {
-                seqQueue = [];
-                if (appState === 'CONDUCT') nextSequence();
-            }
-            if (appState !== 'SLEEP') {
-                bodyWrapper.className = `genre-${g}`;
-                document.body.className = `genre-${g}`;
-            }
-        };
+        window.setGenre = function(genre) {};
 
-        // ==========================================================
-        // DEFAULT UNTOUCHED SLEEP & WAKE ANIMATION ROUTINES
-        // ==========================================================
         function triggerSleep() {
-            wakeTimeouts.forEach(clearTimeout);
-            wakeTimeouts = [];
             appState = 'SLEEP';
-            bodyWrapper.className = 'genre-sleep';
-            document.body.className = 'genre-sleep';
             baton.style.opacity = 0;
             handL.classList.remove('visible');
             handR.classList.remove('visible');
-            physics.bodyY.target = 0;
-            physics.faceY.target = 15;
+            physics.bodyY.target = 10;
+            physics.faceY.target = 12;
             physics.faceX.target = 0;
             physics.scaleX.target = 1;
             physics.scaleY.target = 1;
@@ -210,520 +118,167 @@
             physics.handRX.target = 30;
             physics.handRY.target = 25;
             physics.batonRot.target = 0;
-            orb.style.border = '';
-            orb.style.boxShadow = '';
         }
 
         function transitionToWake() {
-            appState = 'WAKE';
-            bodyWrapper.className = `genre-${activeGenre}`;
-            document.body.className = `genre-${activeGenre}`;
-            physics.faceY.target = -3;
-
-            face.className = 'face-state-sorrow';
-
-            wakeTimeouts.push(setTimeout(() => {
-                if (appState !== 'WAKE') return;
-                eyeL.classList.remove('sleep'); eyeR.classList.remove('sleep');
-                physics.bodyY.target = -12; physics.scaleY.target = 1.1; physics.scaleX.target = 0.9;
-            }, 600));
-
-            wakeTimeouts.push(setTimeout(() => {
-                if (appState !== 'WAKE') return;
-                eyeL.classList.add('blink'); eyeR.classList.add('blink');
-                wakeTimeouts.push(setTimeout(() => {
-                    if (appState !== 'WAKE') return;
-                    eyeL.classList.remove('blink'); eyeR.classList.remove('blink');
-                }, 150));
-            }, 1000));
-
-            wakeTimeouts.push(setTimeout(() => {
-                if (appState !== 'WAKE') return;
-                physics.bodyY.target = 0;
-                handL.classList.add('visible'); handR.classList.add('visible');
-                physics.handLX.target = -35; physics.handLY.target = 15;
-                physics.handRX.target = 35; physics.handRY.target = 15;
-                wakeTimeouts.push(setTimeout(() => {
-                    if (appState !== 'WAKE') return;
-                    baton.style.opacity = 1; appState = 'CONDUCT';
-                }, 400));
-            }, 1600));
+            appState = 'CONDUCT';
+            eyeL.classList.remove('sleep');
+            eyeR.classList.remove('sleep');
+            handL.classList.add('visible');
+            handR.classList.add('visible');
+            baton.style.opacity = 1;
         }
 
-        // ==========================================================
-        // ROCK CONDUCTOR — Freestyle Bass Guitarist + Conductor Energy
-        // Chaotic, natural, never-repeating. No list-of-animations feel.
-        // ==========================================================
-
-        // --- Blink system ---
-        let blinkTimer = 0.8 + Math.random() * 1.5;
+        let blinkTimer = 1.0 + Math.random() * 2.0;
         let isBlinking = false;
-
         function triggerBlink() {
             if (!isBlinking && appState === 'CONDUCT') {
                 isBlinking = true;
                 eyeL.classList.add('blink'); eyeR.classList.add('blink');
-                setTimeout(() => { eyeL.classList.remove('blink'); eyeR.classList.remove('blink'); isBlinking = false; }, 100);
+                setTimeout(() => { eyeL.classList.remove('blink'); eyeR.classList.remove('blink'); isBlinking = false; }, 90);
             }
         }
-
-        // --- Noise / multi-oscillator helpers ---
-        // Layered oscillators at irrational ratios = never perfectly repeats
-        const PHI = 1.6180339887;   // golden ratio
-        const SQ2 = 1.4142135623;   // sqrt(2)
-        const SQ3 = 1.7320508075;   // sqrt(3)
-
-        // Smooth noise: sum of sines at incommensurable frequencies
-        // seed shifts phase so each invocation looks different
-        function noise(t, freq, seed) {
-            return (
-                Math.sin(t * freq + seed) * 0.50 +
-                Math.sin(t * freq * PHI + seed * 1.31) * 0.30 +
-                Math.sin(t * freq * SQ2 + seed * 0.77) * 0.15 +
-                Math.sin(t * freq * SQ3 + seed * 2.11) * 0.05
-            );
-        }
-
-        // Abs-noise: always positive, 0..1 range
-        function absNoise(t, freq, seed) {
-            return Math.abs(noise(t, freq, seed));
-        }
-
-        // Clamp helper
-        function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
-        // --- Per-sequence random seeds (regenerated each sequence) ---
-        let R = {};  // random seeds object
-        function freshSeeds() {
-            R = {
-                a: Math.random() * TAU,
-                b: Math.random() * TAU,
-                c: Math.random() * TAU,
-                d: Math.random() * TAU,
-                e: Math.random() * TAU,
-                f: Math.random() * TAU,
-                g: Math.random() * TAU,
-                // amplitude scalars 0.6..1.4
-                amp1: 0.6 + Math.random() * 0.8,
-                amp2: 0.6 + Math.random() * 0.8,
-                amp3: 0.6 + Math.random() * 0.8,
-                // frequency tweaks 0.8..1.25
-                frq1: 0.8 + Math.random() * 0.45,
-                frq2: 0.8 + Math.random() * 0.45,
-                // direction: -1 or +1
-                dir1: Math.random() < 0.5 ? -1 : 1,
-                dir2: Math.random() < 0.5 ? -1 : 1
-            };
-        }
-
-        // --- Impulse jolt system ---
-        // Occasionally fires a velocity spike into physics to break predictability
-        let joltTimer = 1.0 + Math.random() * 2.5;
-        function tryJolt(dt) {
-            joltTimer -= dt;
-            if (joltTimer <= 0) {
-                joltTimer = 0.8 + Math.random() * 3.0;
-                let mag = 3 + Math.random() * 6;
-                let dir = Math.random() < 0.5 ? 1 : -1;
-                // Random jolt into one of several physics channels
-                let ch = Math.floor(Math.random() * 5);
-                if (ch === 0) physics.bodyY.vel += mag * dir * 2.5;
-                else if (ch === 1) physics.rotate.vel += mag * dir * 3;
-                else if (ch === 2) physics.handRX.vel += mag * dir * 2;
-                else if (ch === 3) physics.handLY.vel -= mag * 1.5;
-                else { physics.batonRot.vel += mag * dir * 5; }
-            }
-        }
-
-        // --- Sequence engine ---
-        let seqIndex = -1;
-        let seqTime  = 0;
-        let seqDuration = 0;
-        let prevSeqIndex = -1;
-        const CROSS = 0.4;
-        let crossTimer = 0;
-        let inCross = false;
-
-        // Faces available for rock mode
-        const TAU = Math.PI * 2;
-        const rockFaces = ['fierce', 'focused', 'fierce', 'fierce', 'focused', 'depression'];
-
-        function setFaceState(state) { face.className = 'face-state-' + state; }
 
         // ══════════════════════════════════════════════════════════════
-        // THE SEQUENCES — 14 distinct behavioral modes
-        // Each uses noise() layers + fresh per-run seeds so it NEVER
-        // looks like a canned animation. Duration varies ±30% each run.
+        // NEW DYNAMIC ROCK CONDUCTING MOVEMENT SET
         // ══════════════════════════════════════════════════════════════
         const sequences = [
-
-            // 0 ── HEADBANG DIVE  (violent up-down with side lurch)
-            { baseDur: 3.2, update(t) {
-                let bang  = absNoise(t, 2.6 * R.frq1, R.a) * R.amp1;
-                let sway  = noise(t, 1.1 * R.frq2, R.b) * R.amp2;
-                physics.bodyY.target    =  -4 + bang * 30;
-                physics.rotate.target   = sway * 18 + bang * 8 * R.dir1;
-                physics.scaleX.target   =  1  + bang * 0.12;
-                physics.scaleY.target   =  1  - bang * 0.12;
-                physics.faceY.target    = bang * 12 - 2;
-                physics.faceX.target    = sway * 6;
-                physics.handRX.target   =  30 + noise(t, 2.6 * R.frq1, R.c) * 22 * R.amp1;
-                physics.handRY.target   =   2 + bang * 28;
-                physics.handLX.target   = -28 + noise(t, 2.4 * R.frq2, R.d) * 18 * R.amp2;
-                physics.handLY.target   =   4 + bang * 22;
-                physics.batonRot.target = bang * 50 + noise(t, 2.6, R.e) * 28;
-                setFaceState(bang > 0.55 ? 'fierce' : 'focused');
+            // 0: Heavy Metal Headbang (Power Downbeats)
+            { dur: 5.5, update(t) {
+                let beat = Math.sin(t * Math.PI * 4); // Fast 8th-note headbanging beat
+                let isDown = beat > 0;
+                physics.bodyY.target = isDown ? 22 : -12;
+                physics.faceY.target = isDown ? 20 : -14;
+                physics.scaleY.target = isDown ? 0.76 : 1.22;
+                physics.scaleX.target = isDown ? 1.24 : 0.82;
+                physics.rotate.target = Math.sin(t * Math.PI * 2) * 12;
+                physics.handRX.target = 34 + Math.sin(t * 10) * 12;
+                physics.handRY.target = isDown ? 22 : -20;
+                physics.handLX.target = -34 - Math.sin(t * 10) * 12;
+                physics.handLY.target = isDown ? 22 : -20;
+                physics.batonRot.target = isDown ? 65 : -50;
+                face.className = 'face-state-headbang';
             }},
 
-            // 1 ── POWER SLASH  (whipping baton hand, body lunges)
-            { baseDur: 3.8, update(t) {
-                let whip  = noise(t, 1.7 * R.frq1, R.a) * R.amp1;
-                let body  = noise(t, 0.9 * R.frq2, R.b) * R.amp2;
-                physics.handRX.target   =  28 + whip * 30 * R.dir1;
-                physics.handRY.target   =  -5 - Math.abs(whip) * 32;
-                physics.handLX.target   = -30 + noise(t, 0.8, R.c) * 16 * R.amp3;
-                physics.handLY.target   =  12 + noise(t, 1.2, R.d) * 14;
-                physics.bodyY.target    =  -6 + body * 16;
-                physics.rotate.target   = whip * 22 * R.dir1;
-                physics.faceX.target    = whip * 10;
-                physics.faceY.target    = -4 + body * 6;
-                physics.batonRot.target = whip * 70 + noise(t, 1.7, R.e) * 20;
-                setFaceState(Math.abs(whip) > 0.6 ? 'fierce' : 'focused');
+            // 1: Electric Riff Strum & Slash
+            { dur: 6.0, update(t) {
+                let strum = Math.sin(t * Math.PI * 6); // Fast guitar strumming
+                physics.bodyY.target = Math.abs(strum) * 10;
+                physics.rotate.target = -14 + strum * 6;
+                physics.handLX.target = -42; // Holding guitar neck
+                physics.handLY.target = -16;
+                physics.handRX.target = 22 + strum * 26; // Strumming across body
+                physics.handRY.target = -5 + Math.abs(strum) * 15;
+                physics.batonRot.target = -70 + strum * 80;
+                physics.scaleX.target = 1.05;
+                physics.scaleY.target = 0.95;
+                physics.faceX.target = -6;
+                physics.faceY.target = 4;
+                face.className = 'face-state-riff';
             }},
 
-            // 2 ── BASS THRASH  (fast irregular hand movement, body shakes)
-            { baseDur: 2.8, update(t) {
-                physics.handRX.target   =  32 + noise(t, 7.1 * R.frq1, R.a) * 24 * R.amp1;
-                physics.handRY.target   =  -6 + noise(t, 6.7 * R.frq2, R.b) * 22 * R.amp2;
-                physics.handLX.target   = -30 + noise(t, 6.3 * R.frq1, R.c) * 20 * R.amp1;
-                physics.handLY.target   =   8 + noise(t, 5.9 * R.frq2, R.d) * 18 * R.amp2;
-                physics.bodyY.target    = -10 + noise(t, 3.5, R.e) * 12;
-                physics.rotate.target   = noise(t, 1.9, R.f) * 14;
-                physics.faceX.target    = noise(t, 1.7, R.g) * 8;
-                physics.faceY.target    = -3 + noise(t, 2.1, R.a) * 6;
-                physics.batonRot.target = noise(t, 7.1, R.b) * 55;
-                setFaceState('fierce');
+            // 2: Stage Mosh Windmill
+            { dur: 5.0, update(t) {
+                let mosh = Math.sin(t * Math.PI * 2.5);
+                physics.rotate.target = mosh * 28;
+                physics.bodyY.target = -6 + Math.abs(mosh) * 16;
+                physics.scaleX.target = 1 + mosh * 0.15;
+                physics.scaleY.target = 1 - mosh * 0.15;
+                physics.handRX.target = 36 + mosh * 22;
+                physics.handRY.target = -15 - Math.abs(mosh) * 18;
+                physics.handLX.target = -36 + mosh * 22;
+                physics.handLY.target = 10 + Math.abs(mosh) * 18;
+                physics.batonRot.target = mosh * 85;
+                physics.faceX.target = mosh * 12;
+                physics.faceY.target = Math.abs(mosh) * 8;
+                face.className = 'face-state-headbang';
             }},
 
-            // 3 ── GROOVE SWAY  (side-to-side slow heavy conductor sweep)
-            { baseDur: 5.0, update(t) {
-                let sway  = noise(t, 1.2 * R.frq1, R.a) * R.amp1;
-                let lift  = absNoise(t, 0.7 * R.frq2, R.b) * R.amp2;
-                physics.bodyY.target    =  3 + lift * 14;
-                physics.rotate.target   = sway * 20;
-                physics.handRX.target   = 38 + sway * 12 + noise(t, 2.2, R.c) * 8 * R.amp3;
-                physics.handRY.target   =  8 + lift * 12;
-                physics.handLX.target   =-38 + sway * 12 + noise(t, 2.0, R.d) * 8 * R.amp3;
-                physics.handLY.target   =  8 + lift * 12;
-                physics.scaleX.target   =  1 + lift * 0.06;
-                physics.scaleY.target   =  1 - lift * 0.06;
-                physics.faceX.target    = sway * 7;
-                physics.faceY.target    = lift * 5;
-                physics.batonRot.target = sway * 20 + noise(t, 1.5, R.e) * 15;
-                setFaceState(Math.abs(sway) > 0.65 ? 'fierce' : 'focused');
+            // 3: Guitar Solo Shred & Power Stance
+            { dur: 6.5, update(t) {
+                let tremor = (Math.random() - 0.5) * 14;
+                let solo = Math.sin(t * Math.PI * 8); // Rapid 16th-note vibration
+                physics.bodyY.target = 16 + Math.abs(solo) * 6;
+                physics.scaleX.target = 1.26;
+                physics.scaleY.target = 0.78;
+                physics.rotate.target = 8 + tremor * 0.5;
+                physics.faceX.target = tremor * 0.5;
+                physics.faceY.target = -16; // Head thrown back in solo ecstasy
+                physics.handLX.target = -38 + solo * 6;
+                physics.handLY.target = -22;
+                physics.handRX.target = 28 + tremor;
+                physics.handRY.target = -12 + solo * 10;
+                physics.batonRot.target = 40 + solo * 45 + tremor;
+                face.className = 'face-state-shred';
             }},
 
-            // 4 ── AIR GUITAR SOLO  (left hand high neck hold, right strums wildly)
-            { baseDur: 4.5, update(t) {
-                let strum = noise(t, 4.8 * R.frq1, R.a) * R.amp1;
-                let neck  = noise(t, 0.7, R.b) * R.amp2 * 0.5;
-                physics.handLX.target   = -38 + noise(t, 1.1, R.c) * 8;
-                physics.handLY.target   = -20 + neck * 10;
-                physics.handRX.target   =  10 + noise(t, 3.1, R.d) * 14 * R.amp3;
-                physics.handRY.target   =   4 + strum * 18;
-                physics.bodyY.target    = -10 + noise(t, 1.8, R.e) * 10;
-                physics.rotate.target   =  -8 * R.dir1 + noise(t, 2.7, R.f) * 8;
-                physics.scaleX.target   =   1 + Math.abs(strum) * 0.08;
-                physics.scaleY.target   =   1 - Math.abs(strum) * 0.06;
-                physics.faceX.target    = -5 * R.dir1;
-                physics.faceY.target    = -4 + noise(t, 1.3, R.g) * 5;
-                physics.batonRot.target = strum * 45;
-                setFaceState(Math.abs(strum) > 0.5 ? 'joy' : 'focused');
-            }},
-
-            // 5 ── GRAND CONDUCTOR SWEEP  (classical flair, wide sweeping arms)
-            { baseDur: 5.5, update(t) {
-                // Lissajous-inspired — irrational freq ratio creates never-repeating arc
-                let arc   = noise(t, 0.8 * R.frq1, R.a) * R.amp1;
-                let rise  = noise(t, 0.5 * R.frq2, R.b) * R.amp2;
-                physics.handRX.target   =  42 + arc  * 18;
-                physics.handRY.target   = -22 + rise * 28;
-                physics.handLX.target   = -42 - arc  * 14;
-                physics.handLY.target   = -22 + noise(t, 0.6, R.c) * 24 * R.amp3;
-                physics.bodyY.target    =  -8 + rise * 10;
-                physics.rotate.target   = arc * 12 * R.dir1;
-                physics.scaleX.target   =   1 + Math.abs(arc) * 0.07;
-                physics.scaleY.target   =   1 - Math.abs(arc) * 0.05;
-                physics.faceX.target    = arc * 5;
-                physics.faceY.target    = -5 + rise * 4;
-                physics.batonRot.target = arc * 35 + noise(t, 1.1, R.d) * 20;
-                setFaceState(Math.abs(rise) > 0.5 ? 'focused' : 'fierce');
-            }},
-
-            // 6 ── FREEZE + EXPLODE  (sudden stillness, then violent burst)
-            { baseDur: 3.5, update(t) {
-                let phase = t / seqDuration;
-                if (phase < 0.35) {
-                    // FREEZE — lean back dramatically
-                    let lean = clamp(phase / 0.35, 0, 1);
-                    physics.bodyY.target    = lean * (-18);
-                    physics.rotate.target   = R.dir1 * lean * 22;
-                    physics.handRX.target   =  20 + lean * 10;
-                    physics.handRY.target   = -15 - lean * 20;
-                    physics.handLX.target   = -20 - lean * 10;
-                    physics.handLY.target   = -10 - lean * 18;
-                    physics.batonRot.target = R.dir1 * lean * 60;
-                    physics.scaleX.target   = 0.88 + lean * 0.05;
-                    physics.scaleY.target   = 1.12 - lean * 0.05;
-                    physics.faceY.target    = -8;
-                    setFaceState('depression');
+            // 4: Stage Jump & Crash Slam
+            { dur: 5.2, update(t) {
+                let phase = (t % 2.6) / 2.6;
+                if (phase < 0.45) {
+                    // Air Jump
+                    physics.bodyY.target = -30;
+                    physics.scaleY.target = 1.28;
+                    physics.scaleX.target = 0.76;
+                    physics.rotate.target = -10;
+                    physics.faceY.target = -14;
+                    physics.handRX.target = 42;
+                    physics.handRY.target = -28;
+                    physics.handLX.target = -42;
+                    physics.handLY.target = -28;
+                    physics.batonRot.target = 80;
+                    face.className = 'face-state-jump';
                 } else {
-                    // EXPLODE — violent thrash
-                    let e = t - seqDuration * 0.35;
-                    let burst = absNoise(e, 5.5, R.a) * R.amp1;
-                    physics.bodyY.target    = -5 + burst * 28;
-                    physics.rotate.target   = noise(e, 3.2, R.b) * 28 * R.dir2;
-                    physics.scaleX.target   =  1 + burst * 0.15;
-                    physics.scaleY.target   =  1 - burst * 0.15;
-                    physics.handRX.target   = 30 + noise(e, 5.5, R.c) * 28 * R.amp2;
-                    physics.handRY.target   = -8 + noise(e, 4.9, R.d) * 28 * R.amp2;
-                    physics.handLX.target   =-28 + noise(e, 4.7, R.e) * 24 * R.amp3;
-                    physics.handLY.target   =  6 + burst * 22;
-                    physics.batonRot.target = noise(e, 5.5, R.f) * 80;
-                    physics.faceX.target    = noise(e, 2.8, R.g) * 10;
-                    physics.faceY.target    = burst * 8;
-                    setFaceState('fierce');
+                    // Landing Slam
+                    physics.bodyY.target = 24;
+                    physics.scaleY.target = 0.68;
+                    physics.scaleX.target = 1.32;
+                    physics.rotate.target = 12;
+                    physics.faceY.target = 18;
+                    physics.handRX.target = 48;
+                    physics.handRY.target = 24;
+                    physics.handLX.target = -48;
+                    physics.handLY.target = 24;
+                    physics.batonRot.target = -60;
+                    face.className = 'face-state-headbang';
                 }
             }},
 
-            // 7 ── WINDMILL  (one arm makes wide sweeping circles, body tilts)
-            { baseDur: 4.0, update(t) {
-                // Circular / figure-8 motion using phase-shifted sines
-                let cx = Math.sin(t * 1.9 * R.frq1 + R.a);
-                let cy = Math.cos(t * 1.9 * R.frq1 * PHI + R.b);
-                let nb = noise(t, 0.9, R.c) * R.amp2;
-                physics.handRX.target   =  20 + cx * 28 * R.amp1;
-                physics.handRY.target   = -10 + cy * 30 * R.amp1;
-                physics.handLX.target   = -30 + noise(t, 1.3, R.d) * 16 * R.amp3;
-                physics.handLY.target   =   8 + noise(t, 1.1, R.e) * 14;
-                physics.bodyY.target    =  -6 + nb * 14;
-                physics.rotate.target   = noise(t, 0.8, R.f) * 18;
-                physics.batonRot.target = cx * 50 + cy * 30;
-                physics.faceX.target    = cx * 6;
-                physics.faceY.target    = cy * 4 - 2;
-                physics.scaleX.target   =  1 + Math.abs(cx) * 0.07;
-                physics.scaleY.target   =  1 - Math.abs(cy) * 0.06;
-                setFaceState(Math.abs(cy) > 0.5 ? 'fierce' : 'focused');
-            }},
-
-            // 8 ── BASS SLAP FRENZY  (rapid asymmetric hand hits, micro-body shakes)
-            { baseDur: 3.0, update(t) {
-                let slap  = absNoise(t, 8.3 * R.frq1, R.a) * R.amp1;
-                let ghost = noise(t, 5.7 * R.frq2, R.b) * R.amp2;
-                physics.handRX.target   =  22 + slap * 16 * R.dir1;
-                physics.handRY.target   =   8 + slap * 28;
-                physics.handLX.target   = -32 + ghost * 18;
-                physics.handLY.target   =  10 - slap * 14;
-                physics.bodyY.target    =  -8 + slap * 20;
-                physics.rotate.target   = ghost * 14;
-                physics.scaleX.target   =   1 + slap * 0.11;
-                physics.scaleY.target   =   1 - slap * 0.09;
-                physics.faceX.target    = ghost * 7;
-                physics.faceY.target    = slap * 9 - 2;
-                physics.batonRot.target = slap * 65 + noise(t, 8.3, R.c) * 25;
-                setFaceState('fierce');
-            }},
-
-            // 9 ── LEAN-BACK LICK  (body leans way back, arms reach forward/up)
-            { baseDur: 4.2, update(t) {
-                let lean  = noise(t, 0.7 * R.frq1, R.a) * R.amp1;
-                let vibe  = noise(t, 2.3 * R.frq2, R.b) * R.amp2;
-                physics.bodyY.target    = -14 + lean * 10;
-                physics.rotate.target   = -12 * R.dir1 + vibe * 10;
-                physics.handRX.target   =  44 + vibe * 14;
-                physics.handRY.target   = -28 + noise(t, 1.9, R.c) * 20 * R.amp3;
-                physics.handLX.target   = -40 + noise(t, 1.5, R.d) * 16;
-                physics.handLY.target   = -20 + vibe * 18;
-                physics.scaleX.target   =   1 + Math.abs(lean) * 0.06;
-                physics.scaleY.target   =   1 - Math.abs(lean) * 0.08;
-                physics.faceX.target    = lean * 5;
-                physics.faceY.target    = -8 + vibe * 4;
-                physics.batonRot.target = lean * 30 + vibe * 25;
-                setFaceState(Math.abs(lean) > 0.4 ? 'focused' : 'joy');
-            }},
-
-            // 10 ── CONDUCTOR POINT  (precise downbeat stab + authority lean)
-            { baseDur: 4.8, update(t) {
-                // Downbeats with sharp punctuation
-                let beat  = absNoise(t, 2.0 * R.frq1, R.a) * R.amp1;
-                let drift = noise(t, 0.6 * R.frq2, R.b) * R.amp2;
-                physics.handRX.target   =  35 + drift * 12;
-                physics.handRY.target   = -30 + beat * 32;
-                physics.handLX.target   = -28 + noise(t, 1.1, R.c) * 14 * R.amp3;
-                physics.handLY.target   =   5 + noise(t, 1.3, R.d) * 12;
-                physics.bodyY.target    =  -8 + beat * 16;
-                physics.rotate.target   = R.dir1 * (6 + drift * 10);
-                physics.scaleX.target   =   1 + beat * 0.09;
-                physics.scaleY.target   =   1 - beat * 0.09;
-                physics.faceX.target    = drift * 6;
-                physics.faceY.target    = beat * 7 - 4;
-                physics.batonRot.target = beat * 55 + noise(t, 2.0, R.e) * 20;
-                setFaceState(beat > 0.6 ? 'fierce' : 'focused');
-            }},
-
-            // 11 ── BODY ROLL CHAOS  (whole-body rolling with erratic arm trails)
-            { baseDur: 3.6, update(t) {
-                let roll  = noise(t, 1.3 * R.frq1, R.a) * R.amp1;
-                let wild  = noise(t, 3.8 * R.frq2, R.b) * R.amp2;
-                physics.bodyY.target    = roll * 16;
-                physics.rotate.target   = roll * 26;
-                physics.scaleX.target   =  1 + Math.abs(roll) * 0.09;
-                physics.scaleY.target   =  1 - Math.abs(roll) * 0.09;
-                physics.handRX.target   = 24 + roll * 20 + wild * 12;
-                physics.handRY.target   = -4 + wild * 22;
-                physics.handLX.target   =-24 + roll * 16 - wild * 10;
-                physics.handLY.target   =  6 + wild * 18;
-                physics.faceX.target    = roll * 9;
-                physics.faceY.target    = Math.abs(roll) * 5;
-                physics.batonRot.target = roll * 45 + wild * 35;
-                setFaceState(Math.abs(wild) > 0.55 ? 'fierce' : 'focused');
-            }},
-
-            // 12 ── PAUSE-BREATHE-SURGE  (brief calm breath before massive surge)
-            { baseDur: 4.0, update(t) {
-                let phase = t / seqDuration;
-                if (phase < 0.30) {
-                    // Breath: slow heave, hands settle inward
-                    let br = Math.sin(t * 2.4 + R.a) * 0.5 + 0.5;
-                    physics.bodyY.target    = -4 + br * 6;
-                    physics.rotate.target   = noise(t, 0.6, R.b) * 5;
-                    physics.handRX.target   = 22 + br * 6;
-                    physics.handRY.target   = 10 - br * 8;
-                    physics.handLX.target   =-22 - br * 6;
-                    physics.handLY.target   = 10 - br * 8;
-                    physics.batonRot.target = br * 15;
-                    physics.scaleX.target   = 1;
-                    physics.scaleY.target   = 1;
-                    physics.faceY.target    = -3;
-                    setFaceState('focused');
-                } else {
-                    // Surge: explosive continuous chaos
-                    let e    = (t - seqDuration * 0.30);
-                    let kick = absNoise(e, 4.5, R.c) * R.amp1;
-                    physics.bodyY.target    = -8 + kick * 26;
-                    physics.rotate.target   = noise(e, 2.2, R.d) * 22 * R.dir1;
-                    physics.handRX.target   = 30 + noise(e, 4.5, R.e) * 24 * R.amp2;
-                    physics.handRY.target   = -10 + noise(e, 3.9, R.f) * 28 * R.amp2;
-                    physics.handLX.target   =-28 + noise(e, 3.7, R.g) * 20 * R.amp3;
-                    physics.handLY.target   =  8 + kick * 20;
-                    physics.batonRot.target = noise(e, 4.5, R.a) * 75;
-                    physics.scaleX.target   =  1 + kick * 0.13;
-                    physics.scaleY.target   =  1 - kick * 0.13;
-                    physics.faceX.target    = noise(e, 2.4, R.b) * 9;
-                    physics.faceY.target    = kick * 9;
-                    setFaceState('fierce');
-                }
-            }},
-
-            // 13 ── SNEER BOUNCE  (arrogant slow bounce with smirking vibe)
-            { baseDur: 5.2, update(t) {
-                let bounce = absNoise(t, 1.6 * R.frq1, R.a) * R.amp1;
-                let drift  = noise(t, 0.5 * R.frq2, R.b) * R.amp2;
-                physics.bodyY.target    =  2 + bounce * 18;
-                physics.rotate.target   = R.dir1 * (8 + drift * 10);
-                physics.scaleX.target   =  1 + bounce * 0.10;
-                physics.scaleY.target   =  1 - bounce * 0.10;
-                physics.handRX.target   = 36 + drift * 12 + noise(t, 2.0, R.c) * 10 * R.amp3;
-                physics.handRY.target   =  2 + bounce * 16;
-                physics.handLX.target   =-32 + drift * 8;
-                physics.handLY.target   = 14 + bounce * 10;
-                physics.faceX.target    = drift * 8;
-                physics.faceY.target    = bounce * 5;
-                physics.batonRot.target = R.dir1 * (20 + bounce * 25) + noise(t, 1.8, R.d) * 15;
-                setFaceState(bounce > 0.6 ? 'fierce' : 'focused');
-            }},
-
-            // 14 ── BASS HEAD BOB  (look down and then up repeating)
-            { baseDur: 4.5, update(t) {
-                let beat = Math.sin(t * 3.0 * R.frq1 + R.a);
-                let lookDown = beat > 0 ? beat : 0;
-                physics.faceY.target = -2 + lookDown * 14;
-                physics.bodyY.target = lookDown * 10;
-                physics.rotate.target = lookDown * 8 * R.dir1;
-                physics.scaleX.target = 1 + lookDown * 0.05;
-                physics.scaleY.target = 1 - lookDown * 0.05;
-                let drift = noise(t, 1.2, R.b) * R.amp2;
-                physics.handRX.target = 30 + drift * 8;
-                physics.handRY.target = 15 + lookDown * 12;
-                physics.handLX.target = -30 - drift * 8;
-                physics.handLY.target = 15 + lookDown * 12;
-                physics.batonRot.target = drift * 20;
-                physics.faceX.target = drift * 4;
-                setFaceState(lookDown > 0.5 ? 'focused' : 'fierce');
+            // 5: Crowd Hype Double Slash
+            { dur: 5.8, update(t) {
+                let pump = Math.sin(t * Math.PI * 3);
+                physics.bodyY.target = pump * 12;
+                physics.rotate.target = Math.cos(t * Math.PI) * 10;
+                physics.scaleX.target = 1 + pump * 0.08;
+                physics.scaleY.target = 1 - pump * 0.08;
+                physics.handLX.target = -32;
+                physics.handLY.target = -25 + pump * 22;
+                physics.handRX.target = 32;
+                physics.handRY.target = -25 + pump * 22;
+                physics.batonRot.target = pump * 60;
+                physics.faceX.target = 0;
+                physics.faceY.target = pump * 8;
+                face.className = 'face-state-headbang';
             }}
         ];
 
-        // ══════════════════════════════════════════════════════════════
-        // Sequence queue — shuffled, non-repeating
-        // ══════════════════════════════════════════════════════════════
-        let seqQueue = [];
-        function buildQueue() {
-            let arr = Array.from({ length: sequences.length }, (_, i) => i);
-            for (let i = arr.length - 1; i > 0; i--) {
-                let j = Math.floor(Math.random() * (i + 1));
-                [arr[i], arr[j]] = [arr[j], arr[i]];
-            }
-            return arr;
-        }
+        let seqIndex = 0;
+        let seqTime = 0;
+        let seqDuration = sequences[0].dur;
 
-        function nextSequence() {
-            if (seqQueue.length === 0) seqQueue = buildQueue();
-            prevSeqIndex = seqIndex;
-            seqIndex     = seqQueue.pop();
-            seqTime      = 0;
-            // Duration varies ±25% each run for same sequence
-            seqDuration = sequences[seqIndex].baseDur * (0.75 + Math.random() * 0.50);
-            inCross      = false;
-            crossTimer   = 0;
-            freshSeeds();  // new random seeds = same move looks different
-        }
-
-        nextSequence();
-
-        // ══════════════════════════════════════════════════════════════
-        // Main conduct update
-        // ══════════════════════════════════════════════════════════════
         function updateConduct(dt, tempo) {
-            // Irregular blink (rock = less frequent, intense stare)
             blinkTimer -= dt;
             if (blinkTimer <= 0) {
                 triggerBlink();
-                blinkTimer = 0.8 + Math.random() * 3.0;
+                blinkTimer = 1.2 + Math.random() * 2.2;
             }
-
-            // Random impulse jolts for organic chaos
-            tryJolt(dt);
-
-            seqTime    += dt * tempo;
-            crossTimer += dt;
-
-            if (seqTime >= seqDuration) nextSequence();
-
+            seqTime += dt * 1.8; // High energy rock speed
+            if (seqTime >= seqDuration) {
+                seqIndex = (seqIndex + 1) % sequences.length;
+                seqTime = 0;
+                seqDuration = sequences[seqIndex].dur;
+            }
             sequences[seqIndex].update(seqTime);
-
-            // Permanent jelly squish layered on top — uses irrational freqs
-            // so it never perfectly aligns with sequence, adding unpredictability
-            let jelly = noise(globalTime, 3.7, 0.0) * 0.028;
-            physics.scaleX.target += jelly;
-            physics.scaleY.target -= jelly;
-
-            // Constant calm vibe: very visible looking down and then at the viewer
-            // Continuous loop that heavily influences the body and face
-            let vibe = Math.sin(globalTime * 2.8);
-            let vibeNorm = (vibe + 1) * 0.5; // smooth 0 to 1 loop
-            physics.faceY.target += vibeNorm * 20; // Very visible head drop
-            physics.bodyY.target += vibeNorm * 14; // Body sinks deeply with the beat
-            physics.rotate.target += Math.cos(globalTime * 1.4) * 8; // Gentle sway side-to-side
         }
 
         function applyPhysics() {
@@ -735,8 +290,8 @@
                 p.current += p.vel;
             }
             bodyWrapper.style.transform = `translateY(${physics.bodyY.current}px) scale(${physics.scaleX.current}, ${physics.scaleY.current}) rotate(${physics.rotate.current}deg)`;
-            shadow.style.transform = `scale(${physics.scaleX.current - (physics.bodyY.current * 0.01)})`;
-            shadow.style.opacity = 0.3 - (physics.bodyY.current * 0.005);
+            shadow.style.transform = `scale(${physics.scaleX.current - (physics.bodyY.current * 0.012)})`;
+            shadow.style.opacity = 0.38 - (physics.bodyY.current * 0.006);
             face.style.transform = `translate(calc(-50% + ${physics.faceX.current}px), calc(-50% + ${physics.faceY.current}px))`;
             handL.style.transform = `translate(calc(-50% + 50vw + ${physics.handLX.current}px), calc(-50% + 50vh + ${physics.handLY.current}px))`;
             handR.style.transform = `translate(calc(-50% + 50vw + ${physics.handRX.current}px), calc(-50% + 50vh + ${physics.handRY.current}px))`;
@@ -745,27 +300,17 @@
 
         function loop() {
             let now = performance.now();
-            let dt  = Math.min((now - lastFrameTime) / 1000, 0.1);
+            let dt = Math.min((now - lastFrameTime) / 1000, 0.1);
             lastFrameTime = now;
+            globalTime += dt * 1.8;
 
-            if (appState === 'SLEEP') {
-                let breath = Math.sin(globalTime * 2);
-                physics.scaleX.target = 1 + (breath * 0.02);
-                physics.scaleY.target = 1 - (breath * 0.02);
-                physics.faceY.target  = 15;
-                physics.faceX.target  = 0;
-                globalTime += dt;
+            if (appState === 'CONDUCT') {
+                updateConduct(dt, 1.8);
             } else {
-                let g = activeGenre;
-                let tempo = 1.0;
-                if (g === 'rock' || g === 'phonk') tempo = 1.8;
-                else if (g === 'pop' || g === 'lyrics') tempo = 1.4;
-                else if (g === 'jazz' || g === 'folk') tempo = 1.0;
-                else if (g === 'ambient' || g === 'depression' || g === 'emotional') tempo = 0.5;
-
-                globalTime += dt * tempo;
-
-                if (appState === 'CONDUCT') updateConduct(dt, tempo);
+                let breath = Math.sin(globalTime * 2.5);
+                physics.scaleX.target = 1 + breath * 0.02;
+                physics.scaleY.target = 1 - breath * 0.02;
+                physics.faceY.target = 12;
             }
             applyPhysics();
             requestAnimationFrame(loop);

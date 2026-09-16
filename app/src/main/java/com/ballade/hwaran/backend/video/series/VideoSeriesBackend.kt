@@ -65,8 +65,14 @@ class VideoSeriesBackend(private val application: Application) {
     fun updatePlaybackProgress(seriesId: Long, episodeTitle: String, positionMs: Long) {
         scope.launch {
             val series = database.mediaDao().getMangaById(seriesId) ?: return@launch
-            database.mediaDao().insertManga(series.copy(lastReadTitle = episodeTitle, openCount = series.openCount + 1))
-            HistoryTracker.logEvent("PLAY_VIDEO", episodeTitle, "seriesId:$seriesId|pos:$positionMs")
+            val now = System.currentTimeMillis()
+            database.mediaDao().insertManga(series.copy(lastReadTitle = episodeTitle, openCount = series.openCount + 1, lastModified = now))
+            if (series.parentMangaId != null) {
+                database.mediaDao().getMangaById(series.parentMangaId)?.let { parent ->
+                    database.mediaDao().insertManga(parent.copy(lastReadTitle = episodeTitle, openCount = parent.openCount + 1, lastModified = now))
+                }
+            }
+            HistoryTracker.logEvent("PLAY_VIDEO", episodeTitle, "mangaId:$seriesId|seriesId:$seriesId|pos:$positionMs")
         }
     }
 

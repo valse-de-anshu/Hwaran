@@ -139,6 +139,7 @@ fun HomeScreen(
     val glowColor by settingsViewModel.glowColor.collectAsState()
     val homeUiTransparency by settingsViewModel.homeUiTransparency.collectAsState()
     val allManga by libraryViewModel.allMangaState.collectAsState()
+    val allMangaEverywhere by libraryViewModel.allMangaEverywhereState.collectAsState()
     // Collect isNsfwFilter here so we can pass it explicitly to importFolder.
     // This avoids a race condition where the pager-page→filter sync coroutine
     // hasn't fired yet when the picker result callback runs.
@@ -423,18 +424,18 @@ fun HomeScreen(
                 when (tab) {
                     0 -> {
                         HomeDashboard(
-                            allManga = allManga,
+                            allManga = allMangaEverywhere,
                             historyEvents = historyEvents,
                             onNavigateToDescription = { id ->
-                                val m = allManga.find { it.id == id }
+                                val m = allMangaEverywhere.find { it.id == id }
                                 checkLockAndExecute(m) { onNavigateToDescription(id) }
                             },
                             onNavigateToPlaylistDetail = { id ->
-                                val m = allManga.find { it.id == id }
+                                val m = allMangaEverywhere.find { it.id == id }
                                 checkLockAndExecute(m) { onNavigateToPlaylistDetail(id) }
                             },
                             onNavigateToMedia = { mediaId, type ->
-                                val m = allManga.find { it.id == mediaId }
+                                val m = allMangaEverywhere.find { it.id == mediaId }
                                 checkLockAndExecute(m) { onNavigateToMedia(mediaId, type) }
                             },
                             onPlaySong = { manga, chapters, index ->

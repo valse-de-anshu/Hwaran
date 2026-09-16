@@ -67,7 +67,13 @@ class ToonBackend(private val application: Application) {
     fun updateReadingProgress(mangaId: Long, chapterTitle: String, page: Int) {
         scope.launch {
             val manga = database.mediaDao().getMangaById(mangaId) ?: return@launch
-            database.mediaDao().insertManga(manga.copy(lastReadTitle = chapterTitle, lastReadPage = page, openCount = manga.openCount + 1))
+            val now = System.currentTimeMillis()
+            database.mediaDao().insertManga(manga.copy(lastReadTitle = chapterTitle, lastReadPage = page, openCount = manga.openCount + 1, lastModified = now))
+            if (manga.parentMangaId != null) {
+                database.mediaDao().getMangaById(manga.parentMangaId)?.let { parent ->
+                    database.mediaDao().insertManga(parent.copy(lastReadTitle = chapterTitle, lastReadPage = page, openCount = parent.openCount + 1, lastModified = now))
+                }
+            }
             HistoryTracker.logEvent("READ_TOON", chapterTitle, "mangaId:$mangaId|page:$page")
         }
     }

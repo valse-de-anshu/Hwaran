@@ -3,18 +3,16 @@ package com.ballade.hwaran.ui.dialogs
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Build
+import androidx.compose.material.icons.rounded.Construction
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -46,34 +44,21 @@ fun ZineScraperDialog(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Aesthetic Tool Icon Header with Gradient Ring
-                Box(
+                // Calm Minimal Tool Icon Header
+                Surface(
                     modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    Color(0xFF6366F1),
-                                    Color(0xFFA855F7),
-                                    Color(0xFFEC4899)
-                                )
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
+                        .size(56.dp)
+                        .clip(CircleShape),
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = 0.08f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(60.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF1E1E2E)),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = Icons.Rounded.Build,
+                            imageVector = Icons.Rounded.Construction,
                             contentDescription = "Zine Scraper Tool",
-                            tint = Color(0xFFA855F7),
-                            modifier = Modifier.size(28.dp)
+                            tint = Color.White.copy(alpha = 0.9f),
+                            modifier = Modifier.size(26.dp)
                         )
                     }
                 }
@@ -82,24 +67,24 @@ fun ZineScraperDialog(
 
                 Text(
                     text = "Zine Scraper CLI Tool",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Black,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Bold,
                     color = Color.White,
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFA855F7).copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.3f))
+                    color = Color.White.copy(alpha = 0.06f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
                 ) {
                     Text(
                         text = "Scrape & Build Local Media",
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFD8B4FE),
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White.copy(alpha = 0.75f),
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
@@ -107,14 +92,14 @@ fun ZineScraperDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Zine Scraper is an open-source CLI utility designed to scrape and download your own media collections (manhua, manga, light novels, books, and videos) directly into local folders optimized for Hwaran.",
-                    fontSize = 13.5.sp,
-                    color = Color.White.copy(alpha = 0.8f),
+                    text = "A powerful CLI tool for downloading and organizing 18+, videos, music, books, images, metadata, anime, manhua, manga, and novels from supported websites directly into local folders. Perfectly compatible with the Hwaran app to seamlessly import and enjoy your media collection offline.",
+                    fontSize = 13.sp,
+                    color = Color.White.copy(alpha = 0.75f),
                     textAlign = TextAlign.Center,
-                    lineHeight = 19.sp
+                    lineHeight = 18.5.sp
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(22.dp))
 
                 // Action Buttons
                 Button(
@@ -126,9 +111,10 @@ fun ZineScraperDialog(
                         context.startActivity(intent)
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFA855F7),
-                        contentColor = Color.White
+                        containerColor = Color(0xFF222631),
+                        contentColor = Color(0xFFE6E8EC)
                     ),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -137,14 +123,15 @@ fun ZineScraperDialog(
                     Icon(
                         painter = painterResource(id = R.drawable.ic_github),
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = Color(0xFFE6E8EC),
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "View CLI Scraper Repository",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp
+                        fontSize = 13.5.sp,
+                        color = Color(0xFFE6E8EC)
                     )
                 }
 
@@ -158,7 +145,7 @@ fun ZineScraperDialog(
                 ) {
                     Text(
                         text = "Close",
-                        color = Color.White.copy(alpha = 0.6f),
+                        color = Color.White.copy(alpha = 0.5f),
                         fontWeight = FontWeight.Medium,
                         fontSize = 13.5.sp
                     )
