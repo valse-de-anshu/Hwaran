@@ -55,6 +55,8 @@ import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.core.util.HistoryTracker
 import com.ballade.hwaran.ui.viewmodels.MusicViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -242,7 +244,18 @@ fun NovelPlayerScreen(
     var isControlsVisible by rememberSaveable { mutableStateOf(false) }
     var activeSettingTab by remember { mutableStateOf<NovelSettingTab?>(null) }
     var showTocSheet by remember { mutableStateOf(false) }
-    var bookmarkedChapters by remember { mutableStateOf(setOf<Int>()) }
+    var bookmarkToastMessage by remember { mutableStateOf<String?>(null) }
+    var initialPositionRestored by remember(mangaId) { mutableStateOf(false) }
+    var lastScrolledChapter by remember { mutableIntStateOf(-1) }
+
+    // Shared LazyListState for continuous vertical scrolling
+    val verticalListState = rememberLazyListState()
+
+    // ── Checkpoints ───────────────────────────────────────────────────────────
+    val markers by remember(mangaId) {
+        if (mangaId > 0L) database.annotationDao().getMarkersForPdf(mangaId)
+        else flowOf(emptyList())
+    }.collectAsState(initial = emptyList())
 
     // ── Reading Preferences ────────────────────────────────────────────────────
     var currentTheme by rememberSaveable { mutableStateOf(NovelTheme.DARK) }
@@ -264,9 +277,6 @@ fun NovelPlayerScreen(
             resolveFont(currentFont)
         }
     }
-
-    // Shared LazyListState for continuous vertical scrolling
-    val verticalListState = rememberLazyListState()
 
     // ── Immersive Fullscreen (Always in Reading Mode) ───────────────────────────
     val activity = context as? Activity
@@ -379,26 +389,30 @@ fun NovelPlayerScreen(
     }
 
     // ── Save Progress ──────────────────────────────────────────────────────────
-    fun saveProgress(chapterIdx: Int) {
+    fun saveProgress(chapterIdx: Int, scrollPosition: Int = 0) {
         if (mangaId > 0L && novelBook != null && chapterIdx in novelBook!!.chapters.indices) {
             val chapterTitle = novelBook!!.chapters[chapterIdx].title
             coroutineScope.launch(Dispatchers.IO) {
                 val current = database.mediaDao().getMangaById(mangaId) ?: return@launch
                 val now = System.currentTimeMillis()
-                database.mediaDao().insertManga(
-                    current.copy(
-                        lastReadPage = chapterIdx,
-                        lastReadTitle = chapterTitle,
-                        openCount = current.openCount + 1,
-                        lastModified = now
-                    )
+                val updated = current.copy(
+                    lastReadPage = chapterIdx,
+                    lastReadTitle = chapterTitle,
+                    position = scrollPosition,
+                    openCount = current.openCount + 1,
+                    lastModified = now
                 )
+                database.mediaDao().insertManga(updated)
+                withContext(Dispatchers.Main) {
+                    mangaEntity = updated
+                }
                 if (current.parentMangaId != null) {
                     database.mediaDao().getMangaById(current.parentMangaId)?.let { parent ->
                         database.mediaDao().insertManga(
                             parent.copy(
                                 lastReadPage = chapterIdx,
                                 lastReadTitle = chapterTitle,
+                                position = scrollPosition,
                                 openCount = parent.openCount + 1,
                                 lastModified = now
                             )
@@ -408,9 +422,35 @@ fun NovelPlayerScreen(
                 HistoryTracker.logEvent(
                     "READ_NOVEL",
                     chapterTitle,
-                    "mangaId:$mangaId|pages:${chapterIdx + 1}|totalPages:${novelBook?.chapters?.size ?: 0}"
+                    "mangaId:$mangaId|pages:${chapterIdx + 1}|pos:$scrollPosition|totalPages:${novelBook?.chapters?.size ?: 0}"
                 )
             }
+        }
+    }
+
+    // ── Bookmarks / Reading Progress Checkpoint ────────────────────────────────
+    val isCurrentBookmarked = remember(mangaEntity?.lastReadPage, currentChapterIndex) {
+        mangaEntity?.lastReadPage == currentChapterIndex
+    }
+
+    fun toggleBookmark() {
+        if (mangaId > 0L && novelBook != null && currentChapterIndex in novelBook!!.chapters.indices) {
+            val chapterIdx = currentChapterIndex
+            val scrollOffset = if (readMode == NovelReadMode.VERTICAL_SCROLL) {
+                verticalListState.firstVisibleItemIndex
+            } else {
+                0
+            }
+            saveProgress(chapterIdx, scrollOffset)
+            val title = novelBook!!.chapters.getOrNull(chapterIdx)?.title ?: "Chapter ${chapterIdx + 1}"
+            bookmarkToastMessage = "Progress Saved • ${title.ifBlank { "Chapter ${chapterIdx + 1}" }}"
+        }
+    }
+
+    LaunchedEffect(bookmarkToastMessage) {
+        if (bookmarkToastMessage != null) {
+            kotlinx.coroutines.delay(2200)
+            bookmarkToastMessage = null
         }
     }
 
@@ -509,12 +549,60 @@ fun NovelPlayerScreen(
 
         // ── Reading View ───────────────────────────────────────────────────────────
         } else {
+            val totalChapters = chapters.size.coerceAtLeast(1)
+            val paragraphs = remember(activeChapter?.content) {
+                val raw = activeChapter?.content ?: ""
+                val list = if (raw.contains("\n\n") || raw.contains("\r\n\r\n")) {
+                    raw.split(Regex("""(?:\r?\n\s*){2,}"""))
+                } else {
+                    raw.split(Regex("""\r?\n"""))
+                }
+                list.filter { it.isNotBlank() }
+            }
+
+            val currentOverallPct = remember(currentChapterIndex, verticalListState.firstVisibleItemIndex, paragraphs.size, totalChapters, readMode) {
+                if (readMode == NovelReadMode.VERTICAL_SCROLL) {
+                    val chProgress = if (paragraphs.isNotEmpty()) {
+                        (verticalListState.firstVisibleItemIndex.toFloat() / paragraphs.size.coerceAtLeast(1)).coerceIn(0f, 1f)
+                    } else 0f
+                    (((currentChapterIndex.toFloat() + chProgress) / totalChapters) * 100).toInt().coerceIn(0, 100)
+                } else {
+                    (((currentChapterIndex + 1).toFloat() / totalChapters) * 100).toInt().coerceIn(0, 100)
+                }
+            }
 
             // ── Vertical Scroll Mode ────────────────────────────────────────────────
             if (readMode == NovelReadMode.VERTICAL_SCROLL) {
+                LaunchedEffect(novelBook, mangaEntity) {
+                    if (!initialPositionRestored && novelBook != null && mangaEntity != null) {
+                        val targetChapter = (mangaEntity?.lastReadPage ?: 0).coerceIn(0, (chapters.size - 1).coerceAtLeast(0))
+                        val targetPos = (mangaEntity?.position ?: 0).coerceAtLeast(0)
+                        currentChapterIndex = targetChapter
+                        lastScrolledChapter = targetChapter
+                        if (targetPos > 0) {
+                            verticalListState.scrollToItem(targetPos)
+                        }
+                        initialPositionRestored = true
+                    }
+                }
+
                 LaunchedEffect(currentChapterIndex) {
-                    verticalListState.scrollToItem(0)
-                    saveProgress(currentChapterIndex)
+                    if (initialPositionRestored && lastScrolledChapter != currentChapterIndex) {
+                        lastScrolledChapter = currentChapterIndex
+                        verticalListState.scrollToItem(0)
+                        saveProgress(currentChapterIndex, 0)
+                    }
+                }
+
+                LaunchedEffect(currentChapterIndex, verticalListState, initialPositionRestored) {
+                    if (!initialPositionRestored) return@LaunchedEffect
+                    snapshotFlow { verticalListState.firstVisibleItemIndex }
+                        .distinctUntilChanged()
+                        .collect { firstIdx ->
+                            if (firstIdx >= 0 && lastScrolledChapter == currentChapterIndex) {
+                                saveProgress(currentChapterIndex, firstIdx)
+                            }
+                        }
                 }
 
                 Box(
@@ -533,73 +621,67 @@ fun NovelPlayerScreen(
                             .fillMaxHeight()
                             .widthIn(max = 750.dp)
                     ) {
-                    item(key = "ch_header_$currentChapterIndex") {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 20.dp)
-                        ) {
-                            Text(
-                                text = activeChapter?.title ?: "",
-                                fontFamily = resolvedFont,
-                                fontSize = (fontSizeSp + 6).sp,
-                                fontWeight = FontWeight.Bold,
-                                color = currentTheme.text,
-                                lineHeight = ((fontSizeSp + 6) * 1.3f).sp
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        item(key = "ch_header_$currentChapterIndex") {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 20.dp)
                             ) {
                                 Text(
-                                    text = "Chapter ${currentChapterIndex + 1} of ${chapters.size}",
-                                    color = currentTheme.secondaryText,
-                                    fontSize = 13.sp,
-                                    fontFamily = resolvedFont
+                                    text = activeChapter?.title ?: "",
+                                    fontFamily = resolvedFont,
+                                    fontSize = (fontSizeSp + 6).sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = currentTheme.text,
+                                    lineHeight = ((fontSizeSp + 6) * 1.3f).sp
                                 )
-                                Text("•", color = currentTheme.secondaryText.copy(alpha = 0.5f), fontSize = 12.sp)
-                                Text(
-                                    text = "${activeChapter?.wordCount ?: 0} words",
-                                    color = currentTheme.secondaryText,
-                                    fontSize = 13.sp,
-                                    fontFamily = resolvedFont
-                                )
+                                Spacer(Modifier.height(8.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = "Chapter ${currentChapterIndex + 1} of ${chapters.size}",
+                                        color = currentTheme.secondaryText,
+                                        fontSize = 13.sp,
+                                        fontFamily = resolvedFont
+                                    )
+                                    Text("•", color = currentTheme.secondaryText.copy(alpha = 0.5f), fontSize = 12.sp)
+                                    Text(
+                                        text = "${activeChapter?.wordCount ?: 0} words",
+                                        color = currentTheme.secondaryText,
+                                        fontSize = 13.sp,
+                                        fontFamily = resolvedFont
+                                    )
+                                }
+                                Spacer(Modifier.height(16.dp))
+                                HorizontalDivider(color = currentTheme.border.copy(alpha = 0.5f))
+                                Spacer(Modifier.height(16.dp))
                             }
-                            Spacer(Modifier.height(16.dp))
-                            HorizontalDivider(color = currentTheme.border.copy(alpha = 0.5f))
-                            Spacer(Modifier.height(20.dp))
-                        }
-                    }
-
-                    item(key = "ch_content_$currentChapterIndex") {
-                        val paragraphs = remember(activeChapter?.content) {
-                            val raw = activeChapter?.content ?: ""
-                            if (raw.contains("\n\n") || raw.contains("\r\n\r\n")) {
-                                raw.split(Regex("""(?:\r?\n\s*){2,}"""))
-                            } else {
-                                raw.split(Regex("""\r?\n"""))
-                            }
                         }
 
-                        SelectionContainer {
-                            Column(verticalArrangement = Arrangement.spacedBy(paragraphSpacingDp.dp)) {
-                                paragraphs.forEach { paragraph ->
-                                    if (paragraph.isNotBlank()) {
-                                        NovelParagraphBlock(
-                                            paragraph = paragraph,
-                                            theme = currentTheme,
-                                            fontFamily = resolvedFont,
-                                            fontSizeSp = fontSizeSp,
-                                            lineHeightMultiplier = lineHeightMultiplier,
-                                            textAlign = textAlign,
-                                            basePath = basePath
-                                        )
-                                    }
+                        itemsIndexed(
+                            items = paragraphs,
+                            key = { pIdx, _ -> "p_${currentChapterIndex}_$pIdx" }
+                        ) { _, paragraph ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = paragraphSpacingDp.dp)
+                            ) {
+                                SelectionContainer {
+                                    NovelParagraphBlock(
+                                        paragraph = paragraph,
+                                        theme = currentTheme,
+                                        fontFamily = resolvedFont,
+                                        fontSizeSp = fontSizeSp,
+                                        lineHeightMultiplier = lineHeightMultiplier,
+                                        textAlign = textAlign,
+                                        basePath = basePath
+                                    )
                                 }
                             }
                         }
-                    }
 
                     // End of chapter footer with prev/next
                     item(key = "ch_footer_$currentChapterIndex") {
@@ -757,6 +839,47 @@ fun NovelPlayerScreen(
             }
 
             // ═════════════════════════════════════════════════════════════════════
+            // SLEEK TOP-RIGHT PROGRESS & CHECKPOINT STICKY TAB
+            // ═════════════════════════════════════════════════════════════════════
+            if (!showTocSheet) {
+                Surface(
+                    shape = RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp),
+                    color = Color(0xFF14131E).copy(alpha = 0.90f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                    shadowElevation = 6.dp,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .statusBarsPadding()
+                        .padding(end = 14.dp)
+                        .clip(RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp))
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            isControlsVisible = true
+                            activeSettingTab = NovelSettingTab.CHECKPOINTS
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Bookmark,
+                            contentDescription = "Checkpoints",
+                            tint = if (markers.isNotEmpty()) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = "$currentOverallPct%",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            // ═════════════════════════════════════════════════════════════════════
             // RIGHT-SIDE FOCUS TRIGGER (Full-height right margin tap zone)
             // ═════════════════════════════════════════════════════════════════════
             if (!isControlsVisible && !showTocSheet) {
@@ -865,13 +988,57 @@ fun NovelPlayerScreen(
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.widthIn(max = 200.dp)
+                                    modifier = Modifier.widthIn(max = 180.dp)
                                 )
+                            }
+                        }
+
+                        // Quick Jump to Last Read Capsule (if away from last read chapter or has saved position)
+                        val lastReadChapter = mangaEntity?.lastReadPage
+                        if (lastReadChapter != null && (lastReadChapter != currentChapterIndex || (mangaEntity?.position ?: 0) > 0)) {
+                            val savedPos = (mangaEntity?.position ?: 0).coerceAtLeast(0)
+                            val savedPct = (((lastReadChapter.toFloat() + 0.5f) / totalChapters) * 100).toInt().coerceIn(0, 100)
+                            Surface(
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .padding(end = 12.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        val target = lastReadChapter.coerceIn(0, (chapters.size - 1).coerceAtLeast(0))
+                                        lastScrolledChapter = target
+                                        currentChapterIndex = target
+                                        coroutineScope.launch {
+                                            verticalListState.scrollToItem(savedPos)
+                                        }
+                                        saveProgress(target, savedPos)
+                                    },
+                                shape = RoundedCornerShape(16.dp),
+                                color = Color(0xFFFFD54F).copy(alpha = 0.18f),
+                                border = BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.40f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Bookmark,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFFD54F),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = "Last: $savedPct% (Ch. ${lastReadChapter + 1})",
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                             }
                         }
                     }
 
-                    // 3. Right Side Settings Pill (Without bookmark)
+                    // 3. Right Side Settings Pill
                     NovelReaderSettingsPill(
                         activeTab = activeSettingTab,
                         onTabSelected = { activeSettingTab = it },
@@ -906,10 +1073,91 @@ fun NovelPlayerScreen(
                         onKeepScreenOnChange = { keepScreenOn = it },
                         brightnessOverride = brightnessOverride,
                         onBrightnessOverrideChange = { brightnessOverride = it },
+                        markers = markers,
+                        chapters = chapters,
+                        onAddCheckpoint = {
+                            if (mangaId > 0L && novelBook != null && currentChapterIndex in novelBook!!.chapters.indices) {
+                                val chapterIdx = currentChapterIndex
+                                val scrollOffset = if (readMode == NovelReadMode.VERTICAL_SCROLL) {
+                                    verticalListState.firstVisibleItemIndex
+                                } else {
+                                    0
+                                }
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    database.annotationDao().insertMarker(
+                                        com.ballade.hwaran.core.database.entity.PdfMarkerEntity(
+                                            mangaId = mangaId,
+                                            page = chapterIdx,
+                                            x1 = scrollOffset.toFloat(),
+                                            y1 = 0f,
+                                            x2 = 0f,
+                                            y2 = 0f,
+                                            color = 0,
+                                            createdAt = System.currentTimeMillis()
+                                        )
+                                    )
+                                }
+                                saveProgress(chapterIdx, scrollOffset)
+                                val title = novelBook!!.chapters.getOrNull(chapterIdx)?.title ?: "Chapter ${chapterIdx + 1}"
+                                bookmarkToastMessage = "Checkpoint Added • $title"
+                            }
+                        },
+                        onJumpToCheckpoint = { marker ->
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            val targetChapter = marker.page.coerceIn(0, (chapters.size - 1).coerceAtLeast(0))
+                            val targetScroll = marker.x1.toInt().coerceAtLeast(0)
+                            lastScrolledChapter = targetChapter
+                            currentChapterIndex = targetChapter
+                            coroutineScope.launch {
+                                verticalListState.scrollToItem(targetScroll)
+                            }
+                            saveProgress(targetChapter, targetScroll)
+                        },
+                        onDeleteCheckpoint = { marker ->
+                            coroutineScope.launch(Dispatchers.IO) {
+                                database.annotationDao().deleteMarkerById(marker.id)
+                            }
+                        },
                         onShowToc = { showTocSheet = true; activeSettingTab = null },
                         glowColor = currentTheme.accent,
                         musicViewModel = musicViewModel,
                         modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+        }
+        // ── Bookmark Saved Notification Banner ──────────────────────────────────
+        AnimatedVisibility(
+            visible = bookmarkToastMessage != null,
+            enter = fadeIn(tween(180)) + slideInVertically(tween(200)) { -it },
+            exit = fadeOut(tween(180)) + slideOutVertically(tween(200)) { -it },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 16.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF1E1E28).copy(alpha = 0.95f),
+                border = BorderStroke(1.dp, currentTheme.accent.copy(alpha = 0.50f)),
+                shadowElevation = 10.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Bookmark,
+                        contentDescription = null,
+                        tint = currentTheme.accent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = bookmarkToastMessage ?: "",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -937,30 +1185,72 @@ fun NovelPlayerScreen(
                     .padding(horizontal = 20.dp)
                     .padding(bottom = 32.dp)
             ) {
+                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = "Table of Contents",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = currentTheme.text
-                    )
-                    Text(
-                        text = "${chapters.size} Chapters",
-                        fontSize = 13.sp,
-                        color = currentTheme.secondaryText
-                    )
+                    Column {
+                        Text(
+                            text = "Table of Contents",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = currentTheme.text
+                        )
+                        Text(
+                            text = "${chapters.size} Chapters",
+                            fontSize = 12.sp,
+                            color = currentTheme.secondaryText
+                        )
+                    }
+
+                    // Jump to saved bookmark badge if available
+                    if (mangaEntity?.lastReadPage != null && mangaEntity?.lastReadPage != currentChapterIndex) {
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                val target = (mangaEntity?.lastReadPage ?: 0).coerceIn(0, (chapters.size - 1).coerceAtLeast(0))
+                                currentChapterIndex = target
+                                coroutineScope.launch {
+                                    verticalListState.scrollToItem((mangaEntity?.position ?: 0).coerceAtLeast(0))
+                                }
+                                saveProgress(target, mangaEntity?.position ?: 0)
+                                showTocSheet = false
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = currentTheme.accent.copy(alpha = 0.18f),
+                            border = BorderStroke(1.dp, currentTheme.accent.copy(alpha = 0.35f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Bookmark,
+                                    contentDescription = null,
+                                    tint = currentTheme.accent,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "Saved: Ch. ${(mangaEntity?.lastReadPage ?: 0) + 1}",
+                                    color = currentTheme.text,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(14.dp))
 
+                // Search Box
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search chapter…", color = currentTheme.secondaryText) },
+                    placeholder = { Text("Search chapters…", color = currentTheme.secondaryText) },
                     leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = currentTheme.secondaryText) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -975,25 +1265,31 @@ fun NovelPlayerScreen(
 
                 Spacer(Modifier.height(14.dp))
 
+                // Chapters List
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 480.dp),
+                        .heightIn(max = 440.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     itemsIndexed(filteredChapters) { _, chapter ->
-                        val isSelected = chapter.index == currentChapterIndex
-                        val isBookmarked = bookmarkedChapters.contains(chapter.index)
+                        val isCurrent = chapter.index == currentChapterIndex
+                        val isSavedBookmark = mangaEntity?.lastReadPage == chapter.index
 
                         Surface(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 currentChapterIndex = chapter.index
-                                saveProgress(chapter.index)
+                                val targetScroll = if (isSavedBookmark) (mangaEntity?.position ?: 0).coerceAtLeast(0) else 0
+                                coroutineScope.launch {
+                                    verticalListState.scrollToItem(targetScroll)
+                                }
+                                saveProgress(chapter.index, targetScroll)
                                 showTocSheet = false
                             },
                             shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) currentTheme.accent.copy(alpha = 0.15f) else Color.Transparent,
+                            color = if (isCurrent) currentTheme.accent.copy(alpha = 0.15f) else Color.Transparent,
+                            border = if (isCurrent) BorderStroke(1.dp, currentTheme.accent.copy(alpha = 0.35f)) else null,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -1004,7 +1300,7 @@ fun NovelPlayerScreen(
                             ) {
                                 Text(
                                     text = "${chapter.index + 1}",
-                                    color = if (isSelected) currentTheme.accent else currentTheme.secondaryText,
+                                    color = if (isCurrent) currentTheme.accent else currentTheme.secondaryText,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.width(36.dp)
@@ -1013,9 +1309,9 @@ fun NovelPlayerScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = chapter.title,
-                                        color = if (isSelected) currentTheme.accent else currentTheme.text,
+                                        color = if (isCurrent) currentTheme.accent else currentTheme.text,
                                         fontSize = 15.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -1026,12 +1322,36 @@ fun NovelPlayerScreen(
                                     )
                                 }
 
-                                if (isBookmarked) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Bookmark,
-                                        contentDescription = "Bookmarked",
-                                        tint = currentTheme.accent,
-                                        modifier = Modifier.size(18.dp)
+                                if (isSavedBookmark) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        modifier = Modifier
+                                            .background(currentTheme.accent.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Bookmark,
+                                            contentDescription = "Saved Bookmark",
+                                            tint = currentTheme.accent,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = "Saved",
+                                            color = currentTheme.accent,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                } else if (isCurrent) {
+                                    Text(
+                                        text = "Reading",
+                                        color = currentTheme.accent,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier
+                                            .background(currentTheme.accent.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
                                     )
                                 }
                             }

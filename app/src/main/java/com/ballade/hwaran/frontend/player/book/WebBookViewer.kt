@@ -31,6 +31,9 @@ fun WebBookViewer(
     bookUri: Uri,
     eyeCareMode: EyeCareMode,
     modifier: Modifier = Modifier,
+    initialProgress: Float = 0f,
+    onProgressChanged: (Float) -> Unit = {},
+    jumpToProgress: Float? = null,
     onTap: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -167,6 +170,20 @@ fun WebBookViewer(
         webViewInstance?.evaluateJavascript(themeCss, null)
     }
 
+    LaunchedEffect(jumpToProgress, webViewInstance) {
+        if (jumpToProgress != null && webViewInstance != null) {
+            val jumpJs = """
+                (function() {
+                    var max = document.documentElement.scrollHeight - window.innerHeight;
+                    if (max > 0) {
+                        window.scrollTo({ top: $jumpToProgress * max, behavior: 'smooth' });
+                    }
+                })();
+            """.trimIndent()
+            webViewInstance?.evaluateJavascript(jumpJs, null)
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
@@ -218,6 +235,13 @@ fun WebBookViewer(
                                     onTap()
                                 }
                             }
+
+                            @android.webkit.JavascriptInterface
+                            fun onScrollProgress(progress: Float) {
+                                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                    onProgressChanged(progress.coerceIn(0f, 1f))
+                                }
+                            }
                         },
                         "HwaranBridge"
                     )
@@ -247,6 +271,60 @@ fun WebBookViewer(
                             super.onPageFinished(view, url)
                             isLoadingPage = false
                             view?.evaluateJavascript(themeCss, null)
+                            val scrollJs = """
+                                (function() {
+                                    if (!window.__hwaranScrollInjected) {
+                                        window.__hwaranScrollInjected = true;
+                                        var debounceTimer;
+                                        window.addEventListener('scroll', function() {
+                                            clearTimeout(debounceTimer);
+                                            debounceTimer = setTimeout(function() {
+                                                var max = document.documentElement.scrollHeight - window.innerHeight;
+                                                var pct = max > 0 ? (window.scrollY / max) : 0;
+                                                if (window.HwaranBridge && window.HwaranBridge.onScrollProgress) {
+                                                    window.HwaranBridge.onScrollProgress(pct);
+                                                }
+                                            }, 250);
+                                        }, { passive: true });
+                                    }
+                                    if (!window.__hwaranTapInjected) {
+                                        window.__hwaranTapInjected = true;
+                                        var touchStartX = 0, touchStartY = 0, touchStartTime = 0;
+                                        window.addEventListener('touchstart', function(e) {
+                                            if (e.touches.length === 1) {
+                                                touchStartX = e.touches[0].clientX;
+                                                touchStartY = e.touches[0].clientY;
+                                                touchStartTime = Date.now();
+                                            }
+                                        }, { passive: true });
+                                        window.addEventListener('touchend', function(e) {
+                                            if (Date.now() - touchStartTime < 350) {
+                                                var touch = e.changedTouches[0];
+                                                var dx = Math.abs(touch.clientX - touchStartX);
+                                                var dy = Math.abs(touch.clientY - touchStartY);
+                                                if (dx < 20 && dy < 20) {
+                                                    var target = document.elementFromPoint(touch.clientX, touch.clientY);
+                                                    if (target && (target.closest('a') || target.closest('button') || target.closest('input') || target.closest('select'))) {
+                                                        return;
+                                                    }
+                                                    if (window.HwaranBridge && window.HwaranBridge.onUserTap) {
+                                                        window.HwaranBridge.onUserTap();
+                                                    }
+                                                }
+                                            }
+                                        }, { passive: true });
+                                    }
+                                    ${if (initialProgress > 0.001f) """
+                                        setTimeout(function() {
+                                            var max = document.documentElement.scrollHeight - window.innerHeight;
+                                            if (max > 0) {
+                                                window.scrollTo(0, $initialProgress * max);
+                                            }
+                                        }, 350);
+                                    """ else ""}
+                                })();
+                            """.trimIndent()
+                            view?.evaluateJavascript(scrollJs, null)
                         }
                     }
 

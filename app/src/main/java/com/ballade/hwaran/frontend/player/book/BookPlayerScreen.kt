@@ -27,6 +27,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,6 +70,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import kotlinx.coroutines.Job
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
@@ -192,7 +194,8 @@ enum class EyeCareMode(val label: String) {
 enum class PdfBottomPanel {
     HIGHLIGHTER,
     EYE_CARE,
-    MUSIC
+    MUSIC,
+    CHECKPOINTS
 }
 
 data class HighlightColorOption(
@@ -314,6 +317,8 @@ fun BookPlayerScreen(
     var isMarkerMode by remember { mutableStateOf(false) }
     var activeColor by remember { mutableIntStateOf(0xFFFFF59D.toInt()) }
     val markers by pdfViewModel.getMarkers(mangaId).collectAsState(initial = emptyList())
+    var webProgress by remember { mutableFloatStateOf(0f) }
+    var jumpTargetProgress by remember { mutableStateOf<Float?>(null) }
     var eyeCareMode by remember { mutableStateOf(EyeCareMode.OFF) }
     var activeBottomPanel by remember { mutableStateOf<PdfBottomPanel?>(null) }
     var viewWidthPx by remember { mutableIntStateOf(1080) }
@@ -782,31 +787,33 @@ fun BookPlayerScreen(
                     )
                 }
             } else if (isWebBook && bookUri != null) {
+                val initialWebProgress = remember(manga) {
+                    ((manga?.lastReadPage ?: 0) / 10000f).coerceIn(0f, 1f)
+                }
+
                 Box(modifier = Modifier.fillMaxSize()) {
                     WebBookViewer(
                         bookUri = bookUri!!,
                         eyeCareMode = eyeCareMode,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        initialProgress = initialWebProgress,
+                        onProgressChanged = { progress ->
+                            webProgress = progress
+                            if (mangaId > 0L) {
+                                pdfViewModel.saveLastPage(mangaId, (progress * 10000).toInt())
+                            }
+                        },
+                        jumpToProgress = jumpTargetProgress,
+                        onTap = {
+                            if (activeBottomPanel != null) {
+                                activeBottomPanel = null
+                            } else {
+                                showOverlay = !showOverlay
+                            }
+                        }
                     )
 
-                    // ── RIGHT-SIDE FOCUS TRIGGER (Full-height right margin tap zone) ──
-                    if (!showOverlay) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .fillMaxHeight()
-                                .width(72.dp)
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    showOverlay = true
-                                }
-                        )
-                    }
-
-                    // ── OVERLAY CONTROLS (Only visible on trigger tap) ──
+                    // ── OVERLAY CONTROLS ──
                     AnimatedVisibility(
                         visible = showOverlay,
                         enter = fadeIn(tween(180)),
@@ -814,23 +821,7 @@ fun BookPlayerScreen(
                         modifier = Modifier.fillMaxSize()
                     ) {
                         Box(modifier = Modifier.fillMaxSize()) {
-                            // 1. Transparent dismiss layer
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null
-                                    ) {
-                                        if (activeBottomPanel != null) {
-                                            activeBottomPanel = null
-                                        } else {
-                                            showOverlay = false
-                                        }
-                                    }
-                            )
-
-                            // 2. Minimalist Top Bar: Back Button + Centered Title Capsule
+                            // 1. Minimalist Top Bar: Back Button + Centered Title Capsule + Quick Jump
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -886,13 +877,51 @@ fun BookPlayerScreen(
                                             fontWeight = FontWeight.SemiBold,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.widthIn(max = 220.dp)
+                                            modifier = Modifier.widthIn(max = 180.dp)
                                         )
+                                    }
+                                }
+
+                                // Quick Jump to Last Read percentage capsule
+                                val currentManga = manga
+                                val lastPage = currentManga?.lastReadPage
+                                if (lastPage != null && lastPage > 50) {
+                                    val savedPct = (lastPage / 100).coerceIn(0, 100)
+                                    Surface(
+                                        modifier = Modifier
+                                            .align(Alignment.CenterEnd)
+                                            .padding(end = 12.dp)
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .clickable {
+                                                jumpTargetProgress = lastPage / 10000f
+                                            },
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = Color(0xFFFFD54F).copy(alpha = 0.18f),
+                                        border = BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.40f))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Bookmark,
+                                                contentDescription = null,
+                                                tint = Color(0xFFFFD54F),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Text(
+                                                text = "Last: $savedPct%",
+                                                color = Color.White,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
                                     }
                                 }
                             }
 
-                            // 3. Floating Setting Popup Card (Middle area beside Right Side Pill)
+                            // 2. Floating Setting Popup Card (Middle area beside Right Side Pill)
                             AnimatedVisibility(
                                 visible = activeBottomPanel != null,
                                 enter = fadeIn(tween(160)) + slideInHorizontally(tween(180)) { it / 2 },
@@ -979,6 +1008,144 @@ fun BookPlayerScreen(
                                             }
                                         }
                                     }
+                                    PdfBottomPanel.CHECKPOINTS -> {
+                                        val webMarkers = markers.filter { it.mangaId == mangaId }
+                                        Surface(
+                                            shape = RoundedCornerShape(22.dp),
+                                            color = Color(0xFF14131E).copy(alpha = 0.96f),
+                                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                            shadowElevation = 16.dp,
+                                            modifier = Modifier
+                                                .widthIn(min = 280.dp, max = 320.dp)
+                                                .clickable(
+                                                    interactionSource = remember { MutableInteractionSource() },
+                                                    indication = null
+                                                ) { /* Consume click */ }
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(16.dp),
+                                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = "Checkpoints",
+                                                        color = Color.White,
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Surface(
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        color = Color(0xFFFFD54F).copy(alpha = 0.20f),
+                                                        border = BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.40f)),
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(8.dp))
+                                                            .clickable {
+                                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                                val currentPct = (webProgress * 10000).toInt()
+                                                                pdfViewModel.addMarker(
+                                                                    com.ballade.hwaran.core.database.entity.PdfMarkerEntity(
+                                                                        mangaId = mangaId,
+                                                                        page = currentPct,
+                                                                        x1 = 0f,
+                                                                        y1 = 0f,
+                                                                        x2 = 0f,
+                                                                        y2 = 0f,
+                                                                        color = 0,
+                                                                        createdAt = System.currentTimeMillis()
+                                                                    )
+                                                                )
+                                                            }
+                                                    ) {
+                                                        Row(
+                                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                        ) {
+                                                            Icon(Icons.Rounded.Add, contentDescription = null, tint = Color(0xFFFFD54F), modifier = Modifier.size(14.dp))
+                                                            Text("Mark Here", color = Color(0xFFFFD54F), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                                        }
+                                                    }
+                                                }
+
+                                                if (webMarkers.isEmpty()) {
+                                                    Column(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(vertical = 14.dp),
+                                                        horizontalAlignment = Alignment.CenterHorizontally
+                                                    ) {
+                                                        Text(
+                                                            text = "No checkpoints saved",
+                                                            color = Color.White.copy(alpha = 0.7f),
+                                                            fontSize = 13.sp,
+                                                            fontWeight = FontWeight.Medium
+                                                        )
+                                                        Spacer(Modifier.height(4.dp))
+                                                        Text(
+                                                            text = "Tap 'Mark Here' to bookmark your current scroll position.",
+                                                            color = Color.White.copy(alpha = 0.45f),
+                                                            fontSize = 11.sp,
+                                                            textAlign = TextAlign.Center
+                                                        )
+                                                    }
+                                                } else {
+                                                    LazyColumn(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .heightIn(max = 220.dp),
+                                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                                    ) {
+                                                        itemsIndexed(webMarkers.sortedBy { it.page }) { _, marker ->
+                                                            val pct = (marker.page / 100).coerceIn(0, 100)
+                                                            Surface(
+                                                                shape = RoundedCornerShape(10.dp),
+                                                                color = Color.White.copy(alpha = 0.05f),
+                                                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+                                                                modifier = Modifier
+                                                                    .fillMaxWidth()
+                                                                    .clip(RoundedCornerShape(10.dp))
+                                                                    .clickable {
+                                                                        jumpTargetProgress = marker.page / 10000f
+                                                                        activeBottomPanel = null
+                                                                    }
+                                                            ) {
+                                                                Row(
+                                                                    modifier = Modifier
+                                                                        .fillMaxWidth()
+                                                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                                                    verticalAlignment = Alignment.CenterVertically,
+                                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                                ) {
+                                                                    Row(
+                                                                        verticalAlignment = Alignment.CenterVertically,
+                                                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                                    ) {
+                                                                        Icon(Icons.Rounded.Bookmark, contentDescription = null, tint = Color(0xFFFFD54F), modifier = Modifier.size(16.dp))
+                                                                        Text(
+                                                                            text = "$pct% Read",
+                                                                            color = Color.White,
+                                                                            fontSize = 13.sp,
+                                                                            fontWeight = FontWeight.SemiBold
+                                                                        )
+                                                                    }
+                                                                    IconButton(
+                                                                        onClick = { pdfViewModel.deleteMarker(marker) },
+                                                                        modifier = Modifier.size(28.dp)
+                                                                    ) {
+                                                                        Icon(Icons.Rounded.Close, contentDescription = "Delete", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                     PdfBottomPanel.MUSIC -> {
                                         if (musicViewModel != null) {
                                             ReaderMusicPlayerCard(
@@ -991,7 +1158,7 @@ fun BookPlayerScreen(
                                 }
                             }
 
-                            // 4. Right Side Pill (Eye Care & Music)
+                            // 3. Right Side Pill (Eye Care, Checkpoints & Music)
                             Surface(
                                 shape = RoundedCornerShape(32.dp),
                                 color = Color(0xFF14131E).copy(alpha = 0.94f),
@@ -1026,22 +1193,45 @@ fun BookPlayerScreen(
                                         }
                                     }
 
-                                    if (musicViewModel != null) {
+                                    // Checkpoints Button
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (activeBottomPanel == PdfBottomPanel.CHECKPOINTS) Color.White.copy(alpha = 0.22f) else Color.Transparent,
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .clickable {
+                                                activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.CHECKPOINTS) null else PdfBottomPanel.CHECKPOINTS
+                                            }
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Bookmark,
+                                                contentDescription = "Checkpoints",
+                                                tint = if (markers.any { it.mangaId == mangaId }) Color(0xFFFFD54F) else Color.White,
+                                                modifier = Modifier.size(19.dp)
+                                            )
+                                        }
+                                    }
+
+                                    val currentTrack = musicViewModel?.currentChapter?.collectAsState()?.value
+                                    if (currentTrack != null) {
                                         Surface(
                                             shape = CircleShape,
-                                            color = if (activeBottomPanel == PdfBottomPanel.MUSIC) Color.White.copy(alpha = 0.22f) else Color.Transparent,
+                                            color = if (activeBottomPanel == PdfBottomPanel.MUSIC) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.Transparent,
+                                            border = if (activeBottomPanel == PdfBottomPanel.MUSIC) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
                                             modifier = Modifier
                                                 .size(38.dp)
                                                 .clip(CircleShape)
-                                            .clickable {
-                                                activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.MUSIC) null else PdfBottomPanel.MUSIC
-                                            }
+                                                .clickable {
+                                                    activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.MUSIC) null else PdfBottomPanel.MUSIC
+                                                }
                                         ) {
                                             Box(contentAlignment = Alignment.Center) {
                                                 Icon(
                                                     imageVector = Icons.Rounded.MusicNote,
-                                                    contentDescription = "Music",
-                                                    tint = Color.White,
+                                                    contentDescription = "Music Player",
+                                                    tint = if (activeBottomPanel == PdfBottomPanel.MUSIC) MaterialTheme.colorScheme.primary else Color.White,
                                                     modifier = Modifier.size(19.dp)
                                                 )
                                             }
@@ -1216,6 +1406,13 @@ fun BookPlayerScreen(
                                             pendingSingleTapJob = coroutineScope.launch {
                                                 kotlinx.coroutines.delay(doubleTapTimeoutMs)
                                                 doubleTapPending = false
+                                                if (!isMarkerMode) {
+                                                    if (activeBottomPanel != null) {
+                                                        activeBottomPanel = null
+                                                    } else {
+                                                        showOverlay = !showOverlay
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -1308,23 +1505,6 @@ fun BookPlayerScreen(
                         }
                     }
 
-                    // ── RIGHT-SIDE FOCUS TRIGGER (Full-height right margin tap zone for PDF) ──
-                    if (!showOverlay && !isMarkerMode) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .fillMaxHeight()
-                                .width(72.dp)
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    showOverlay = true
-                                }
-                        )
-                    }
-
                     // ── OVERLAY ───────────────────────────────────────────────────────────
                     AnimatedVisibility(
                         visible = showOverlay || isMarkerMode,
@@ -1332,21 +1512,6 @@ fun BookPlayerScreen(
                         exit = fadeOut(tween(140))
                     ) {
                         Box(modifier = Modifier.fillMaxSize()) {
-                            // Transparent dismiss layer
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null
-                                    ) {
-                                        if (activeBottomPanel != null) {
-                                            activeBottomPanel = null
-                                        } else if (!isMarkerMode) {
-                                            showOverlay = false
-                                        }
-                                    }
-                            )
 
                             // ── Top Bar (Protected with statusBarsPadding & displayCutoutPadding) ──
                             Row(
@@ -1528,11 +1693,12 @@ fun BookPlayerScreen(
                             // ── Floating Flyout Card (Highlighter Palette, Eye Care, Music) ──
                             AnimatedVisibility(
                                 visible = activeBottomPanel != null,
-                                enter = fadeIn(tween(160)) + slideInHorizontally(tween(180)) { it / 2 },
-                                exit = fadeOut(tween(140)) + slideOutHorizontally(tween(160)) { it / 2 },
+                                enter = fadeIn(tween(160)) + slideInVertically(tween(180)) { it / 2 },
+                                exit = fadeOut(tween(140)) + slideOutVertically(tween(160)) { it / 2 },
                                 modifier = Modifier
-                                    .align(Alignment.CenterEnd)
-                                    .padding(end = 76.dp)
+                                    .align(Alignment.BottomCenter)
+                                    .navigationBarsPadding()
+                                    .padding(bottom = 84.dp)
                             ) {
                                 when (activeBottomPanel) {
                                     PdfBottomPanel.HIGHLIGHTER -> {
@@ -1542,7 +1708,7 @@ fun BookPlayerScreen(
                                             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
                                             shadowElevation = 16.dp,
                                             modifier = Modifier
-                                                .widthIn(min = 280.dp, max = 320.dp)
+                                                .widthIn(min = 280.dp, max = 340.dp)
                                                 .clickable(
                                                     interactionSource = remember { MutableInteractionSource() },
                                                     indication = null
@@ -1609,8 +1775,8 @@ fun BookPlayerScreen(
                                                                 Icon(
                                                                     imageVector = Icons.Rounded.Check,
                                                                     contentDescription = null,
-                                                                    tint = if (option.colorInt == 0xFFFFEB3B.toInt() || option.colorInt == 0xFFA7F3D0.toInt()) Color.Black else Color.White,
-                                                                    modifier = Modifier.size(18.dp)
+                                                                    tint = Color.White,
+                                                                    modifier = Modifier.size(16.dp)
                                                                 )
                                                             }
                                                         }
@@ -1627,7 +1793,7 @@ fun BookPlayerScreen(
                                             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
                                             shadowElevation = 16.dp,
                                             modifier = Modifier
-                                                .widthIn(min = 280.dp, max = 320.dp)
+                                                .widthIn(min = 280.dp, max = 340.dp)
                                                 .clickable(
                                                     interactionSource = remember { MutableInteractionSource() },
                                                     indication = null
@@ -1707,24 +1873,27 @@ fun BookPlayerScreen(
                                         }
                                     }
 
+                                    PdfBottomPanel.CHECKPOINTS -> {}
+
                                     null -> {}
                                 }
                             }
 
-                            // ── Vertical Settings Pill (Right Side, matching Toon and Novel readers) ──
+                            // ── Bottom Settings Pill (Positioned safely above Android navigation bar) ──
                             Surface(
                                 shape = RoundedCornerShape(32.dp),
                                 color = Color(0xFF14131E).copy(alpha = 0.94f),
                                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
                                 shadowElevation = 14.dp,
                                 modifier = Modifier
-                                    .align(Alignment.CenterEnd)
-                                    .padding(end = 14.dp)
+                                    .align(Alignment.BottomCenter)
+                                    .navigationBarsPadding()
+                                    .padding(bottom = 24.dp)
                             ) {
-                                Column(
-                                    modifier = Modifier.padding(vertical = 10.dp, horizontal = 6.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     // 1. Highlighter Toggle (Pure On/Off)
                                     Surface(
@@ -1901,9 +2070,9 @@ fun BookPlayerScreen(
                                             modifier = Modifier
                                                 .size(38.dp)
                                                 .clip(CircleShape)
-                                            .clickable {
-                                                activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.MUSIC) null else PdfBottomPanel.MUSIC
-                                            }
+                                                .clickable {
+                                                    activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.MUSIC) null else PdfBottomPanel.MUSIC
+                                                }
                                         ) {
                                             Box(contentAlignment = Alignment.Center) {
                                                 Icon(

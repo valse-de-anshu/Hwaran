@@ -7,6 +7,8 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -31,9 +33,12 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ballade.hwaran.backend.novel.NovelChapter
+import com.ballade.hwaran.core.database.entity.PdfMarkerEntity
 import com.ballade.hwaran.ui.components.ReaderMusicPlayerCard
 import com.ballade.hwaran.ui.viewmodels.MusicViewModel
 import java.io.File
@@ -44,6 +49,7 @@ enum class NovelSettingTab {
     THEME,
     LAYOUT,
     DISPLAY,
+    CHECKPOINTS,
     MUSIC
 }
 
@@ -178,7 +184,12 @@ fun NovelReaderSettingsPill(
     onKeepScreenOnChange: (Boolean) -> Unit,
     brightnessOverride: Float?,
     onBrightnessOverrideChange: (Float?) -> Unit,
-    // Navigation & Quick Actions
+    // Checkpoints
+    markers: List<com.ballade.hwaran.core.database.entity.PdfMarkerEntity> = emptyList(),
+    chapters: List<com.ballade.hwaran.backend.novel.NovelChapter> = emptyList(),
+    onAddCheckpoint: () -> Unit = {},
+    onJumpToCheckpoint: (com.ballade.hwaran.core.database.entity.PdfMarkerEntity) -> Unit = {},
+    onDeleteCheckpoint: (com.ballade.hwaran.core.database.entity.PdfMarkerEntity) -> Unit = {},
     onShowToc: () -> Unit,
     glowColor: Color = Color(0xFFE6E8EC),
     musicViewModel: MusicViewModel? = null,
@@ -204,7 +215,143 @@ fun NovelReaderSettingsPill(
                     musicViewModel = musicViewModel,
                     onClose = { onTabSelected(null) }
                 )
-            } else if (activeTab != null && activeTab != NovelSettingTab.MUSIC) {
+            } else if (activeTab == NovelSettingTab.CHECKPOINTS) {
+                Surface(
+                    shape = RoundedCornerShape(22.dp),
+                    color = Color(0xFF14131E).copy(alpha = 0.96f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                    shadowElevation = 16.dp,
+                    modifier = Modifier
+                        .widthIn(min = 280.dp, max = 320.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { /* Consume click */ }
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Checkpoints",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFFFD54F).copy(alpha = 0.20f),
+                                border = BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.40f)),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onAddCheckpoint()
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Add, contentDescription = null, tint = Color(0xFFFFD54F), modifier = Modifier.size(14.dp))
+                                    Text("Mark Here", color = Color(0xFFFFD54F), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+
+                        if (markers.isEmpty()) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 14.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "No checkpoints saved",
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = "Tap 'Mark Here' to bookmark your current scroll position.",
+                                    color = Color.White.copy(alpha = 0.45f),
+                                    fontSize = 11.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 220.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                itemsIndexed(markers.sortedBy { it.page }) { _, marker ->
+                                    val chapterTitle = chapters.getOrNull(marker.page)?.title ?: "Chapter ${marker.page + 1}"
+                                    val totalCh = chapters.size.coerceAtLeast(1)
+                                    val pct = (((marker.page.toFloat() + 0.5f) / totalCh) * 100).toInt().coerceIn(0, 100)
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color.White.copy(alpha = 0.05f),
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable {
+                                                onJumpToCheckpoint(marker)
+                                                onTabSelected(null)
+                                            }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            ) {
+                                                Icon(Icons.Rounded.Bookmark, contentDescription = null, tint = Color(0xFFFFD54F), modifier = Modifier.size(16.dp))
+                                                Column {
+                                                    Text(
+                                                        text = "$pct% • $chapterTitle",
+                                                        color = Color.White,
+                                                        fontSize = 13.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    Text(
+                                                        text = "Paragraph #${marker.x1.toInt() + 1} • Tap to jump",
+                                                        color = Color.White.copy(alpha = 0.55f),
+                                                        fontSize = 11.sp
+                                                    )
+                                                }
+                                            }
+                                            IconButton(
+                                                onClick = { onDeleteCheckpoint(marker) },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(Icons.Rounded.Close, contentDescription = "Delete", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (activeTab != null) {
                 Surface(
                     shape = RoundedCornerShape(22.dp),
                     color = Color(0xFF14131E).copy(alpha = 0.96f),
@@ -726,7 +873,7 @@ fun NovelReaderSettingsPill(
                                     }
                                 }
                             }
-                            NovelSettingTab.MUSIC, null -> {}
+                            NovelSettingTab.MUSIC, NovelSettingTab.CHECKPOINTS -> {}
                         }
                     }
                 }
@@ -819,7 +966,19 @@ fun NovelReaderSettingsPill(
                         .background(Color.White.copy(alpha = 0.10f))
                 )
 
-                // 5. Table of Contents
+                // 5. Checkpoints
+                VerticalPillIcon(
+                    icon = if (markers.isNotEmpty()) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
+                    contentDescription = "Checkpoints",
+                    isSelected = activeTab == NovelSettingTab.CHECKPOINTS,
+                    glowColor = glowColor,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onTabSelected(if (activeTab == NovelSettingTab.CHECKPOINTS) null else NovelSettingTab.CHECKPOINTS)
+                    }
+                )
+
+                // 6. Table of Contents
                 VerticalPillIcon(
                     icon = Icons.AutoMirrored.Rounded.FormatListBulleted,
                     contentDescription = "Table of Contents",
