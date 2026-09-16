@@ -1,16 +1,30 @@
+# Android & Gradle
 *.iml
 .gradle
 /local.properties
-/.idea/
-.DS_Store
+local.properties
 /build
+/app/build/
 /captures
 .externalNativeBuild
 .cxx
-local.properties
 .kotlin
 
-# Temporary & Scratch Files
+# IDE & Editor Configuration
+.idea/
+/.idea/
+*.iws
+*.ipr
+.vscode/
+
+# OS Generated
+.DS_Store
+Thumbs.db
+
+# Output & Release Metadata
+app/release/
+
+# Temporary, Log & Scratch Files
 *.orig
 *.bak
 *.tmp
@@ -20,4 +34,3 @@ scratch/
 test_*.kt
 patch.kt
 update_*.py
-
