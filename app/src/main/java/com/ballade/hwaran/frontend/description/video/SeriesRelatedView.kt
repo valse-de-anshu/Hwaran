@@ -37,6 +37,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -74,6 +76,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.geometry.Offset
 import java.io.File
+import com.ballade.hwaran.ui.components.DeleteConfirmationDialog
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -91,7 +94,7 @@ fun SeriesRelatedView(
     onNavigateToVideo: (Long) -> Unit,
     onPickVideos: () -> Unit,
     onPickVideosFolder: () -> Unit,
-    onDeleteVideos: (List<Long>) -> Unit,
+    onDeleteVideos: (List<Long>, Boolean) -> Unit,
     onChangeVideoThumbnail: (Long) -> Unit,
     onNavigateToRelated: (Long) -> Unit,
     onCreateRelatedBox: (String, String) -> Unit = { _, _ -> },
@@ -860,26 +863,49 @@ fun SeriesRelatedView(
                                                     else selectedVideoIds.add(video.id)
                                                 }
                                             )
-                                            return@pointerInput
-                                        }
-                                        detectTapGestures(
-                                            onPress = {
+                                         } else {
+                                            awaitEachGesture {
+                                                val down = awaitFirstDown(requireUnconsumed = true)
+                                                val downPos = down.position
+                                                val tapSlopPx = 18.dp.toPx()
                                                 var isHeld = false
+                                                var isDragScroll = false
+
                                                 val previewJob = coroutineScope.launch {
-                                                    delay(180L)
-                                                    isHeld = true
-                                                    showPreview = true
-                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    delay(350L)
+                                                    if (!isDragScroll) {
+                                                        isHeld = true
+                                                        showPreview = true
+                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    }
                                                 }
-                                                val released = tryAwaitRelease()
-                                                previewJob.cancel()
-                                                if (isHeld) {
-                                                    showPreview = false
-                                                } else if (released) {
-                                                    onNavigateToVideo(video.id)
+
+                                                try {
+                                                    while (true) {
+                                                        val event = awaitPointerEvent()
+                                                        val pointer = event.changes.find { it.id == down.id }
+                                                        if (pointer == null || !pointer.pressed) {
+                                                            break
+                                                        }
+                                                        if (!isHeld) {
+                                                            val distance = (pointer.position - downPos).getDistance()
+                                                            if (distance > tapSlopPx) {
+                                                                isDragScroll = true
+                                                                previewJob.cancel()
+                                                            }
+                                                        }
+                                                    }
+                                                } catch (_: Exception) {
+                                                } finally {
+                                                    previewJob.cancel()
+                                                    if (isHeld) {
+                                                        showPreview = false
+                                                    } else if (!isDragScroll) {
+                                                        onNavigateToVideo(video.id)
+                                                    }
                                                 }
                                             }
-                                        )
+                                        }
                                     },
                                 shape = RoundedCornerShape(16.dp),
                                 color = CardBg,
@@ -1388,51 +1414,40 @@ fun SeriesRelatedView(
 
     // ── Bulk Delete Confirmation Dialog (Videos) ──
     if (showDeleteConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmDialog = false },
-            title = { Text("Delete Videos?", color = Color.White) },
-            text = { Text("Delete ${selectedVideoIds.size} selected video(s)? This will remove them from the database and storage.", color = TextMuted) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteConfirmDialog = false
-                        onDeleteVideos(selectedVideoIds.toList())
-                        selectedVideoIds.clear()
-                        isDeleteMode = false
-                    }
-                ) {
-                    Text("Delete", color = DangerRed, fontWeight = FontWeight.Bold)
-                }
+        DeleteConfirmationDialog(
+            title = "Delete ${selectedVideoIds.size} Video${if (selectedVideoIds.size == 1) "" else "s"}",
+            message = "Choose how you would like to remove the selected video(s):",
+            onDismiss = { showDeleteConfirmDialog = false },
+            onRemoveFromApp = {
+                showDeleteConfirmDialog = false
+                onDeleteVideos(selectedVideoIds.toList(), false)
+                selectedVideoIds.clear()
+                isDeleteMode = false
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirmDialog = false }) {
-                    Text("Cancel", color = TextMuted)
-                }
-            },
-            containerColor = CardBg
+            onDeleteFromDisk = {
+                showDeleteConfirmDialog = false
+                onDeleteVideos(selectedVideoIds.toList(), true)
+                selectedVideoIds.clear()
+                isDeleteMode = false
+            }
         )
     }
 
     // ── Single Video Delete Confirmation Dialog ──
     videoPendingDelete?.let { video ->
-        AlertDialog(
-            onDismissRequest = { videoPendingDelete = null },
-            title = { Text("Delete Video", color = Color.White) },
-            text = { Text("Are you sure you want to delete \"${video.title}\"?", color = TextMuted) },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDeleteVideos(listOf(video.id))
-                    videoPendingDelete = null
-                }) {
-                    Text("Delete", color = DangerRed, fontWeight = FontWeight.Bold)
-                }
+        DeleteConfirmationDialog(
+            title = "Delete Video",
+            itemName = video.title,
+            message = "Choose how you would like to remove this video:",
+            onDismiss = { videoPendingDelete = null },
+            onRemoveFromApp = {
+                onDeleteVideos(listOf(video.id), false)
+                videoPendingDelete = null
             },
-            dismissButton = {
-                TextButton(onClick = { videoPendingDelete = null }) {
-                    Text("Cancel", color = TextMuted)
-                }
-            },
-            containerColor = CardBg
+            onDeleteFromDisk = {
+                onDeleteVideos(listOf(video.id), true)
+                videoPendingDelete = null
+            }
         )
     }
 
@@ -1635,24 +1650,19 @@ fun SeriesRelatedView(
 
     // ── Delete Confirmation Dialog (Franchise Item) ──
     itemToDelete?.let { item ->
-        AlertDialog(
-            onDismissRequest = { itemToDelete = null },
-            title = { Text("Delete '${item.boxLabel ?: item.title}'?", color = DangerRed) },
-            text = { Text("Are you sure you want to permanently delete this related entry and its media from your storage?", color = TextMuted) },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDeleteRelated(item.id)
-                    itemToDelete = null
-                }) {
-                    Text("Delete", color = DangerRed, fontWeight = FontWeight.Bold)
-                }
+        DeleteConfirmationDialog(
+            title = "Delete Related Entry",
+            itemName = item.boxLabel ?: item.title,
+            message = "Choose how you would like to remove this franchise entry:",
+            onDismiss = { itemToDelete = null },
+            onRemoveFromApp = {
+                onDeleteRelated(item.id)
+                itemToDelete = null
             },
-            dismissButton = {
-                TextButton(onClick = { itemToDelete = null }) {
-                    Text("Cancel", color = TextMuted)
-                }
-            },
-            containerColor = CardBg
+            onDeleteFromDisk = {
+                onDeleteRelated(item.id)
+                itemToDelete = null
+            }
         )
     }
 

@@ -87,6 +87,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.ui.dialogs.GenreSelectionDialog
+import com.ballade.hwaran.ui.components.DeleteConfirmationDialog
 import com.ballade.hwaran.ui.viewmodels.LibraryViewModel
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
 import com.ballade.hwaran.ui.viewmodels.MusicViewModel
@@ -671,15 +672,21 @@ fun HomeScreen(
                 quickActionsManga = null
                 onNavigateToEditDescription(manga.id)
             },
-            onDelete = {
+            onRemoveFromApp = {
+                coroutineScope.launch {
+                    database.mediaDao().deleteManga(manga)
+                }
+                quickActionsManga = null
+            },
+            onDeleteFromDisk = {
                 coroutineScope.launch {
                     LocalVaultMigrator.deleteMedia(
                         context = context,
                         database = database,
                         manga = manga
                     )
-                    quickActionsManga = null
                 }
+                quickActionsManga = null
             },
             onDismiss = {
                 quickActionsManga = null

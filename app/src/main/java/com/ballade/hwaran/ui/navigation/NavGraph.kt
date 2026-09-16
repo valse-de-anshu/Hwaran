@@ -291,10 +291,12 @@ fun AppNavGraph(
                         descriptionViewModel = descriptionViewModel,
                         settingsViewModel = settingsViewModel,
                         onNavigateBack = { 
-                            if (mediaMode == 2) {
-                                navController.popBackStack(Screen.Home.route, inclusive = false)
-                            } else {
-                                navController.popBackStack()
+                            val popped = navController.popBackStack(Screen.Home.route, inclusive = false)
+                            if (!popped) {
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(0) { inclusive = true }
+                                    launchSingleTop = true
+                                }
                             }
                         },
                         onNavigateToMedia = { id, contentType -> 
@@ -356,7 +358,7 @@ fun AppNavGraph(
                     settingsViewModel = settingsViewModel,
                     libraryViewModel = libraryViewModel,
                     onNavigateBack = { 
-                        val popped = navController.popBackStack()
+                        val popped = navController.popBackStack(Screen.Home.route, inclusive = false)
                         if (!popped) {
                             navController.navigate(Screen.Home.route) {
                                 popUpTo(0) { inclusive = true }

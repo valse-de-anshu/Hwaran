@@ -53,6 +53,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.animation.AnimatedVisibility
 import com.ballade.hwaran.ui.components.AnimatedEqualizer
 import com.ballade.hwaran.ui.dialogs.PlaylistSelectionDialog
+import com.ballade.hwaran.ui.components.DeleteConfirmationDialog as StandardDeleteDialog
 
 enum class SelectionMode {
     NONE,
@@ -361,18 +362,17 @@ fun PlaylistDetailScreen(
                                 onDismissRequest = { showOverflowMenu = false }
                             ) {
                                 HwaranDropdownMenuItem(
-                                    text = "Share Songs",
-                                    leadingIcon = Icons.Rounded.Share,
+                                    text = "Edit Description",
+                                    leadingIcon = Icons.Rounded.Edit,
                                     onClick = {
                                         showOverflowMenu = false
-                                        selectionMode = SelectionMode.SHARE
-                                        selectedChapterIds.clear()
+                                        onNavigateToEditPlaylist(mangaId)
                                     }
                                 )
                                 HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
                                 HwaranDropdownMenuItem(
-                                    text = "Delete Songs",
-                                    leadingIcon = Icons.Rounded.DeleteSweep,
+                                    text = "Delete Playlist",
+                                    leadingIcon = Icons.Rounded.Delete,
                                     isDanger = true,
                                     onClick = {
                                         showOverflowMenu = false
@@ -540,79 +540,44 @@ fun PlaylistDetailScreen(
         }
 
         if (showDeleteDialog && songToDelete != null) {
-            DeleteConfirmationDialog(
-                onDeleteFromPlaylist = {
+            StandardDeleteDialog(
+                title = "Delete Song",
+                itemName = songToDelete!!.title,
+                message = "Choose how you would like to remove this song:",
+                onDismiss = { showDeleteDialog = false; songToDelete = null },
+                onRemoveFromApp = {
                     libraryViewModel.deleteChapterOnlyFromDb(songToDelete!!.id)
                     showDeleteDialog = false
                     songToDelete = null
                 },
-                onDeleteFromDevice = {
-                    libraryViewModel.deleteSelectedChapters(listOf(songToDelete!!.id))
+                onDeleteFromDisk = {
+                    libraryViewModel.deleteSelectedChapters(listOf(songToDelete!!.id), deleteFromDisk = true)
                     showDeleteDialog = false
                     songToDelete = null
-                },
-                onDismiss = { showDeleteDialog = false }
+                }
             )
         }
 
         if (showBatchDeleteDialog && selectedChapterIds.isNotEmpty()) {
             val count = selectedChapterIds.size
-            AlertDialog(
-                onDismissRequest = { showBatchDeleteDialog = false },
-                title = { 
-                    Text(
-                        text = "Delete $count ${if (count == 1) "Song" else "Songs"}",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    ) 
+            StandardDeleteDialog(
+                title = "Delete $count ${if (count == 1) "Song" else "Songs"}",
+                message = "Choose how you would like to remove the selected ${if (count == 1) "song" else "songs"}:",
+                onDismiss = { showBatchDeleteDialog = false },
+                onRemoveFromApp = {
+                    val idsToDelete = selectedChapterIds.toList()
+                    libraryViewModel.deleteChaptersOnlyFromDb(idsToDelete)
+                    showBatchDeleteDialog = false
+                    selectionMode = SelectionMode.NONE
+                    selectedChapterIds.clear()
                 },
-                text = {
-                    Text(
-                        text = "How do you want to remove the selected ${if (count == 1) "song" else "songs"}?",
-                        color = Color.White.copy(alpha = 0.7f)
-                    )
-                },
-                confirmButton = {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                val idsToDelete = selectedChapterIds.toList()
-                                libraryViewModel.deleteChaptersOnlyFromDb(idsToDelete)
-                                showBatchDeleteDialog = false
-                                selectionMode = SelectionMode.NONE
-                                selectedChapterIds.clear()
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f))
-                        ) {
-                            Text("Remove from Playlist Only", color = Color.White)
-                        }
-                        Button(
-                            onClick = {
-                                val idsToDelete = selectedChapterIds.toList()
-                                libraryViewModel.deleteSelectedChapters(idsToDelete)
-                                showBatchDeleteDialog = false
-                                selectionMode = SelectionMode.NONE
-                                selectedChapterIds.clear()
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE57373))
-                        ) {
-                            Text("Delete from Device", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                        TextButton(
-                            onClick = { showBatchDeleteDialog = false },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Cancel", color = Color.Gray)
-                        }
-                    }
-                },
-                containerColor = Color(0xFF1A1A1A),
-                shape = RoundedCornerShape(28.dp)
+                onDeleteFromDisk = {
+                    val idsToDelete = selectedChapterIds.toList()
+                    libraryViewModel.deleteSelectedChapters(idsToDelete, deleteFromDisk = true)
+                    showBatchDeleteDialog = false
+                    selectionMode = SelectionMode.NONE
+                    selectedChapterIds.clear()
+                }
             )
         }
     }
@@ -666,21 +631,30 @@ fun SongItem(
             modifier = Modifier
                 .size(52.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color.White.copy(alpha = 0.05f))
+                .background(Color.White.copy(alpha = 0.05f)),
+            contentAlignment = Alignment.Center
         ) {
-            // Cache keys ensure Coil serves from memory on every scroll pass
-            // without re-decoding the album art.
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(chapter.thumbnailUri ?: chapter.folderUri)
-                    .crossfade(false)
-                    .memoryCacheKey("song_thumb_${chapter.id}")
-                    .diskCacheKey("song_thumb_${chapter.id}")
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+            val thumb = chapter.thumbnailUri?.takeIf { it.isNotBlank() }
+            if (thumb != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(thumb)
+                        .crossfade(false)
+                        .memoryCacheKey("song_thumb_${chapter.id}")
+                        .diskCacheKey("song_thumb_${chapter.id}")
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Rounded.MusicNote,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.35f),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
             
             if (isCurrent && isPlaying) {
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f)), contentAlignment = Alignment.Center) {
@@ -754,41 +728,6 @@ fun SongItem(
     }
 }
 
-@Composable
-fun DeleteConfirmationDialog(
-    onDeleteFromPlaylist: () -> Unit,
-    onDeleteFromDevice: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Delete Song", color = Color.White, fontWeight = FontWeight.Bold) },
-        text = { Text("How do you want to remove this piece?", color = Color.White.copy(alpha = 0.7f)) },
-        confirmButton = {
-            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = onDeleteFromPlaylist,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f))
-                ) {
-                    Text("Remove from Playlist Only", color = Color.White)
-                }
-                Button(
-                    onClick = onDeleteFromDevice,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE57373))
-                ) {
-                    Text("Delete from Device", color = Color.White, fontWeight = FontWeight.Bold)
-                }
-                TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-                    Text("Cancel", color = Color.Gray)
-                }
-            }
-        },
-        containerColor = Color(0xFF1A1A1A),
-        shape = RoundedCornerShape(28.dp)
-    )
-}
 
 private fun shareTracks(context: android.content.Context, tracks: List<ChapterEntity>) {
     if (tracks.isEmpty()) return

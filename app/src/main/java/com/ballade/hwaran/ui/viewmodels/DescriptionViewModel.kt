@@ -1333,39 +1333,38 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    fun deleteManga(onDeleted: (Long?) -> Unit) {
+    fun deleteManga(deleteFromDisk: Boolean = false, onDeleted: (Long?) -> Unit) {
         viewModelScope.launch {
             val m = _manga.value
             if (m != null) {
-                com.ballade.hwaran.core.util.HistoryTracker.logEvent("DELETE", m.title, "Manga Folder")
+                com.ballade.hwaran.core.util.HistoryTracker.logEvent("DELETE", m.title, if (deleteFromDisk) "Manga Folder (Disk)" else "Manga Entry (App)")
                 withContext(Dispatchers.IO) {
                     val isChildBox = m.parentMangaId != null
                     
-                    if (isChildBox) {
-                        // For child boxes, only delete chapters and their specific files
-                        val chaptersToDelete = trackDao.getChaptersForMangaList(m.id)
-                        chaptersToDelete.forEach { chapter ->
-                            val folder = java.io.File(chapter.folderUri)
+                    if (deleteFromDisk) {
+                        if (isChildBox) {
+                            val chaptersToDelete = trackDao.getChaptersForMangaList(m.id)
+                            chaptersToDelete.forEach { chapter ->
+                                val folder = java.io.File(chapter.folderUri)
+                                if (folder.exists()) {
+                                    folder.deleteRecursively()
+                                }
+                            }
+                        } else {
+                            val folder = java.io.File(m.parentUri)
                             if (folder.exists()) {
                                 folder.deleteRecursively()
                             }
                         }
-                        trackDao.deleteChaptersByMangaId(m.id)
-                    } else {
-                        // For root manga, delete everything in the vault
-                        val folder = java.io.File(m.parentUri)
-                        if (folder.exists()) {
-                            folder.deleteRecursively() // Physical true-delete from vault
-                        }
-                        
-                        // Clean up all children and their chapters from DB
-                        val children = libraryDao.getChildrenForMangaList(m.id)
-                        children.forEach { child ->
-                            trackDao.deleteChaptersByMangaId(child.id)
-                        }
-                        libraryDao.deleteChildrenByParentId(m.id)
-                        trackDao.deleteChaptersByMangaId(m.id)
                     }
+                    
+                    // Clean up all children and their chapters from DB
+                    val children = libraryDao.getChildrenForMangaList(m.id)
+                    children.forEach { child ->
+                        trackDao.deleteChaptersByMangaId(child.id)
+                    }
+                    libraryDao.deleteChildrenByParentId(m.id)
+                    trackDao.deleteChaptersByMangaId(m.id)
                     
                     database.libraryDao().deleteManga(m)
                 }
@@ -1374,17 +1373,26 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
     
-    fun deleteSelectedChapters(chapterIds: List<Long>) {
+    fun deleteSelectedChapters(chapterIds: List<Long>, deleteFromDisk: Boolean = false) {
         if (chapterIds.isEmpty()) return
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 chapterIds.forEach { id ->
                     val chapter = database.trackDao().getChapterById(id)
                     if (chapter != null) {
-                        com.ballade.hwaran.core.util.HistoryTracker.logEvent("DELETE", chapter.title, "Chapter (Folder)")
-                        val folder = java.io.File(chapter.folderUri)
-                        if (folder.exists()) {
-                            folder.deleteRecursively() // Physical true-delete
+                        com.ballade.hwaran.core.util.HistoryTracker.logEvent("DELETE", chapter.title, if (deleteFromDisk) "Chapter (Disk)" else "Chapter (App)")
+                        if (deleteFromDisk) {
+                            val folder = java.io.File(chapter.folderUri)
+                            if (folder.exists()) {
+                                folder.deleteRecursively()
+                            }
+                            if (chapter.folderUri.startsWith("content://")) {
+                                try {
+                                    val uri = Uri.parse(chapter.folderUri)
+                                    DocumentFile.fromSingleUri(getApplication(), uri)?.delete()
+                                        ?: DocumentFile.fromTreeUri(getApplication(), uri)?.delete()
+                                } catch (_: Exception) {}
+                            }
                         }
                         database.trackDao().deleteChapter(chapter)
                     }

@@ -901,45 +901,44 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun deleteSelectedChapters(chapterIds: List<Long>) {
+    fun deleteSelectedChapters(chapterIds: List<Long>, deleteFromDisk: Boolean = false) {
         if (chapterIds.isEmpty()) return
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 chapterIds.forEach { id ->
                     val chapter = database.trackDao().getChapterById(id)
                     if (chapter != null) {
-                        com.ballade.hwaran.core.util.HistoryTracker.logEvent("DELETE", chapter.title, "Chapter (Physical)")
-                        try {
-                            if (chapter.folderUri.startsWith("content://")) {
-                                val uri = Uri.parse(chapter.folderUri)
-                                // Try SAF DocumentFile delete first
-                                val deleted = DocumentFile.fromSingleUri(getApplication(), uri)?.delete()
-                                    ?: DocumentFile.fromTreeUri(getApplication(), uri)?.delete()
-                                // Fallback: ContentResolver delete (works for media store URIs like music files)
-                                if (deleted != true) {
-                                    try {
-                                        getApplication<Application>().contentResolver.delete(uri, null, null)
-                                    } catch (se: SecurityException) {
-                                        se.printStackTrace()
+                        if (deleteFromDisk) {
+                            com.ballade.hwaran.core.util.HistoryTracker.logEvent("DELETE", chapter.title, "Chapter (Physical)")
+                            try {
+                                if (chapter.folderUri.startsWith("content://")) {
+                                    val uri = Uri.parse(chapter.folderUri)
+                                    val deleted = DocumentFile.fromSingleUri(getApplication(), uri)?.delete()
+                                        ?: DocumentFile.fromTreeUri(getApplication(), uri)?.delete()
+                                    if (deleted != true) {
+                                        try {
+                                            getApplication<Application>().contentResolver.delete(uri, null, null)
+                                        } catch (se: SecurityException) {
+                                            se.printStackTrace()
+                                        }
+                                    }
+                                } else {
+                                    val path = chapter.folderUri
+                                    val file = java.io.File(path)
+                                    when {
+                                        file.isDirectory -> file.deleteRecursively()
+                                        file.isFile -> file.delete()
+                                        else -> {
+                                            val parent = file.parentFile
+                                            if (parent != null && parent.exists()) parent.deleteRecursively()
+                                        }
                                     }
                                 }
-                            } else {
-                                val path = chapter.folderUri
-                                val file = java.io.File(path)
-                                when {
-                                    // Directory (toon chapter or local-mode song folder)
-                                    file.isDirectory -> file.deleteRecursively()
-                                    // Direct file path
-                                    file.isFile -> file.delete()
-                                    // Might be a parent folder containing the actual file
-                                    else -> {
-                                        val parent = file.parentFile
-                                        if (parent != null && parent.exists()) parent.deleteRecursively()
-                                    }
-                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
                             }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
+                        } else {
+                            com.ballade.hwaran.core.util.HistoryTracker.logEvent("DELETE", chapter.title, "Chapter (DB only)")
                         }
                         database.trackDao().deleteChapter(chapter)
                     }

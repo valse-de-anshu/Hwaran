@@ -55,6 +55,7 @@ import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.ui.viewmodels.LibraryViewModel
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
 import com.ballade.hwaran.ui.components.WobblySnakeRing
+import com.ballade.hwaran.ui.components.DeleteConfirmationDialog
 import android.graphics.BitmapFactory
 import androidx.compose.ui.draw.blur
 import androidx.palette.graphics.Palette
@@ -590,39 +591,29 @@ fun MusicScreen(
     }
 
     if (showDeleteConfirmDialog && selectedPlaylistIdsForDelete.isNotEmpty()) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmDialog = false },
-            title = { Text("Delete Collections", color = Color.White, fontWeight = FontWeight.Bold) },
-            text = { 
-                Text(
-                    if (selectedPlaylistIdsForDelete.size == 1) "Are you sure you want to remove the selected playlist?"
-                    else "Are you sure you want to remove the ${selectedPlaylistIdsForDelete.size} selected playlists?",
-                    color = Color.White.copy(alpha = 0.7f)
-                ) 
-            },
-            confirmButton = {
-                Button(
-                    onClick = { 
-                        selectedPlaylistIdsForDelete.forEach { id ->
-                            musicViewModel.stopIfPlaylistDeleted(id)
-                            libraryViewModel.deletePlaylist(id)
-                        }
-                        showDeleteConfirmDialog = false
-                        selectedPlaylistIdsForDelete = emptySet()
-                        isDeleteMode = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE57373))
-                ) {
-                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+        val count = selectedPlaylistIdsForDelete.size
+        DeleteConfirmationDialog(
+            title = "Delete ${if (count == 1) "Playlist" else "$count Playlists"}",
+            message = "Remove from App removes the playlist entry only — your music files remain on disk. Delete from Disk also removes the playlist and attempts to delete associated audio files.",
+            onDismiss = { showDeleteConfirmDialog = false },
+            onRemoveFromApp = {
+                selectedPlaylistIdsForDelete.forEach { id ->
+                    musicViewModel.stopIfPlaylistDeleted(id)
+                    libraryViewModel.deletePlaylist(id)
                 }
+                showDeleteConfirmDialog = false
+                selectedPlaylistIdsForDelete = emptySet()
+                isDeleteMode = false
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirmDialog = false }) {
-                    Text("Cancel", color = Color.Gray)
+            onDeleteFromDisk = {
+                selectedPlaylistIdsForDelete.forEach { id ->
+                    musicViewModel.stopIfPlaylistDeleted(id)
+                    libraryViewModel.deletePlaylist(id)
                 }
-            },
-            containerColor = Color(0xFF1A1A1A),
-            shape = RoundedCornerShape(24.dp)
+                showDeleteConfirmDialog = false
+                selectedPlaylistIdsForDelete = emptySet()
+                isDeleteMode = false
+            }
         )
     }
 

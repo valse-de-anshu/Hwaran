@@ -97,7 +97,7 @@ fun VideoPreview(
         androidx.media3.exoplayer.ExoPlayer.Builder(context)
             .build().apply {
                 setSeekParameters(SeekParameters.CLOSEST_SYNC) 
-                setPlaybackSpeed(2.0f) // 2x preview
+                setPlaybackSpeed(4.0f) // 4x preview
                 
                 val mediaItem = androidx.media3.common.MediaItem.fromUri(resolvedUri)
                 setMediaItem(mediaItem)
@@ -137,8 +137,8 @@ fun VideoPreview(
     
     LaunchedEffect(exoPlayer) {
         if (duration <= 0L) {
-            // Start playing from beginning at 2.0x while waiting for duration to load
-            exoPlayer.setPlaybackSpeed(2.0f)
+            // Start playing from beginning at 4.0x while waiting for duration to load
+            exoPlayer.setPlaybackSpeed(4.0f)
             exoPlayer.seekTo(0)
             var waitLoops = 0
             while (duration <= 0L && waitLoops < 20) {
@@ -155,8 +155,8 @@ fun VideoPreview(
         while (true) {
             try {
                 if (duration <= 60_000L) {
-                    // Video <= 1 minute: Play whole video in 2x mode
-                    exoPlayer.setPlaybackSpeed(2.0f)
+                    // Video <= 1 minute: Play whole video in 4x mode
+                    exoPlayer.setPlaybackSpeed(4.0f)
                     exoPlayer.seekTo(0)
                     while (exoPlayer.playbackState != Player.STATE_ENDED) {
                         delay(250)
@@ -165,38 +165,56 @@ fun VideoPreview(
                     exoPlayer.seekTo(0)
                 } else {
                     // Video > 1 minute:
-                    // 1. Play starting 40% in 2x mode
-                    // 2. Keep middle 20% as rapid preview snippets across the timeline
-                    // 3. Play last 40% in 2x mode
-                    val first40Limit = (duration * 0.40).toLong()
-                    val last40Start = (duration * 0.60).toLong()
+                    // 1. First 40 seconds in 4x mode
+                    // 2. Split middle section into 10-second clips played at 4x mode
+                    // 3. Last 40 seconds in 4x mode
+                    val first40Limit = 40_000L.coerceAtMost(duration)
+                    val last40Start = maxOf(first40Limit, duration - 40_000L)
 
-                    // Phase 1: Starting 40% in 2x mode
-                    exoPlayer.setPlaybackSpeed(2.0f)
+                    // Phase 1: First 40 seconds in 4x mode
+                    exoPlayer.setPlaybackSpeed(4.0f)
                     exoPlayer.seekTo(0)
                     while (exoPlayer.currentPosition < first40Limit && exoPlayer.playbackState != Player.STATE_ENDED) {
-                        delay(200)
+                        delay(150)
                     }
 
-                    // Phase 2: Middle 20% rapid preview snippets (e.g. 45%, 50%, 55%)
-                    val middleRatios = floatArrayOf(0.45f, 0.50f, 0.55f)
-                    exoPlayer.setPlaybackSpeed(2.5f)
-                    for (ratio in middleRatios) {
-                        val seekTarget = (duration * ratio).toLong().coerceIn(first40Limit, last40Start)
-                        exoPlayer.seekTo(seekTarget)
-                        var waitCount = 0
-                        while (exoPlayer.playbackState == Player.STATE_BUFFERING && waitCount < 20) {
-                            delay(20)
-                            waitCount++
+                    // Phase 2: Middle section split into 10-second clips played at 4x speed
+                    val middleDuration = last40Start - first40Limit
+                    if (middleDuration > 10_000L) {
+                        val numClips = when {
+                            middleDuration <= 60_000L -> 2
+                            middleDuration <= 300_000L -> 3
+                            middleDuration <= 1200_000L -> 4
+                            else -> 5
                         }
-                        delay(1200L)
+                        
+                        exoPlayer.setPlaybackSpeed(4.0f)
+                        val step = middleDuration / (numClips + 1)
+                        for (i in 1..numClips) {
+                            val clipStart = first40Limit + (step * i)
+                            val clipEnd = minOf(clipStart + 10_000L, last40Start)
+                            exoPlayer.seekTo(clipStart)
+                            
+                            var waitCount = 0
+                            while (exoPlayer.playbackState == Player.STATE_BUFFERING && waitCount < 15) {
+                                delay(20)
+                                waitCount++
+                            }
+                            
+                            val startTime = System.currentTimeMillis()
+                            while (exoPlayer.currentPosition < clipEnd && 
+                                   (System.currentTimeMillis() - startTime) < 2800L && 
+                                   exoPlayer.playbackState != Player.STATE_ENDED) {
+                                delay(100)
+                            }
+                        }
                     }
 
-                    // Phase 3: Last 40% in 2x mode
-                    exoPlayer.setPlaybackSpeed(2.0f)
+                    // Phase 3: Last 40 seconds in 4x mode
+                    exoPlayer.setPlaybackSpeed(4.0f)
                     exoPlayer.seekTo(last40Start)
                     while (exoPlayer.playbackState != Player.STATE_ENDED) {
-                        delay(200)
+                        delay(150)
                         if (exoPlayer.currentPosition >= (duration - 400L)) break
                     }
 

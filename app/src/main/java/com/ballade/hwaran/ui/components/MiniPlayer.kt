@@ -70,8 +70,12 @@ fun MiniPlayer(
     val currentIndex = remember(currentPlaylist, currentChapter) { 
         currentPlaylist.indexOfFirst { it.id == currentChapter?.id } 
     }
-    val hasNext = currentPlaylist.isNotEmpty()
-    val hasPrevious = currentPlaylist.isNotEmpty()
+    val hasPrevious = remember(currentIndex, currentPlaylist, repeatMode) {
+        repeatMode != 0 || (currentIndex > 0)
+    }
+    val hasNext = remember(currentIndex, currentPlaylist, repeatMode) {
+        repeatMode != 0 || (currentIndex >= 0 && currentIndex < currentPlaylist.size - 1)
+    }
     
     val colorPalette by musicViewModel.colorPalette.collectAsState()
 
@@ -79,8 +83,6 @@ fun MiniPlayer(
     var fallbackVibrant by remember { mutableStateOf<Color?>(null) }
 
     val coverPath = currentChapter?.thumbnailUri?.takeIf { it.isNotBlank() }
-        ?: currentManga?.coverPath?.takeIf { it.isNotBlank() }
-        ?: currentChapter?.folderUri?.takeIf { it.endsWith(".jpg", true) || it.endsWith(".jpeg", true) || it.endsWith(".png", true) || it.endsWith(".webp", true) }
 
     LaunchedEffect(currentChapter?.id, coverPath) {
         if (coverPath != null) {
@@ -151,7 +153,7 @@ fun MiniPlayer(
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
     if (isVerticalCompact) {
-        var isCollapsed by rememberSaveable { mutableStateOf(false) }
+        var isCollapsed by rememberSaveable { mutableStateOf(true) }
         val haptic = LocalHapticFeedback.current
         var accumulatedDrag by remember { mutableFloatStateOf(0f) }
         var collapsedDrag by remember { mutableFloatStateOf(0f) }
@@ -395,7 +397,7 @@ fun MiniPlayer(
                                         Icon(
                                             imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                                             contentDescription = if (isPlaying) "Pause" else "Play",
-                                            tint = dominantColor.copy(alpha = 0.95f),
+                                            tint = Color(0xFF090A0F),
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -561,7 +563,7 @@ fun MiniPlayer(
                             Icon(
                                 if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                                 contentDescription = "Play/Pause",
-                                tint = dominantColor.copy(alpha = 0.9f),
+                                tint = Color(0xFF090A0F),
                                 modifier = Modifier.size(24.dp)
                             )
                         }

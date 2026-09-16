@@ -36,6 +36,7 @@ import coil.request.ImageRequest
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.core.util.CoverArtResolver
+import com.ballade.hwaran.ui.components.DeleteConfirmationDialog
 
 enum class ChapterSortOption(val displayName: String, val subtitle: String) {
     FIRST_TO_LAST("First to Last", "Ch. 1 → Latest"),
@@ -54,7 +55,7 @@ fun ToonChaptersView(
     onNavigateBack: () -> Unit,
     onNavigateToChapter: (Long) -> Unit,
     onPickChaptersFolder: () -> Unit,
-    onDeleteChapters: (List<Long>) -> Unit
+    onDeleteChapters: (List<Long>, Boolean) -> Unit
 ) {
     var isDeleteMode by remember { mutableStateOf(false) }
     val selectedChapterIds = remember { mutableStateListOf<Long>() }
@@ -538,28 +539,22 @@ fun ToonChaptersView(
 
         // ── Delete Confirmation Dialog ──
         if (showDeleteConfirmDialog) {
-            AlertDialog(
-                onDismissRequest = { showDeleteConfirmDialog = false },
-                title = { Text("Delete Chapters?", color = Color.White) },
-                text = { Text("Delete ${selectedChapterIds.size} selected chapter(s)? This will remove them from the database and storage.", color = TextMuted) },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            showDeleteConfirmDialog = false
-                            onDeleteChapters(selectedChapterIds.toList())
-                            selectedChapterIds.clear()
-                            isDeleteMode = false
-                        }
-                    ) {
-                        Text("Delete", color = DangerRed, fontWeight = FontWeight.Bold)
-                    }
+            DeleteConfirmationDialog(
+                title = "Delete ${selectedChapterIds.size} Chapter${if (selectedChapterIds.size == 1) "" else "s"}",
+                message = "Choose how you would like to remove the selected chapter(s):",
+                onDismiss = { showDeleteConfirmDialog = false },
+                onRemoveFromApp = {
+                    showDeleteConfirmDialog = false
+                    onDeleteChapters(selectedChapterIds.toList(), false)
+                    selectedChapterIds.clear()
+                    isDeleteMode = false
                 },
-                dismissButton = {
-                    TextButton(onClick = { showDeleteConfirmDialog = false }) {
-                        Text("Cancel", color = TextMuted)
-                    }
-                },
-                containerColor = CardBg
+                onDeleteFromDisk = {
+                    showDeleteConfirmDialog = false
+                    onDeleteChapters(selectedChapterIds.toList(), true)
+                    selectedChapterIds.clear()
+                    isDeleteMode = false
+                }
             )
         }
 

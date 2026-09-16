@@ -39,12 +39,20 @@ fun ReaderMusicPlayerCard(
     val isPlaying by musicViewModel.isPlaying.collectAsState()
     val currentManga by musicViewModel.currentManga.collectAsState()
     val currentPlaylist by musicViewModel.currentPlaylist.collectAsState()
-    val hasNext = currentPlaylist.isNotEmpty()
-    val hasPrevious = currentPlaylist.isNotEmpty()
+    val repeatMode by musicViewModel.repeatMode.collectAsState()
+
+    val currentIndex = remember(currentPlaylist, currentTrack) { 
+        currentPlaylist.indexOfFirst { it.id == currentTrack?.id } 
+    }
+    val hasPrevious = remember(currentIndex, currentPlaylist, repeatMode) {
+        repeatMode != 0 || (currentIndex > 0)
+    }
+    val hasNext = remember(currentIndex, currentPlaylist, repeatMode) {
+        repeatMode != 0 || (currentIndex >= 0 && currentIndex < currentPlaylist.size - 1)
+    }
     val haptic = LocalHapticFeedback.current
 
     val coverPath = currentTrack?.thumbnailUri?.takeIf { it.isNotBlank() }
-        ?: currentManga?.coverPath?.takeIf { it.isNotBlank() }
 
     Surface(
         shape = RoundedCornerShape(22.dp),
@@ -195,7 +203,7 @@ fun ReaderMusicPlayerCard(
                     Icon(
                         imageVector = Icons.Rounded.SkipPrevious,
                         contentDescription = "Previous",
-                        tint = if (hasPrevious) Color.White else Color.White.copy(alpha = 0.3f),
+                        tint = if (hasPrevious) Color.White.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.25f),
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -236,7 +244,7 @@ fun ReaderMusicPlayerCard(
                     Icon(
                         imageVector = Icons.Rounded.SkipNext,
                         contentDescription = "Next",
-                        tint = if (hasNext) Color.White else Color.White.copy(alpha = 0.3f),
+                        tint = if (hasNext) Color.White.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.25f),
                         modifier = Modifier.size(20.dp)
                     )
                 }

@@ -758,8 +758,8 @@ fun NovelPlayerScreen(
                             }
                     )
 
-                    // 2. TOP HUD — Minimalist: Back button + Title/Chapter only
-                    Row(
+                    // 2. TOP HUD — Minimalist: Back button + Centered Title Capsule
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .align(Alignment.TopCenter)
@@ -773,43 +773,55 @@ fun NovelPlayerScreen(
                             )
                             .statusBarsPadding()
                             .displayCutoutPadding()
-                            .padding(start = 12.dp, end = 70.dp, top = 12.dp, bottom = 28.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 28.dp)
                     ) {
-                        IconButton(
-                            onClick = onNavigateBack,
+                        // Circular Frosted Back Button (Left Aligned)
+                        Surface(
                             modifier = Modifier
-                                .size(44.dp)
-                                .background(currentTheme.surface.copy(alpha = 0.90f), CircleShape)
-                                .border(BorderStroke(1.dp, currentTheme.border.copy(alpha = 0.5f)), CircleShape)
+                                .align(Alignment.CenterStart)
+                                .size(42.dp)
                                 .clip(CircleShape)
+                                .clickable { onNavigateBack() },
+                            shape = CircleShape,
+                            color = currentTheme.surface.copy(alpha = 0.90f),
+                            border = BorderStroke(1.dp, currentTheme.border.copy(alpha = 0.5f))
                         ) {
-                            Icon(
-                                Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = "Back",
-                                tint = currentTheme.text,
-                                modifier = Modifier.size(22.dp)
-                            )
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = currentTheme.text,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
 
-                        Spacer(Modifier.width(10.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = novelBook?.title ?: mangaEntity?.title ?: "Novel Reader",
-                                color = currentTheme.text,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            if (activeChapter?.title != null) {
+                        // Document Title Capsule (Middle Top Centered)
+                        Surface(
+                            modifier = Modifier.align(Alignment.Center),
+                            shape = RoundedCornerShape(20.dp),
+                            color = currentTheme.surface.copy(alpha = 0.90f),
+                            border = BorderStroke(1.dp, currentTheme.border.copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.MenuBook,
+                                    contentDescription = null,
+                                    tint = currentTheme.secondaryText,
+                                    modifier = Modifier.size(15.dp)
+                                )
                                 Text(
-                                    text = activeChapter.title,
-                                    color = currentTheme.secondaryText,
-                                    fontSize = 11.sp,
+                                    text = novelBook?.title ?: mangaEntity?.title ?: "Novel Reader",
+                                    color = currentTheme.text,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.widthIn(max = 200.dp)
                                 )
                             }
                         }

@@ -441,7 +441,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 Uri.parse(path)
             }
             
-            val artPath = chapter.thumbnailUri?.takeIf { it.isNotBlank() } ?: manga.coverPath.takeIf { it.isNotBlank() } ?: ""
+            val artPath = chapter.thumbnailUri?.takeIf { it.isNotBlank() } ?: ""
             val artUri = if (artPath.isNotEmpty()) {
                 getOrCreateSquareCover(context, artPath)
             } else null
@@ -516,7 +516,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         exoPlayer.seekTo(index, position)
                         exoPlayer.prepare()
                         val activeTrack = chapters.getOrNull(index)
-                        updateDominantColor(activeTrack?.thumbnailUri?.takeIf { it.isNotBlank() } ?: manga.coverPath.takeIf { it.isNotBlank() })
+                        updateDominantColor(activeTrack?.thumbnailUri?.takeIf { it.isNotBlank() })
                     }
                 }
             }
@@ -861,7 +861,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
         
         val activeTrack = chapters.getOrNull(startIndex)
-        updateDominantColor(activeTrack?.thumbnailUri?.takeIf { it.isNotBlank() } ?: manga.coverPath.takeIf { it.isNotBlank() })
+        updateDominantColor(activeTrack?.thumbnailUri?.takeIf { it.isNotBlank() })
         savePlaybackState()
     }
 

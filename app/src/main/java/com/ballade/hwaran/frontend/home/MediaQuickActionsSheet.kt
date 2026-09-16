@@ -32,6 +32,7 @@ import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.core.service.VaultMigrationManager
 import com.ballade.hwaran.core.util.CoverArtResolver
 import com.ballade.hwaran.core.util.LocalVaultMigrator
+import com.ballade.hwaran.ui.components.DeleteConfirmationDialog
 
 @Composable
 fun MediaQuickActionsSheet(
@@ -41,7 +42,8 @@ fun MediaQuickActionsSheet(
     migrationStatus: String = "",
     onShiftToLocal: () -> Unit,
     onEditMetadata: () -> Unit,
-    onDelete: () -> Unit,
+    onRemoveFromApp: () -> Unit,
+    onDeleteFromDisk: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -404,50 +406,21 @@ fun MediaQuickActionsSheet(
 
     // Confirmation Alert Dialog for Deletion
     if (showDeleteConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmDialog = false },
-            containerColor = Color(0xFF161520),
-            title = {
-                Text(
-                    text = if (fileExists == false) "Remove \"${manga.title}\"?" else "Delete \"${manga.title}\"?",
-                    color = Color.White,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold
-                )
+        DeleteConfirmationDialog(
+            title = "Delete Media",
+            itemName = manga.title,
+            message = "Choose how you would like to remove this entry:",
+            onDismiss = { showDeleteConfirmDialog = false },
+            onRemoveFromApp = {
+                showDeleteConfirmDialog = false
+                onRemoveFromApp()
+                onDismiss()
             },
-            text = {
-                Text(
-                    text = when {
-                        fileExists == false -> "The backing file was already removed from storage outside Hwaran. Remove this dead entry and all cached artwork from your library?"
-                        isVault -> "This will permanently delete this title's files from your private vault and remove it from your library."
-                        else -> "This will remove \"${manga.title}\" from your library and delete the original files from storage."
-                    },
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showDeleteConfirmDialog = false
-                        onDelete()
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFD32F2F),
-                        contentColor = Color.White
-                    ),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text(if (fileExists == false) "Remove" else "Delete", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirmDialog = false }) {
-                    Text("Cancel", color = Color.White.copy(alpha = 0.6f))
-                }
-            },
-            shape = RoundedCornerShape(20.dp)
+            onDeleteFromDisk = {
+                showDeleteConfirmDialog = false
+                onDeleteFromDisk()
+                onDismiss()
+            }
         )
     }
 }

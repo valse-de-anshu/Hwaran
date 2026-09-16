@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.ballade.hwaran.ui.viewmodels.DescriptionViewModel
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
 import com.ballade.hwaran.core.database.entity.MangaEntity
+import com.ballade.hwaran.ui.components.DeleteConfirmationDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -154,32 +155,31 @@ fun DescriptionScreen(
 
     // Delete Confirmation Dialog
     if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Remove \"${manga?.title}\"?", color = Color.White) },
-            text = { Text("Are you sure you want to remove this entry and all associated data?", color = TextMuted) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showDeleteDialog = false
-                    descriptionViewModel.deleteManga { parentId ->
-                        if (parentId != null) {
-                            onNavigateToDescription(parentId)
-                        } else {
-                            onNavigateBack()
-                        }
+        DeleteConfirmationDialog(
+            title = "Remove Entry",
+            itemName = manga?.title ?: "",
+            message = "Choose how you want to delete this media entry:",
+            onDismiss = { showDeleteDialog = false },
+            onRemoveFromApp = {
+                showDeleteDialog = false
+                descriptionViewModel.deleteManga(deleteFromDisk = false) { parentId ->
+                    if (parentId != null) {
+                        onNavigateToDescription(parentId)
+                    } else {
+                        onNavigateBack()
                     }
-                }) {
-                    Text("Delete", color = Color(0xFFE57373))
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel", color = TextMuted)
+            onDeleteFromDisk = {
+                showDeleteDialog = false
+                descriptionViewModel.deleteManga(deleteFromDisk = true) { parentId ->
+                    if (parentId != null) {
+                        onNavigateToDescription(parentId)
+                    } else {
+                        onNavigateBack()
+                    }
                 }
-            },
-            containerColor = CardBg,
-            titleContentColor = Color.White,
-            textContentColor = TextMuted
+            }
         )
     }
 
@@ -209,7 +209,7 @@ fun DescriptionScreen(
                                 onNavigateToMedia(manga!!.id, 1)
                             },
                             onPickChaptersFolder = { folderPickerLauncher.launch(null) },
-                            onDeleteChapters = { chapterIds -> descriptionViewModel.deleteSelectedChapters(chapterIds) }
+                            onDeleteChapters = { chapterIds, deleteFromDisk -> descriptionViewModel.deleteSelectedChapters(chapterIds, deleteFromDisk) }
                         )
                     } else {
                         BookDescriptionView(
@@ -269,7 +269,7 @@ fun DescriptionScreen(
                                 onNavigateToMedia(chapterId, manga!!.contentType)
                             },
                             onPickChaptersFolder = { folderPickerLauncher.launch(null) },
-                            onDeleteChapters = { chapterIds -> descriptionViewModel.deleteSelectedChapters(chapterIds) }
+                            onDeleteChapters = { chapterIds, deleteFromDisk -> descriptionViewModel.deleteSelectedChapters(chapterIds, deleteFromDisk) }
                         )
                     } else {
                         ToonDescriptionView(
@@ -337,7 +337,7 @@ fun DescriptionScreen(
                             onNavigateToVideo = { videoId -> onNavigateToMedia(videoId, 2) },
                             onPickVideos = { multipleVideoPickerLauncher.launch(arrayOf("video/*")) },
                             onPickVideosFolder = { folderPickerLauncher.launch(null) },
-                            onDeleteVideos = { videoIds -> descriptionViewModel.deleteSelectedChapters(videoIds) },
+                            onDeleteVideos = { videoIds, deleteFromDisk -> descriptionViewModel.deleteSelectedChapters(videoIds, deleteFromDisk) },
                             onChangeVideoThumbnail = { videoId ->
                                 chapterToUpdateThumbnail = videoId
                                 chapterThumbnailLauncher.launch(arrayOf("image/*"))
@@ -411,7 +411,7 @@ fun DescriptionScreen(
                             onNavigateToVideo = { videoId -> onNavigateToMedia(videoId, 2) },
                             onPickVideos = { multipleVideoPickerLauncher.launch(arrayOf("video/*")) },
                             onPickVideosFolder = { folderPickerLauncher.launch(null) },
-                            onDeleteVideos = { videoIds -> descriptionViewModel.deleteSelectedChapters(videoIds) },
+                            onDeleteVideos = { videoIds, deleteFromDisk -> descriptionViewModel.deleteSelectedChapters(videoIds, deleteFromDisk) },
                             onChangeVideoThumbnail = { videoId ->
                                 chapterToUpdateThumbnail = videoId
                                 chapterThumbnailLauncher.launch(arrayOf("image/*"))

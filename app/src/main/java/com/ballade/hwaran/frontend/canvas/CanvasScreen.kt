@@ -934,6 +934,19 @@ private fun MusicPlayerFlyout(
 ) {
     val haptic = LocalHapticFeedback.current
 
+    val currentPlaylist by musicViewModel.currentPlaylist.collectAsState()
+    val repeatMode by musicViewModel.repeatMode.collectAsState()
+
+    val currentIndex = remember(currentPlaylist, currentTrack) { 
+        currentPlaylist.indexOfFirst { it.id == currentTrack?.id } 
+    }
+    val hasPrevious = remember(currentIndex, currentPlaylist, repeatMode) {
+        repeatMode != 0 || (currentIndex > 0)
+    }
+    val hasNext = remember(currentIndex, currentPlaylist, repeatMode) {
+        repeatMode != 0 || (currentIndex >= 0 && currentIndex < currentPlaylist.size - 1)
+    }
+
     Surface(
         modifier = Modifier.width(260.dp),
         shape = RoundedCornerShape(24.dp),
@@ -994,12 +1007,13 @@ private fun MusicPlayerFlyout(
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             musicViewModel.previous()
                         },
+                        enabled = hasPrevious,
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.SkipPrevious,
                             contentDescription = "Previous",
-                            tint = Color.White,
+                            tint = if (hasPrevious) Color.White.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.25f),
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -1031,12 +1045,13 @@ private fun MusicPlayerFlyout(
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             musicViewModel.next()
                         },
+                        enabled = hasNext,
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.SkipNext,
                             contentDescription = "Next",
-                            tint = Color.White,
+                            tint = if (hasNext) Color.White.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.25f),
                             modifier = Modifier.size(20.dp)
                         )
                     }

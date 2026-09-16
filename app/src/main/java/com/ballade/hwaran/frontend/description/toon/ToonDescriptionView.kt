@@ -1040,22 +1040,6 @@ fun ToonDescriptionView(
                             },
                             leadingIcon = Icons.Rounded.Edit
                         )
-                        HwaranDropdownMenuItem(
-                            text = "Change Cover",
-                            onClick = {
-                                showMoreMenu = false
-                                onPickCover()
-                            },
-                            leadingIcon = Icons.Rounded.Image
-                        )
-                        HwaranDropdownMenuItem(
-                            text = "Open Chapters",
-                            onClick = {
-                                showMoreMenu = false
-                                onOpenChapters()
-                            },
-                            leadingIcon = Icons.AutoMirrored.Rounded.MenuBook
-                        )
                         HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
                         HwaranDropdownMenuItem(
                             text = "Delete Entry",

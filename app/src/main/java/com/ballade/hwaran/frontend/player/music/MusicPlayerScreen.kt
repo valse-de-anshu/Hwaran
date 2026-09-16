@@ -1,7 +1,7 @@
 package com.ballade.hwaran.frontend.player.music
 
 import androidx.compose.material.icons.rounded.MusicNote
-import com.ballade.hwaran.frontend.description.music.DeleteConfirmationDialog
+import com.ballade.hwaran.ui.components.DeleteConfirmationDialog
 
 import android.content.Intent
 import android.net.Uri
@@ -259,8 +259,6 @@ if (isLandscape) {
                                 )
                             } else {
                                 val cover = currentChapter?.thumbnailUri?.takeIf { it.isNotBlank() }
-                                    ?: currentManga?.coverPath?.takeIf { it.isNotBlank() }
-                                    ?: currentChapter?.folderUri?.takeIf { it.endsWith(".jpg", true) || it.endsWith(".jpeg", true) || it.endsWith(".png", true) || it.endsWith(".webp", true) }
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -632,8 +630,6 @@ if (isLandscape) {
                             )
                         } else {
                             val cover = currentChapter?.thumbnailUri?.takeIf { it.isNotBlank() }
-                                ?: currentManga?.coverPath?.takeIf { it.isNotBlank() }
-                                ?: currentChapter?.folderUri?.takeIf { it.endsWith(".jpg", true) || it.endsWith(".jpeg", true) || it.endsWith(".png", true) || it.endsWith(".webp", true) }
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -989,17 +985,20 @@ if (isLandscape) {
 
         if (showDeleteDialog && currentChapter != null) {
             DeleteConfirmationDialog(
-                onDeleteFromPlaylist = {
+                title = "Delete Track",
+                itemName = currentChapter!!.title,
+                message = "Choose how you would like to remove this track:",
+                onDismiss = { showDeleteDialog = false },
+                onRemoveFromApp = {
                     libraryViewModel.deleteChapterOnlyFromDb(currentChapter!!.id)
                     showDeleteDialog = false
                     onNavigateBack()
                 },
-                onDeleteFromDevice = {
-                    libraryViewModel.deleteSelectedChapters(listOf(currentChapter!!.id))
+                onDeleteFromDisk = {
+                    libraryViewModel.deleteSelectedChapters(listOf(currentChapter!!.id), deleteFromDisk = true)
                     showDeleteDialog = false
                     onNavigateBack()
-                },
-                onDismiss = { showDeleteDialog = false }
+                }
             )
         }
 

@@ -537,6 +537,7 @@ fun LibraryTagGuideCard(
         modifier = modifier
             .fillMaxWidth(0.92f)
             .widthIn(max = 420.dp)
+            .shadow(24.dp, RoundedCornerShape(32.dp), spotColor = glowColor.copy(alpha = 0.25f))
             .clip(RoundedCornerShape(32.dp))
             .background(
                 Brush.verticalGradient(
@@ -556,7 +557,6 @@ fun LibraryTagGuideCard(
                 ),
                 shape = RoundedCornerShape(32.dp)
             )
-            .shadow(24.dp, RoundedCornerShape(32.dp), spotColor = glowColor.copy(alpha = 0.25f))
             .padding(horizontal = 24.dp, vertical = 28.dp),
         contentAlignment = Alignment.Center
     ) {

@@ -881,20 +881,12 @@ fun BookDescriptionView(
                         onDismissRequest = { showMoreMenu = false }
                     ) {
                         HwaranDropdownMenuItem(
-                            text = "Edit Information",
+                            text = "Edit Description",
                             onClick = {
                                 showMoreMenu = false
                                 onToggleEditMode()
                             },
                             leadingIcon = Icons.Rounded.Edit
-                        )
-                        HwaranDropdownMenuItem(
-                            text = "Change Cover",
-                            onClick = {
-                                showMoreMenu = false
-                                onPickCover()
-                            },
-                            leadingIcon = Icons.Rounded.Image
                         )
                         HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
                         HwaranDropdownMenuItem(

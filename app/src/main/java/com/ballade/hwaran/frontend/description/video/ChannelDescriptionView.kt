@@ -1037,36 +1037,12 @@ fun ChannelDescriptionView(
                         onDismissRequest = { showMoreMenu = false }
                     ) {
                         HwaranDropdownMenuItem(
-                            text = "Edit Channel",
+                            text = "Edit Description",
                             onClick = {
                                 showMoreMenu = false
                                 onToggleEditMode()
                             },
                             leadingIcon = Icons.Rounded.Edit
-                        )
-                        HwaranDropdownMenuItem(
-                            text = "Change Avatar / Cover",
-                            onClick = {
-                                showMoreMenu = false
-                                onPickCover()
-                            },
-                            leadingIcon = Icons.Rounded.Image
-                        )
-                        HwaranDropdownMenuItem(
-                            text = "Add / Import Videos",
-                            onClick = {
-                                showMoreMenu = false
-                                onPickVideos()
-                            },
-                            leadingIcon = Icons.Rounded.VideoFile
-                        )
-                        HwaranDropdownMenuItem(
-                            text = "Open Videos (${chapters.size})",
-                            onClick = {
-                                showMoreMenu = false
-                                onOpenVideos()
-                            },
-                            leadingIcon = Icons.Rounded.VideoLibrary
                         )
                         HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
                         HwaranDropdownMenuItem(
