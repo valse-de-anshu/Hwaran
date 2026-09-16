@@ -6,7 +6,45 @@ All notable changes, architectural milestones, and structural refactors to this 
 
 ---
 
-## [Current] - 2026-09-12
+## [Current] - 2026-09-17
+
+### 📖 High-Performance Novel & WebBook Reader Suite
+- **Dedicated Novel Engine (`NovelPlayerScreen.kt`, `NovelReaderSettingsPill.kt`)**:
+  - Full-featured distraction-free reader for `.txt`, `.epub`, `.html`, `.fb2`, and `.md` text files.
+  - Multi-chapter chunking with fast text indexing and viewport intersection tracking.
+  - Custom font selector loading system and external `.ttf`/`.otf` fonts directly from storage.
+  - Granular typography controls (Font size, line height, letter spacing, font weight, text alignment).
+  - Floating reader pill with 4 live popup controls: Typography, Eye Care & Themes, Margins & Padding, and Checkpoint Manager.
+- **WebBook Viewer (`WebBookViewer.kt`)**:
+  - Continuous reading engine with normalized `0..10000` progress scaling.
+  - Native WebView rendering with custom CSS injection, dark mode overrides, and dynamic font resizing.
+  - Bottom docked reader pill with instant chapter selector and eye-care presets.
+- **Checkpoint System Across Novel & Book Readers**:
+  - Unified reading checkpoint bookmarking utilizing `pdf_marker` table.
+  - Saves precise chapter, paragraph offset, and percentage completed.
+  - Top-right checkpoint badge indicator displaying percentage completed.
+  - Instant one-tap resume with automatic smooth scrolling down to the saved checkpoint position.
+- **Continue Watching & Library Progress Normalization**:
+  - Unified reading progress bars across Home dashboard, History, and Library for all 5 media engines (Manga, Books, Novels, Videos, Music).
+
+### 🎵 Music Player & Playback History
+- **Shuffle Mode Previous Navigation Stack**:
+  - Resolved shuffle navigation limitation where pressing Previous (`<`) was disabled or re-randomized tracks.
+  - Introduced playback history stack tracking previously played songs in shuffle mode, enabling seamless reverse navigation.
+
+### 🌐 Open-Source Release & Documentation Suite
+- **Open-Source Licensing (`LICENSE`)**:
+  - Added Apache License 2.0.
+- **Comprehensive Contributor Guide (`CONTRIBUTING.md`)**:
+  - Detailed coding guardrails, PR workflows, UDF guidelines, and conventional commits.
+- **Security & Privacy Policy (`docs/SECURITY.md`)**:
+  - Formal security policy, local-first offline isolation guarantees, biometric lock documentation, and vulnerability reporting process.
+- **Documentation Overhaul (`docs/`)**:
+  - Complete update across `README.md`, `docs/ARCHITECTURE.md`, `docs/FEATURES.md`, `docs/DATABASE.md`, `docs/DEVELOPMENT.md`, and `docs/CHANGELOG.md`.
+
+---
+
+## [2026-09-12]
 
 ### 🎵 Music Integration in Home & Library Screens
 - **Music Window Transitions (`HomeScreen.kt`)**:

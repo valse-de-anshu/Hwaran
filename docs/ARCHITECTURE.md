@@ -1,94 +1,83 @@
 # Architecture Blueprint
 
-> **"How the hell is Hwaran built?"**
+> **"How is Hwaran structured and built?"**
 
-Hwaran follows a **feature-based clean architecture** with **Unidirectional Data Flow (UDF)**. Heavy I/O, database queries, and media decoding are kept strictly off the main thread.
+Hwaran follows a **Feature-based Clean Architecture** coupled with **Unidirectional Data Flow (UDF)**. Heavy I/O, database queries, file scanning, and media decoding are kept strictly off the main thread using Kotlin Coroutines and Dispatchers.
 
 ---
 
-## 1. High-Level Package Architecture
+## 1. High-Level Package Structure
 
 ```text
 com.ballade.hwaran/
 │
-├── backend/                             # Feature-isolated business & data operations
-│   ├── toon/                            # ToonBackend: manga/manhua import & data orchestration
-│   ├── book/                            # BookBackend: PDF import, file operations & data
-│   ├── video/                           # Video business logic
-│   │   ├── series/                      # VideoSeriesBackend: series & mega-import logic
-│   │   └── channel/                     # VideoChannelBackend: channel & video management
-│   ├── music/                           # MusicBackend: audio imports & playlist management
+├── audio/                               # AndroidX Media3 Audio Architecture
+│   ├── HwaranPlayerHolder.kt            # Singleton ExoPlayer provider
+│   └── MusicNotificationService.kt      # Foreground MediaSessionService with notification provider
+│
+├── backend/                             # Feature-isolated data & business operations
+│   ├── book/                            # BookBackend: PDF & document processing
 │   ├── history/                         # HistoryBackend: event logging & queries
-│   └── workspace/                       # WorkspaceBackend: workspace creation, moves & renames
+│   ├── music/                           # MusicBackend: audio imports & metadata
+│   ├── novel/                           # NovelBackend, NovelParser & Multi-format loaders
+│   ├── toon/                            # ToonBackend: manga/manhua chapter ingestion
+│   ├── video/                           # Video business logic
+│   │   ├── channel/                     # VideoChannelBackend: channel & video clips
+│   │   └── series/                      # VideoSeriesBackend: multi-season series & franchise links
+│   └── workspace/                       # WorkspaceBackend: workspace creation & moves
+│
+├── core/                                # Shared cross-cutting infrastructure
+│   ├── database/                        # Room database & persistence
+│   │   ├── AppDatabase.kt               # Database singleton (version 15)
+│   │   ├── dao/                         # 4 focused DAOs + composite shim
+│   │   │   ├── AnnotationDao.kt         # pdf_marker operations
+│   │   │   ├── HistoryDao.kt            # history_event operations
+│   │   │   ├── LibraryDao.kt            # Composite interface for backward compatibility
+│   │   │   ├── MediaDao.kt              # manga table operations
+│   │   │   └── TrackDao.kt              # chapter table operations
+│   │   └── entity/                      # Room entities (MangaEntity, ChapterEntity, etc.)
+│   │       └── Entities.kt
+│   ├── datastore/                       # App settings & preferences via DataStore
+│   │   └── GlobalSettings.kt            # Reactive flows for UI, audio, and vault settings
+│   └── util/                            # Utilities (HistoryTracker, CoverArtResolver, SAF utils)
+│
+├── data/                                # Data ingestion and repositories
+│   ├── importer/                        # Centralized media import pipeline
+│   │   ├── book/                        # PDF and document single/mega importers
+│   │   ├── music/                       # Audio album/track single/mega importers
+│   │   ├── toon/                        # Manga/manhua chapter single/mega importers
+│   │   └── video/                       # Video and structured series importers
+│   └── repository/                      # Domain repositories
+│       └── LibraryRepository.kt         # SAF scanning, streaming, and metadata extraction
 │
 ├── frontend/                            # Presentation screens organized by feature domain
-│   ├── home/                            # Home screen & domain home tabs
-│   │   ├── HomeScreen.kt                # Coordinator hosting bottom nav & mode switcher
-│   │   └── music/MusicHomeScreen.kt     # Dedicated music home screen
+│   ├── canvas/                          # CanvasScreen.kt: interactive sketchpad & scratchpad
 │   ├── description/                     # Item details, chapters, franchise & video management
 │   │   ├── DescriptionScreen.kt         # Content coordinator & media router
 │   │   ├── book/BookDescriptionView.kt  # Dedicated Book/Novel/PDF description view
-│   │   ├── toon/                        # ToonDescriptionView.kt, ToonChaptersView.kt (Manga & Manhua)
-│   │   ├── video/                       # SeriesDescriptionView.kt, SeriesRelatedView.kt, ChannelDescriptionView.kt, ChannelVideosView.kt
-│   │   └── music/PlaylistDetailScreen.kt# Music playlist / album description
-│   ├── player/                          # Media players
-│   │   ├── toon/ToonPlayerScreen.kt     # Webtoon continuous scroll & zoom reader
-│   │   ├── book/BookPlayerScreen.kt     # PDF multi-page reader & link extractor
-│   │   ├── video/VideoPlayerScreen.kt   # ExoPlayer video player with gestures & preview
-│   │   └── music/MusicPlayerScreen.kt   # Audio playback player & queue
-│   ├── editor/                          # Metadata & content editing
-│   │   └── music/                       # EditSongScreen.kt, EditPlaylistScreen.kt
-│   ├── history/                         # History & analytics
-│   │   ├── HistoryScreen.kt             # Main history screen
-│   │   ├── cards/                       # Domain-specific timeline cards
-│   │   ├── trackers/                    # Reading/listening progress trackers
-│   │   ├── models/                      # Timeline models & metadata parsing
-│   │   └── neverwatched/                # Unplayed/unwatched backlog views
-│   ├── workspace/                       # Workspace management UI
-│   │   ├── dialogs/                     # Create, delete, rename dialogs
-│   │   └── move/                        # Move entire workspace & items dialogs
+│   │   ├── music/PlaylistDetailScreen.kt# Music playlist / album description
+│   │   ├── toon/ToonDescriptionView.kt  # Manga/Manhua description view & chapter tree
+│   │   └── video/                       # SeriesDescriptionView.kt, ChannelDescriptionView.kt
+│   ├── editor/                          # In-app metadata & lyrics editor
+│   ├── history/                         # History & analytics timeline
+│   ├── home/                            # Home screen, dashboard, search & mode switcher
 │   ├── intro/IntroScreen.kt             # App intro / onboarding
 │   ├── lock/LockSelectionScreen.kt      # App lock & PIN selection
-│   └── settings/SettingsScreen.kt       # Application settings
-│
-├── core/                                # Shared cross-cutting infrastructure
-│   ├── database/                        # Room database & data persistence
-│   │   ├── AppDatabase.kt               # Database singleton (version 15)
-│   │   ├── dao/                         # 4 focused DAOs + composite shim
-│   │   │   ├── MediaDao.kt              # manga table operations
-│   │   │   ├── TrackDao.kt              # chapter table operations
-│   │   │   ├── HistoryDao.kt            # history_event operations
-│   │   │   ├── AnnotationDao.kt         # pdf_marker operations
-│   │   │   └── LibraryDao.kt            # Composite interface for backward compatibility
-│   │   └── entity/                      # Room entities (MangaEntity, ChapterEntity, etc.)
-│   │       └── Entities.kt
-│   │
-│   ├── datastore/                       # App settings & preferences via DataStore
-│   │   └── GlobalSettings.kt            # Reactive flows for UI, audio, and vault settings
-│   │
-│   └── util/                            # Cross-cutting utilities
-│       └── HistoryTracker.kt            # Lightweight asynchronous history logger
-│
-├── data/                                # Data ingestion and repositories
-│   ├── repository/                      # Domain repositories
-│   │   └── LibraryRepository.kt         # SAF scanning, streaming, and metadata extraction
-│   │
-│   └── importer/                        # Centralized media import pipeline
-│       ├── book/                        # PDF and document single/mega importers
-│       ├── music/                       # Audio album/track single/mega importers
-│       ├── toon/                        # Manga/manhua chapter single/mega importers
-│       └── video/                       # Video and structured series importers
-│
-├── audio/                               # Media3 / ExoPlayer audio engine
-│   ├── HwaranPlayerHolder.kt            # Singleton player provider
-│   └── MusicNotificationService.kt      # Foreground MediaSessionService
+│   ├── player/                          # Immersive media players
+│   │   ├── book/                        # BookPlayerScreen.kt & WebBookViewer.kt (EPUB/HTML)
+│   │   ├── music/MusicPlayerScreen.kt   # Audio playback player, lyrics & queue
+│   │   ├── novel/                       # NovelPlayerScreen.kt & NovelReaderSettingsPill.kt
+│   │   ├── toon/ToonPlayerScreen.kt     # Webtoon continuous scroll & paged comic reader
+│   │   └── video/VideoPlayerScreen.kt   # ExoPlayer video player with gestures
+│   ├── settings/SettingsScreen.kt       # Application settings & customization
+│   └── workspace/                       # Workspace management UI & dialogs
 │
 └── ui/                                  # Shared presentation infrastructure
-    ├── theme/                           # Design tokens, typography, colors, theme
     ├── background/                      # 7 ambient Canvas shader backgrounds
-    ├── components/                      # Pure, reusable atomic widgets
-    ├── dialogs/                         # Modal sheets, onboarding, picker dialogs
+    ├── components/                      # Atomic, reusable composable widgets
+    ├── dialogs/                         # Modal sheets & pickers
     ├── navigation/                      # NavGraph & route coordinators
+    ├── theme/                           # Design tokens, typography, and color schemes
     └── viewmodels/                      # Lifecycle-aware ViewModels holding UI state
 ```
 
@@ -101,23 +90,26 @@ All screens in Hwaran adhere to the single-directional state model:
 ```text
 ┌────────────────────────────────────────────────────────┐
 │                      Composable UI                     │
+│         (Stateless Rendering + User Interaction)       │
 └────────────▲───────────────────────────────┬───────────┘
              │                               │
-       State │ (StateFlow)            Events │ (User Actions)
+       State │ (Immutable StateFlow)  Events │ (Callbacks / User Intent)
              │                               ▼
 ┌────────────┴───────────────────────────────────────────┐
 │                       ViewModel                        │
+│          (Exposes StateFlow, Handles UI Events)        │
 └────────────▲───────────────────────────────┬───────────┘
              │                               │
-       Flows │ (Room / DataStore)   Commands │ (Suspend / I/O)
+       Flows │ (Room / DataStore)   Commands │ (withContext(Dispatchers.IO))
              │                               ▼
 ┌────────────┴───────────────────────────────────────────┐
 │             Repository / Room / Storage Layer          │
+│          (Database, SAF, Media Decoders, Importers)    │
 └────────────────────────────────────────────────────────┘
 ```
 
-1. **Events Flow Up**: UI emits user gestures as callbacks (`onClick`, `onValueChange`).
-2. **State Flows Down**: ViewModels expose immutable `StateFlow<T>` models observed via Compose `collectAsStateWithLifecycle()` or `collectAsState()`.
+1. **Events Flow Up**: UI emits user gestures as callbacks (`onClick`, `onValueChange`, `onNavigate`).
+2. **State Flows Down**: ViewModels expose immutable `StateFlow<T>` models observed via Compose `collectAsState()` or `collectAsStateWithLifecycle()`.
 3. **No Direct Main-Thread I/O**: Operations touching the disk, Room, SAF, or bitmaps must run within `withContext(Dispatchers.IO)`.
 
 ---
@@ -126,7 +118,7 @@ All screens in Hwaran adhere to the single-directional state model:
 
 Hwaran supports two distinct storage paradigms:
 
-### A. External Mode (SAF / Scoped Storage)
+### A. External Mode (Storage Access Framework / SAF)
 - User selects an external directory via `Intent.ACTION_OPEN_DOCUMENT_TREE`.
 - Persistable permissions are acquired via `contentResolver.takePersistableUriPermission`.
 - Files remain in their original external directory; Hwaran only stores the document `treeUri` / file URI and indexes metadata into Room.
@@ -144,15 +136,22 @@ Audio playback uses **AndroidX Media3** with a decoupled service-player architec
 
 - **`HwaranPlayerHolder`**: Supplies the singleton `ExoPlayer` instance configured with audio attributes (`USAGE_MEDIA`, `CONTENT_TYPE_MUSIC`) and `handleAudioBecomingNoisy = true`.
 - **`MusicNotificationService`**: A `MediaSessionService` that manages the playback notification, media style controls, lockscreen controls, and system media buttons.
-- **`MusicViewModel`**: Observes player position, playback state, and current item, exposing reactive flows to `MusicScreen` and `NowPlayingScreen`.
+- **`MusicViewModel`**: Observes player position, playback state, and current item, maintaining a playback history back-stack for shuffle navigation and exposing reactive flows to the UI.
 
 ---
 
-## 5. Concurrency Rules
+## 5. Novel & WebBook Parsing Pipeline
 
-- **UI Thread**: Exclusively for layout, drawing, and UI event dispatching.
-- **`Dispatchers.IO`**: Mandatory for:
-  - All Room database inserts, updates, deletes, and list queries.
-  - SAF tree traversals (`DocumentFile.listFiles()`).
-  - Bitmaps decoding (`BitmapFactory.decodeStream`), cropping, and compression.
-  - Audio and video metadata extraction (`MediaMetadataRetriever`).
+```text
+[File / Uri] ──► [NovelParser / WebBookViewer] ──► [Structured NovelBook / HTML DOM]
+                                                              │
+                    ┌─────────────────────────────────────────┴─────────────────────────────────────────┐
+                    ▼                                                                                   ▼
+    [Vertical LazyColumn Paragraphs]                                                    [Paginated Chapter Pager]
+                    │                                                                                   │
+    [Checkpoint Offset Tracking & DB]                                                   [Page State Persistence]
+```
+
+- **NovelParser**: Extracts chapter boundaries using regex heuristics across raw text and markdown files.
+- **WebBookViewer**: Prepares and renders styled, sanitized HTML documents with dynamic eye-care CSS injection and scroll progress tracking.
+- **Checkpoints**: Stored in `pdf_marker` table with page/chapter index and paragraph scroll offsets, enabling exact resumption.

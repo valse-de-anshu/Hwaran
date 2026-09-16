@@ -1,84 +1,230 @@
-# Hwaran (화란)
+<div align="center">
 
-> **The Ultimate Private Offline Media Vault & Experience Engine.**  
-> Read, watch, and listen to your local media in a fluid, handcrafted, privacy-first interface.
+# 🌸 Hwaran (화란)
+### *The Ultimate Private Offline Media Vault & Experience Engine for Android*
+
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF.svg?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Android](https://img.shields.io/badge/Android-API%2026%2B-3DDC84.svg?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
+[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4.svg?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
+[![Media3](https://img.shields.io/badge/AndroidX-Media3%20ExoPlayer-FF6F00.svg?style=for-the-badge&logo=googleplay&logoColor=white)](https://developer.android.com/guide/topics/media/media3)
+[![Room](https://img.shields.io/badge/Room-Database%20KSP-2E7D32.svg?style=for-the-badge&logo=sqlite&logoColor=white)](https://developer.android.com/training/data-storage/room)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-brightgreen.svg?style=for-the-badge)](CONTRIBUTING.md)
+
+<p align="center">
+  <b>Read, watch, and listen to your local media archive in a silky, handcrafted, 100% offline, privacy-first interface.</b>
+</p>
+
+</div>
 
 ---
 
-## What the Hell is Hwaran?
+## 📖 Overview
 
-**Hwaran** is an Android media client built for power users who hoard local content. It is **not** an online streaming client, and it doesn't phone home. 
+**Hwaran (화란)** is a modern, high-performance Android media client tailored for power users who hoard local content. It is **not** an online streaming client, and it **never** phones home.
 
-If you scrape, download, or collect:
-- **Manga & Manhua** (image folders, archives, webtoon strips)
-- **Books & Documents** (PDFs, multi-page epubs/manuals)
-- **Videos & Anime** (structured season folders, episodes, loose clips)
-- **Music & Soundtracks** (local audio files with dynamic reactive backgrounds)
+Whether you collect:
+- **Manga, Manhua & Webtoons** (image folders, continuous strips, CBZ/CBR)
+- **Books & Technical Documents** (PDFs, multi-chapter books, and embedded media documents)
+- **Novels & Plain Text** (EPUB, HTML, MOBI, PalmDoc, FB2, AZW, Markdown, TXT)
+- **Anime & Structured Video Series** (Multi-season series, movies, OVAs, ONAs, specials, clips)
+- **Music & Soundtracks** (FLAC, MP3, AAC, Opus, synchronized LRC lyrics, dynamic audio shaders)
 
-Hwaran puts everything behind a single, unified, biometric/PIN-protected vault. It brings your raw folder dumps to life with silky 120Hz Jetpack Compose animations, ambient shader backgrounds, chapter navigation, progress tracking, and customizable workspaces.
+Hwaran puts everything behind a single, unified, biometric/PIN-protected vault. It elevates your raw folder dumps with fluid 120Hz Jetpack Compose animations, ambient Canvas shader backgrounds, paragraph-accurate reading checkpoints, synchronized LRC lyrics, and customizable workspaces.
 
 ---
 
-## Universal Flow
-
-Every piece of media in Hwaran follows a consistent 3-stage journey:
+## 🚀 Key Features
 
 ```text
-┌─────────────────────────┐
-│     1. Home Library     │  Workspaces, cover grids, mode toggles, instant search & filter pills
-└───────────┬─────────────┘
-            │ Tap card
-┌───────────▼─────────────┐
-│  2. Description / Hub   │  Domain-tailored hubs:
-│                         │  • Books: Single/multi-chapter reader hubs & publishing metadata
-│                         │  • Toons: Chapter trees, reading status & 4,000+ master tags
-│                         │  • Series: Franchise linking (Seasons, Movies, OVAs, Extras)
-│                         │  • Channels: Video playlists, custom thumbnails & sorting
-└───────────┬─────────────┘
-            │ Tap entry
-┌───────────▼─────────────┐
-│  3. Immersive Consumer  │  Webtoon vertical strip, PDF reader, ExoPlayer video & Media3 audio
-└─────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                                 HWARAN ECOSYSTEM                                 │
+├───────────────────┬───────────────────┬───────────────────┬──────────────────────┤
+│ 📖 MANGA & TOONS  │ 📚 BOOKS & NOVELS │ 🎬 ANIME & VIDEO  │ 🎵 MUSIC & SHADERS   │
+├───────────────────┼───────────────────┼───────────────────┼──────────────────────┤
+│ • Continuous Strip│ • Hardware PDF    │ • Multi-format    │ • Media3 Service     │
+│ • Paged LTR / RTL │ • WebBook Engine  │ • Season Hierarchy│ • 7 Canvas Shaders   │
+│ • White Crop Zoom │ • 6-Color Marker  │ • Gesture Controls│ • Synced LRC Lyrics  │
+│ • 4,000+ Tags DB  │ • Checkpoints & % │ • PIP & Background│ • Smart Shuffle + Hist│
+└───────────────────┴───────────────────┴───────────────────┴──────────────────────┘
+```
+
+### 1. 📖 Manga & Manhua Engine (`contentType = 0`)
+- **Dual Reading Engines**: Continuous vertical webtoon strip mode or page-by-page reader with LTR/RTL support.
+- **Smart Edge Navigation & White Margin Crop**: Tap zones tuned for one-handed reading with automatic border cropping.
+- **Master Tag Catalog**: Categorize libraries across 4,000+ curated genre and thematic tags.
+- **Natural Chapter Sorter**: Intelligently handles decimal and sub-chapter numbering (e.g. `Chapter 10.5`).
+
+### 2. 📚 Books & Documents Engine (`contentType = 1`)
+- **Hardware-Accelerated PDF Renderer**: Fast, lag-free rendering using native Android `PdfRenderer`.
+- **6-Color Highlighter & Annotation**: Place visual markers, bookmarks, and color-coded highlight boxes directly on document pages with one-tap erase.
+- **Interactive Link Extraction**: Detects and extracts embedded document URLs and cross-references.
+- **Eye-Care Tint Modes**: Warm Sepia, Paper Green, OLED Night Mode, and Crisp Light.
+
+### 3. 📜 Novels & WebBook Engine (`contentType = 4`)
+- **Universal Text Decoding**: Seamless support for `.epub`, `.html`, `.mobi`, `.prc`, `.fb2`, `.azw`, `.txt`, `.md`, and `.rtf`.
+- **Granular Typography & Font Loader**: Fine-tune font sizes, line heights, paragraph spacing, and text justification. Load custom OTF/TTF fonts directly from storage.
+- **Accurate Checkpoint System**: Bookmark exact chapters and paragraph offsets (`+ Mark Here`) with quick-jump sticky tabs and overall completion percentages.
+- **Auto-Scroll Resumption**: Remembers exact scroll offsets and paragraph positions when opening or resuming books.
+
+### 4. 🎬 Video & Anime Player (`contentType = 2`)
+- **ExoPlayer Video Engine**: Hardware-accelerated playback for MP4, MKV, WebM, AVI, TS, and more.
+- **Automated Series Hierarchy**: Detects complex franchise trees (Seasons, Movies, OVAs, ONAs, Specials, Extras, Blu-ray discs).
+- **Intuitive Player Gestures**: Smooth horizontal scrubbing with timestamp preview, left-side brightness adjustments, and right-side volume controls.
+
+### 5. 🎵 Music & Audio Engine (`contentType = 3`)
+- **Background MediaSessionService**: Fully integrated with Android system notifications, media controls, lock screen art, and Bluetooth headset events.
+- **7 Handcrafted Reactive Canvas Shaders**:
+  1. *Liquid* — Organic blob metaball physics that reacts to touch.
+  2. *Celestial* — Constellation orbital particle physics.
+  3. *Drunk Stars* — Floating, dreamy star clusters.
+  4. *Jellyfish* — Ambient underwater organic tentacles.
+  5. *Flower* — Blooming chromatic petal geometry.
+  6. *Kaleidoscope* — Symmetric refractive kaleidoscope geometry.
+  7. *Poker* — Casino-style floating suit physics.
+- **Synchronized LRC Lyrics**: Real-time karaoke-style lyrics scrolling with timecode synchronization and manual `.lrc` picker.
+- **Smart / Advance / Normal Shuffle**: Intelligent shuffle modes with a dedicated playback history back-stack.
+- **Color Palette Extraction**: Dynamic UI theming extracted on the fly from embedded album art.
+
+### 6. 🔒 Security & Vault Sandboxing
+- **PIN & Biometric Protection**: Lock individual media items or entire vaults behind biometric authentication.
+- **Local Vault Sandboxing**: Sandboxed storage mode with automatic `.nomedia` protection to isolate private files from Android's MediaStore.
+- **Storage Access Framework (SAF)**: Link external folders directly without copying files or granting invasive root permissions.
+
+---
+
+## 📊 Supported Format Matrix
+
+| Media Domain | Supported Formats |
+|---|---|
+| **Manga / Comics** | Folders of JPG, PNG, WEBP, AVIF, JXL, GIF, CBZ, CBR |
+| **Books / Documents** | PDF, EPUB, HTML, HTM, XHTML |
+| **Novels / E-Books** | TXT, MD, MOBI, PRC, FB2, AZW, AZW3, RTF |
+| **Video / Animation** | MP4, MKV, WEBM, AVI, TS, M4V, 3GP, MOV, FLV |
+| **Audio / Soundtracks** | MP3, FLAC, AAC, M4A, OGG, OPUS, WAV, WMA |
+| **Lyrics & Captions** | LRC (Synchronized & Plain), Embedded ID3 Lyrics, SRT, VTT |
+
+---
+
+## 🏛️ Architecture & Tech Stack
+
+Hwaran follows **Feature-based Clean Architecture** with **Unidirectional Data Flow (UDF)**:
+
+```text
+┌────────────────────────────────────────────────────────┐
+│                   Jetpack Compose UI                   │
+│        (Screens, Reader Canvas, Ambient Shaders)       │
+└────────────▲───────────────────────────────┬───────────┘
+             │                               │
+       State │ (StateFlow)            Events │ (User Actions)
+             │                               ▼
+┌────────────┴───────────────────────────────────────────┐
+│              Lifecycle-Aware ViewModels                │
+└────────────▲───────────────────────────────┬───────────┘
+             │                               │
+       Flows │ (Room / DataStore)   Commands │ (withContext(Dispatchers.IO))
+             │                               ▼
+┌────────────┴───────────────────────────────────────────┐
+│           Repository & Central Importer Layer          │
+├────────────────────────────────────────────────────────┤
+│ Room Database (KSP) │ SAF Engine │ AndroidX Media3     │
+└────────────────────────────────────────────────────────┘
+```
+
+| Component | Library / Technology |
+|---|---|
+| **Language** | Kotlin 2.0.21 |
+| **UI Toolkit** | Jetpack Compose (BOM) + Material 3 |
+| **Media Player** | AndroidX Media3 / ExoPlayer 1.5.0 + MediaSessionService |
+| **Database** | Room 2.7.0 with KSP (SQLite) |
+| **Preferences** | Jetpack DataStore Preferences |
+| **Image Loading** | Coil 2.7.0 (Compose, Video, GIF support) |
+| **PDF Rendering** | Android Native `PdfRenderer` + `PdfiumAndroid` |
+| **Storage Engine** | Android Storage Access Framework (SAF) / DocumentsContract |
+
+---
+
+## 🛠️ Building from Source
+
+### Prerequisites
+- **JDK**: Java 17 or Java 21 (Android Studio JBR: `/opt/android-studio/jbr`).
+- **Android SDK**: `compileSdk = 37`, `minSdk = 26`, `targetSdk = 37`.
+- **Android Studio**: Android Studio Ladybug / Meerkat or IntelliJ IDEA.
+
+### Clone & Build
+```bash
+# 1. Clone the repository
+git clone https://github.com/your-username/hwaran.git
+cd hwaran
+
+# 2. Export Java Home
+export JAVA_HOME=/opt/android-studio/jbr  # or path to your JDK 17+
+
+# 3. Compile Kotlin and run unit tests
+./gradlew testDebugUnitTest
+
+# 4. Build Debug APK
+./gradlew assembleDebug
+```
+
+The compiled APK will be located at:
+```text
+app/build/outputs/apk/debug/app-debug.apk
 ```
 
 ---
 
-## Core Pillars
+## 🗂️ Project Directory Structure
 
-1. **100% Offline & Private** — No tracking, no accounts, no analytics. Operates strictly on local files and Android Storage Access Framework (SAF).
-2. **Four Specialized Media Engines** — 
-   - **Manga & Manhua**: Dual reading engines (Continuous Webtoon Strip & Page-by-Page with LTR/RTL support), edge-tap navigation, white margin crop zoom, lag-free transitions, 4,000+ master tags, and sleek in-reader settings.
-   - **Books & Documents**: Single-document and multi-chapter PDF reader with lag-free loading, multi-color aesthetic highlighter (6 vibrant colors with instant tap-to-erase), eye protection tints (Warm Sepia, Paper Green, OLED Night Mode), screen rotation quick lock, instant zoom/fit reset, and full-document page scrub navigator.
-   - **Anime & Structured Series**: Comprehensive franchise relationship linking (Seasons, Movies, OVAs, ONAs, Specials, Blu-rays, Prequels/Sequels) with extra video management.
-   - **Channels & Clips**: Video playlists with thumbnail pickers and quick selection.
-   - **Music & Audio**: Media3 playback engine, playlists, lock screen controls, and background playback.
-3. **Fluid Handcrafted UI & Color Themes** — Material 3 + Custom Canvas shaders (Liquid, Celestial, Drunk Stars, Jellyfish, Kaleidoscope, Flower, Poker) with adaptive color schemes (Blueberry, Grape, Snowfall, PureDark) and offscreen alpha blending.
-4. **Workspaces & Vault Organization** — Group content into custom workspaces (e.g. "Favorites", "Current", "Archive") without needing to duplicate files on disk.
-5. **Advanced Search & Discovery** — Instant cross-library search with scope targeting (Name/Title, Tags/Genre, or All Fields), media category filtering (Book, Manhua, Manga, Series, Channel, Favorite), multi-tag filter with AND/OR logic, and dynamic sorting.
-
----
-
-## Tech Stack at a Glance
-
-| Layer | Technologies |
-|---|---|
-| **Language** | Kotlin 2.0.21 |
-| **UI Framework** | Jetpack Compose + Material 3 |
-| **Architecture** | Feature-based Clean Architecture + UDF |
-| **Database** | Room 2.7.0 (KSP, 4 focused DAOs) |
-| **Preferences** | Jetpack DataStore (Preferences) |
-| **Media Playback** | AndroidX Media3 / ExoPlayer 1.5.0 + MediaSessionService |
-| **Storage & I/O** | Android SAF (`DocumentFile`, `DocumentsContract`, Scoped Storage) |
-| **Image Loading** | Coil 2.7.0 |
+```text
+hwaran/
+├── app/
+│   └── src/main/java/com/ballade/hwaran/
+│       ├── audio/              # Media3 Service & player instance provider
+│       ├── backend/            # Business logic (Toon, Book, Novel, Video, Music)
+│       ├── core/               # Room DB, DataStore, HistoryTracker, SAF utils
+│       ├── data/               # Repositories & centralized importers
+│       ├── frontend/           # Presentation layer (Home, Players, Hubs, Editor)
+│       └── ui/                 # ViewModels, Canvas shaders, components, themes
+├── docs/                       # Technical blueprints, database schema, changelogs
+├── gradle/                     # Gradle wrapper & version catalogs
+├── CONTRIBUTING.md             # Contribution guidelines & code of conduct
+├── LICENSE                     # Apache 2.0 Open Source License
+└── README.md                   # Project documentation & overview
+```
 
 ---
 
-## Documentation Map
+## 📚 Documentation Map
 
-For detailed guides, refer to the documentation in [`docs/`](docs/):
+Explore in-depth documentation inside the [`docs/`](docs/) directory:
 
-- 🏛️ [**`docs/ARCHITECTURE.md`**](docs/ARCHITECTURE.md) — *How the hell is Hwaran built?* (Layering, packages, data flow, player lifecycle)
-- 🗄️ [**`docs/DATABASE.md`**](docs/DATABASE.md) — *How does data persist?* (Room schema v15, tables, DAOs, migrations)
-- 🎯 [**`docs/FEATURES.md`**](docs/FEATURES.md) — *What is Hwaran supposed to do?* (Feature matrix, reader modes, audio shaders)
-- 🛠️ [**`docs/DEVELOPMENT.md`**](docs/DEVELOPMENT.md) — *How do I build, test, and work on Hwaran?* (Prerequisites, Gradle, Git strategy)
-- 📜 [**`docs/CHANGELOG.md`**](docs/CHANGELOG.md) — *What changed?* (Version history, progress journal, and refactoring milestones)
+- 🏛️ [**`docs/ARCHITECTURE.md`**](docs/ARCHITECTURE.md) — Technical blueprint, layering, data flow, and player lifecycles.
+- 🗄️ [**`docs/DATABASE.md`**](docs/DATABASE.md) — Room schema (v15), table relationships, indexes, and migrations.
+- 🎯 [**`docs/FEATURES.md`**](docs/FEATURES.md) — Full feature specifications and capabilities matrix.
+- 🛠️ [**`docs/DEVELOPMENT.md`**](docs/DEVELOPMENT.md) — Build prerequisites, Gradle targets, and testing workflows.
+- 📜 [**`docs/CHANGELOG.md`**](docs/CHANGELOG.md) — Chronological release history and major milestones.
+- 🛡️ [**`docs/SECURITY.md`**](docs/SECURITY.md) — Security policy, local sandboxing, and vulnerability disclosure.
+- 🤝 [**`CONTRIBUTING.md`**](CONTRIBUTING.md) — Developer guidelines and pull request instructions.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! If you want to fix a bug, add a feature, or improve documentation:
+1. Check the [Contribution Guide](CONTRIBUTING.md).
+2. Fork the repository and create a branch off `nightingale`.
+3. Commit with [Conventional Commits](https://www.conventionalcommits.org/).
+4. Ensure all tests pass (`./gradlew testDebugUnitTest && ./gradlew assembleDebug`).
+5. Open a Pull Request.
+
+---
+
+## 📄 License
+
+Hwaran is open-source software licensed under the **[Apache License 2.0](LICENSE)**.
+All media files and documents consumed within Hwaran remain the sole property of their respective owners.
+
+<div align="center">
+  <sub>Crafted with passion for offline media enthusiasts.</sub>
+</div>

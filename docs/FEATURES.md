@@ -1,70 +1,117 @@
-# Features Specification
+# Features Specification & Capabilities
 
-> **"What is Hwaran supposed to do?"**
+> **"What is Hwaran capable of?"**
 
-Hwaran is an **all-in-one private offline media vault** designed to organize and consume local Manga/Manhua, Books/PDFs, Video/Anime, and Music in a unified, fluid experience.
+Hwaran is an **all-in-one private offline media vault & experience engine** built to organize, manage, and consume local Manga/Manhua, Books/PDFs, Novels/E-Books, Video/Anime, and Music in a unified, fluid, and privacy-first interface.
 
 ---
 
-## 1. The Four Media Engines
+## 1. The Five Specialized Media Engines
 
 ### 📖 1. Manga & Manhua Engine (`contentType = 0`)
-- **Continuous Webtoon Scrolling**: Seamless vertical strip reading optimized for long-strip manhwa and multi-image manga chapters.
-- **Natural Chapter Progression**: Auto-advance to the next chapter upon reaching the end of the current strip.
-- **Dynamic Image Cache**: High-efficiency Coil memory cache tuned for vertical image sequences.
-- **Smart Sorter**: Natural chapter sorting respecting decimal chapters (e.g. `Chapter 10.5` after `Chapter 10`).
+- **Dual Reading Modes**:
+  - **Continuous Webtoon Scrolling**: High-performance vertical strip reader optimized for long-strip manhwa and webcomics.
+  - **Paged LTR / RTL Mode**: Traditional comic page-by-page reader supporting both Japanese Manga (Right-to-Left) and Western Comic (Left-to-Right) reading directions.
+- **Smart Edge Navigation & White Margin Crop**:
+  - Full-height tap zones for seamless one-handed navigation.
+  - Automatic white border crop zoom to maximize content on mobile screens.
+- **4,000+ Master Tag Catalog**:
+  - Comprehensive tag taxonomy with cross-genre filtering, AND/OR multi-tag logic, and instant tag-based discovery.
+- **Natural Chapter Sorter**:
+  - Natural sorting that correctly sequences decimal chapters (e.g. `Chapter 10.5` directly after `Chapter 10`).
+
+---
 
 ### 📚 2. Book & PDF Reader (`contentType = 1`)
-- **Native PDF Rendering**: Hardware-backed high-resolution rendering using Android `PdfRenderer`.
-- **Visual Markers & Annotations**: Place bookmarks and color-coded highlight boxes directly onto PDF pages (`pdf_marker`).
-- **Interactive Links**: Extraction of embedded hyperlinks inside PDF documents.
-- **Reading Progress**: Automatic resumption to the exact last-read page.
-
-### 🎬 3. Video & Anime Player (`contentType = 2`)
-- **ExoPlayer Video Engine**: Hardware-accelerated decoding supporting MP4, MKV, WebM, AVI, and TS.
-- **Structured Series Support**: Automatic detection of season folders, specials, and episodes via `SeriesStructureImporter`.
-- **Intuitive Player Gestures**:
-  - Horizontal drag: fast scrub with timestamp preview.
-  - Vertical drag (left): brightness adjustments.
-  - Vertical drag (right): volume adjustments.
-- **Compact & Large Layouts**: Switchable layout modes in description hub for standard movies vs multi-season anime series.
-
-### 🎵 4. Music & Audio Engine (`contentType = 3`)
-- **System-Integrated Media3 Playback**: Continues playback in background with system notification controls and lock screen art.
-- **Dynamic Reactive Visual Shaders**: 7 handcrafted ambient backgrounds driven by Canvas animations:
-  1. *Liquid* (Blob metaball physics tracking touches)
-  2. *Celestial* (Constellation orbit particles)
-  3. *Drunk Stars* (Floating dreamy star cluster)
-  4. *Jellyfish* (Underwater organic tentacles)
-  5. *Flower* (Blooming organic petals)
-  6. *Kaleidoscope* (Symmetric refractive geometry)
-  7. *Poker* (Casino-style floating card suits)
-- **Tag & Cover Editing**: In-app metadata and cover art modification saved directly to track entities.
-- **Waveform Slider**: Elastic, interactive `WavyMusicSlider` with haptic feedback.
+- **Native Hardware PDF Rendering**:
+  - Smooth multi-page document rendering backed by Android `PdfRenderer` and `PdfiumAndroid`.
+- **Multi-Color Visual Highlighter & Marker**:
+  - 6 aesthetic highlighter colors (Golden Sun, Emerald, Cyber Blue, Coral Rose, Violet, Charcoal).
+  - Tap-to-highlight and tap-to-delete gesture workflow.
+- **Eye-Care Tint Modes**:
+  - Instant toggle between *Warm Sepia*, *Paper Green*, *OLED Night Mode*, and *Crisp Light*.
+- **Interactive Link Extractor & Page Scrub Navigator**:
+  - Detects embedded hyperlinks and internal document anchors with instant tap navigation.
 
 ---
 
-## 2. Vault & Organization Features
+### 📜 3. Novel & WebBook Reader (`contentType = 4`)
+- **Universal Multi-Format E-Book Engine**:
+  - Native parsing and rendering for `.epub`, `.html`, `.mobi`, `.prc`, `.fb2`, `.azw`, `.azw3`, `.txt`, `.md`, and `.rtf`.
+- **Granular Typography Customization**:
+  - Adjust font sizes, line heights, paragraph spacing, and text alignment (Justified / Left-aligned).
+  - Asset fonts built-in (*Literata*, *Lora*, *Merriweather*, *Source Serif*, *Nunito*, *Mono*).
+  - Custom font file loader: Import any `.ttf` or `.otf` font file directly from storage.
+- **Paragraph-Accurate Checkpoints & Sticky Tabs**:
+  - Floating checkpoint card to save exact chapter and paragraph positions (`+ Mark Here`).
+  - Top-right persistent progress sticky tab showing real-time `$percentage%` and checkpoint indicators.
+  - Quick-jump top bar capsule (`Last: $savedPct% (Ch. X)`) to instantly resume saved reading locations.
+- **Auto-Scroll Position Resumption**:
+  - Restores the exact scroll position upon opening books without overwriting progress.
+
+---
+
+### 🎬 4. Video & Anime Player (`contentType = 2`)
+- **Multi-Format ExoPlayer Video Engine**:
+  - Hardware-accelerated playback supporting MP4, MKV, WebM, AVI, TS, M4V, and 3GP.
+- **Automated Series & Franchise Hierarchy**:
+  - Recursively discovers multi-season anime series, movies, OVAs, ONAs, specials, and bonus tracks.
+- **Intuitive Player Gestures**:
+  - Horizontal scrub: Precise timeline scrubbing with floating timestamp preview.
+  - Left-edge vertical drag: Screen brightness adjustment.
+  - Right-edge vertical drag: Volume boost adjustment.
+  - Double-tap seek: 10-second skip forward and backward.
+- **Picture-in-Picture (PiP) & Background Playback**:
+  - Continue watching while multitasking.
+
+---
+
+### 🎵 5. Music & Audio Engine (`contentType = 3`)
+- **System-Integrated Media3 Foreground Service**:
+  - Background audio playback using `MediaSessionService` with lockscreen controls, notification widget, and Bluetooth headset support.
+- **7 Handcrafted Reactive Canvas Shaders**:
+  1. *Liquid* — Organic blob metaball physics reacting to touch.
+  2. *Celestial* — Constellation orbital particle physics.
+  3. *Drunk Stars* — Floating, dreamy star clusters.
+  4. *Jellyfish* — Ambient underwater organic tentacles.
+  5. *Flower* — Blooming chromatic petal geometry.
+  6. *Kaleidoscope* — Symmetric refractive kaleidoscope geometry.
+  7. *Poker* — Casino-style floating suit physics.
+- **Synchronized LRC Karaoke Lyrics**:
+  - Real-time auto-scrolling lyrics synced to timestamps with manual `.lrc` file association and inline editing.
+- **Smart / Advance / Normal Shuffle**:
+  - Smart shuffle prioritizes artist/album variety.
+  - Full playback history back-stack allows seamless Previous (`<`) navigation in shuffle mode.
+- **Dynamic Color Palette Generation**:
+  - Real-time dominant color extraction from album covers using AndroidX Palette.
+
+---
+
+## 2. Vault & System Capabilities
 
 ### 🗂️ Workspaces
-- Users can segment their library into distinct workspaces (e.g. *"I Love It"*, *"Backlog"*, *"Read Again"*, *"Current Season"*).
-- Items can be moved individually or as an entire workspace with tree propagation (updates parent container and all its chapters).
-- Workspaces persist in DataStore and sync reactively with Room.
+- Organize libraries into distinct user-defined workspaces (e.g. *"Favorites"*, *"Current Season"*, *"Archive"*, *"Reading List"*).
+- Move individual media entries or batch-move entire workspaces with tree propagation.
 
-### 🔒 Vault Security & Locked Content
-- Mark any media item as locked (`isLocked = 1`).
-- Locked items are hidden from the primary grid until authenticated via the user's configured PIN or biometric prompt.
-- `.nomedia` protection prevents other gallery and music apps on the device from discovering private media files.
+### 🔒 Vault Security & Biometrics
+- Mark any media item or folder as locked (`isLocked = true`).
+- Protected by biometric prompt (Fingerprint / Face Unlock) or application PIN.
+- `.nomedia` protection isolates private files from system gallery and music players.
 
 ### ⚡ Centralized Import Pipeline
-- **Single Import**: Imports a single file or a single container directly.
-- **Mega Import**: Recursively scans complex folder trees, auto-detecting album vs series structures without user friction.
-- Supports both **Local Copy** (internal vault sandbox) and **External Link** (SAF tree URI permissions).
+- **Single Import**: Import single files or folders directly.
+- **Mega Import**: Recursively scan complex directory structures, auto-detecting manga chapters, season folders, and music albums.
+- **Storage Modes**: Choose between *External SAF Linkage* (keep files on SD card/storage) or *Internal Vault Sandboxing* (copy into private app storage).
+
+### 🔍 Search, Discovery & Continue Watching
+- Cross-library search with scope targeting (Title, Tags, or All Fields).
+- Multi-tag filter with AND/OR logic.
+- Real-time **Continue Watching / Reading** dashboard showing exact progress percentages and resume targets.
 
 ---
 
-## 3. What Hwaran Explicitly Does NOT Do
+## 3. Privacy & Offline Guarantee
 
-- **No Online Streaming or Web Scraping Inside the App**: Hwaran consumes files that already exist on your device.
-- **No Analytics or Telemetry**: Zero external network calls.
-- **No Cloud Accounts or Subscriptions**: Purely offline and self-contained.
+- **100% Offline**: Zero external network requests, analytics, tracking, or telemetry.
+- **Self-Contained**: No accounts, cloud dependencies, or subscriptions.
+- **User File Safety**: Never alters or deletes original user media files unless explicitly initiated.
