@@ -70,11 +70,15 @@ fun MiniPlayer(
     val currentIndex = remember(currentPlaylist, currentChapter) { 
         currentPlaylist.indexOfFirst { it.id == currentChapter?.id } 
     }
-    val hasPrevious = remember(currentIndex, currentPlaylist, repeatMode) {
-        repeatMode != 0 || (currentIndex > 0)
+    val hasPrevious = remember(currentIndex, currentPlaylist.size, shuffleMode, repeatMode) {
+        if (currentPlaylist.size <= 1) false
+        else if (shuffleMode || repeatMode != 0) true
+        else currentIndex > 0
     }
-    val hasNext = remember(currentIndex, currentPlaylist, repeatMode) {
-        repeatMode != 0 || (currentIndex >= 0 && currentIndex < currentPlaylist.size - 1)
+    val hasNext = remember(currentIndex, currentPlaylist.size, shuffleMode, repeatMode) {
+        if (currentPlaylist.size <= 1) false
+        else if (shuffleMode || repeatMode != 0) true
+        else currentIndex >= 0 && currentIndex < currentPlaylist.size - 1
     }
     
     val colorPalette by musicViewModel.colorPalette.collectAsState()

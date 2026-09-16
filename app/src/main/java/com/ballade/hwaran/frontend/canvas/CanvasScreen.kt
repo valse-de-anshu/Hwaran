@@ -936,15 +936,20 @@ private fun MusicPlayerFlyout(
 
     val currentPlaylist by musicViewModel.currentPlaylist.collectAsState()
     val repeatMode by musicViewModel.repeatMode.collectAsState()
+    val shuffleMode by musicViewModel.shuffleMode.collectAsState()
 
     val currentIndex = remember(currentPlaylist, currentTrack) { 
         currentPlaylist.indexOfFirst { it.id == currentTrack?.id } 
     }
-    val hasPrevious = remember(currentIndex, currentPlaylist, repeatMode) {
-        repeatMode != 0 || (currentIndex > 0)
+    val hasPrevious = remember(currentIndex, currentPlaylist.size, shuffleMode, repeatMode) {
+        if (currentPlaylist.size <= 1) false
+        else if (shuffleMode || repeatMode != 0) true
+        else currentIndex > 0
     }
-    val hasNext = remember(currentIndex, currentPlaylist, repeatMode) {
-        repeatMode != 0 || (currentIndex >= 0 && currentIndex < currentPlaylist.size - 1)
+    val hasNext = remember(currentIndex, currentPlaylist.size, shuffleMode, repeatMode) {
+        if (currentPlaylist.size <= 1) false
+        else if (shuffleMode || repeatMode != 0) true
+        else currentIndex >= 0 && currentIndex < currentPlaylist.size - 1
     }
 
     Surface(

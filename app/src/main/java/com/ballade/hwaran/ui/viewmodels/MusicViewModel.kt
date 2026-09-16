@@ -75,6 +75,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _isPlaying.value = player.isPlaying
     }
 
+    // Playback history stack for shuffle and previous navigation
+    private val playbackHistory = ArrayDeque<Int>()
+    private var isNavigatingHistory = false
+    private var lastKnownMediaItemIndex = -1
+
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = isPlaying
@@ -94,6 +99,17 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             val index = p.currentMediaItemIndex
             val playlist = _currentPlaylist.value
             if (index >= 0 && index < playlist.size) {
+                if (!isNavigatingHistory && lastKnownMediaItemIndex >= 0 && lastKnownMediaItemIndex != index) {
+                    if (playbackHistory.isEmpty() || playbackHistory.last() != lastKnownMediaItemIndex) {
+                        playbackHistory.addLast(lastKnownMediaItemIndex)
+                        if (playbackHistory.size > 50) {
+                            playbackHistory.removeFirst()
+                        }
+                    }
+                }
+                isNavigatingHistory = false
+                lastKnownMediaItemIndex = index
+
                 val chapter = playlist[index]
                 _currentChapter.value = chapter
                 _currentPosition.value = 0L
@@ -847,6 +863,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             .build()
         exoPlayer.setPlaylistMetadata(playlistMetadata)
 
+        playbackHistory.clear()
+        isNavigatingHistory = false
+        lastKnownMediaItemIndex = startIndex
+
         exoPlayer.seekTo(startIndex, 0)
         exoPlayer.prepare()
         exoPlayer.play()
@@ -989,29 +1009,76 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun next() {
-        if (exoPlayer.hasNextMediaItem()) {
-            exoPlayer.seekToNext()
-        } else {
-            val targetIndex = if (exoPlayer.mediaItemCount > 0) exoPlayer.currentMediaItemIndex.coerceIn(0, exoPlayer.mediaItemCount - 1) else 0
-            exoPlayer.seekTo(targetIndex, 0L)
+        val p = exoPlayer
+        if (p.hasNextMediaItem()) {
+            p.seekToNextMediaItem()
+        } else if (p.mediaItemCount > 1) {
+            val count = p.mediaItemCount
+            val currentIndex = p.currentMediaItemIndex
+            val targetIndex = if (_shuffleMode.value) {
+                val others = (0 until count).filter { it != currentIndex }
+                if (others.isNotEmpty()) others.random() else 0
+            } else {
+                0
+            }
+            p.seekTo(targetIndex, 0L)
             _currentPosition.value = 0L
             _playbackProgress.value = 0f
-            if (!exoPlayer.isPlaying) {
-                exoPlayer.play()
+            if (!p.isPlaying) p.play()
+        } else {
+            val targetIndex = if (p.mediaItemCount > 0) p.currentMediaItemIndex.coerceIn(0, p.mediaItemCount - 1) else 0
+            p.seekTo(targetIndex, 0L)
+            _currentPosition.value = 0L
+            _playbackProgress.value = 0f
+            if (!p.isPlaying) {
+                p.play()
             }
         }
     }
 
     fun previous() {
-        if (exoPlayer.hasPreviousMediaItem()) {
-            exoPlayer.seekToPrevious()
-        } else {
-            val targetIndex = if (exoPlayer.mediaItemCount > 0) exoPlayer.currentMediaItemIndex.coerceIn(0, exoPlayer.mediaItemCount - 1) else 0
-            exoPlayer.seekTo(targetIndex, 0L)
+        val p = exoPlayer
+        if (p.currentPosition > 3000L) {
+            // If playing for more than 3 seconds, standard media player behavior is to restart current track
+            p.seekTo(0L)
             _currentPosition.value = 0L
             _playbackProgress.value = 0f
-            if (!exoPlayer.isPlaying) {
-                exoPlayer.play()
+            return
+        }
+
+        // If we have playback history, jump back to previously played track
+        if (playbackHistory.isNotEmpty()) {
+            val prevIndex = playbackHistory.removeLast()
+            isNavigatingHistory = true
+            p.seekTo(prevIndex, 0L)
+            _currentPosition.value = 0L
+            _playbackProgress.value = 0f
+            if (!p.isPlaying) p.play()
+            return
+        }
+
+        if (p.hasPreviousMediaItem()) {
+            p.seekToPreviousMediaItem()
+        } else if (p.mediaItemCount > 1) {
+            val count = p.mediaItemCount
+            val currentIndex = p.currentMediaItemIndex
+            val targetIndex = if (_shuffleMode.value) {
+                val others = (0 until count).filter { it != currentIndex }
+                if (others.isNotEmpty()) others.random() else (currentIndex - 1 + count) % count
+            } else {
+                (currentIndex - 1 + count) % count
+            }
+            p.seekTo(targetIndex, 0L)
+            _currentPosition.value = 0L
+            _playbackProgress.value = 0f
+            if (!p.isPlaying) p.play()
+        } else {
+            val targetIndex = if (p.mediaItemCount > 0) p.currentMediaItemIndex.coerceIn(0, p.mediaItemCount - 1) else 0
+            p.seekTo(targetIndex, 0L)
+            _currentPosition.value = 0L
+            _playbackProgress.value = 0f
+            if (!p.isPlaying) {
+                p.play()
             }
         }
     }

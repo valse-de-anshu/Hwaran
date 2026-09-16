@@ -133,8 +133,16 @@ fun MusicPlayerScreen(
     val currentIndex = remember(currentPlaylist, currentChapter) { 
         currentPlaylist.indexOfFirst { it.id == currentChapter?.id } 
     }
-    val hasNext = currentIndex < currentPlaylist.size - 1 && currentPlaylist.size > 1
-    val hasPrevious = currentIndex > 0 && currentPlaylist.size > 1
+    val hasNext = remember(currentIndex, currentPlaylist.size, shuffleMode, repeatMode) {
+        if (currentPlaylist.size <= 1) false
+        else if (shuffleMode || repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) true
+        else currentIndex < currentPlaylist.size - 1
+    }
+    val hasPrevious = remember(currentIndex, currentPlaylist.size, shuffleMode, repeatMode) {
+        if (currentPlaylist.size <= 1) false
+        else if (shuffleMode || repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) true
+        else currentIndex > 0
+    }
 
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
