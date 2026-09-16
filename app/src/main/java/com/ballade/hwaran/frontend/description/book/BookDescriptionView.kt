@@ -684,8 +684,10 @@ fun BookDescriptionView(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Text(
-                                    text = if (manga.lastReadPage != null && manga.lastReadPage!! > 1) "Resume (p. ${manga.lastReadPage})"
-                                           else if (manga.lastReadTitle != null) "Resume" else "Read",
+                                    text = if (manga.lastReadPage != null && manga.lastReadPage!! > 1) {
+                                        if (manga.lastReadPage!! > 100) "Resume (${(manga.lastReadPage!! / 100).coerceIn(0, 100)}%)"
+                                        else "Resume (p. ${manga.lastReadPage})"
+                                    } else if (manga.lastReadTitle != null) "Resume" else "Read",
                                     color = Color(0xFFE6E8EC),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold

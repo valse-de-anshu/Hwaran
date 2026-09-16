@@ -342,17 +342,31 @@ fun HomeDashboard(
                         val historyTotalChapters = lastNovelEvent?.let { ev ->
                             Regex("totalPages:(\\d+)").find(ev.details)?.groupValues?.getOrNull(1)?.toIntOrNull()
                         }
-                        val totalChapters = chapters.size.takeIf { it > 0 } ?: historyTotalChapters ?: 1
-                        val currentChIdx = manga.lastReadPage ?: 0
-                        val prog = if (totalChapters > 0) {
-                            ((currentChIdx + 1).toFloat() / totalChapters.toFloat()).coerceIn(0.02f, 1f)
-                        } else 0f
+                        val totalChapters = (chapters.size.takeIf { it > 0 } ?: historyTotalChapters ?: 1).coerceAtLeast(1)
+                        val currentChIdx = (manga.lastReadPage ?: 0).coerceIn(0, totalChapters - 1)
+                        val scrollPos = manga.position.coerceAtLeast(0)
 
+                        val prog = if (totalChapters > 1) {
+                            val baseProg = currentChIdx.toFloat() / totalChapters.toFloat()
+                            val stepProg = (1f / totalChapters.toFloat()) * (if (scrollPos > 0) 0.5f else 0.1f)
+                            (baseProg + stepProg).coerceIn(0.02f, 1f)
+                        } else if (scrollPos > 0) {
+                            (scrollPos.toFloat() / 100f).coerceIn(0.05f, 0.95f)
+                        } else if (manga.openCount > 0 || !manga.lastReadTitle.isNullOrBlank()) {
+                            0.05f
+                        } else {
+                            0f
+                        }
+
+                        val pctInt = (prog * 100).toInt().coerceIn(0, 100)
                         val displaySub = if (!manga.lastReadTitle.isNullOrBlank()) {
-                            if (totalChapters > 1) "${manga.lastReadTitle} • Ch. ${currentChIdx + 1}/$totalChapters"
+                            if (totalChapters > 1) "${manga.lastReadTitle} • Ch. ${currentChIdx + 1}/$totalChapters • $pctInt%"
+                            else if (scrollPos > 0) "${manga.lastReadTitle} • ¶$scrollPos"
                             else manga.lastReadTitle!!
                         } else {
-                            "Chapter ${currentChIdx + 1} of $totalChapters"
+                            if (totalChapters > 1) "Chapter ${currentChIdx + 1} of $totalChapters • $pctInt%"
+                            else if (scrollPos > 0) "Paragraph $scrollPos • $pctInt%"
+                            else "Novel"
                         }
 
                         val cover = CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, chapters, context)
@@ -369,26 +383,30 @@ fun HomeDashboard(
                         )
                     }
                     else -> {
-                        // Book (contentType == 1)
-                        val curPage = (manga.lastReadPage ?: 1).coerceAtLeast(1)
+                        // Book (contentType == 1) — PDF or Web/EPUB/HTML Book
                         val lastBookEvent = historyEvents.firstOrNull {
-                            it.eventType == "READ_BOOK" && it.details.contains("mangaId:${manga.id}")
+                            (it.eventType == "READ_BOOK" || it.eventType == "READ_PDF") && it.details.contains("mangaId:${manga.id}")
                         }
                         val totalPages = lastBookEvent?.let { ev ->
                             Regex("totalPages:(\\d+)").find(ev.details)?.groupValues?.getOrNull(1)?.toIntOrNull()
                         }
-                        val prog = if (totalPages != null && totalPages > 0) {
-                            (curPage.toFloat() / totalPages.toFloat()).coerceIn(0.02f, 1f)
-                        } else if (manga.lastReadPage != null && manga.lastReadPage > 0) {
-                            0.1f
-                        } else 0f
+                        val lastPageRaw = manga.lastReadPage ?: 0
 
-                        val displaySub = if (totalPages != null && totalPages > 0) {
-                            "Page $curPage of $totalPages"
-                        } else if (manga.lastReadPage != null && manga.lastReadPage > 0) {
-                            "Page $curPage"
+                        // Web books store progress as (progress * 10000), so values > 100 or when totalPages is null
+                        val isWebBook = lastPageRaw > 100 || (lastPageRaw > 0 && totalPages == null)
+
+                        val (prog, displaySub) = if (isWebBook && lastPageRaw > 0) {
+                            val pct = (lastPageRaw / 100).coerceIn(0, 100)
+                            val floatProg = (lastPageRaw.toFloat() / 10000f).coerceIn(0.02f, 1f)
+                            floatProg to "$pct% Read"
+                        } else if (totalPages != null && totalPages > 0) {
+                            val curPage = lastPageRaw.coerceIn(1, totalPages)
+                            val floatProg = (curPage.toFloat() / totalPages.toFloat()).coerceIn(0.02f, 1f)
+                            floatProg to "Page $curPage of $totalPages • ${(floatProg * 100).toInt()}%"
+                        } else if (lastPageRaw > 0) {
+                            0.05f to "Page $lastPageRaw"
                         } else {
-                            manga.lastReadTitle ?: "Book • PDF"
+                            0f to (manga.lastReadTitle ?: "Book • PDF")
                         }
 
                         val cover = CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
