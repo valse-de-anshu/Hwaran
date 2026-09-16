@@ -1144,7 +1144,7 @@ fun AboutContent(scrollState: ScrollState, vm: SettingsViewModel, onNavigateBack
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = "I built this app as an offline reader/watcher for manhua, manga, books and videos. I'd love to know how I can improve this app for you.",
+            text = "I built this app as an offline reader/watcher for manhua, manga, books and videos. I'd love to know how I can improve this app for you. Hwaran is free and open-source!",
             style = MaterialTheme.typography.bodyMedium,
             color = Color.White.copy(alpha = 0.8f),
             textAlign = TextAlign.Center,
@@ -1169,11 +1169,61 @@ fun AboutContent(scrollState: ScrollState, vm: SettingsViewModel, onNavigateBack
             Icon(
                 painter = painterResource(id = R.drawable.ic_telegram),
                 contentDescription = null,
-                tint = Color(0xFFE6E8EC),
+                tint = Color(0xFF2CA5E0),
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text("Join our Telegram Community", fontWeight = FontWeight.Bold, color = Color(0xFFE6E8EC))
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Button(
+            onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://discord.gg/E79KNqqp4"))
+                context.startActivity(intent)
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF222631),
+                contentColor = Color(0xFFE6E8EC)
+            ),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth().height(52.dp)
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_discord),
+                contentDescription = null,
+                tint = Color(0xFF5865F2),
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Join our Discord Community", fontWeight = FontWeight.Bold, color = Color(0xFFE6E8EC))
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Button(
+            onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/valse-de-anshu/Hwaran.git"))
+                context.startActivity(intent)
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF222631),
+                contentColor = Color(0xFFE6E8EC)
+            ),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth().height(52.dp)
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_github),
+                contentDescription = null,
+                tint = Color(0xFFE6E8EC),
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Open Source GitHub Repository", fontWeight = FontWeight.Bold, color = Color(0xFFE6E8EC))
         }
     }
 }
