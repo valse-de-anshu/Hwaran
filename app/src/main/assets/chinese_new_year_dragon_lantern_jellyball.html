@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Chinese New Year Auspicious Dragon Jellyball</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent !important;
+      pointer-events: none !important;
+    }
+
+    #webgl-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+      background: transparent !important;
+      pointer-events: none !important;
+    }
+  </style>
+  <script src="three.min.js"></script>
+</head>
+<body>
+  <div id="webgl-container"></div>
+
+  <script>
+    const container = document.getElementById('webgl-container');
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 50);
+    camera.position.set(0, 0.06, 3.8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    renderer.setClearColor(0x000000, 0);
+    container.appendChild(renderer.domElement);
+
+    // Root creature anchor group
+    const creature = new THREE.Group();
+    scene.add(creature);
+
+    const BALL_RADIUS = 0.95;
+    const bodyGeometry = new THREE.SphereGeometry(BALL_RADIUS, 64, 64);
+
+    const cnyDragonMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0.0 }
+      },
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+        varying vec3 vLocalPos;
+
+        void main() {
+          vLocalPos = position;
+          vNormal = normalize(normalMatrix * normal);
+          vec4 worldPos = modelViewMatrix * vec4(position, 1.0);
+          vViewDir = normalize(-worldPos.xyz);
+          gl_Position = projectionMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+        varying vec3 vLocalPos;
+        uniform float uTime;
+
+        void main() {
+          vec3 N = normalize(vNormal);
+          vec3 V = normalize(vViewDir);
+
+          // Warm celestial key light from high-left
+          vec3 lightDir = normalize(vec3(-0.35, 0.72, 0.65));
+          float NdotL = dot(N, lightDir);
+          float halfLambert = NdotL * 0.5 + 0.5;
+
+          // Imperial Auspicious Palette:
+          // Royal Lacquer Carmine -> Rich Festive Vermilion -> Warm Coral Gold
+          vec3 royalCarmine   = vec3(0.58, 0.04, 0.12);
+          vec3 festiveScarlet = vec3(0.92, 0.11, 0.19);
+          vec3 warmCoralGold  = vec3(1.00, 0.38, 0.25);
+          vec3 goldenHighlight= vec3(1.00, 0.90, 0.55);
+          vec3 ambientAmberRim= vec3(1.00, 0.78, 0.35);
+
+          // Smooth body gradient
+          vec3 col = mix(royalCarmine, festiveScarlet, smoothstep(0.06, 0.48, halfLambert));
+          col = mix(col, warmCoralGold, smoothstep(0.48, 0.88, halfLambert));
+
+          // Silky golden lacquer specular highlight
+          vec3 H = normalize(lightDir + V);
+          float spec = pow(max(0.0, dot(N, H)), 16.0) * 0.38;
+          col += goldenHighlight * spec;
+
+          // Warm bottom bounce from lucky red lantern
+          float bounce = max(0.0, -N.y) * 0.28;
+          col += vec3(0.98, 0.50, 0.15) * bounce;
+
+          // Auspicious Golden Fresnel Rim
+          float fresnel = pow(1.0 - max(0.0, dot(N, V)), 2.8);
+          col = mix(col, ambientAmberRim, fresnel * 0.50);
+
+          // Zero-clipping procedural cheek blushes
+          if (vLocalPos.z > 0.35) {
+            float leftCheek  = distance(vLocalPos, vec3(-0.44, -0.10, 0.80));
+            float rightCheek = distance(vLocalPos, vec3( 0.44, -0.10, 0.80));
+            float blushMask = smoothstep(0.24, 0.0, leftCheek) + smoothstep(0.24, 0.0, rightCheek);
+            vec3 softPeach = vec3(1.00, 0.52, 0.36);
+            col = mix(col, softPeach, clamp(blushMask * 0.52, 0.0, 1.0));
+          }
+
+          // Subtle royal golden third-eye emblem mark on forehead
+          if (vLocalPos.z > 0.65 && vLocalPos.y > 0.34 && vLocalPos.y < 0.62) {
+            vec2 fUv = vec2(vLocalPos.x * 3.0, (vLocalPos.y - 0.46) * 3.4);
+            float diamondDist = abs(fUv.x) + abs(fUv.y);
+            float markMask = smoothstep(0.16, 0.10, diamondDist);
+            col = mix(col, vec3(1.00, 0.86, 0.25), markMask * 0.75);
+          }
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+
+    const bodyMesh = new THREE.Mesh(bodyGeometry, cnyDragonMaterial);
+    creature.add(bodyMesh);
+
+    const imperialGoldMat = new THREE.MeshStandardMaterial({
+      color: 0xffca28,
+      metalness: 0.86,
+      roughness: 0.22,
+      envMapIntensity: 1.2
+    });
+
+    const lanternSilkRedMat = new THREE.MeshStandardMaterial({
+      color: 0xe61938,
+      emissive: 0x5a0312,
+      emissiveIntensity: 0.45,
+      roughness: 0.38,
+      metalness: 0.08
+    });
+
+    const jadeAccentMat = new THREE.MeshStandardMaterial({
+      color: 0x1db992,
+      roughness: 0.20,
+      metalness: 0.10
+    });
+
+    function createChibiDragonHorn(isLeft) {
+      const hornGroup = new THREE.Group();
+      const sweepSign = isLeft ? -1 : 1;
+
+      // Main curved antler horn curve
+      const mainCurvePts = [
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(sweepSign * 0.06, 0.16, -0.02),
+        new THREE.Vector3(sweepSign * 0.14, 0.32, -0.06),
+        new THREE.Vector3(sweepSign * 0.22, 0.44, -0.10)
+      ];
+      const mainCurve = new THREE.CatmullRomCurve3(mainCurvePts);
+      const mainHornGeom = new THREE.TubeGeometry(mainCurve, 20, 0.042, 16, false);
+      const mainHornMesh = new THREE.Mesh(mainHornGeom, imperialGoldMat);
+      hornGroup.add(mainHornMesh);
+
+      // Cute rounded tip cap
+      const tipGeom = new THREE.SphereGeometry(0.040, 16, 16);
+      const tipMesh = new THREE.Mesh(tipGeom, imperialGoldMat);
+      tipMesh.position.copy(mainCurvePts[3]);
+      hornGroup.add(tipMesh);
+
+      // Cute small secondary antler prong
+      const prongCurvePts = [
+        new THREE.Vector3(sweepSign * 0.08, 0.18, -0.03),
+        new THREE.Vector3(sweepSign * 0.02, 0.27, 0.04)
+      ];
+      const prongCurve = new THREE.CatmullRomCurve3(prongCurvePts);
+      const prongGeom = new THREE.TubeGeometry(prongCurve, 12, 0.026, 12, false);
+      const prongMesh = new THREE.Mesh(prongGeom, imperialGoldMat);
+      hornGroup.add(prongMesh);
+
+      const prongTipGeom = new THREE.SphereGeometry(0.025, 14, 14);
+      const prongTipMesh = new THREE.Mesh(prongTipGeom, imperialGoldMat);
+      prongTipMesh.position.copy(prongCurvePts[1]);
+      hornGroup.add(prongTipMesh);
+
+      return hornGroup;
+    }
+
+    const hornsGroup = new THREE.Group();
+    creature.add(hornsGroup);
+
+    // Left dragon horn
+    const leftHorn = createChibiDragonHorn(true);
+    leftHorn.position.set(-0.40, 0.68, 0.22);
+    leftHorn.rotation.set(-0.15, 0.18, -0.22);
+    hornsGroup.add(leftHorn);
+
+    // Right dragon horn
+    const rightHorn = createChibiDragonHorn(false);
+    rightHorn.position.set(0.40, 0.68, 0.22);
+    rightHorn.rotation.set(-0.15, -0.18, 0.22);
+    hornsGroup.add(rightHorn);
+
+    const lanternSystem = new THREE.Group();
+
+    // Red suspension silk cord
+    const cordGeom = new THREE.CylinderGeometry(0.005, 0.005, 0.24, 8);
+    cordGeom.translate(0, -0.12, 0);
+    const cordMesh = new THREE.Mesh(cordGeom, lanternSilkRedMat);
+    lanternSystem.add(cordMesh);
+
+    // Top gold lantern collar & hook ring
+    const topRingGeom = new THREE.TorusGeometry(0.022, 0.006, 8, 16);
+    const topRing = new THREE.Mesh(topRingGeom, imperialGoldMat);
+    topRing.rotation.x = Math.PI / 2;
+    topRing.position.y = -0.235;
+    lanternSystem.add(topRing);
+
+    const topCapGeom = new THREE.CylinderGeometry(0.075, 0.088, 0.035, 20);
+    const topCap = new THREE.Mesh(topCapGeom, imperialGoldMat);
+    topCap.position.y = -0.255;
+    lanternSystem.add(topCap);
+
+    // Glowing ribbed red silk lantern body
+    const lanternBodyGeom = new THREE.SphereGeometry(0.13, 24, 24);
+    lanternBodyGeom.scale(1.0, 1.22, 1.0);
+    const lanternBody = new THREE.Mesh(lanternBodyGeom, lanternSilkRedMat);
+    lanternBody.position.y = -0.385;
+    lanternSystem.add(lanternBody);
+
+    // Gold decorative bands around the lantern center
+    const goldRibGeom = new THREE.TorusGeometry(0.132, 0.006, 8, 24);
+    const goldRib = new THREE.Mesh(goldRibGeom, imperialGoldMat);
+    goldRib.rotation.x = Math.PI / 2;
+    goldRib.position.y = -0.385;
+    lanternSystem.add(goldRib);
+
+    // Bottom gold lantern cap
+    const btmCapGeom = new THREE.CylinderGeometry(0.085, 0.072, 0.035, 20);
+    const btmCap = new THREE.Mesh(btmCapGeom, imperialGoldMat);
+    btmCap.position.y = -0.515;
+    lanternSystem.add(btmCap);
+
+    // Lucky green jade bead under the lantern
+    const jadeBeadGeom = new THREE.SphereGeometry(0.032, 16, 16);
+    const jadeBead = new THREE.Mesh(jadeBeadGeom, jadeAccentMat);
+    jadeBead.position.y = -0.56;
+    lanternSystem.add(jadeBead);
+
+    // Silky red festival tassel fringe
+    const tasselGeom = new THREE.ConeGeometry(0.042, 0.22, 16);
+    tasselGeom.translate(0, -0.11, 0);
+    const tassel = new THREE.Mesh(tasselGeom, lanternSilkRedMat);
+    tassel.position.y = -0.59;
+    lanternSystem.add(tassel);
+
+    // Dangle lantern gracefully from the right dragon horn tip
+    lanternSystem.position.set(0.62, 1.04, 0.12);
+    creature.add(lanternSystem);
+
+    const faceGroup = new THREE.Group();
+    creature.add(faceGroup);
+
+    function createMinimalistPillEyeGeometry() {
+      const w = 0.065;
+      const h = 0.175;
+      const r = w;
+      const shape = new THREE.Shape();
+      shape.moveTo(-w, -h + r);
+      shape.lineTo(-w, h - r);
+      shape.absarc(0, h - r, r, Math.PI, 0, true);
+      shape.lineTo(w, -h + r);
+      shape.absarc(0, -h + r, r, 0, Math.PI, true);
+
+      return new THREE.ExtrudeGeometry(shape, {
+        depth: 0.045,
+        bevelEnabled: true,
+        bevelSegments: 4,
+        bevelSize: 0.016,
+        bevelThickness: 0.016
+      });
+    }
+
+    const eyeGeometry = createMinimalistPillEyeGeometry();
+    eyeGeometry.center();
+
+    // Deep glossy obsidian eye material
+    const eyeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x121216,
+      roughness: 0.16,
+      metalness: 0.12
+    });
+
+    // Left eye
+    const leftEyeMesh = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEyeMesh.position.set(-0.25, 0.04, 0.91);
+    leftEyeMesh.rotation.set(-0.06, -0.26, 0.05);
+    faceGroup.add(leftEyeMesh);
+
+    // Right eye
+    const rightEyeMesh = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEyeMesh.position.set(0.25, 0.04, 0.91);
+    rightEyeMesh.rotation.set(-0.06, 0.26, -0.05);
+    faceGroup.add(rightEyeMesh);
+
+    const warmKeyLight = new THREE.DirectionalLight(0xfffae6, 1.4);
+    warmKeyLight.position.set(-0.8, 1.0, 1.6);
+    scene.add(warmKeyLight);
+
+    const warmAmbientLight = new THREE.AmbientLight(0xffe2cf, 0.65);
+    scene.add(warmAmbientLight);
+
+    // Gentle warm red lantern candlelight glow
+    const lanternPointLight = new THREE.PointLight(0xff3355, 1.2, 2.5);
+    lanternPointLight.position.set(0.62, 0.65, 0.25);
+    creature.add(lanternPointLight);
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    });
+
+    let isHappy = false;
+    window.setHappy = function(val) {
+      isHappy = !!val;
+    };
+
+    const blink = { active: false, progress: 0, nextTime: 2.2, isWink: false };
+    const glance = { targetX: 0, targetY: 0, currentX: 0, currentY: 0, nextTime: 2.2 };
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const delta = Math.min(clock.getDelta(), 0.05);
+      const time = clock.getElapsedTime();
+
+      // Look-around glance engine: proud dragon looks left, right, and upwards to the skies
+      if (time > glance.nextTime) {
+        const r = Math.random();
+        if (r < 0.40) {
+          // Proudly look upwards to the skies with tilted chin
+          glance.targetX = (Math.random() - 0.5) * 0.16;
+          glance.targetY = 0.18;
+        } else if (r < 0.75) {
+          // Sharp dragon side glance
+          glance.targetX = (Math.random() > 0.5 ? 0.20 : -0.20);
+          glance.targetY = -0.04;
+        } else {
+          glance.targetX = 0;
+          glance.targetY = 0;
+        }
+        glance.nextTime = time + 2.0 + Math.random() * 2.5;
+      }
+      glance.currentX += (glance.targetX - glance.currentX) * 0.08;
+      glance.currentY += (glance.targetY - glance.currentY) * 0.08;
+
+      if (isHappy) {
+        // High-energy Auspicious Dragon Dance celebration!
+        const flightX = Math.sin(time * 2.8) * 0.14;
+        const flightY = Math.sin(time * 5.6) * 0.08;
+        const bankZ   = Math.sin(time * 2.8) * 0.22;
+        const lookY   = Math.cos(time * 2.8) * 0.26;
+
+        const breath = Math.sin(time * 6.0) * 0.06;
+        const scaleY = 1.0 + breath;
+        const scaleX = 1.0 - breath * 0.8;
+        const scaleZ = 1.0 / Math.sqrt(scaleX * scaleY);
+        creature.scale.set(scaleX, scaleY, scaleZ);
+
+        creature.position.x = flightX;
+        creature.position.y = flightY + 0.04;
+        creature.rotation.z = bankZ;
+        creature.rotation.y = lookY + glance.currentX * 0.3;
+        creature.rotation.x = Math.sin(time * 5.6) * 0.10;
+
+        lanternSystem.rotation.z = -bankZ * 2.4 + Math.sin(time * 6.0) * 0.35;
+        lanternSystem.rotation.x = Math.cos(time * 5.0) * 0.30;
+        hornsGroup.rotation.z = Math.sin(time * 4.0) * 0.16;
+
+        // Radiant celebratory flame flare
+        lanternPointLight.intensity = 1.6 + Math.sin(time * 14.0) * 0.6;
+      } else {
+        // Celestial dragon-dance figure-8 soaring trajectory
+        const flightX = Math.sin(time * 1.3) * 0.09;
+        const flightY = Math.sin(time * 2.6) * 0.05;
+        const bankZ   = Math.sin(time * 1.3) * 0.12;
+        const lookY   = Math.cos(time * 1.3) * 0.18;
+        const pitchX  = Math.sin(time * 2.6) * 0.06;
+
+        const breath = Math.sin(time * 2.8) * 0.04;
+        const scaleY = 1.0 + breath;
+        const scaleX = 1.0 - breath * 0.8;
+        const scaleZ = 1.0 / Math.sqrt(scaleX * scaleY);
+        creature.scale.set(scaleX, scaleY, scaleZ);
+
+        creature.position.x = flightX;
+        creature.position.y = flightY;
+        creature.rotation.z = bankZ;
+        creature.rotation.y = lookY + glance.currentX * 0.2;
+        creature.rotation.x = pitchX;
+
+        lanternSystem.rotation.z = -bankZ * 1.8 + Math.sin(time * 3.2) * 0.15;
+        lanternSystem.rotation.x = Math.cos(time * 2.6) * 0.18;
+        hornsGroup.rotation.z = Math.sin(time * 1.8) * 0.08;
+
+        lanternPointLight.intensity = 1.1 + Math.sin(time * 8.0) * 0.35 + Math.sin(time * 19.0) * 0.15;
+      }
+
+      // Parallax eye tracking & head tilt
+      faceGroup.position.x = glance.currentX;
+      faceGroup.position.y = glance.currentY;
+      faceGroup.rotation.y = glance.currentX * 0.25;
+      faceGroup.rotation.x = -glance.currentY * 0.25;
+
+      // Mascot Blinking & Auspicious Winks
+      if (!blink.active) {
+        if (time > blink.nextTime) {
+          blink.active = true;
+          blink.progress = 0;
+          blink.isWink = Math.random() < 0.26; // 26% chance of auspicious dragon wink!
+          blink.nextTime = time + 2.5 + Math.random() * 3.0;
+        }
+      } else {
+        blink.progress += delta * 10.5;
+        const blinkPhase = Math.sin(blink.progress * Math.PI);
+        const eyeScaleY = Math.max(0.05, 1.0 - blinkPhase * 0.95);
+
+        if (blink.isWink) {
+          // Playful wink on right eye, proud dragon squint on left
+          rightEyeMesh.scale.set(1.0, eyeScaleY, 1.0);
+          leftEyeMesh.scale.set(1.0, Math.max(0.6, 1.0 - blinkPhase * 0.4), 1.0);
+          // Lantern candle flare on wink
+          lanternPointLight.intensity += blinkPhase * 0.5;
+        } else {
+          leftEyeMesh.scale.set(1.0, eyeScaleY, 1.0);
+          rightEyeMesh.scale.set(1.0, eyeScaleY, 1.0);
+        }
+
+        if (blink.progress >= 1.0) {
+          blink.active = false;
+          leftEyeMesh.scale.set(1.0, 1.0, 1.0);
+          rightEyeMesh.scale.set(1.0, 1.0, 1.0);
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    window.onload = function() {
+      animate();
+    };
+  </script>
+</body>
+</html>

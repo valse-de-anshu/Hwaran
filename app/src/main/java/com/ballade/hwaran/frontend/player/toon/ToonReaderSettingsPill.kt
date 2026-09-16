@@ -238,7 +238,7 @@ fun ToonReaderSettingsPill(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = "Crop Margins (Width Scale)",
+                                            text = "Zoom & Width Scale",
                                             color = Color.White.copy(alpha = 0.6f),
                                             fontSize = 11.sp
                                         )
@@ -261,7 +261,7 @@ fun ToonReaderSettingsPill(
                                     MinimalSlider(
                                         value = cropZoom,
                                         onValueChange = onCropZoomChange,
-                                        valueRange = 1.0f..2.50f,
+                                        valueRange = 0.50f..2.50f,
                                         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                                         trackColor = glowColor,
                                         thumbColor = Color.White,
@@ -272,11 +272,18 @@ fun ToonReaderSettingsPill(
                                     // Quick presets
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         CompactPresetPill(
+                                            label = "75%",
+                                            isSelected = cropZoom in 0.72f..0.78f,
+                                            glowColor = glowColor,
+                                            modifier = Modifier.weight(1f),
+                                            onClick = { onCropZoomChange(0.75f) }
+                                        )
+                                        CompactPresetPill(
                                             label = "Fit",
-                                            isSelected = cropZoom <= 1.02f,
+                                            isSelected = cropZoom in 0.98f..1.02f,
                                             glowColor = glowColor,
                                             modifier = Modifier.weight(1f),
                                             onClick = { onCropZoomChange(1.0f) }

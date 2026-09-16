@@ -13,7 +13,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun DevilJellyBall(
+fun CustomJellyBall(
+    assetName: String,
     modifier: Modifier = Modifier,
     isHappy: Boolean = false
 ) {
@@ -51,7 +52,7 @@ fun DevilJellyBall(
                         android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                         android.view.ViewGroup.LayoutParams.MATCH_PARENT
                     )
-                    setBackgroundColor(0) // Transparent background
+                    setBackgroundColor(0)
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     settings.allowFileAccess = true
@@ -67,7 +68,7 @@ fun DevilJellyBall(
                             view?.evaluateJavascript("if(window.setHappy) window.setHappy(${isHappy});", null)
                         }
                     }
-                    loadUrl("file:///android_asset/devil_jelly.html")
+                    loadUrl("file:///android_asset/$assetName")
                     webViewRef = this
                 }
             },

@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Spring Awakening Jellyball</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent !important;
+      pointer-events: none !important;
+    }
+
+    #webgl-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+      background: transparent !important;
+      pointer-events: none !important;
+    }
+  </style>
+  <script src="three.min.js"></script>
+</head>
+<body>
+  <div id="webgl-container"></div>
+
+  <script>
+    const container = document.getElementById('webgl-container');
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 50);
+    camera.position.set(0, 0.05, 3.8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.06;
+    renderer.setClearColor(0x000000, 0);
+    container.appendChild(renderer.domElement);
+
+    // Root creature group
+    const creature = new THREE.Group();
+    scene.add(creature);
+
+    const BALL_RADIUS = 0.95;
+    const bodyGeometry = new THREE.SphereGeometry(BALL_RADIUS, 64, 64);
+
+    const springMochiMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0.0 }
+      },
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+        varying vec3 vLocalPos;
+
+        void main() {
+          vLocalPos = position;
+          vNormal = normalize(normalMatrix * normal);
+          vec4 worldPos = modelViewMatrix * vec4(position, 1.0);
+          vViewDir = normalize(-worldPos.xyz);
+          gl_Position = projectionMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+        varying vec3 vLocalPos;
+        uniform float uTime;
+
+        void main() {
+          vec3 N = normalize(vNormal);
+          vec3 V = normalize(vViewDir);
+
+          // Gentle spring morning key sunlight from high-left
+          vec3 sunDir = normalize(vec3(-0.35, 0.72, 0.65));
+          float NdotL = dot(N, sunDir);
+          float halfLambert = NdotL * 0.5 + 0.5;
+
+          // Fresh Spring Palette:
+          // Soft tender matcha green shadow -> Sweet peach blossom cream -> Radiant morning dewy cream
+          vec3 tenderMatcha   = vec3(0.66, 0.84, 0.72); // Fresh spring shadow
+          vec3 sweetBlossom   = vec3(0.98, 0.80, 0.85); // Gentle blooming pastel pink
+          vec3 morningCream   = vec3(1.00, 0.94, 0.93); // Soft sunlit mochi
+          vec3 goldenSheen    = vec3(1.00, 0.95, 0.78); // Dewdrop specular gleam
+          vec3 dewyRim        = vec3(0.78, 0.96, 0.88); // Crisp morning spring fresnel
+
+          // Smooth color transitions
+          vec3 col = mix(tenderMatcha, sweetBlossom, smoothstep(0.08, 0.52, halfLambert));
+          col = mix(col, morningCream, smoothstep(0.52, 0.92, halfLambert));
+
+          // Soft velvet specular reflection
+          vec3 H = normalize(sunDir + V);
+          float spec = pow(max(0.0, dot(N, H)), 12.0) * 0.28;
+          col += goldenSheen * spec;
+
+          // Soft ground bounce from fresh green grass
+          float grassBounce = max(0.0, -N.y) * 0.24;
+          col += vec3(0.55, 0.85, 0.62) * grassBounce;
+
+          // Fresh spring dewdrop fresnel rim
+          float fresnel = pow(1.0 - max(0.0, dot(N, V)), 2.8);
+          col = mix(col, dewyRim, fresnel * 0.46);
+
+          // Procedural seamless rosy cheek blushes (Zero polygon seams)
+          if (vLocalPos.z > 0.40 && vLocalPos.y < 0.15) {
+            float leftCheek  = distance(vLocalPos, vec3(-0.42, -0.10, 0.82));
+            float rightCheek = distance(vLocalPos, vec3( 0.42, -0.10, 0.82));
+            float blushMask = smoothstep(0.25, 0.0, leftCheek) + smoothstep(0.25, 0.0, rightCheek);
+            vec3 rosyPeach = vec3(0.98, 0.48, 0.56);
+            col = mix(col, rosyPeach, clamp(blushMask * 0.58, 0.0, 1.0));
+          }
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+
+    const bodyMesh = new THREE.Mesh(bodyGeometry, springMochiMaterial);
+    creature.add(bodyMesh);
+
+    const springSproutGroup = new THREE.Group();
+
+    // Vibrant spring greenery materials
+    const freshSproutMat = new THREE.MeshStandardMaterial({
+      color: 0x58c568,
+      roughness: 0.28,
+      metalness: 0.05
+    });
+
+    const tenderLeafMat = new THREE.MeshStandardMaterial({
+      color: 0x76d672,
+      roughness: 0.24,
+      metalness: 0.08,
+      side: THREE.DoubleSide
+    });
+
+    const blossomPinkMat = new THREE.MeshStandardMaterial({
+      color: 0xff6b97,
+      emissive: 0x3d0b1a,
+      emissiveIntensity: 0.35,
+      roughness: 0.30,
+      metalness: 0.05
+    });
+
+    const goldenPollenMat = new THREE.MeshStandardMaterial({
+      color: 0xffca28,
+      roughness: 0.25,
+      metalness: 0.15
+    });
+
+    const dewdropMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.08,
+      metalness: 0.10,
+      transparent: true,
+      opacity: 0.88
+    });
+
+    // 1. Curved tender sprout stem
+    const stemCurvePts = [
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0.02, 0.14, 0.01),
+      new THREE.Vector3(-0.02, 0.28, 0.04),
+      new THREE.Vector3(0.04, 0.42, 0.02)
+    ];
+    const stemCurve = new THREE.CatmullRomCurve3(stemCurvePts);
+    const stemGeom = new THREE.TubeGeometry(stemCurve, 20, 0.032, 16, false);
+    const stemMesh = new THREE.Mesh(stemGeom, freshSproutMat);
+    springSproutGroup.add(stemMesh);
+
+    function createSculptedLeaf(isRight) {
+      const leafGroup = new THREE.Group();
+      const sign = isRight ? 1 : -1;
+
+      const leafShape = new THREE.Shape();
+      leafShape.moveTo(0, 0);
+      leafShape.quadraticCurveTo(sign * 0.12, 0.14, sign * 0.24, 0.26);
+      leafShape.quadraticCurveTo(sign * 0.16, 0.36, 0, 0.42);
+      leafShape.quadraticCurveTo(sign * -0.06, 0.30, 0, 0);
+
+      const leafGeom = new THREE.ExtrudeGeometry(leafShape, {
+        depth: 0.025,
+        bevelEnabled: true,
+        bevelSegments: 3,
+        bevelSize: 0.012,
+        bevelThickness: 0.012
+      });
+      leafGeom.center();
+
+      const leafMesh = new THREE.Mesh(leafGeom, tenderLeafMat);
+      leafGroup.add(leafMesh);
+
+      return leafGroup;
+    }
+
+    // Primary larger leaf on the right
+    const rightLeaf = createSculptedLeaf(true);
+    rightLeaf.position.set(0.18, 0.38, 0.02);
+    rightLeaf.rotation.set(-0.20, 0.25, -0.45);
+    springSproutGroup.add(rightLeaf);
+
+    // Glistening morning dewdrop resting on the leaf
+    const dewdropGeom = new THREE.SphereGeometry(0.038, 16, 16);
+    dewdropGeom.scale(1.1, 0.85, 1.0);
+    const dewdrop = new THREE.Mesh(dewdropGeom, dewdropMat);
+    dewdrop.position.set(0.26, 0.44, 0.08);
+    springSproutGroup.add(dewdrop);
+
+    // Secondary cute young leaf on the left
+    const leftLeaf = createSculptedLeaf(false);
+    leftLeaf.scale.set(0.78, 0.78, 0.78);
+    leftLeaf.position.set(-0.13, 0.30, 0.01);
+    leftLeaf.rotation.set(0.15, -0.20, 0.55);
+    springSproutGroup.add(leftLeaf);
+
+    const flowerGroup = new THREE.Group();
+
+    // 5 Petals of spring bloom
+    for (let i = 0; i < 5; i++) {
+      const angle = (i / 5) * Math.PI * 2;
+      const petalGeom = new THREE.SphereGeometry(0.062, 16, 16);
+      petalGeom.scale(1.0, 1.35, 0.32);
+      const petal = new THREE.Mesh(petalGeom, blossomPinkMat);
+
+      petal.position.set(Math.cos(angle) * 0.075, Math.sin(angle) * 0.075, 0);
+      petal.rotation.z = angle + Math.PI / 2;
+      petal.rotation.x = 0.12;
+      flowerGroup.add(petal);
+    }
+
+    // Golden pollen center pistil
+    const centerGeom = new THREE.SphereGeometry(0.048, 16, 16);
+    centerGeom.scale(1.0, 1.0, 0.65);
+    const centerMesh = new THREE.Mesh(centerGeom, goldenPollenMat);
+    centerMesh.position.z = 0.025;
+    flowerGroup.add(centerMesh);
+
+    // Position the blossom snugly at the base of the sprout
+    flowerGroup.position.set(-0.16, 0.12, 0.12);
+    flowerGroup.rotation.set(-0.25, -0.30, 0.15);
+    springSproutGroup.add(flowerGroup);
+
+    // Perch sprout ornament atop the jellyball
+    springSproutGroup.position.set(0.32, 0.82, 0.22);
+    springSproutGroup.rotation.set(-0.10, 0.15, -0.18);
+    creature.add(springSproutGroup);
+
+    const faceGroup = new THREE.Group();
+    creature.add(faceGroup);
+
+    function createMinimalistPillEyeGeometry() {
+      const w = 0.065;
+      const h = 0.175;
+      const r = w;
+      const shape = new THREE.Shape();
+      shape.moveTo(-w, -h + r);
+      shape.lineTo(-w, h - r);
+      shape.absarc(0, h - r, r, Math.PI, 0, true);
+      shape.lineTo(w, -h + r);
+      shape.absarc(0, -h + r, r, 0, Math.PI, true);
+
+      return new THREE.ExtrudeGeometry(shape, {
+        depth: 0.045,
+        bevelEnabled: true,
+        bevelSegments: 4,
+        bevelSize: 0.016,
+        bevelThickness: 0.016
+      });
+    }
+
+    const eyeGeometry = createMinimalistPillEyeGeometry();
+    eyeGeometry.center();
+
+    // Deep glossy obsidian mascot eye material
+    const eyeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x111116,
+      roughness: 0.15,
+      metalness: 0.12
+    });
+
+    // Left eye
+    const leftEyeMesh = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEyeMesh.position.set(-0.25, 0.04, 0.91);
+    leftEyeMesh.rotation.set(-0.06, -0.26, 0.05);
+    faceGroup.add(leftEyeMesh);
+
+    // Right eye
+    const rightEyeMesh = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEyeMesh.position.set(0.25, 0.04, 0.91);
+    rightEyeMesh.rotation.set(-0.06, 0.26, -0.05);
+    faceGroup.add(rightEyeMesh);
+
+    const morningSunLight = new THREE.DirectionalLight(0xfff8ea, 1.45);
+    morningSunLight.position.set(-0.7, 1.0, 1.6);
+    scene.add(morningSunLight);
+
+    const gentleAmbientLight = new THREE.AmbientLight(0xe8f5e9, 0.65);
+    scene.add(gentleAmbientLight);
+
+    // Soft spring bloom bounce light
+    const flowerBounceLight = new THREE.PointLight(0xff85a8, 0.85, 2.0);
+    flowerBounceLight.position.set(0.35, 0.95, 0.35);
+    creature.add(flowerBounceLight);
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    });
+
+    let isHappy = false;
+    window.setHappy = function(val) {
+      isHappy = !!val;
+    };
+
+    const blink = { active: false, progress: 0, nextTime: 2.0, isWink: false };
+    const glance = { targetX: 0, targetY: 0, currentX: 0, currentY: 0, nextTime: 1.6 };
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const delta = Math.min(clock.getDelta(), 0.05);
+      const time = clock.getElapsedTime();
+
+      // Look-around glance engine: snappy, perky puppy glances (left, right, up)
+      if (time > glance.nextTime) {
+        const r = Math.random();
+        if (r < 0.45) {
+          // Sharp curious glance to the side
+          glance.targetX = (Math.random() > 0.5 ? 0.22 : -0.22);
+          glance.targetY = 0.08;
+        } else if (r < 0.75) {
+          // Look up curiously
+          glance.targetX = (Math.random() - 0.5) * 0.14;
+          glance.targetY = 0.18;
+        } else {
+          glance.targetX = 0;
+          glance.targetY = 0;
+        }
+        glance.nextTime = time + 1.4 + Math.random() * 2.0;
+      }
+      glance.currentX += (glance.targetX - glance.currentX) * 0.12;
+      glance.currentY += (glance.targetY - glance.currentY) * 0.12;
+
+      if (isHappy) {
+        // Super excited bouncy celebration pop!
+        const hop = Math.abs(Math.sin(time * 7.5));
+        const scaleY = 1.0 + (hop - 0.5) * 0.18;
+        const scaleX = 1.0 - (hop - 0.5) * 0.14;
+        const scaleZ = 1.0 / Math.sqrt(scaleX * scaleY);
+        creature.scale.set(scaleX, scaleY, scaleZ);
+
+        creature.position.y = hop * 0.16;
+        creature.position.x = Math.sin(time * 4.0) * 0.05;
+        creature.rotation.z = Math.sin(time * 5.0) * 0.18;
+        creature.rotation.y = glance.currentX * 0.3;
+
+        springSproutGroup.rotation.z = -0.18 + Math.sin(time * 15.0) * 0.35;
+        springSproutGroup.rotation.x = -0.10 + Math.cos(time * 12.0) * 0.25;
+        dewdrop.position.y = 0.44 + Math.sin(time * 15.0) * 0.025;
+      } else {
+        // Energetic, puppy-like inquisitive head cocking & bouncy step
+        const bouncePhase = Math.abs(Math.sin(time * 3.4));
+        const tiltCycle = Math.sin(time * 1.8);
+        const headTilt = Math.sign(tiltCycle) * Math.pow(Math.abs(tiltCycle), 2.5) * 0.16;
+
+        const scaleY = 1.0 + (bouncePhase - 0.5) * 0.10;
+        const scaleX = 1.0 - (bouncePhase - 0.5) * 0.08;
+        const scaleZ = 1.0 / Math.sqrt(scaleX * scaleY);
+        creature.scale.set(scaleX, scaleY, scaleZ);
+
+        creature.position.y = bouncePhase * 0.075 - 0.02;
+        creature.position.x = Math.sin(time * 1.7) * 0.025;
+        creature.rotation.z = headTilt + (glance.targetX > 0 ? 0.05 : -0.05) * Math.abs(glance.currentX);
+        creature.rotation.y = Math.sin(time * 1.2) * 0.14 + glance.currentX * 0.2;
+
+        springSproutGroup.rotation.z = -0.18 - creature.rotation.z * 2.2 + Math.sin(time * 6.8) * 0.14;
+        springSproutGroup.rotation.x = -0.10 + Math.cos(time * 3.4) * 0.12;
+        dewdrop.position.y = 0.44 + Math.sin(time * 6.8) * 0.012;
+      }
+
+      // Parallax eye tracking & inquisitive tilt
+      faceGroup.position.x = glance.currentX;
+      faceGroup.position.y = glance.currentY;
+      faceGroup.rotation.y = glance.currentX * 0.28;
+      faceGroup.rotation.x = -glance.currentY * 0.28;
+
+      // Mascot Blinking & Playful Sprout Winks
+      if (!blink.active) {
+        if (time > blink.nextTime) {
+          blink.active = true;
+          blink.progress = 0;
+          blink.isWink = Math.random() < 0.32; // 32% chance of cheerful winks!
+          blink.nextTime = time + 1.8 + Math.random() * 2.6;
+        }
+      } else {
+        blink.progress += delta * 11.5;
+        const blinkPhase = Math.sin(blink.progress * Math.PI);
+        const eyeScaleY = Math.max(0.05, 1.0 - blinkPhase * 0.95);
+
+        if (blink.isWink) {
+          // Playful wink on right eye, joyful squeeze on left
+          rightEyeMesh.scale.set(1.0, eyeScaleY, 1.0);
+          leftEyeMesh.scale.set(1.0, Math.max(0.4, 1.0 - blinkPhase * 0.6), 1.0);
+        } else {
+          leftEyeMesh.scale.set(1.0, eyeScaleY, 1.0);
+          rightEyeMesh.scale.set(1.0, eyeScaleY, 1.0);
+        }
+
+        if (blink.progress >= 1.0) {
+          blink.active = false;
+          leftEyeMesh.scale.set(1.0, 1.0, 1.0);
+          rightEyeMesh.scale.set(1.0, 1.0, 1.0);
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    window.onload = function() {
+      animate();
+    };
+  </script>
+</body>
+</html>

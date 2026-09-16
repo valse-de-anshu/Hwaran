@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Sakura Blossom Jellyball</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent !important;
+      pointer-events: none !important;
+    }
+
+    #webgl-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+      background: transparent !important;
+      pointer-events: none !important;
+    }
+  </style>
+  <script src="three.min.js"></script>
+</head>
+<body>
+  <div id="webgl-container"></div>
+
+  <script>
+    const container = document.getElementById('webgl-container');
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.1, 50);
+    camera.position.set(0, 0.05, 3.8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    renderer.setClearColor(0x000000, 0);
+    container.appendChild(renderer.domElement);
+
+    // Root creature group
+    const creature = new THREE.Group();
+    scene.add(creature);
+
+    const BALL_RADIUS = 0.95;
+    const bodyGeometry = new THREE.SphereGeometry(BALL_RADIUS, 64, 64);
+
+    // Luscious, warm translucent sakura shader with zero-clipping procedural cheek blush
+    const sakuraJellyMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0.0 }
+      },
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+        varying vec3 vLocalPos;
+
+        void main() {
+          vLocalPos = position;
+          vNormal = normalize(normalMatrix * normal);
+          vec4 worldPos = modelViewMatrix * vec4(position, 1.0);
+          vViewDir = normalize(-worldPos.xyz);
+          gl_Position = projectionMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+        varying vec3 vLocalPos;
+        uniform float uTime;
+
+        void main() {
+          vec3 N = normalize(vNormal);
+          vec3 V = normalize(vViewDir);
+
+          // Soft directional key light from top-left
+          vec3 lightDir = normalize(vec3(-0.35, 0.70, 0.65));
+          float NdotL = dot(N, lightDir);
+          float halfLambert = NdotL * 0.5 + 0.5;
+
+          // Warm, delicious Sakura Palette (Rich pink mochi tones, no blown-out white flash)
+          vec3 deepBlush   = vec3(0.96, 0.44, 0.62); // Warm subsurface depth
+          vec3 sweetSakura = vec3(1.00, 0.68, 0.80); // Plump blossom body
+          vec3 softLitPink = vec3(1.00, 0.85, 0.91); // Soft illuminated surface
+          vec3 silkenGleam = vec3(1.00, 0.96, 0.98); // Smooth specular sheen
+
+          // Organic light transition
+          vec3 col = mix(deepBlush, sweetSakura, smoothstep(0.10, 0.55, halfLambert));
+          col = mix(col, softLitPink, smoothstep(0.55, 0.92, halfLambert));
+
+          // Silky mochi sheen (subtle and soft, avoids overexposure)
+          vec3 H = normalize(lightDir + V);
+          float spec = pow(max(0.0, dot(N, H)), 12.0) * 0.28;
+          col += silkenGleam * spec;
+
+          // Bottom warm bounce reflection
+          float bounce = max(0.0, -N.y) * 0.25;
+          col += vec3(1.00, 0.50, 0.68) * bounce;
+
+          // Ethereal rim fresnel glow
+          float fresnel = pow(1.0 - max(0.0, dot(N, V)), 2.4);
+          vec3 rimColor = vec3(1.00, 0.88, 0.95);
+          col = mix(col, rimColor, fresnel * 0.40);
+
+          // Procedural Cheek Blush (Computed directly on the sphere surface -> ZERO clipping seams!)
+          if (vLocalPos.z > 0.35) {
+            float leftDist  = distance(vLocalPos, vec3(-0.44, -0.10, 0.80));
+            float rightDist = distance(vLocalPos, vec3( 0.44, -0.10, 0.80));
+            float blushMask = smoothstep(0.25, 0.0, leftDist) + smoothstep(0.25, 0.0, rightDist);
+            
+            vec3 rosyCheekColor = vec3(1.00, 0.30, 0.54);
+            col = mix(col, rosyCheekColor, clamp(blushMask * 0.65, 0.0, 1.0));
+          }
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+
+    const bodyMesh = new THREE.Mesh(bodyGeometry, sakuraJellyMaterial);
+    creature.add(bodyMesh);
+
+    const flowerGroup = new THREE.Group();
+
+    // Procedural Sakura Petal with heart cleft notch
+    function createPetalShape() {
+      const shape = new THREE.Shape();
+      const length = 0.29;
+      const width = 0.17;
+
+      shape.moveTo(0, 0);
+      shape.bezierCurveTo(-width * 0.55, length * 0.35, -width * 0.92, length * 0.72, -width * 0.60, length);
+      shape.lineTo(-width * 0.14, length * 0.92);
+      shape.lineTo(0, length * 0.85);
+      shape.lineTo(width * 0.14, length * 0.92);
+      shape.bezierCurveTo(width * 0.60, length, width * 0.92, length * 0.72, width * 0.55, length * 0.35);
+      shape.lineTo(0, 0);
+      return shape;
+    }
+
+    const petalGeom = new THREE.ExtrudeGeometry(createPetalShape(), {
+      depth: 0.024,
+      bevelEnabled: true,
+      bevelSegments: 3,
+      bevelSize: 0.010,
+      bevelThickness: 0.012
+    });
+    petalGeom.center();
+
+    // Saturated, vibrant cherry blossom petal shader
+    const brightPetalMaterial = new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+
+        void main() {
+          vUv = uv;
+          vNormal = normalize(normalMatrix * normal);
+          vec4 worldPos = modelViewMatrix * vec4(position, 1.0);
+          vViewDir = normalize(-worldPos.xyz);
+          gl_Position = projectionMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+
+        void main() {
+          vec3 N = normalize(vNormal);
+          vec3 V = normalize(vViewDir);
+
+          vec3 light = normalize(vec3(-0.3, 0.75, 0.6));
+          float diff = max(0.0, dot(N, light)) * 0.35 + 0.65;
+
+          // Vivid radiant cherry blossom pink gradient
+          vec3 hotBlossomPink = vec3(1.00, 0.26, 0.56);
+          vec3 softBlossomTip = vec3(1.00, 0.80, 0.90);
+
+          vec3 baseCol = mix(hotBlossomPink, softBlossomTip, clamp(vUv.y * 0.85 + 0.15, 0.0, 1.0));
+          float rim = pow(1.0 - max(0.0, dot(N, V)), 2.0) * 0.35;
+
+          vec3 col = (baseCol * diff) + vec3(1.0, 0.6, 0.8) * rim;
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+
+    // 5 radiating petals
+    for (let i = 0; i < 5; i++) {
+      const petalMesh = new THREE.Mesh(petalGeom, brightPetalMaterial);
+      const angle = (i / 5) * Math.PI * 2;
+      petalMesh.rotation.z = angle - Math.PI / 2;
+      petalMesh.position.x = Math.cos(angle) * 0.135;
+      petalMesh.position.y = Math.sin(angle) * 0.135;
+      petalMesh.rotation.x = 0.16;
+      flowerGroup.add(petalMesh);
+    }
+
+    // Glowing bright golden center pistil disc
+    const stamenCoreGeom = new THREE.SphereGeometry(0.062, 20, 20);
+    const stamenCoreMat = new THREE.MeshBasicMaterial({ color: 0xffb703 });
+    const stamenCore = new THREE.Mesh(stamenCoreGeom, stamenCoreMat);
+    stamenCore.position.z = 0.045;
+    flowerGroup.add(stamenCore);
+
+    // Radiant bright yellow pollen pearls
+    const antherGeom = new THREE.SphereGeometry(0.022, 10, 10);
+    const antherMat = new THREE.MeshBasicMaterial({ color: 0xffea00 });
+    for (let j = 0; j < 5; j++) {
+      const aAngle = (j / 5) * Math.PI * 2 + 0.32;
+      const anther = new THREE.Mesh(antherGeom, antherMat);
+      anther.position.set(Math.cos(aAngle) * 0.082, Math.sin(aAngle) * 0.082, 0.055);
+      flowerGroup.add(anther);
+    }
+
+    // Bright fresh spring mint leaf
+    const leafShape = new THREE.Shape();
+    leafShape.moveTo(0, 0);
+    leafShape.quadraticCurveTo(0.09, 0.15, 0, 0.28);
+    leafShape.quadraticCurveTo(-0.09, 0.15, 0, 0);
+    const leafGeom = new THREE.ShapeGeometry(leafShape);
+    const leafMat = new THREE.MeshBasicMaterial({ color: 0x48cae4, side: THREE.DoubleSide });
+    leafMat.color.setHex(0x2ec4b6);
+    const leafMesh = new THREE.Mesh(leafGeom, leafMat);
+    leafMesh.position.set(0.21, 0.18, -0.015);
+    leafMesh.rotation.z = -0.65;
+    leafMesh.scale.set(1.2, 1.2, 1.2);
+    flowerGroup.add(leafMesh);
+
+    // Perched gently on top-right of head
+    flowerGroup.position.set(0.48, 0.67, 0.52);
+    flowerGroup.rotation.set(-0.32, 0.44, -0.22);
+    flowerGroup.scale.set(0.98, 0.98, 0.98);
+    creature.add(flowerGroup);
+
+    const faceGroup = new THREE.Group();
+    creature.add(faceGroup);
+
+    // Minimalist 3D pill eye geometry (clean, modern mascot aesthetic, NO anime sparkle/mouth)
+    function createMinimalistPillEyeGeometry() {
+      const w = 0.065;
+      const h = 0.175;
+      const r = w;
+      const shape = new THREE.Shape();
+      shape.moveTo(-w, -h + r);
+      shape.lineTo(-w, h - r);
+      shape.absarc(0, h - r, r, Math.PI, 0, true);
+      shape.lineTo(w, -h + r);
+      shape.absarc(0, -h + r, r, 0, Math.PI, true);
+
+      return new THREE.ExtrudeGeometry(shape, {
+        depth: 0.045,
+        bevelEnabled: true,
+        bevelSegments: 4,
+        bevelSize: 0.016,
+        bevelThickness: 0.016
+      });
+    }
+
+    const eyeGeometry = createMinimalistPillEyeGeometry();
+    eyeGeometry.center();
+
+    // Sleek, deep glossy obsidian mascot eye material
+    const eyeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x111116,
+      roughness: 0.18,
+      metalness: 0.10
+    });
+
+    // Left mascot eye
+    const leftEyeMesh = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEyeMesh.position.set(-0.25, 0.04, 0.91);
+    leftEyeMesh.rotation.set(-0.06, -0.26, 0.05);
+    faceGroup.add(leftEyeMesh);
+
+    // Right mascot eye
+    const rightEyeMesh = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEyeMesh.position.set(0.25, 0.04, 0.91);
+    rightEyeMesh.rotation.set(-0.06, 0.26, -0.05);
+    faceGroup.add(rightEyeMesh);
+
+    // Subtle key light to give the pill eyes a crisp, natural 3D glossy catchlight glint
+    const eyeKeyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    eyeKeyLight.position.set(-0.6, 0.8, 1.5);
+    scene.add(eyeKeyLight);
+
+    const eyeAmbientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    scene.add(eyeAmbientLight);
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    });
+
+    let isHappy = false;
+    window.setHappy = function(val) {
+      isHappy = !!val;
+    };
+
+    const blink = { active: false, progress: 0, nextTime: 2.5, isWink: false };
+    const glance = { targetX: 0, targetY: 0, currentX: 0, currentY: 0, nextTime: 2.5 };
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const delta = Math.min(clock.getDelta(), 0.05);
+      const time = clock.getElapsedTime();
+
+      // Look-around glance engine: serene, shy glances & looking up into the cherry blossom breeze
+      if (time > glance.nextTime) {
+        const r = Math.random();
+        if (r < 0.40) {
+          // Gaze up at floating cherry petals in the sky
+          glance.targetX = (Math.random() - 0.5) * 0.14;
+          glance.targetY = 0.16;
+        } else if (r < 0.70) {
+          // Shy glance away with a gentle tilt
+          glance.targetX = (Math.random() > 0.5 ? 0.16 : -0.16);
+          glance.targetY = -0.06;
+        } else {
+          glance.targetX = 0;
+          glance.targetY = 0;
+        }
+        glance.nextTime = time + 2.2 + Math.random() * 3.0;
+      }
+      glance.currentX += (glance.targetX - glance.currentX) * 0.06;
+      glance.currentY += (glance.targetY - glance.currentY) * 0.06;
+
+      if (isHappy) {
+        // Joyful blossom bloom twirl & cheerful floating dance
+        const twirl = Math.sin(time * 3.5) * 0.18;
+        const bounce = Math.abs(Math.sin(time * 4.0)) * 0.12;
+
+        const scaleY = 1.0 + Math.sin(time * 4.0) * 0.08;
+        const scaleX = 1.0 - Math.sin(time * 4.0) * 0.06;
+        const scaleZ = 1.0 / Math.sqrt(scaleX * scaleY);
+        creature.scale.set(scaleX, scaleY, scaleZ);
+
+        creature.position.x = Math.sin(time * 2.0) * 0.06;
+        creature.position.y = bounce + 0.02;
+        creature.rotation.z = twirl;
+        creature.rotation.y = Math.sin(time * 2.5) * 0.28 + glance.currentX * 0.2;
+
+        flowerGroup.rotation.z = -0.22 + Math.sin(time * 8.0) * 0.25;
+        flowerGroup.rotation.y = Math.cos(time * 6.0) * 0.20;
+      } else {
+        // Ultra-gentle, weightless spring blossom float
+        const driftY = Math.sin(time * 0.9) * 0.055 + Math.cos(time * 0.45) * 0.02;
+        const driftX = Math.cos(time * 0.7) * 0.035;
+
+        const breath = Math.sin(time * 1.4) * 0.025;
+        const scaleY = 1.0 + breath;
+        const scaleX = 1.0 - breath * 0.8;
+        const scaleZ = 1.0 / Math.sqrt(scaleX * scaleY);
+        creature.scale.set(scaleX, scaleY, scaleZ);
+
+        creature.position.x = driftX;
+        creature.position.y = driftY;
+        creature.rotation.z = Math.sin(time * 0.6) * 0.05;
+        creature.rotation.y = Math.sin(time * 0.45) * 0.12 + glance.currentX * 0.2;
+
+        flowerGroup.rotation.z = -0.22 + Math.sin(time * 1.6) * 0.08;
+        flowerGroup.rotation.y = Math.cos(time * 1.1) * 0.09;
+      }
+
+      // Parallax eye tracking & shy tilt
+      faceGroup.position.x = glance.currentX;
+      faceGroup.position.y = glance.currentY;
+      faceGroup.rotation.y = glance.currentX * 0.25;
+      faceGroup.rotation.x = -glance.currentY * 0.25;
+
+      // Mascot Blinking & Shy Winks
+      if (!blink.active) {
+        if (time > blink.nextTime) {
+          blink.active = true;
+          blink.progress = 0;
+          blink.isWink = Math.random() < 0.30; // 30% chance of sweet shy wink!
+          blink.nextTime = time + 2.6 + Math.random() * 3.4;
+        }
+      } else {
+        blink.progress += delta * 9.0;
+        const blinkPhase = Math.sin(blink.progress * Math.PI);
+        const eyeScaleY = Math.max(0.04, 1.0 - blinkPhase * 0.96);
+
+        if (blink.isWink) {
+          // Shy wink: left eye winks while right eye squints gently into a soft crescent
+          leftEyeMesh.scale.set(1.0, eyeScaleY, 1.0);
+          rightEyeMesh.scale.set(1.0, Math.max(0.5, 1.0 - blinkPhase * 0.5), 1.0);
+        } else {
+          leftEyeMesh.scale.set(1.0, eyeScaleY, 1.0);
+          rightEyeMesh.scale.set(1.0, eyeScaleY, 1.0);
+        }
+
+        if (blink.progress >= 1.0) {
+          blink.active = false;
+          leftEyeMesh.scale.set(1.0, 1.0, 1.0);
+          rightEyeMesh.scale.set(1.0, 1.0, 1.0);
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    window.onload = function() {
+      animate();
+    };
+  </script>
+</body>
+</html>

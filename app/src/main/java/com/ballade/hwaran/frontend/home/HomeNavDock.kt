@@ -1,5 +1,6 @@
 package com.ballade.hwaran.frontend.home
 
+import com.ballade.hwaran.ui.components.CustomJellyBall
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -26,6 +27,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -142,24 +144,64 @@ fun HomeNavDock(
                         )
                     }
 
-                    when (fabStyle) {
-                        2 -> {
-                            DevilJellyBall(
-                                modifier = Modifier
-                                    .size(120.dp)
-                                    .scale(jellyScale),
-                                isHappy = isImporting
-                            )
-                        }
-                        else -> {
-                            JellyBall(
-                                modifier = Modifier
-                                    .size(120.dp)
-                                    .scale(jellyScale),
-                                isHappy = isImporting,
-                                enableJump = false,
-                                lookUp = false
-                            )
+                    key(fabStyle) {
+                        val mascotModifier = Modifier
+                            .size(120.dp)
+                            .graphicsLayer {
+                                scaleX = jellyScale
+                                scaleY = jellyScale
+                            }
+
+                        when (fabStyle) {
+                            2 -> {
+                                DevilJellyBall(
+                                    modifier = mascotModifier,
+                                    isHappy = isImporting
+                                )
+                            }
+                            3 -> {
+                                CustomJellyBall(
+                                    assetName = "autumn_harvest_jellyball.html",
+                                    modifier = mascotModifier,
+                                    isHappy = isImporting
+                                )
+                            }
+                            4 -> {
+                                CustomJellyBall(
+                                    assetName = "chinese_new_year_dragon_lantern_jellyball.html",
+                                    modifier = mascotModifier,
+                                    isHappy = isImporting
+                                )
+                            }
+                            5 -> {
+                                CustomJellyBall(
+                                    assetName = "sakura_jellyball.html",
+                                    modifier = mascotModifier,
+                                    isHappy = isImporting
+                                )
+                            }
+                            6 -> {
+                                CustomJellyBall(
+                                    assetName = "spring_awakening_jellyball.html",
+                                    modifier = mascotModifier,
+                                    isHappy = isImporting
+                                )
+                            }
+                            7 -> {
+                                CustomJellyBall(
+                                    assetName = "winter_frost_jellyball.html",
+                                    modifier = mascotModifier,
+                                    isHappy = isImporting
+                                )
+                            }
+                            else -> {
+                                JellyBall(
+                                    modifier = mascotModifier,
+                                    isHappy = isImporting,
+                                    enableJump = false,
+                                    lookUp = false
+                                )
+                            }
                         }
                     }
                 }
@@ -227,7 +269,10 @@ private fun DockItem(
                 onClick = onClick
             )
             .padding(horizontal = 12.dp, vertical = 6.dp)
-            .scale(scale),
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {

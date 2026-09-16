@@ -576,56 +576,106 @@ fun AppearanceContent(vm: SettingsViewModel) {
 // ADD BUTTON SECTION
 // ---------------------------------------------------------
 
+private data class JellyStyleVariant(
+    val id: Int,
+    val name: String,
+    val personality: String,
+    val assetName: String?
+)
+
 @Composable
 fun AddButtonContent(vm: SettingsViewModel) {
     val fabStyle by vm.fabStyle.collectAsState()
+    val primary = MaterialTheme.colorScheme.primary
 
-    SectionHeader("Button Style", "Choose your action trigger")
+    SectionHeader("Button Style", "Choose your JellyBall companion & animation style")
 
-    val styles = listOf(1 to "JellyBall", 2 to "Devil Ball")
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+    val variants = remember {
+        listOf(
+            JellyStyleVariant(1, "Classic Jelly", "Playful companion", null),
+            JellyStyleVariant(2, "Devil Jelly", "Mischievous mascot", null),
+            JellyStyleVariant(3, "Autumn Harvest", "Golden harvest & maple leaf", "autumn_harvest_jellyball.html"),
+            JellyStyleVariant(4, "Dragon Lantern", "Festive dragon lantern tassel", "chinese_new_year_dragon_lantern_jellyball.html"),
+            JellyStyleVariant(5, "Sakura Blossom", "Serene pink floating petals", "sakura_jellyball.html"),
+            JellyStyleVariant(6, "Spring Awakening", "Fresh emerald morning dew", "spring_awakening_jellyball.html"),
+            JellyStyleVariant(7, "Winter Frost", "Crystal icy frost snowflakes", "winter_frost_jellyball.html")
+        )
+    }
+
+    val chunkedVariants = remember(variants) { variants.chunked(2) }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        styles.forEach { (id, name) ->
-            val isSelected = (fabStyle == id) || (id == 1 && fabStyle == 0)
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.03f))
-                    .border(
-                        width = if (isSelected) 1.5.dp else 1.dp,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.08f),
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                    .clickable { vm.setFabStyle(id) }
-                    .padding(vertical = 16.dp, horizontal = 12.dp)
+        chunkedVariants.forEach { rowItems ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(CircleShape)
-                        .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f))
-                        .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (id == 1) {
-                        JellyBall(modifier = Modifier.size(56.dp), enableJump = false, isTrapped = true)
-                    } else {
-                        DevilJellyBall(modifier = Modifier.size(68.dp))
+                rowItems.forEach { variant ->
+                    val isSelected = (fabStyle == variant.id) || (variant.id == 1 && fabStyle == 0)
+                    Surface(
+                        onClick = { vm.setFabStyle(variant.id) },
+                        shape = RoundedCornerShape(18.dp),
+                        color = if (isSelected) primary.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.03f),
+                        border = BorderStroke(
+                            width = if (isSelected) 1.5.dp else 1.dp,
+                            color = if (isSelected) primary.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.08f)
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(14.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(76.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isSelected) primary.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.04f))
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) primary.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.08f),
+                                        CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                when (variant.id) {
+                                    1 -> JellyBall(modifier = Modifier.size(60.dp), enableJump = false, isTrapped = true)
+                                    2 -> DevilJellyBall(modifier = Modifier.size(70.dp))
+                                    else -> com.ballade.hwaran.ui.components.CustomJellyBall(
+                                        assetName = variant.assetName!!,
+                                        modifier = Modifier.size(70.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = variant.name,
+                                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.85f),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(
+                                text = variant.personality,
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 10.sp,
+                                lineHeight = 13.sp,
+                                textAlign = TextAlign.Center,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    name,
-                    color = if (isSelected) Color.White else Color.Gray,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
+                if (rowItems.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
             }
         }
     }

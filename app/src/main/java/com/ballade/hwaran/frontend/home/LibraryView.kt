@@ -172,25 +172,7 @@ fun LibraryView(
                 ),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                    .drawWithContent {
-                        drawContent()
-                        val fadeTopPx = 90.dp.toPx()
-                        val fadeBottomPx = 160.dp.toPx()
-                        if (size.height > fadeBottomPx) {
-                            drawRect(
-                                brush = Brush.verticalGradient(
-                                    0f to Color.Transparent,
-                                    fadeTopPx / size.height to Color.Transparent,
-                                    fadeBottomPx / size.height to Color.Black,
-                                    1f to Color.Black
-                                ),
-                                blendMode = BlendMode.DstIn
-                            )
-                        }
-                    }
+                modifier = Modifier.fillMaxSize()
             ) {
                 items(filteredManga, key = { it.id }) { manga ->
                     LibraryMaterialCard(
@@ -211,6 +193,21 @@ fun LibraryView(
                 }
             }
         }
+
+        // Top Gradient Scrim under Floating Tags Bar (Zero-FBO direct overlay for 120Hz/60Hz scrolling)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(130.dp)
+                .align(Alignment.TopCenter)
+                .background(
+                    Brush.verticalGradient(
+                        0f to MaterialTheme.colorScheme.background,
+                        0.75f to MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
+                        1f to Color.Transparent
+                    )
+                )
+        )
 
         // 2. Floating Top Tags Bar with Smooth Fading Edges
         Box(

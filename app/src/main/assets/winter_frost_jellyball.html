@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Winter Frost Jellyball</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent !important;
+      pointer-events: none !important;
+    }
+
+    #webgl-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+      background: transparent !important;
+      pointer-events: none !important;
+    }
+  </style>
+  <script src="three.min.js"></script>
+</head>
+<body>
+  <div id="webgl-container"></div>
+
+  <script>
+    const container = document.getElementById('webgl-container');
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 50);
+    camera.position.set(0, 0.05, 3.8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    renderer.setClearColor(0x000000, 0);
+    container.appendChild(renderer.domElement);
+
+    const creature = new THREE.Group();
+    scene.add(creature);
+
+    const BALL_RADIUS = 0.95;
+    const bodyGeometry = new THREE.SphereGeometry(BALL_RADIUS, 64, 64);
+
+    const winterFrostMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0.0 }
+      },
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+        varying vec3 vLocalPos;
+
+        void main() {
+          vLocalPos = position;
+          vNormal = normalize(normalMatrix * normal);
+          vec4 worldPos = modelViewMatrix * vec4(position, 1.0);
+          vViewDir = normalize(-worldPos.xyz);
+          gl_Position = projectionMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+        varying vec3 vLocalPos;
+        uniform float uTime;
+
+        void main() {
+          vec3 N = normalize(vNormal);
+          vec3 V = normalize(vViewDir);
+
+          // Soft winter morning key light from high-left
+          vec3 lightDir = normalize(vec3(-0.35, 0.72, 0.65));
+          float NdotL = dot(N, lightDir);
+          float halfLambert = NdotL * 0.5 + 0.5;
+
+          // Winter Frost Palette:
+          // Glacial Alpine Blue shadow -> Crisp Snow Cream -> Pure Marshmallow Highlight
+          vec3 glacialShadow  = vec3(0.68, 0.82, 0.94); // Crisp frosty blue depth
+          vec3 milkySnowCream = vec3(0.94, 0.97, 1.00); // Soft powdered snow body
+          vec3 morningFrost   = vec3(1.00, 1.00, 1.00); // Pure winter white highlight
+          vec3 iceSheen       = vec3(0.85, 0.95, 1.00); // Crystalline glint
+          vec3 auroraRim      = vec3(0.72, 0.88, 1.00); // Ethereal icy fresnel rim
+
+          // Smooth gradient lighting
+          vec3 col = mix(glacialShadow, milkySnowCream, smoothstep(0.08, 0.50, halfLambert));
+          col = mix(col, morningFrost, smoothstep(0.50, 0.92, halfLambert));
+
+          // Silky ice specular glint
+          vec3 H = normalize(lightDir + V);
+          float spec = pow(max(0.0, dot(N, H)), 14.0) * 0.32;
+          col += iceSheen * spec;
+
+          // Gentle glacial bottom bounce
+          float bounce = max(0.0, -N.y) * 0.22;
+          col += vec3(0.62, 0.78, 0.96) * bounce;
+
+          // Frost crystal fresnel rim
+          float fresnel = pow(1.0 - max(0.0, dot(N, V)), 2.6);
+          col = mix(col, auroraRim, fresnel * 0.48);
+
+          // Cold-weather flushed rosy cheek blush (Zero clipping seams)
+          if (vLocalPos.z > 0.40 && vLocalPos.y < 0.15) {
+            float leftCheek  = distance(vLocalPos, vec3(-0.42, -0.10, 0.82));
+            float rightCheek = distance(vLocalPos, vec3( 0.42, -0.10, 0.82));
+            float blushMask = smoothstep(0.24, 0.0, leftCheek) + smoothstep(0.24, 0.0, rightCheek);
+            vec3 winterBlush = vec3(0.98, 0.42, 0.58);
+            col = mix(col, winterBlush, clamp(blushMask * 0.56, 0.0, 1.0));
+          }
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+
+    const bodyMesh = new THREE.Mesh(bodyGeometry, winterFrostMaterial);
+    creature.add(bodyMesh);
+
+    const winterOrnamentGroup = new THREE.Group();
+
+    // Glacial Ice Crystal Material
+    const iceCrystalMat = new THREE.MeshStandardMaterial({
+      color: 0xdbf3ff,
+      emissive: 0x224466,
+      emissiveIntensity: 0.25,
+      roughness: 0.12,
+      metalness: 0.15
+    });
+
+    // Frosted Holly Berry Scarlet Material
+    const hollyBerryMat = new THREE.MeshStandardMaterial({
+      color: 0xdd1832,
+      emissive: 0x44020a,
+      emissiveIntensity: 0.32,
+      roughness: 0.22,
+      metalness: 0.08
+    });
+
+    // Pure Snow Cap Material
+    const snowCapMat = new THREE.MeshStandardMaterial({
+      color: 0xf4f9ff,
+      roughness: 0.45,
+      metalness: 0.02
+    });
+
+    // Frosted Winter Spruce Leaf Material
+    const winterPineMat = new THREE.MeshStandardMaterial({
+      color: 0x1f5c38,
+      roughness: 0.30,
+      metalness: 0.05,
+      side: THREE.DoubleSide
+    });
+
+    const snowflakeGroup = new THREE.Group();
+
+    // 6-Pointed crystalline snowflake geometry
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
+      const rayGroup = new THREE.Group();
+
+      // Main ray stem
+      const rayGeom = new THREE.CylinderGeometry(0.012, 0.012, 0.36, 8);
+      rayGeom.translate(0, 0.18, 0);
+      const rayMesh = new THREE.Mesh(rayGeom, iceCrystalMat);
+      rayGroup.add(rayMesh);
+
+      // Diamond ray tip
+      const tipGeom = new THREE.OctahedronGeometry(0.034, 0);
+      tipGeom.scale(0.8, 1.4, 0.6);
+      const tipMesh = new THREE.Mesh(tipGeom, iceCrystalMat);
+      tipMesh.position.y = 0.36;
+      rayGroup.add(tipMesh);
+
+      // Side crystal facets
+      const prongGeom = new THREE.CylinderGeometry(0.008, 0.008, 0.11, 6);
+      prongGeom.translate(0, 0.055, 0);
+
+      const leftProng = new THREE.Mesh(prongGeom, iceCrystalMat);
+      leftProng.position.y = 0.20;
+      leftProng.rotation.z = Math.PI / 3.5;
+      rayGroup.add(leftProng);
+
+      const rightProng = new THREE.Mesh(prongGeom, iceCrystalMat);
+      rightProng.position.y = 0.20;
+      rightProng.rotation.z = -Math.PI / 3.5;
+      rayGroup.add(rightProng);
+
+      rayGroup.rotation.z = angle;
+      snowflakeGroup.add(rayGroup);
+    }
+
+    // Faceted central ice gem
+    const centerGemGeom = new THREE.OctahedronGeometry(0.065, 0);
+    centerGemGeom.scale(1.0, 1.0, 0.7);
+    const centerGemMesh = new THREE.Mesh(centerGemGeom, iceCrystalMat);
+    snowflakeGroup.add(centerGemMesh);
+
+    snowflakeGroup.scale.set(0.92, 0.92, 0.92);
+    snowflakeGroup.position.set(0, 0.12, 0);
+    winterOrnamentGroup.add(snowflakeGroup);
+
+    const berriesGroup = new THREE.Group();
+
+    function createSnowyHollyBerry(pos, scale = 1.0) {
+      const bGroup = new THREE.Group();
+
+      // Scarlet berry sphere
+      const berryGeom = new THREE.SphereGeometry(0.062 * scale, 18, 18);
+      const berryMesh = new THREE.Mesh(berryGeom, hollyBerryMat);
+      bGroup.add(berryMesh);
+
+      // Fluffy fresh snow crown on top of berry
+      const capGeom = new THREE.SphereGeometry(0.040 * scale, 16, 16);
+      capGeom.scale(1.15, 0.65, 1.15);
+      const capMesh = new THREE.Mesh(capGeom, snowCapMat);
+      capMesh.position.set(0, 0.044 * scale, 0.01);
+      bGroup.add(capMesh);
+
+      bGroup.position.copy(pos);
+      return bGroup;
+    }
+
+    // Cluster of 3 winter berries
+    const berry1 = createSnowyHollyBerry(new THREE.Vector3(-0.06, -0.06, 0.10), 1.05);
+    const berry2 = createSnowyHollyBerry(new THREE.Vector3(0.07, -0.04, 0.12), 0.95);
+    const berry3 = createSnowyHollyBerry(new THREE.Vector3(0.01, -0.13, 0.15), 0.88);
+
+    berriesGroup.add(berry1);
+    berriesGroup.add(berry2);
+    berriesGroup.add(berry3);
+    winterOrnamentGroup.add(berriesGroup);
+
+    function createPineLeaf(angleZ, scale) {
+      const leafGroup = new THREE.Group();
+
+      const leafShape = new THREE.Shape();
+      leafShape.moveTo(0, 0);
+      leafShape.quadraticCurveTo(0.08, 0.14, 0.14, 0.28);
+      leafShape.lineTo(0.08, 0.28);
+      leafShape.quadraticCurveTo(0.12, 0.38, 0.02, 0.48);
+      leafShape.quadraticCurveTo(-0.08, 0.34, -0.06, 0.24);
+      leafShape.quadraticCurveTo(-0.08, 0.12, 0, 0);
+
+      const leafGeom = new THREE.ExtrudeGeometry(leafShape, {
+        depth: 0.02,
+        bevelEnabled: true,
+        bevelSegments: 2,
+        bevelSize: 0.01,
+        bevelThickness: 0.01
+      });
+      leafGeom.center();
+
+      const leafMesh = new THREE.Mesh(leafGeom, winterPineMat);
+      leafGroup.add(leafMesh);
+
+      leafGroup.rotation.z = angleZ;
+      leafGroup.scale.set(scale, scale, scale);
+      return leafGroup;
+    }
+
+    const leftLeaf = createPineLeaf(0.55, 0.85);
+    leftLeaf.position.set(-0.16, -0.05, 0.06);
+    winterOrnamentGroup.add(leftLeaf);
+
+    const rightLeaf = createPineLeaf(-0.65, 0.92);
+    rightLeaf.position.set(0.18, -0.04, 0.04);
+    winterOrnamentGroup.add(rightLeaf);
+
+    // Perch winter crown atop head
+    winterOrnamentGroup.position.set(0.38, 0.78, 0.30);
+    winterOrnamentGroup.rotation.set(-0.16, 0.22, -0.22);
+    creature.add(winterOrnamentGroup);
+
+    const faceGroup = new THREE.Group();
+    creature.add(faceGroup);
+
+    function createMinimalistPillEyeGeometry() {
+      const w = 0.065;
+      const h = 0.175;
+      const r = w;
+      const shape = new THREE.Shape();
+      shape.moveTo(-w, -h + r);
+      shape.lineTo(-w, h - r);
+      shape.absarc(0, h - r, r, Math.PI, 0, true);
+      shape.lineTo(w, -h + r);
+      shape.absarc(0, -h + r, r, 0, Math.PI, true);
+
+      return new THREE.ExtrudeGeometry(shape, {
+        depth: 0.045,
+        bevelEnabled: true,
+        bevelSegments: 4,
+        bevelSize: 0.016,
+        bevelThickness: 0.016
+      });
+    }
+
+    const eyeGeometry = createMinimalistPillEyeGeometry();
+    eyeGeometry.center();
+
+    // Deep glossy obsidian eye material
+    const eyeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x111116,
+      roughness: 0.15,
+      metalness: 0.12
+    });
+
+    // Left eye
+    const leftEyeMesh = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEyeMesh.position.set(-0.25, 0.04, 0.91);
+    leftEyeMesh.rotation.set(-0.06, -0.26, 0.05);
+    faceGroup.add(leftEyeMesh);
+
+    // Right eye
+    const rightEyeMesh = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEyeMesh.position.set(0.25, 0.04, 0.91);
+    rightEyeMesh.rotation.set(-0.06, 0.26, -0.05);
+    faceGroup.add(rightEyeMesh);
+
+    const winterSunLight = new THREE.DirectionalLight(0xf5f8ff, 1.45);
+    winterSunLight.position.set(-0.7, 1.0, 1.6);
+    scene.add(winterSunLight);
+
+    const softAmbientLight = new THREE.AmbientLight(0xe5efff, 0.65);
+    scene.add(softAmbientLight);
+
+    // Ethereal crystalline ice sparkle light
+    const icePointLight = new THREE.PointLight(0x9bd8ff, 0.95, 2.2);
+    icePointLight.position.set(0.40, 0.95, 0.45);
+    creature.add(icePointLight);
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    });
+
+    let isHappy = false;
+    window.setHappy = function(val) {
+      isHappy = !!val;
+    };
+
+    const blink = { active: false, progress: 0, nextTime: 2.2, isWink: false };
+    const glance = { targetX: 0, targetY: 0, currentX: 0, currentY: 0, nextTime: 2.2 };
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const delta = Math.min(clock.getDelta(), 0.05);
+      const time = clock.getElapsedTime();
+
+      // Look-around glance engine: cool, calm glances and gazing at the spinning snowflake
+      if (time > glance.nextTime) {
+        const r = Math.random();
+        if (r < 0.38) {
+          // Look up towards the spinning crystal snowflake
+          glance.targetX = (Math.random() - 0.5) * 0.14;
+          glance.targetY = 0.16;
+        } else if (r < 0.72) {
+          // Cool crisp side glance
+          glance.targetX = (Math.random() > 0.5 ? 0.18 : -0.18);
+          glance.targetY = -0.04;
+        } else {
+          glance.targetX = 0;
+          glance.targetY = 0;
+        }
+        glance.nextTime = time + 2.0 + Math.random() * 2.8;
+      }
+      glance.currentX += (glance.targetX - glance.currentX) * 0.07;
+      glance.currentY += (glance.targetY - glance.currentY) * 0.07;
+
+      if (isHappy) {
+        // Joyful Figure-Skating Celebration Spin & Ice Flash!
+        const spin = Math.sin(time * 5.0) * 0.25;
+        const floatY = Math.abs(Math.sin(time * 5.0)) * 0.12;
+
+        const scaleY = 1.0 + Math.sin(time * 5.0) * 0.09;
+        const scaleX = 1.0 - Math.sin(time * 5.0) * 0.07;
+        const scaleZ = 1.0 / Math.sqrt(scaleX * scaleY);
+        creature.scale.set(scaleX, scaleY, scaleZ);
+
+        creature.position.x = Math.sin(time * 2.5) * 0.07;
+        creature.position.y = floatY + 0.02;
+        creature.rotation.z = spin;
+        creature.rotation.y = Math.sin(time * 4.0) * 0.35 + glance.currentX * 0.3;
+
+        snowflakeGroup.rotation.z += delta * 4.5;
+        icePointLight.intensity = 1.4 + Math.sin(time * 12.0) * 0.6;
+      } else {
+        // Crystalline ice skating glide trajectory
+        const glideX = Math.sin(time * 1.1) * 0.07;
+        const glideY = Math.cos(time * 2.2) * 0.035;
+        const bankZ  = -Math.cos(time * 1.1) * 0.08;
+
+        const breath = Math.sin(time * 1.8) * 0.030;
+        const scaleY = 1.0 + breath;
+        const scaleX = 1.0 - breath * 0.8;
+        const scaleZ = 1.0 / Math.sqrt(scaleX * scaleY);
+        creature.scale.set(scaleX, scaleY, scaleZ);
+
+        // Crystalline micro-shiver
+        const shiverTrigger = Math.sin(time * 1.8);
+        const shiver = (shiverTrigger > 0.7) ? Math.sin(time * 48.0) * 0.007 : 0.0;
+
+        creature.position.x = glideX + shiver;
+        creature.position.y = glideY;
+        creature.rotation.z = bankZ;
+        creature.rotation.y = Math.sin(time * 0.8) * 0.08 + glance.currentX * 0.2;
+
+        snowflakeGroup.rotation.z += delta * 1.4;
+        snowflakeGroup.rotation.y = Math.sin(time * 2.0) * 0.35;
+
+        winterOrnamentGroup.rotation.z = -0.22 - bankZ * 0.8;
+        winterOrnamentGroup.rotation.x = -0.16 + Math.sin(time * 1.6) * 0.04;
+
+        icePointLight.intensity = 0.95 + Math.sin(time * 4.5) * 0.45;
+      }
+
+      // Parallax eye tracking & cool tilt
+      faceGroup.position.x = glance.currentX;
+      faceGroup.position.y = glance.currentY;
+      faceGroup.rotation.y = glance.currentX * 0.25;
+      faceGroup.rotation.x = -glance.currentY * 0.25;
+
+      // Mascot Blinking & Cool Winks
+      if (!blink.active) {
+        if (time > blink.nextTime) {
+          blink.active = true;
+          blink.progress = 0;
+          blink.isWink = Math.random() < 0.28; // 28% chance of cool confident wink!
+          blink.nextTime = time + 2.4 + Math.random() * 3.2;
+        }
+      } else {
+        blink.progress += delta * 10.5;
+        const blinkPhase = Math.sin(blink.progress * Math.PI);
+        const eyeScaleY = Math.max(0.05, 1.0 - blinkPhase * 0.95);
+
+        if (blink.isWink) {
+          // Cool wink on right eye with ice flash
+          rightEyeMesh.scale.set(1.0, eyeScaleY, 1.0);
+          leftEyeMesh.scale.set(1.0, Math.max(0.55, 1.0 - blinkPhase * 0.45), 1.0);
+          icePointLight.intensity += blinkPhase * 0.4;
+        } else {
+          leftEyeMesh.scale.set(1.0, eyeScaleY, 1.0);
+          rightEyeMesh.scale.set(1.0, eyeScaleY, 1.0);
+        }
+
+        if (blink.progress >= 1.0) {
+          blink.active = false;
+          leftEyeMesh.scale.set(1.0, 1.0, 1.0);
+          rightEyeMesh.scale.set(1.0, 1.0, 1.0);
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    window.onload = function() {
+      animate();
+    };
+  </script>
+</body>
+</html>
