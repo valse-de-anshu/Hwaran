@@ -55,6 +55,7 @@ import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.HistoryEventEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.core.util.CoverArtResolver
+import com.ballade.hwaran.ui.dialogs.ZineScraperDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -406,6 +407,11 @@ fun HomeDashboard(
     }
 
     var showRecentlyAddedSheet by remember { mutableStateOf(false) }
+    var showZineScraperDialog by remember { mutableStateOf(false) }
+
+    if (showZineScraperDialog) {
+        ZineScraperDialog(onDismiss = { showZineScraperDialog = false })
+    }
 
     val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val gestureBottom = WindowInsets.systemGestures.asPaddingValues().calculateBottomPadding()
@@ -419,9 +425,10 @@ fun HomeDashboard(
             .displayCutoutPadding()
             .padding(bottom = bottomDockClearance)
     ) {
-        // 1. Clean Top Header (Settings shortcut)
+        // 1. Clean Top Header (Settings & Tool shortcuts)
         DashboardTopHeader(
-            onSettingsClick = onNavigateToSettings
+            onSettingsClick = onNavigateToSettings,
+            onToolClick = { showZineScraperDialog = true }
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -519,7 +526,8 @@ fun HomeDashboard(
 
 @Composable
 private fun DashboardTopHeader(
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onToolClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -529,6 +537,29 @@ private fun DashboardTopHeader(
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Aesthetic Tool Icon Button
+        Surface(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .clickable { onToolClick() },
+            shape = CircleShape,
+            color = Color(0xFFA855F7).copy(alpha = 0.15f),
+            border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.35f))
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Rounded.Build,
+                    contentDescription = "Zine Scraper CLI Tool",
+                    tint = Color(0xFFD8B4FE),
+                    modifier = Modifier.size(19.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        // Settings Icon Button
         Surface(
             modifier = Modifier
                 .size(42.dp)

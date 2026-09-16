@@ -1225,6 +1225,31 @@ fun AboutContent(scrollState: ScrollState, vm: SettingsViewModel, onNavigateBack
             Spacer(modifier = Modifier.width(8.dp))
             Text("Open Source GitHub Repository", fontWeight = FontWeight.Bold, color = Color(0xFFE6E8EC))
         }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Button(
+            onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/valse-de-anshu/zine-scraper.git"))
+                context.startActivity(intent)
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF222631),
+                contentColor = Color(0xFFE6E8EC)
+            ),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth().height(52.dp)
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_github),
+                contentDescription = null,
+                tint = Color(0xFFE6E8EC),
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Zine Scraper CLI (Scrape Media)", fontWeight = FontWeight.Bold, color = Color(0xFFE6E8EC))
+        }
     }
 }
 
