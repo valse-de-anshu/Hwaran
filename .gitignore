@@ -1,4 +1,4 @@
-# Android & Gradle
+# Android & Gradle Build Artifacts
 *.iml
 .gradle
 /local.properties
@@ -17,9 +17,14 @@ local.properties
 *.ipr
 .vscode/
 
-# OS Generated
+# OS & Desktop File Manager Files
 .DS_Store
 Thumbs.db
+.directory
+
+# Agent & Backup Scratch Folders
+.agents/
+backup/
 
 # Output & Release Metadata
 app/release/
