@@ -1,5 +1,11 @@
 <div align="center">
 
+<p align="center">
+  <img src="app/src/main/assets/promo/06_one_app_all_worlds.png" alt="Hwaran Hero Banner" width="100%" />
+</p>
+
+<img src="app/src/main/ic_launcher-playstore.png" alt="Hwaran Icon" width="100" height="100" />
+
 # 🌸 Hwaran (화란)
 ### *The Ultimate Private Offline Media Vault & Experience Engine for Android*
 

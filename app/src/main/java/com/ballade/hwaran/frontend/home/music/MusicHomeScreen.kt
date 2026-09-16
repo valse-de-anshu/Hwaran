@@ -212,47 +212,78 @@ fun MusicScreen(
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(horizontal = 24.dp)
                     ) {
-                        if (!LocalBatterySaving.current) {
-                            AnimatedContent(
-                                targetState = messages[messageIndex],
-                                transitionSpec = {
-                                    (fadeIn(tween(600)) + scaleIn(initialScale = 0.8f, transformOrigin = TransformOrigin(0.5f, 1f))) togetherWith
-                                    (fadeOut(tween(400)) + scaleOut(targetScale = 0.8f, transformOrigin = TransformOrigin(0.5f, 1f)))
-                                },
-                                label = "chat_anim"
-                            ) { msg ->
-                                ChatBubble(
-                                    message = msg,
-                                    modifier = Modifier.padding(horizontal = 40.dp)
-                                )
-                            }
-                            
-                            Spacer(modifier = Modifier.height(16.dp))
+                        AnimatedContent(
+                            targetState = messages[messageIndex],
+                            transitionSpec = {
+                                (fadeIn(tween(600)) + scaleIn(initialScale = 0.8f, transformOrigin = TransformOrigin(0.5f, 1f))) togetherWith
+                                (fadeOut(tween(400)) + scaleOut(targetScale = 0.8f, transformOrigin = TransformOrigin(0.5f, 1f)))
+                            },
+                            label = "chat_anim"
+                        ) { msg ->
+                            ChatBubble(
+                                message = msg,
+                                modifier = Modifier
+                                    .padding(horizontal = 24.dp)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        musicFolderPickerLauncher.launch(null)
+                                    }
+                            )
                         }
                         
-                        // New Custom Bored JellyBall handles its own click event
-                        if (!LocalBatterySaving.current) {
-                            BoredJellyBall(
-                                modifier = Modifier.size(160.dp),
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    musicFolderPickerLauncher.launch(null)
-                                }
-                            )
-                        } else {
-                            // Battery save: static icon button instead of animated JellyBall
-                            androidx.compose.material3.FilledTonalIconButton(
-                                onClick = {
+                        Spacer(modifier = Modifier.height(18.dp))
+                        
+                        // Signature interactive JellyBall Mascot
+                        JellyBall(
+                            modifier = Modifier
+                                .size(160.dp)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     musicFolderPickerLauncher.launch(null)
                                 },
-                                modifier = Modifier.size(80.dp),
-                                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                    containerColor = Color.White.copy(alpha = 0.08f)
-                                )
+                            enableJump = true,
+                            isHappy = false,
+                            lookUp = true
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // Add Songs Action Button
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                musicFolderPickerLauncher.launch(null)
+                            },
+                            shape = RoundedCornerShape(24.dp),
+                            color = Color.White.copy(alpha = 0.08f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(horizontal = 22.dp, vertical = 12.dp)
                             ) {
-                                Icon(Icons.Rounded.LibraryMusic, contentDescription = "Import", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(36.dp))
+                                Icon(
+                                    imageVector = Icons.Rounded.LibraryMusic,
+                                    contentDescription = "Add Songs",
+                                    tint = Color(0xFFEC407A),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "Add Songs & Playlists",
+                                    color = Color.White,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
                         }
                     }
@@ -1147,118 +1178,6 @@ fun EditPlaylistDialog(
                 Text("Discard Changes", color = Color.White.copy(alpha = 0.4f), fontWeight = FontWeight.Medium)
             }
         }
-    )
-}
-
-@Composable
-fun BoredJellyBall(modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val eyeOffsetX = remember { androidx.compose.animation.core.Animatable(0f) }
-    val eyeOffsetY = remember { androidx.compose.animation.core.Animatable(0f) }
-    val eyeScaleY = remember { androidx.compose.animation.core.Animatable(1f) }
-    val breath = remember { androidx.compose.animation.core.Animatable(0f) }
-
-    LaunchedEffect(Unit) {
-        // Breathing loop
-        launch {
-            while (true) {
-                breath.animateTo(1f, tween(3000, easing = FastOutSlowInEasing))
-                breath.animateTo(0f, tween(3000, easing = FastOutSlowInEasing))
-            }
-        }
-        
-        while (true) {
-            // 1. Wake up & look at user (center)
-            launch { eyeScaleY.animateTo(1f, tween(300)) }
-            launch { eyeOffsetX.animateTo(0f, tween(300)) }
-            eyeOffsetY.animateTo(0f, tween(300))
-            
-            kotlinx.coroutines.delay(2000)
-            
-            // Blink
-            eyeScaleY.animateTo(0.1f, tween(100))
-            eyeScaleY.animateTo(1f, tween(100))
-            kotlinx.coroutines.delay(500)
-            
-            // 2. Look up at message
-            launch { eyeOffsetY.animateTo(-25f, tween(400, easing = FastOutSlowInEasing)) }
-            kotlinx.coroutines.delay(2000)
-            
-            // 3. Fall asleep (eyes closed, droop down)
-            launch { eyeOffsetY.animateTo(10f, tween(800, easing = FastOutLinearInEasing)) }
-            eyeScaleY.animateTo(0.1f, tween(800, easing = FastOutLinearInEasing))
-            
-            // Sleep duration
-            kotlinx.coroutines.delay(5000)
-        }
-    }
-    
-    val scaleX = 1f + breath.value * 0.015f
-    val scaleY = 1f - breath.value * 0.015f
-    val translateY = breath.value * 3f
-    
-    Box(modifier = modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null
-        ) { onClick() }, 
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .offset(y = translateY.dp)
-                .graphicsLayer {
-                    this.scaleX = scaleX
-                    this.scaleY = scaleY
-                    transformOrigin = TransformOrigin(0.5f, 1.0f)
-                }
-        ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val mainOrbBrush = Brush.radialGradient(
-                    0.0f to Color(100, 100, 100),
-                    0.6f to Color(40, 40, 40),
-                    1.0f to Color(20, 20, 20),
-                    center = Offset(size.width * 0.35f, size.height * 0.35f),
-                    radius = size.width * 0.8f
-                )
-                drawCircle(brush = mainOrbBrush)
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        0.0f to Color.White.copy(alpha = 0.15f),
-                        0.85f to Color.Transparent,
-                        center = Offset(size.width * 0.25f, size.width * 0.25f),
-                        radius = size.width * 0.45f
-                    )
-                )
-            }
-            
-            Box(
-                modifier = Modifier.fillMaxSize(), 
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    modifier = Modifier
-                        .width(44.dp)
-                        .offset(x = eyeOffsetX.value.dp, y = eyeOffsetY.value.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    BoredEye(eyeScaleY.value)
-                    BoredEye(eyeScaleY.value)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun BoredEye(scaleY: Float) {
-    Box(
-        modifier = Modifier
-            .size(10.dp, 24.dp)
-            .graphicsLayer { this.scaleY = scaleY.coerceAtLeast(0.01f) }
-            .background(
-                color = Color.White.copy(alpha = 0.85f),
-                shape = CircleShape
-            )
     )
 }
 
