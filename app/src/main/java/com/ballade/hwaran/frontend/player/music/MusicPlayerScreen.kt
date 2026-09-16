@@ -255,7 +255,8 @@ if (isLandscape) {
                             if (targetLyricsMode) {
                                 SyncedLyricsView(
                                     lyrics = currentChapter?.lyrics,
-                                    currentPositionMs = currentPosition
+                                    currentPositionMs = currentPosition,
+                                    onOpenLyricsDialog = { showLyricsDialog = true }
                                 )
                             } else {
                                 val cover = currentChapter?.thumbnailUri?.takeIf { it.isNotBlank() }
@@ -626,7 +627,8 @@ if (isLandscape) {
                         if (targetLyricsMode) {
                             SyncedLyricsView(
                                 lyrics = currentChapter?.lyrics,
-                                currentPositionMs = currentPosition
+                                currentPositionMs = currentPosition,
+                                onOpenLyricsDialog = { showLyricsDialog = true }
                             )
                         } else {
                             val cover = currentChapter?.thumbnailUri?.takeIf { it.isNotBlank() }
@@ -1552,13 +1554,29 @@ fun SyncedLyricsView(
                 .padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "No lyrics found.",
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "No lyrics found.",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedButton(
+                    onClick = onOpenLyricsDialog,
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                ) {
+                    Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Add Lyrics")
+                }
+            }
         }
     } else if (parsedLines.isNotEmpty()) {
         val activeIndex = remember(currentPositionMs, parsedLines) {
