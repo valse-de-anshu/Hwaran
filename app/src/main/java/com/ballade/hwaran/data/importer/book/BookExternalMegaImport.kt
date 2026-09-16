@@ -3,6 +3,8 @@ package com.ballade.hwaran.data.importer.book
 import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
+import com.ballade.hwaran.backend.novel.NovelParser
+import com.ballade.hwaran.core.metadata.ZineMetadataExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -26,54 +28,98 @@ object BookExternalMegaImport {
 
         val parentDoc = DocumentFile.fromTreeUri(context, parentUri) ?: return@withContext BookMegaImportSummary(0, 0, 0, emptyList(), false)
         
-        val candidates = mutableListOf<DocumentFile>()
         val rootFiles = parentDoc.listFiles() ?: emptyArray()
-        val hasDirectPdf = rootFiles.any { !it.isDirectory && it.name?.lowercase()?.endsWith(".pdf") == true }
+        val directBooks = rootFiles.filter { !it.isDirectory && NovelParser.isBookFile(it.name) }
         
-        if (hasDirectPdf) {
-            candidates.add(parentDoc)
-        }
+        val subDirs = rootFiles.filter { it.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }
         
-        val subDirs = rootFiles.filter { it.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }
-        candidates.addAll(subDirs)
-        
-        if (candidates.isEmpty()) {
-            return@withContext BookMegaImportSummary(0, 0, 0, emptyList(), false)
+        val webBookDirs = mutableListOf<DocumentFile>()
+        val regularSubDirs = mutableListOf<DocumentFile>()
+
+        subDirs.forEach { dir ->
+            val childFiles = dir.listFiles() ?: emptyArray()
+            val isWebBook = childFiles.any { !it.isDirectory && (it.name?.lowercase()?.let { n -> n.endsWith(".html") || n.endsWith(".htm") || n.endsWith(".xhtml") } == true) }
+            if (isWebBook) {
+                webBookDirs.add(dir)
+            } else {
+                regularSubDirs.add(dir)
+            }
         }
 
-        val allPdfs = mutableListOf<DocumentFile>()
-        candidates.forEach { folder ->
-            val pdfs = folder.listFiles()?.filter { !it.isDirectory && it.name?.lowercase()?.endsWith(".pdf") == true } ?: emptyList()
-            allPdfs.addAll(pdfs)
+        val allBooks = mutableListOf<DocumentFile>()
+        allBooks.addAll(directBooks)
+        regularSubDirs.forEach { folder ->
+            val books = folder.listFiles()?.filter { !it.isDirectory && NovelParser.isBookFile(it.name) } ?: emptyList()
+            allBooks.addAll(books)
         }
         
-        totalCount = allPdfs.size
+        totalCount = allBooks.size + webBookDirs.size
         if (totalCount == 0) {
             return@withContext BookMegaImportSummary(0, 0, 0, emptyList(), false)
         }
 
-        allPdfs.forEachIndexed { index, pdfDoc ->
+        var completed = 0
+
+        // Import standalone book files
+        allBooks.forEach { bookDoc ->
             if (isCancelled()) return@withContext BookMegaImportSummary(totalCount, importedCount, skippedCount, skippedFolders, true)
             
-            val resultId = BookExternalSingleImport.executeSinglePdf(
-                context = context,
-                repository = repository,
-                pdfDoc = pdfDoc,
-                workspace = workspace,
-                isNsfw = isNsfw,
-                boxPurpose = boxPurpose,
-                importMode = "Mega Import",
-                isCancelled = isCancelled
-            )
+            val resultId = try {
+                BookExternalSingleImport.executeSinglePdf(
+                    context = context,
+                    repository = repository,
+                    pdfDoc = bookDoc,
+                    workspace = workspace,
+                    isNsfw = isNsfw,
+                    boxPurpose = boxPurpose,
+                    importMode = "Mega Import",
+                    isCancelled = isCancelled
+                )
+            } catch (e: Throwable) {
+                e.printStackTrace()
+                null
+            }
             
             if (resultId != null) {
                 importedCount++
             } else {
                 skippedCount++
-                skippedFolders.add("${pdfDoc.name}: Failed or Duplicate")
+                skippedFolders.add("${bookDoc.name}: Failed or Duplicate")
             }
             
-            onProgress((index + 1).toFloat() / totalCount)
+            completed++
+            onProgress(completed.toFloat() / totalCount)
+        }
+
+        // Import web-book folders
+        webBookDirs.forEach { webFolderDoc ->
+            if (isCancelled()) return@withContext BookMegaImportSummary(totalCount, importedCount, skippedCount, skippedFolders, true)
+            
+            val resultId = try {
+                BookExternalSingleImport.executeWebBookFolder(
+                    context = context,
+                    repository = repository,
+                    folderDoc = webFolderDoc,
+                    workspace = workspace,
+                    isNsfw = isNsfw,
+                    boxPurpose = boxPurpose,
+                    importMode = "Mega Import",
+                    isCancelled = isCancelled
+                )
+            } catch (e: Throwable) {
+                e.printStackTrace()
+                null
+            }
+
+            if (resultId != null) {
+                importedCount++
+            } else {
+                skippedCount++
+                skippedFolders.add("${webFolderDoc.name}: Failed or Duplicate")
+            }
+
+            completed++
+            onProgress(completed.toFloat() / totalCount)
         }
 
         return@withContext BookMegaImportSummary(

@@ -109,7 +109,7 @@ class PdfManager(val renderer: PdfRenderer, val fd: ParcelFileDescriptor) {
     }
 }
 
-suspend fun resolvePdfUri(context: android.content.Context, parentUriString: String): Uri? = withContext(Dispatchers.IO) {
+suspend fun resolveBookUri(context: android.content.Context, parentUriString: String): Uri? = withContext(Dispatchers.IO) {
     if (parentUriString.isEmpty()) return@withContext null
 
     if (parentUriString.startsWith("content://")) {
@@ -122,19 +122,40 @@ suspend fun resolvePdfUri(context: android.content.Context, parentUriString: Str
 
             val treeDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, uri)
             if (treeDoc != null && treeDoc.isDirectory) {
-                val pdfDoc = treeDoc.listFiles().find { f -> f.name?.endsWith(".pdf", true) == true }
-                if (pdfDoc != null) return@withContext pdfDoc.uri
+                val bookDoc = treeDoc.listFiles().find { f ->
+                    val name = f.name?.lowercase() ?: ""
+                    name.endsWith(".pdf") || com.ballade.hwaran.backend.novel.NovelParser.isBookFile(name)
+                }
+                if (bookDoc != null) return@withContext bookDoc.uri
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
         return@withContext uri
     } else {
-        val file = File(parentUriString)
+        val rawPath = if (parentUriString.startsWith("file://")) Uri.parse(parentUriString).path ?: "" else parentUriString
+        val file = File(rawPath)
         if (file.exists()) {
             if (file.isDirectory) {
-                val pdfFile = file.listFiles()?.find { f -> f.name.endsWith(".pdf", true) }
-                if (pdfFile != null) return@withContext Uri.fromFile(pdfFile)
+                // If it's a web-book directory (e.g. pg*-h), check for direct HTML first
+                val directHtml = file.listFiles()?.find { f ->
+                    f.isFile && (f.name.endsWith(".html", true) || f.name.endsWith(".htm", true) || f.name.endsWith(".xhtml", true))
+                }
+                if (directHtml != null) return@withContext Uri.fromFile(directHtml)
+
+                val direct = file.listFiles()?.find { f ->
+                    f.isFile && (f.name.endsWith(".pdf", true) || com.ballade.hwaran.backend.novel.NovelParser.isBookFile(f.name))
+                }
+                if (direct != null) return@withContext Uri.fromFile(direct)
+
+                var found: File? = null
+                file.walkTopDown().maxDepth(3).forEach { f ->
+                    if (found == null && f.isFile && (f.name.endsWith(".pdf", true) || com.ballade.hwaran.backend.novel.NovelParser.isBookFile(f.name))) {
+                        found = f
+                    }
+                }
+                if (found != null) return@withContext Uri.fromFile(found)
+                return@withContext Uri.fromFile(file)
             } else {
                 return@withContext Uri.fromFile(file)
             }
@@ -142,6 +163,8 @@ suspend fun resolvePdfUri(context: android.content.Context, parentUriString: Str
     }
     return@withContext null
 }
+
+suspend fun resolvePdfUri(context: android.content.Context, parentUriString: String): Uri? = resolveBookUri(context, parentUriString)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Gesture helpers
@@ -281,7 +304,8 @@ fun BookPlayerScreen(
     val haptic = LocalHapticFeedback.current
     val listState = rememberLazyListState()
 
-    var pdfUri by remember { mutableStateOf<Uri?>(null) }
+    var bookUri by remember { mutableStateOf<Uri?>(null) }
+    var isWebBook by remember { mutableStateOf(false) }
     var pdfManager by remember { mutableStateOf<PdfManager?>(null) }
     var pageCount by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -582,24 +606,30 @@ fun BookPlayerScreen(
 
     LaunchedEffect(mangaId, externalUri) {
         if (externalUri != null) {
-            pdfUri = Uri.parse(externalUri)
+            bookUri = Uri.parse(externalUri)
             return@LaunchedEffect
         }
         withContext(Dispatchers.IO) {
             try {
-                val m = database.libraryDao().getMangaById(mangaId)
+                var m = database.libraryDao().getMangaById(mangaId)
+                if (m == null) {
+                    val ch = database.trackDao().getChapterById(mangaId)
+                    if (ch != null) {
+                        m = database.libraryDao().getMangaById(ch.mangaId)
+                    }
+                }
                 if (m != null) {
                     manga = m
                     startPage = (m.lastReadPage ?: 1).coerceAtLeast(1)
-                    val resolved = resolvePdfUri(context, m.parentUri)
+                    val resolved = resolveBookUri(context, m.parentUri)
                     if (resolved != null) {
-                        pdfUri = resolved
+                        bookUri = resolved
                     } else {
-                        error = "Could not find PDF file."
+                        error = "Could not find Book file."
                         isLoading = false
                     }
                 } else {
-                    error = "Manga not found."
+                    error = "Book not found."
                     isLoading = false
                 }
             } catch (e: Exception) {
@@ -609,30 +639,54 @@ fun BookPlayerScreen(
         }
     }
 
-    LaunchedEffect(pdfUri) {
-        if (pdfUri != null) {
-            withContext(Dispatchers.IO) {
-                try {
-                    val pfd = if (pdfUri!!.scheme == "content") {
-                        context.contentResolver.openFileDescriptor(pdfUri!!, "r")
-                    } else {
-                        ParcelFileDescriptor.open(File(pdfUri!!.path!!), ParcelFileDescriptor.MODE_READ_ONLY)
-                    }
+    LaunchedEffect(bookUri) {
+        if (bookUri != null) {
+            val uriStr = bookUri.toString().lowercase()
+            val mimeType = try { context.contentResolver.getType(bookUri!!)?.lowercase() } catch (_: Exception) { null }
+            val isPdf = uriStr.endsWith(".pdf") || mimeType == "application/pdf"
+            if (isPdf) {
+                isWebBook = false
+                withContext(Dispatchers.IO) {
+                    try {
+                        val pfd = if (bookUri!!.scheme == "content") {
+                            context.contentResolver.openFileDescriptor(bookUri!!, "r")
+                        } else {
+                            ParcelFileDescriptor.open(File(bookUri!!.path!!), ParcelFileDescriptor.MODE_READ_ONLY)
+                        }
 
-                    if (pfd != null) {
-                        val renderer = PdfRenderer(pfd)
-                        pdfManager = PdfManager(renderer, pfd)
-                        pageCount = renderer.pageCount
-                        pdfViewModel.incrementOpenCount(mangaId)
-                        isLoading = false
-                    } else {
-                        error = "Could not open file."
+                        if (pfd != null) {
+                            try {
+                                val renderer = PdfRenderer(pfd)
+                                pdfManager = PdfManager(renderer, pfd)
+                                pageCount = renderer.pageCount
+                                pdfViewModel.incrementOpenCount(mangaId)
+                                isLoading = false
+                            } catch (_: Throwable) {
+                                // Fallback to WebBookViewer if file is not a valid PDF binary
+                                pfd.close()
+                                isWebBook = true
+                                pageCount = 1
+                                pdfViewModel.incrementOpenCount(mangaId)
+                                isLoading = false
+                            }
+                        } else {
+                            isWebBook = true
+                            pageCount = 1
+                            pdfViewModel.incrementOpenCount(mangaId)
+                            isLoading = false
+                        }
+                    } catch (e: Throwable) {
+                        isWebBook = true
+                        pageCount = 1
                         isLoading = false
                     }
-                } catch (e: Throwable) {
-                    error = "Error: ${e.message}"
-                    isLoading = false
                 }
+            } else {
+                // Non-PDF rich book format (HTML web-book, EPUB, MOBI, KF8, etc.)
+                isWebBook = true
+                pageCount = 1
+                pdfViewModel.incrementOpenCount(mangaId)
+                isLoading = false
             }
         }
     }
@@ -656,7 +710,7 @@ fun BookPlayerScreen(
             }
     ) {
         Crossfade(
-            targetState = (pdfManager == null || isLoading) && error == null,
+            targetState = ((pdfManager == null && !isWebBook) || isLoading) && error == null,
             animationSpec = tween(220),
             label = "pdf_loading_crossfade"
         ) { loading ->
@@ -700,7 +754,7 @@ fun BookPlayerScreen(
                         )
 
                         Text(
-                            text = "Preparing pages & annotations...",
+                            text = "Preparing pages & media...",
                             color = Color.White.copy(alpha = 0.6f),
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center,
@@ -726,6 +780,277 @@ fun BookPlayerScreen(
                         modifier = Modifier.padding(24.dp),
                         textAlign = TextAlign.Center
                     )
+                }
+            } else if (isWebBook && bookUri != null) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    WebBookViewer(
+                        bookUri = bookUri!!,
+                        eyeCareMode = eyeCareMode,
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    // ── RIGHT-SIDE FOCUS TRIGGER (Full-height right margin tap zone) ──
+                    if (!showOverlay) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .fillMaxHeight()
+                                .width(72.dp)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    showOverlay = true
+                                }
+                        )
+                    }
+
+                    // ── OVERLAY CONTROLS (Only visible on trigger tap) ──
+                    AnimatedVisibility(
+                        visible = showOverlay,
+                        enter = fadeIn(tween(180)),
+                        exit = fadeOut(tween(140)),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            // 1. Transparent dismiss layer
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) {
+                                        if (activeBottomPanel != null) {
+                                            activeBottomPanel = null
+                                        } else {
+                                            showOverlay = false
+                                        }
+                                    }
+                            )
+
+                            // 2. Minimalist Top Bar: Back Button + Centered Title Capsule
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .align(Alignment.TopCenter)
+                                    .background(Brush.verticalGradient(colors = listOf(Color.Black.copy(alpha = 0.85f), Color.Transparent)))
+                                    .statusBarsPadding()
+                                    .displayCutoutPadding()
+                                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 28.dp)
+                            ) {
+                                // Circular Frosted Back Button (Left Aligned)
+                                Surface(
+                                    modifier = Modifier
+                                        .align(Alignment.CenterStart)
+                                        .size(42.dp)
+                                        .clip(CircleShape)
+                                        .clickable { handleBack() },
+                                    shape = CircleShape,
+                                    color = Color(0xFF14131E).copy(alpha = 0.90f),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                            contentDescription = "Back",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+
+                                // Centered Book Title Capsule
+                                Surface(
+                                    modifier = Modifier.align(Alignment.Center),
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = Color(0xFF14131E).copy(alpha = 0.90f),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Rounded.MenuBook,
+                                            contentDescription = null,
+                                            tint = Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Text(
+                                            text = manga?.title ?: "Book",
+                                            color = Color.White,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.widthIn(max = 220.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // 3. Floating Setting Popup Card (Middle area beside Right Side Pill)
+                            AnimatedVisibility(
+                                visible = activeBottomPanel != null,
+                                enter = fadeIn(tween(160)) + slideInHorizontally(tween(180)) { it / 2 },
+                                exit = fadeOut(tween(140)) + slideOutHorizontally(tween(160)) { it / 2 },
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .padding(end = 76.dp)
+                            ) {
+                                when (activeBottomPanel) {
+                                    PdfBottomPanel.EYE_CARE -> {
+                                        Surface(
+                                            shape = RoundedCornerShape(22.dp),
+                                            color = Color(0xFF14131E).copy(alpha = 0.96f),
+                                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                            shadowElevation = 16.dp,
+                                            modifier = Modifier
+                                                .widthIn(min = 280.dp, max = 320.dp)
+                                                .clickable(
+                                                    interactionSource = remember { MutableInteractionSource() },
+                                                    indication = null
+                                                ) { /* Consume click */ }
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(16.dp),
+                                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Text(
+                                                    text = "Reading Comfort & Eye Protection",
+                                                    color = Color.White,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    EyeCareMode.values().forEach { mode ->
+                                                        val isSelected = eyeCareMode == mode
+                                                        Surface(
+                                                            shape = RoundedCornerShape(12.dp),
+                                                            color = if (isSelected) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.06f),
+                                                            border = BorderStroke(
+                                                                1.dp,
+                                                                if (isSelected) Color.White else Color.White.copy(alpha = 0.12f)
+                                                            ),
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .clip(RoundedCornerShape(12.dp))
+                                                                .clickable { eyeCareMode = mode }
+                                                        ) {
+                                                            Column(
+                                                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 2.dp),
+                                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                                verticalArrangement = Arrangement.spacedBy(5.dp)
+                                                            ) {
+                                                                val previewColor = when (mode) {
+                                                                    EyeCareMode.OFF -> Color.White
+                                                                    EyeCareMode.SEPIA -> Color(0xFFFAF0D7)
+                                                                    EyeCareMode.MINT -> Color(0xFFE8F5E9)
+                                                                    EyeCareMode.NIGHT -> Color(0xFF1E1E2E)
+                                                                }
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .size(14.dp)
+                                                                        .clip(CircleShape)
+                                                                        .background(previewColor)
+                                                                        .border(0.8.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.35f), CircleShape)
+                                                                )
+                                                                Text(
+                                                                    text = mode.label,
+                                                                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.75f),
+                                                                    fontSize = 11.sp,
+                                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                                    maxLines = 1,
+                                                                    softWrap = false
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    PdfBottomPanel.MUSIC -> {
+                                        if (musicViewModel != null) {
+                                            ReaderMusicPlayerCard(
+                                                musicViewModel = musicViewModel,
+                                                onClose = { activeBottomPanel = null }
+                                            )
+                                        }
+                                    }
+                                    else -> {}
+                                }
+                            }
+
+                            // 4. Right Side Pill (Eye Care & Music)
+                            Surface(
+                                shape = RoundedCornerShape(32.dp),
+                                color = Color(0xFF14131E).copy(alpha = 0.94f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                shadowElevation = 14.dp,
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .padding(end = 14.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(vertical = 10.dp, horizontal = 6.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (activeBottomPanel == PdfBottomPanel.EYE_CARE) Color.White.copy(alpha = 0.22f) else Color.Transparent,
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .clickable {
+                                                activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.EYE_CARE) null else PdfBottomPanel.EYE_CARE
+                                            }
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Visibility,
+                                                contentDescription = "Eye Care",
+                                                tint = if (eyeCareMode != EyeCareMode.OFF) Color(0xFFFFD54F) else Color.White,
+                                                modifier = Modifier.size(19.dp)
+                                            )
+                                        }
+                                    }
+
+                                    if (musicViewModel != null) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = if (activeBottomPanel == PdfBottomPanel.MUSIC) Color.White.copy(alpha = 0.22f) else Color.Transparent,
+                                            modifier = Modifier
+                                                .size(38.dp)
+                                                .clip(CircleShape)
+                                            .clickable {
+                                                activeBottomPanel = if (activeBottomPanel == PdfBottomPanel.MUSIC) null else PdfBottomPanel.MUSIC
+                                            }
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.MusicNote,
+                                                    contentDescription = "Music",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(19.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             } else if (pdfManager != null && pageCount > 0) {
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -890,9 +1215,7 @@ fun BookPlayerScreen(
                                             pendingSingleTapJob?.cancel()
                                             pendingSingleTapJob = coroutineScope.launch {
                                                 kotlinx.coroutines.delay(doubleTapTimeoutMs)
-                                                // Only runs if not cancelled by a second tap
                                                 doubleTapPending = false
-                                                showOverlay = !showOverlay
                                             }
                                         }
                                     }
@@ -985,6 +1308,23 @@ fun BookPlayerScreen(
                         }
                     }
 
+                    // ── RIGHT-SIDE FOCUS TRIGGER (Full-height right margin tap zone for PDF) ──
+                    if (!showOverlay && !isMarkerMode) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .fillMaxHeight()
+                                .width(72.dp)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    showOverlay = true
+                                }
+                        )
+                    }
+
                     // ── OVERLAY ───────────────────────────────────────────────────────────
                     AnimatedVisibility(
                         visible = showOverlay || isMarkerMode,
@@ -992,6 +1332,22 @@ fun BookPlayerScreen(
                         exit = fadeOut(tween(140))
                     ) {
                         Box(modifier = Modifier.fillMaxSize()) {
+                            // Transparent dismiss layer
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) {
+                                        if (activeBottomPanel != null) {
+                                            activeBottomPanel = null
+                                        } else if (!isMarkerMode) {
+                                            showOverlay = false
+                                        }
+                                    }
+                            )
+
                             // ── Top Bar (Protected with statusBarsPadding & displayCutoutPadding) ──
                             Row(
                                 modifier = Modifier
@@ -1185,7 +1541,12 @@ fun BookPlayerScreen(
                                             color = Color(0xFF14131E).copy(alpha = 0.96f),
                                             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
                                             shadowElevation = 16.dp,
-                                            modifier = Modifier.widthIn(min = 280.dp, max = 320.dp)
+                                            modifier = Modifier
+                                                .widthIn(min = 280.dp, max = 320.dp)
+                                                .clickable(
+                                                    interactionSource = remember { MutableInteractionSource() },
+                                                    indication = null
+                                                ) { /* Consume click */ }
                                         ) {
                                             Column(
                                                 modifier = Modifier.padding(16.dp),
@@ -1265,7 +1626,12 @@ fun BookPlayerScreen(
                                             color = Color(0xFF14131E).copy(alpha = 0.96f),
                                             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
                                             shadowElevation = 16.dp,
-                                            modifier = Modifier.widthIn(min = 280.dp, max = 320.dp)
+                                            modifier = Modifier
+                                                .widthIn(min = 280.dp, max = 320.dp)
+                                                .clickable(
+                                                    interactionSource = remember { MutableInteractionSource() },
+                                                    indication = null
+                                                ) { /* Consume click */ }
                                         ) {
                                             Column(
                                                 modifier = Modifier.padding(16.dp),
@@ -1552,28 +1918,172 @@ fun BookPlayerScreen(
                                 }
                             }
                         }
-                    }
                 }
             }
         }
-    }
 
-    if (showNotesDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                showNotesDialog = false
-                noteInputText = ""
-            },
-            containerColor = Color(0xFF14131E),
-            shape = RoundedCornerShape(24.dp),
-            titleContentColor = Color.White,
-            textContentColor = Color.White.copy(alpha = 0.85f),
-            title = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+        if (showNotesDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showNotesDialog = false
+                    noteInputText = ""
+                },
+                containerColor = Color(0xFF14131E),
+                shape = RoundedCornerShape(24.dp),
+                titleContentColor = Color.White,
+                textContentColor = Color.White.copy(alpha = 0.85f),
+                title = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.StickyNote2,
+                                contentDescription = null,
+                                tint = Color(0xFFFFD54F),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "Notes • Page $noteDialogPage",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = Color.White
+                            )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                showNotesDialog = false
+                                noteInputText = ""
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Close",
+                                tint = Color.White.copy(alpha = 0.6f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                },
+                text = {
+                    val currentPageNotes = textNotes.filter { it.page == noteDialogPage }
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (currentPageNotes.isNotEmpty()) {
+                            Text(
+                                text = "Notes on Page $noteDialogPage:",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 150.dp)
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                for (note in currentPageNotes) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color.White.copy(alpha = 0.08f),
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = note.text,
+                                                color = Color.White,
+                                                fontSize = 13.sp,
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .padding(end = 8.dp)
+                                            )
+                                            IconButton(
+                                                onClick = { deleteNote(note) },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.DeleteOutline,
+                                                    contentDescription = "Delete Note",
+                                                    tint = Color(0xFFE57373),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = noteInputText,
+                            onValueChange = { noteInputText = it },
+                            placeholder = { Text("Write note for Page $noteDialogPage...", color = Color.White.copy(alpha = 0.4f), fontSize = 13.sp) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 80.dp, max = 130.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = Color(0xFFFFD54F),
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
+                                cursorColor = Color(0xFFFFD54F)
+                            ),
+                            shape = RoundedCornerShape(14.dp)
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { addNoteToPage(noteDialogPage, noteInputText) },
+                        enabled = noteInputText.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFFD54F),
+                            contentColor = Color(0xFF14131E),
+                            disabledContainerColor = Color.White.copy(alpha = 0.1f),
+                            disabledContentColor = Color.White.copy(alpha = 0.3f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Save Note", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showNotesDialog = false
+                        noteInputText = ""
+                    }) {
+                        Text("Done", color = Color.White.copy(alpha = 0.7f))
+                    }
+                }
+            )
+        }
+
+        if (noteForDetailDialog != null) {
+            val currentNote = noteForDetailDialog!!
+            AlertDialog(
+                onDismissRequest = { noteForDetailDialog = null },
+                containerColor = Color(0xFF14131E),
+                shape = RoundedCornerShape(24.dp),
+                titleContentColor = Color.White,
+                textContentColor = Color.White.copy(alpha = 0.85f),
+                title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1584,179 +2094,35 @@ fun BookPlayerScreen(
                             tint = Color(0xFFFFD54F),
                             modifier = Modifier.size(20.dp)
                         )
+                        Text("Note • Page ${currentNote.page}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    }
+                },
+                text = {
+                    SelectionContainer {
                         Text(
-                            text = "Notes • Page $noteDialogPage",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = Color.White
+                            text = currentNote.text,
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp
                         )
                     }
-
-                    IconButton(
-                        onClick = {
-                            showNotesDialog = false
-                            noteInputText = ""
-                        },
-                        modifier = Modifier.size(28.dp)
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = { deleteNote(currentNote) }
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = "Close",
-                            tint = Color.White.copy(alpha = 0.6f),
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Text("Delete Note", color = Color(0xFFE57373), fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { noteForDetailDialog = null }) {
+                        Text("Close", color = Color.White.copy(alpha = 0.7f))
                     }
                 }
-            },
-            text = {
-                val currentPageNotes = textNotes.filter { it.page == noteDialogPage }
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    if (currentPageNotes.isNotEmpty()) {
-                        Text(
-                            text = "Notes on Page $noteDialogPage:",
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 150.dp)
-                                .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            for (note in currentPageNotes) {
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = Color.White.copy(alpha = 0.08f),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = note.text,
-                                            color = Color.White,
-                                            fontSize = 13.sp,
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .padding(end = 8.dp)
-                                        )
-                                        IconButton(
-                                            onClick = { deleteNote(note) },
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Rounded.DeleteOutline,
-                                                contentDescription = "Delete Note",
-                                                tint = Color(0xFFE57373),
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    OutlinedTextField(
-                        value = noteInputText,
-                        onValueChange = { noteInputText = it },
-                        placeholder = { Text("Write note for Page $noteDialogPage...", color = Color.White.copy(alpha = 0.4f), fontSize = 13.sp) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 80.dp, max = 130.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color(0xFFFFD54F),
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                            cursorColor = Color(0xFFFFD54F)
-                        ),
-                        shape = RoundedCornerShape(14.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { addNoteToPage(noteDialogPage, noteInputText) },
-                    enabled = noteInputText.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFFD54F),
-                        contentColor = Color(0xFF14131E),
-                        disabledContainerColor = Color.White.copy(alpha = 0.1f),
-                        disabledContentColor = Color.White.copy(alpha = 0.3f)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Save Note", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showNotesDialog = false
-                    noteInputText = ""
-                }) {
-                    Text("Done", color = Color.White.copy(alpha = 0.7f))
-                }
-            }
-        )
+            )
+        }
     }
-
-    if (noteForDetailDialog != null) {
-        val currentNote = noteForDetailDialog!!
-        AlertDialog(
-            onDismissRequest = { noteForDetailDialog = null },
-            containerColor = Color(0xFF14131E),
-            shape = RoundedCornerShape(24.dp),
-            titleContentColor = Color.White,
-            textContentColor = Color.White.copy(alpha = 0.85f),
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.StickyNote2,
-                        contentDescription = null,
-                        tint = Color(0xFFFFD54F),
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text("Note • Page ${currentNote.page}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
-            },
-            text = {
-                SelectionContainer {
-                    Text(
-                        text = currentNote.text,
-                        color = Color.White.copy(alpha = 0.9f),
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { deleteNote(currentNote) }
-                ) {
-                    Text("Delete Note", color = Color(0xFFE57373), fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { noteForDetailDialog = null }) {
-                    Text("Close", color = Color.White.copy(alpha = 0.7f))
-                }
-            }
-        )
-    }
+}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2231,4 +2597,5 @@ fun AnimatedHighlighterIcon(
     }
 }
 }
+
 

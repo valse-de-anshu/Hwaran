@@ -47,12 +47,23 @@ object CoverArtResolver {
         if (!parentUri.isNullOrBlank() && parentUri.startsWith("/")) {
             val dir = File(parentUri)
             if (dir.exists() && dir.isDirectory) {
-                val candidate = dir.listFiles()?.firstOrNull { file ->
+                val isCoverFile: (File) -> Boolean = { file ->
                     val n = file.name.lowercase()
-                    (n.startsWith("cover.") || n.startsWith("folder.") || n.startsWith("poster.") || n.startsWith("thumb.")) &&
+                    (n.startsWith("cover.") || n.startsWith("folder.") || n.startsWith("poster.") || n.startsWith("thumb.") || n.startsWith("illus-fpc.") || n.startsWith("artwork.")) &&
                             (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp"))
                 }
+                val candidate = dir.listFiles()?.firstOrNull(isCoverFile)
                 if (candidate != null && candidate.exists()) return candidate
+
+                // Check common media image subdirectories (e.g., images/cover.jpg, img/poster.png)
+                val subDirs = listOf("images", "img", "covers", "artwork")
+                for (sub in subDirs) {
+                    val subFolder = File(dir, sub)
+                    if (subFolder.exists() && subFolder.isDirectory) {
+                        val subCandidate = subFolder.listFiles()?.firstOrNull(isCoverFile)
+                        if (subCandidate != null && subCandidate.exists()) return subCandidate
+                    }
+                }
             }
         }
 

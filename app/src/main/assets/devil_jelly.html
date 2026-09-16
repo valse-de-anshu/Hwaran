@@ -134,7 +134,7 @@
     creature.add(bodyMesh);
 
     /* =========================================================================
-       2. CUTE PLUMP CHIBI DEVIL HORNS
+       2. CUTE PLUMP CHIBI DEVIL HORNS (Stable, Stylish Form)
        ========================================================================= */
     function createCuteChibiHornGeometry(isLeft) {
       const heightSegments = 24;
@@ -208,9 +208,9 @@
 
     const hornShaderMat = new THREE.ShaderMaterial({
       uniforms: {
-        colorBase: { value: new THREE.Color(0xd9267c) }, // Cute warm ruby/magenta
-        colorMid:  { value: new THREE.Color(0xa855f7) }, // Friendly purple
-        colorTip:  { value: new THREE.Color(0xfff2fe) }  // Glowing white-lavender tip
+        colorBase: { value: new THREE.Color(0xd9267c) }, // Warm ruby/magenta
+        colorMid:  { value: new THREE.Color(0xa855f7) }, // Purple
+        colorTip:  { value: new THREE.Color(0xfff2fe) }  // Glowing lavender-white tip
       },
       vertexShader: `
         varying vec2 vUv;
@@ -278,7 +278,7 @@
     hornsGroup.add(rightHorn);
 
     /* =========================================================================
-       3. CRISP GLOWING WHITE CAPSULE EYES
+       3. CRISP GLOWING DEVIL EYES (Dynamic Slants & Glances)
        ========================================================================= */
     const faceGroup = new THREE.Group();
     creature.add(faceGroup);
@@ -325,18 +325,18 @@
     creature.add(devilAuraLight);
 
     /* =========================================================================
-       4. SPRING SQUASH & VOLUME-PRESERVING PHYSICS
+       4. ORGANIC SPRING SQUASH & VOLUME-PRESERVING PHYSICS
        ========================================================================= */
     const physics = {
-      bodyY:       { current: 0, target: 0, vel: 0, spring: 0.14, friction: 0.74 },
-      scaleX:      { current: 1, target: 1, vel: 0, spring: 0.16, friction: 0.70 },
-      scaleY:      { current: 1, target: 1, vel: 0, spring: 0.16, friction: 0.70 },
-      rotateZ:     { current: 0, target: 0, vel: 0, spring: 0.10, friction: 0.78 },
-      faceX:       { current: 0, target: 0, vel: 0, spring: 0.10, friction: 0.80 },
-      faceY:       { current: 0, target: 0, vel: 0, spring: 0.10, friction: 0.80 },
-      hornInertia: { current: 0, target: 0, vel: 0, spring: 0.14, friction: 0.72 },
-      leftHornScale:  { current: 1, target: 1, vel: 0, spring: 0.15, friction: 0.68 },
-      rightHornScale: { current: 1, target: 1, vel: 0, spring: 0.15, friction: 0.68 }
+      bodyY:       { current: 0, target: 0, vel: 0, spring: 0.12, friction: 0.76 },
+      scaleX:      { current: 1, target: 1, vel: 0, spring: 0.14, friction: 0.72 },
+      scaleY:      { current: 1, target: 1, vel: 0, spring: 0.14, friction: 0.72 },
+      rotateZ:     { current: 0, target: 0, vel: 0, spring: 0.08, friction: 0.82 },
+      faceX:       { current: 0, target: 0, vel: 0, spring: 0.09, friction: 0.82 },
+      faceY:       { current: 0, target: 0, vel: 0, spring: 0.09, friction: 0.82 },
+      eyeAngleL:   { current: 0.14, target: 0.14, vel: 0, spring: 0.12, friction: 0.75 },
+      eyeAngleR:   { current: -0.14, target: -0.14, vel: 0, spring: 0.12, friction: 0.75 },
+      hornInertia: { current: 0, target: 0, vel: 0, spring: 0.12, friction: 0.75 }
     };
 
     function updateSpring(p) {
@@ -347,9 +347,9 @@
     }
 
     function triggerBounce(intensity = 1.0) {
-      physics.scaleY.vel = -0.32 * intensity;
-      physics.scaleX.vel = 0.25 * intensity;
-      physics.bodyY.vel = 0.15 * intensity;
+      physics.scaleY.vel = -0.28 * intensity;
+      physics.scaleX.vel = 0.22 * intensity;
+      physics.bodyY.vel = 0.14 * intensity;
     }
 
     window.triggerBounce = triggerBounce;
@@ -367,12 +367,75 @@
     });
 
     /* =========================================================================
-       DEVILISH PERSONALITY & GIANT HORN SURGE ANIMATION LOOP
+       5. DEVILISH STATE MACHINE (Organic, Non-repetitive Personality)
        ========================================================================= */
-    const blink = { active: false, progress: 0, nextTime: 2.0, isWink: false, isEvilSquint: false };
-    const glance = { targetX: 0, targetY: 0, nextTime: 2.5 };
-    const hornSurge = { active: false, isLeft: true, holdTimer: 0, nextTime: 3.5 };
+    const DEVIL_STATES = {
+      SWAGGER: 'swagger',         // Fiendish swagger with slow rhythmic sway
+      SCHEMING: 'scheming',       // Plotting mischief, eyes narrow, head tilts forward
+      GIGGLE: 'giggle',           // Rapid demonic giggle / head shudder
+      SLY_LOOK: 'sly_look',       // Side glance with asymmetric eye slant
+      EVIL_SMIRK: 'evil_smirk'    // One-sided smirk posture
+    };
+
+    let currentState = DEVIL_STATES.SWAGGER;
+    let stateTimer = 0;
+    let stateDuration = 4.0;
+
+    const blink = { active: false, progress: 0, nextTime: 2.5, isWink: false, isEvilSquint: false };
     const clock = new THREE.Clock();
+
+    function pickNewState(time) {
+      const choices = [
+        DEVIL_STATES.SWAGGER,
+        DEVIL_STATES.SCHEMING,
+        DEVIL_STATES.GIGGLE,
+        DEVIL_STATES.SLY_LOOK,
+        DEVIL_STATES.EVIL_SMIRK
+      ];
+      // Pick a state different from current
+      const available = choices.filter(s => s !== currentState);
+      currentState = available[Math.floor(Math.random() * available.length)];
+      stateTimer = time;
+
+      switch (currentState) {
+        case DEVIL_STATES.SWAGGER:
+          stateDuration = 3.5 + Math.random() * 2.5; // 3.5s - 6s
+          physics.eyeAngleL.target = 0.14;
+          physics.eyeAngleR.target = -0.14;
+          break;
+        case DEVIL_STATES.SCHEMING:
+          stateDuration = 2.5 + Math.random() * 2.0; // 2.5s - 4.5s
+          // Narrower, sharper devilish slanted eyes
+          physics.eyeAngleL.target = 0.24;
+          physics.eyeAngleR.target = -0.24;
+          physics.faceX.target = (Math.random() > 0.5 ? 0.08 : -0.08);
+          physics.faceY.target = -0.06;
+          physics.rotateZ.target = (Math.random() > 0.5 ? 0.09 : -0.09);
+          break;
+        case DEVIL_STATES.GIGGLE:
+          stateDuration = 0.9 + Math.random() * 0.6; // 0.9s - 1.5s
+          physics.bodyY.vel = 0.12;
+          physics.scaleY.vel = -0.18;
+          break;
+        case DEVIL_STATES.SLY_LOOK:
+          stateDuration = 2.0 + Math.random() * 2.0; // 2.0s - 4.0s
+          const side = Math.random() > 0.5 ? 1 : -1;
+          physics.faceX.target = side * 0.20;
+          physics.faceY.target = 0.08;
+          physics.rotateZ.target = side * 0.11;
+          physics.eyeAngleL.target = 0.14 + side * 0.08;
+          physics.eyeAngleR.target = -0.14 + side * 0.08;
+          break;
+        case DEVIL_STATES.EVIL_SMIRK:
+          stateDuration = 2.2 + Math.random() * 2.2; // 2.2s - 4.4s
+          physics.rotateZ.target = 0.14;
+          physics.faceX.target = 0.12;
+          physics.faceY.target = 0.04;
+          physics.eyeAngleL.target = 0.22;
+          physics.eyeAngleR.target = -0.08;
+          break;
+      }
+    }
 
     function animate() {
       requestAnimationFrame(animate);
@@ -380,95 +443,93 @@
       const delta = Math.min(clock.getDelta(), 0.05);
       const time = clock.getElapsedTime();
 
-      // 1. OCCASIONAL GIANT HORN GROWTH SURGE
-      if (!hornSurge.active) {
-        if (time > hornSurge.nextTime) {
-          hornSurge.active = true;
-          hornSurge.isLeft = Math.random() < 0.5; // Randomly choose left or right horn
-          hornSurge.holdTimer = time + 1.8 + Math.random() * 0.8; // Hold giant form for ~2s
+      // State Transition Check
+      if (time - stateTimer > stateDuration && !isHappy) {
+        pickNewState(time);
+      }
 
-          if (hornSurge.isLeft) {
-            physics.leftHornScale.target = 1.95;
-            physics.rightHornScale.target = 0.90;
-            // Devilish smirk tilt towards the big left horn
-            physics.rotateZ.target = -0.16;
-            physics.faceX.target = -0.14;
-            physics.faceY.target = 0.08;
-          } else {
-            physics.rightHornScale.target = 1.95;
-            physics.leftHornScale.target = 0.90;
-            // Devilish smirk tilt towards the big right horn
-            physics.rotateZ.target = 0.16;
-            physics.faceX.target = 0.14;
-            physics.faceY.target = 0.08;
+      // 1. Behavior Execution per State
+      if (isHappy) {
+        // High-energy joyful demonic celebration
+        const bounce = Math.sin(time * 6.5);
+        physics.scaleY.target = 1.0 + bounce * 0.12;
+        physics.scaleX.target = 1.0 - bounce * 0.10;
+        physics.bodyY.target = Math.abs(bounce) * 0.16;
+        physics.rotateZ.target = Math.sin(time * 3.5) * 0.12;
+        physics.faceX.target = Math.sin(time * 2.0) * 0.10;
+        physics.faceY.target = 0.08;
+        physics.hornInertia.target = Math.cos(time * 6.5) * 0.20;
+        devilAuraLight.intensity = 1.2 + Math.sin(time * 10.0) * 0.5;
+      } else {
+        switch (currentState) {
+          case DEVIL_STATES.SWAGGER: {
+            // Slow, menacing swagger with subtle breathing
+            const sway = Math.sin(time * 1.4);
+            const breathe = Math.cos(time * 2.0);
+            physics.scaleY.target = 1.0 + breathe * 0.025;
+            physics.scaleX.target = 1.0 - breathe * 0.025;
+            physics.bodyY.target = Math.sin(time * 1.2) * 0.035;
+            physics.rotateZ.target = sway * 0.08;
+            physics.faceX.target = sway * 0.06;
+            physics.faceY.target = 0;
+            physics.hornInertia.target = -sway * 0.05;
+            devilAuraLight.intensity = 0.82 + Math.sin(time * 2.5) * 0.20;
+            break;
+          }
+          case DEVIL_STATES.SCHEMING: {
+            // Scheming posture: deep ruby light, low breathing, subtle trembling
+            const pulse = Math.sin(time * 4.0);
+            physics.scaleY.target = 0.97 + pulse * 0.015;
+            physics.scaleX.target = 1.03 - pulse * 0.015;
+            physics.bodyY.target = -0.03;
+            physics.hornInertia.target = Math.sin(time * 1.8) * 0.03;
+            devilAuraLight.intensity = 1.15 + pulse * 0.35;
+            break;
+          }
+          case DEVIL_STATES.GIGGLE: {
+            // Chibi devil rapid chuckling head shudder
+            const gigglePhase = Math.sin((time - stateTimer) * 16.0);
+            physics.scaleY.target = 1.0 + gigglePhase * 0.06;
+            physics.scaleX.target = 1.0 - gigglePhase * 0.05;
+            physics.bodyY.target = Math.abs(gigglePhase) * 0.06;
+            physics.rotateZ.target = Math.sin((time - stateTimer) * 12.0) * 0.06;
+            physics.hornInertia.target = gigglePhase * 0.12;
+            devilAuraLight.intensity = 1.1 + Math.abs(gigglePhase) * 0.4;
+            break;
+          }
+          case DEVIL_STATES.SLY_LOOK: {
+            // Sidelong glance posture
+            const slowBreathe = Math.sin(time * 1.6);
+            physics.scaleY.target = 1.0 + slowBreathe * 0.02;
+            physics.scaleX.target = 1.0 - slowBreathe * 0.02;
+            physics.bodyY.target = slowBreathe * 0.025;
+            physics.hornInertia.target = Math.sin(time * 2.2) * 0.04;
+            devilAuraLight.intensity = 0.88 + Math.sin(time * 3.0) * 0.18;
+            break;
+          }
+          case DEVIL_STATES.EVIL_SMIRK: {
+            // Confident devilish grin posture
+            const slowBreathe = Math.cos(time * 1.5);
+            physics.scaleY.target = 1.02 + slowBreathe * 0.02;
+            physics.scaleX.target = 0.98 - slowBreathe * 0.02;
+            physics.bodyY.target = 0.02 + slowBreathe * 0.02;
+            physics.hornInertia.target = Math.sin(time * 1.5) * 0.03;
+            devilAuraLight.intensity = 0.95 + Math.sin(time * 2.0) * 0.22;
+            break;
           }
         }
-      } else {
-        if (time > hornSurge.holdTimer) {
-          // Snap back to normal with elastic bounce!
-          hornSurge.active = false;
-          physics.leftHornScale.target = 1.0;
-          physics.rightHornScale.target = 1.0;
-          physics.rotateZ.target = 0;
-          physics.bodyY.vel = 0.08; // Happy head shudder
-          hornSurge.nextTime = time + 4.5 + Math.random() * 4.0;
-        }
       }
 
-      // 2. Chibi Devil Breathing & Fiendish Mood
-      if (isHappy) {
-        // High-energy, joyful demonic bouncy personality when happy
-        const bouncePhase = Math.sin(time * 6.5);
-        physics.scaleY.target = 1.0 + bouncePhase * 0.12;
-        physics.scaleX.target = 1.0 - bouncePhase * 0.10;
-        physics.bodyY.target = Math.abs(bouncePhase) * 0.18;
-        physics.rotateZ.target = Math.sin(time * 4.0) * 0.12;
-        physics.hornInertia.target = Math.cos(time * 6.5) * 0.22;
-        devilAuraLight.intensity = 1.4 + Math.sin(time * 12.0) * 0.6;
-      } else {
-        // Idle: Swaggering fiendish sway with sharp mischievous posture
-        const breathe = Math.sin(time * 2.4);
-        physics.scaleY.target = 1.0 + breathe * 0.035;
-        physics.scaleX.target = 1.0 - breathe * 0.035;
-        physics.bodyY.target = Math.sin(time * 1.6) * 0.045 + (hornSurge.active ? 0.02 : 0);
-        if (!hornSurge.active) {
-          physics.rotateZ.target = Math.sin(time * 0.9) * 0.07; // Mischievous swagger tilt
-        }
-        devilAuraLight.intensity = 0.85 + (hornSurge.active ? 0.6 : 0.0) + Math.sin(time * 4.0) * 0.2;
-      }
-
-      // 3. Sly, Devilish Look-Around Glances
-      if (time > glance.nextTime && !hornSurge.active) {
-        const r = Math.random();
-        if (r < 0.40) {
-          // Sly side glance with sly upward tilt
-          glance.targetX = (Math.random() > 0.5 ? 0.22 : -0.22);
-          glance.targetY = 0.06;
-        } else if (r < 0.70) {
-          // Look up plotting something mischievous
-          glance.targetX = (Math.random() - 0.5) * 0.16;
-          glance.targetY = 0.16;
-        } else {
-          glance.targetX = 0;
-          glance.targetY = 0;
-        }
-        glance.nextTime = time + 1.8 + Math.random() * 2.4;
-      }
-      if (!hornSurge.active) {
-        physics.faceX.target = glance.targetX;
-        physics.faceY.target = glance.targetY;
-      }
-
-      // 4. Physics Step
+      // 2. Physics Step
       updateSpring(physics.bodyY);
       updateSpring(physics.scaleX);
       updateSpring(physics.scaleY);
       updateSpring(physics.rotateZ);
       updateSpring(physics.faceX);
       updateSpring(physics.faceY);
+      updateSpring(physics.eyeAngleL);
+      updateSpring(physics.eyeAngleR);
       updateSpring(physics.hornInertia);
-      updateSpring(physics.leftHornScale);
-      updateSpring(physics.rightHornScale);
 
       // Volume conservation
       const curSX = physics.scaleX.current;
@@ -479,55 +540,48 @@
       creature.position.y = physics.bodyY.current;
       creature.rotation.z = physics.rotateZ.current;
 
-      // Ground shadow scale sync
+      // Ground shadow sync
       const shadowScale = (curSX + curSZ) * 0.5 * (1.0 - physics.bodyY.current * 0.35);
       shadowPlane.scale.set(shadowScale, shadowScale, shadowScale);
 
-      // 5. Face Look-At Parallax & Sly Smirking Eye Slants
+      // 3. Face Look-At Parallax & Dynamic Devilish Slants
       faceGroup.position.x = physics.faceX.current;
       faceGroup.position.y = physics.faceY.current;
-      faceGroup.rotation.y = physics.faceX.current * 0.32;
-      faceGroup.rotation.x = -physics.faceY.current * 0.32;
+      faceGroup.rotation.y = physics.faceX.current * 0.30;
+      faceGroup.rotation.x = -physics.faceY.current * 0.30;
 
-      // Dynamic Devilish Eye Slants
-      const extraSlant = (physics.faceX.current * 0.3) + (hornSurge.active ? (hornSurge.isLeft ? 0.08 : -0.08) : 0);
-      leftEyeMesh.rotation.z = 0.14 + extraSlant;
-      rightEyeMesh.rotation.z = -0.14 + extraSlant;
+      leftEyeMesh.rotation.z = physics.eyeAngleL.current;
+      rightEyeMesh.rotation.z = physics.eyeAngleR.current;
 
-      // 6. Dynamic Horn Scaling & Growth Physics
-      const curLScale = physics.leftHornScale.current;
-      const curRScale = physics.rightHornScale.current;
-      leftHorn.scale.set(curLScale, curLScale * (1.0 + (curLScale - 1.0) * 0.35), curLScale);
-      rightHorn.scale.set(curRScale, curRScale * (1.0 + (curRScale - 1.0) * 0.35), curRScale);
+      // Horn Inertia & Soft Natural Sway
+      const hornInertiaSway = physics.hornInertia.current;
+      leftHorn.rotation.z = -0.26 + hornInertiaSway;
+      rightHorn.rotation.z = 0.26 + hornInertiaSway;
 
-      const hornInertiaSway = Math.sin(time * 3.0) * 0.02 + physics.hornInertia.current * 0.25;
-      leftHorn.rotation.z = -0.26 + hornInertiaSway + (curLScale > 1.2 ? -0.08 : 0);
-      rightHorn.rotation.z = 0.26 + hornInertiaSway + (curRScale > 1.2 ? 0.08 : 0);
-
-      // 7. Mascot Blinking / Cheeky Wink / Evil Squint Cycle
+      // 4. Devilish Blinking / Wink / Evil Squint Cycle
       if (!blink.active) {
         if (time > blink.nextTime) {
           blink.active = true;
           blink.progress = 0;
           const r = Math.random();
-          blink.isWink = r < 0.35; // 35% chance cheeky wink
-          blink.isEvilSquint = !blink.isWink && (r < 0.55); // 20% chance scheming evil squint!
-          blink.nextTime = time + 2.0 + Math.random() * 3.0;
+          blink.isWink = r < 0.35; // 35% chance wink
+          blink.isEvilSquint = !blink.isWink && (r < 0.65); // 30% chance evil squint
+          blink.nextTime = time + 2.5 + Math.random() * 3.5;
         }
       } else {
-        blink.progress += delta * (blink.isEvilSquint ? 6.0 : 10.0);
+        blink.progress += delta * (blink.isEvilSquint ? 5.5 : 9.5);
         const blinkPhase = Math.sin(blink.progress * Math.PI);
 
         if (blink.isEvilSquint) {
           // Evil squint: eyes narrow into menacing slits while plotting
-          const squintScale = Math.max(0.28, 1.0 - blinkPhase * 0.72);
+          const squintScale = Math.max(0.24, 1.0 - blinkPhase * 0.76);
           leftEyeMesh.scale.set(1.0, squintScale, 1.0);
           rightEyeMesh.scale.set(1.0, squintScale, 1.0);
         } else if (blink.isWink) {
-          // Cheeky wink: right eye winks while left squints mischievously
+          // Mischievous wink: right eye winks while left stays partially open
           const eyeScaleY = Math.max(0.04, 1.0 - blinkPhase * 0.96);
           rightEyeMesh.scale.set(1.0, eyeScaleY, 1.0);
-          leftEyeMesh.scale.set(1.0, Math.max(0.45, 1.0 - blinkPhase * 0.55), 1.0);
+          leftEyeMesh.scale.set(1.0, Math.max(0.40, 1.0 - blinkPhase * 0.60), 1.0);
         } else {
           const eyeScaleY = Math.max(0.04, 1.0 - blinkPhase * 0.96);
           leftEyeMesh.scale.set(1.0, eyeScaleY, 1.0);

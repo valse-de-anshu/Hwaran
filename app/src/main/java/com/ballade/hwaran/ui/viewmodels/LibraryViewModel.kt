@@ -398,6 +398,35 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                         totalCount = candidates.size
 
                         if (totalCount == 0) {
+                            if (mediaMode == 4 || boxPurpose == "novel") {
+                                val hasDirectNovels = allChildren.any { !it.isDirectory && com.ballade.hwaran.backend.novel.NovelParser.isNovelFile(it.name) }
+                                if (hasDirectNovels) {
+                                    _isMegaImporting.value = false
+                                    importFolder(
+                                        uri = parentUri,
+                                        boxPurposeOverride = boxPurposeOverride,
+                                        workspace = workspace,
+                                        isNsfwOverride = isNsfwOverride,
+                                        storageModeOverride = storageModeOverride,
+                                        mediaModeOverride = mediaModeOverride
+                                    )
+                                    return@withContext
+                                }
+                            } else if (mediaMode == 1 || boxPurpose == "book") {
+                                val hasDirectBooks = allChildren.any { !it.isDirectory && com.ballade.hwaran.backend.novel.NovelParser.isBookFile(it.name) }
+                                if (hasDirectBooks) {
+                                    _isMegaImporting.value = false
+                                    importFolder(
+                                        uri = parentUri,
+                                        boxPurposeOverride = boxPurposeOverride,
+                                        workspace = workspace,
+                                        isNsfwOverride = isNsfwOverride,
+                                        storageModeOverride = storageModeOverride,
+                                        mediaModeOverride = mediaModeOverride
+                                    )
+                                    return@withContext
+                                }
+                            }
                             _megaImportSummary.value = MegaImportSummary(0, 0, 0, emptyList(), false)
                             return@withContext
                         }
@@ -425,7 +454,19 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                                 continue
                             }
 
-                            val (isValid, reason) = com.ballade.hwaran.data.importer.toon.ToonImportUtils.isToonFolderValid(child)
+                            val (isValid, reason) = if (boxPurpose == "novel" || mediaMode == 4) {
+                                val childFiles = child.listFiles() ?: emptyArray()
+                                val hasNovels = childFiles.any { !it.isDirectory && com.ballade.hwaran.backend.novel.NovelParser.isNovelFile(it.name) } ||
+                                        childFiles.any { it.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }
+                                if (hasNovels) true to null else false to "No novel or text files found"
+                            } else if (boxPurpose == "book" || mediaMode == 1) {
+                                val childFiles = child.listFiles() ?: emptyArray()
+                                val hasBooks = childFiles.any { !it.isDirectory && com.ballade.hwaran.backend.novel.NovelParser.isBookFile(it.name) } ||
+                                        childFiles.any { it.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }
+                                if (hasBooks) true to null else false to "No book or PDF/EPUB/web-book files found"
+                            } else {
+                                com.ballade.hwaran.data.importer.toon.ToonImportUtils.isToonFolderValid(child)
+                            }
                             if (isValid) {
                                 try {
                                     val importedId = repository.scanImportedFolder(
@@ -560,13 +601,13 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                     if (isFile) {
                         // Single-file URI from OpenDocument picker — must use fromSingleUri,
                         // NOT fromTreeUri (which always returns null for file URIs).
-                        val pdfDoc = androidx.documentfile.provider.DocumentFile.fromSingleUri(getApplication(), uri)
-                        if (pdfDoc != null) {
+                        val bookDoc = androidx.documentfile.provider.DocumentFile.fromSingleUri(getApplication(), uri)
+                        if (bookDoc != null) {
                             if (isLocalMode) {
                                 importedId = com.ballade.hwaran.data.importer.book.BookLocalSingleImport.executeSinglePdf(
                                     context = getApplication(),
                                     repository = bookRepository,
-                                    pdfDoc = pdfDoc,
+                                    pdfDoc = bookDoc,
                                     workspace = workspace,
                                     isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
                                     boxPurpose = boxPurpose,
@@ -577,7 +618,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                                 importedId = com.ballade.hwaran.data.importer.book.BookExternalSingleImport.executeSinglePdf(
                                     context = getApplication(),
                                     repository = bookRepository,
-                                    pdfDoc = pdfDoc,
+                                    pdfDoc = bookDoc,
                                     workspace = workspace,
                                     isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
                                     boxPurpose = boxPurpose,
@@ -586,28 +627,30 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                                 )
                             }
                         }
-                    } else if (isLocalMode) {
-                        importedId = com.ballade.hwaran.data.importer.book.BookLocalSingleImport.execute(
-                            context = getApplication(),
-                            repository = bookRepository,
-                            uri = uri,
-                            workspace = workspace,
-                            isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
-                            boxPurpose = boxPurpose,
-                            isCancelled = { _isCancelRequested.value },
-                            onProgress = { progress -> _importProgress.value = progress }
-                        )
                     } else {
-                        importedId = com.ballade.hwaran.data.importer.book.BookExternalSingleImport.execute(
-                            context = getApplication(),
-                            repository = bookRepository,
-                            uri = uri,
-                            workspace = workspace,
-                            isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
-                            boxPurpose = boxPurpose,
-                            isCancelled = { _isCancelRequested.value },
-                            onProgress = { progress -> _importProgress.value = progress }
-                        )
+                        if (isLocalMode) {
+                            importedId = com.ballade.hwaran.data.importer.book.BookLocalSingleImport.execute(
+                                context = getApplication(),
+                                repository = bookRepository,
+                                uri = uri,
+                                workspace = workspace,
+                                isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                                boxPurpose = boxPurpose ?: "book",
+                                isCancelled = { _isCancelRequested.value },
+                                onProgress = { progress -> _importProgress.value = progress }
+                            )
+                        } else {
+                            importedId = com.ballade.hwaran.data.importer.book.BookExternalSingleImport.execute(
+                                context = getApplication(),
+                                repository = bookRepository,
+                                uri = uri,
+                                workspace = workspace,
+                                isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                                boxPurpose = boxPurpose ?: "book",
+                                isCancelled = { _isCancelRequested.value },
+                                onProgress = { progress -> _importProgress.value = progress }
+                            )
+                        }
                     }
                 } else if (mediaMode == 2) {
                     val videoRepository = com.ballade.hwaran.data.importer.video.VideoImportRepository(database.libraryDao())

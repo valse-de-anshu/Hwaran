@@ -183,7 +183,7 @@ fun HomeNavDock(
                             6 -> {
                                 CustomJellyBall(
                                     assetName = "spring_awakening_jellyball.html",
-                                    modifier = mascotModifier,
+                                    modifier = mascotModifier.offset(y = 6.dp),
                                     isHappy = isImporting
                                 )
                             }

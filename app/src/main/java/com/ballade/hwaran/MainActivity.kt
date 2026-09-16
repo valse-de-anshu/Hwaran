@@ -177,21 +177,27 @@ class MainActivity : ComponentActivity() {
                                                 val mimeType = intent.type ?: contentResolver.getType(uri) ?: ""
                                                 val mimeTypeLower = mimeType.lowercase()
                                                 val uriString = uri.toString().lowercase()
-                                                val isNovel = mimeTypeLower.contains("epub") ||
-                                                        mimeTypeLower == "text/plain" ||
+                                                val isNovel = mimeTypeLower == "text/plain" ||
                                                         mimeTypeLower == "text/markdown" ||
-                                                        uriString.endsWith(".epub") ||
-                                                        uriString.endsWith(".txt") ||
-                                                        uriString.endsWith(".md")
+                                                        com.ballade.hwaran.backend.novel.NovelParser.isNovelFile(uriString) ||
+                                                        com.ballade.hwaran.backend.novel.NovelParser.isNovelFile(uri.lastPathSegment)
+                                                val isBook = mimeTypeLower == "application/pdf" ||
+                                                        mimeTypeLower.contains("epub") ||
+                                                        mimeTypeLower.contains("mobipocket") ||
+                                                        mimeTypeLower.contains("fictionbook") ||
+                                                        mimeTypeLower == "text/html" ||
+                                                        mimeTypeLower == "application/xhtml+xml" ||
+                                                        com.ballade.hwaran.backend.novel.NovelParser.isBookFile(uriString) ||
+                                                        com.ballade.hwaran.backend.novel.NovelParser.isBookFile(uri.lastPathSegment)
                                                 when {
                                                     isNovel -> {
                                                         navController.navigate(Screen.ExternalNovel.createRoute(uri.toString()))
                                                     }
+                                                    isBook -> {
+                                                        navController.navigate(Screen.ExternalPdf.createRoute(uri.toString()))
+                                                    }
                                                     mimeTypeLower.startsWith("video/") -> {
                                                         navController.navigate(Screen.ExternalVideo.createRoute(uri.toString()))
-                                                    }
-                                                    mimeTypeLower == "application/pdf" -> {
-                                                        navController.navigate(Screen.ExternalPdf.createRoute(uri.toString()))
                                                     }
                                                     mimeTypeLower.startsWith("audio/") -> {
                                                         musicViewModel.playExternalAudio(uri, this@MainActivity)

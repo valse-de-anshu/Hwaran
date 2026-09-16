@@ -207,7 +207,7 @@ fun BookDescriptionView(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         // Material / Format Pill
-                        val primaryPills = listOf("Book", "Manhua", "Manga", "Series", "Channel")
+                        val primaryPills = listOf("Book", "Novel", "Manhua", "Manga", "Series", "Channel")
                         val currentActiveTag = if (isEditMode) draftMaterialTag else "Book"
 
                         if (isEditMode) {
@@ -263,7 +263,7 @@ fun BookDescriptionView(
                                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
                             ) {
                                 Text(
-                                    text = "Book / Novel",
+                                    text = "Book",
                                     color = Color(0xFFE6E8EC),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
@@ -277,7 +277,7 @@ fun BookDescriptionView(
                             OutlinedTextField(
                                 value = draftTitle,
                                 onValueChange = onUpdateDraftTitle,
-                                placeholder = { Text("Book / Novel Title", color = TextMuted, fontSize = 16.sp) },
+                                placeholder = { Text("Book Title", color = TextMuted, fontSize = 16.sp) },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -311,9 +311,9 @@ fun BookDescriptionView(
                             )
                         }
 
-                        // Single file vs Chapters badge
+                        // Single file badge
                         Text(
-                            text = if (isSingleFileBook) "Single Document / Volume" else "${chapters.size} Chapters available",
+                            text = if (isSingleFileBook) "Book Document / E-Book" else "${chapters.size} Chapters available",
                             color = TextMuted,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(top = 2.dp)

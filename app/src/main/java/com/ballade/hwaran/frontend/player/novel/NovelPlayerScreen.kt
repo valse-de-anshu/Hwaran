@@ -2,6 +2,7 @@ package com.ballade.hwaran.frontend.player.novel
 
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -9,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import coil.compose.AsyncImage
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,9 +29,11 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -331,9 +335,7 @@ fun NovelPlayerScreen(
                     if (manga != null) {
                         val dbChapters = database.trackDao().getChaptersForMangaList(manga.id)
                         val book = if (dbChapters.isNotEmpty() && dbChapters.any {
-                                it.folderUri.lowercase().let { u ->
-                                    u.endsWith(".txt") || u.endsWith(".md") || u.endsWith(".markdown") || u.endsWith(".epub")
-                                }
+                                NovelParser.isNovelFile(it.folderUri)
                             }) {
                             NovelParser.parseNovelFromChapterEntities(context, manga.title, dbChapters)
                         } else {
@@ -424,6 +426,9 @@ fun NovelPlayerScreen(
 
     val chapters = novelBook?.chapters ?: emptyList()
     val activeChapter = chapters.getOrNull(currentChapterIndex)
+    val basePath = remember(mangaEntity, externalUriString) {
+        externalUriString ?: mangaEntity?.parentUri
+    }
 
     // ── Root Canvas ─────────────────────────────────────────────────────────────
     Box(
@@ -581,14 +586,14 @@ fun NovelPlayerScreen(
                             Column(verticalArrangement = Arrangement.spacedBy(paragraphSpacingDp.dp)) {
                                 paragraphs.forEach { paragraph ->
                                     if (paragraph.isNotBlank()) {
-                                        Text(
-                                            text = paragraph.trim(),
-                                            color = currentTheme.text,
-                                            fontSize = fontSizeSp.sp,
+                                        NovelParagraphBlock(
+                                            paragraph = paragraph,
+                                            theme = currentTheme,
                                             fontFamily = resolvedFont,
-                                            lineHeight = (fontSizeSp * lineHeightMultiplier).sp,
+                                            fontSizeSp = fontSizeSp,
+                                            lineHeightMultiplier = lineHeightMultiplier,
                                             textAlign = textAlign,
-                                            modifier = Modifier.fillMaxWidth()
+                                            basePath = basePath
                                         )
                                     }
                                 }
@@ -610,17 +615,23 @@ fun NovelPlayerScreen(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                val hasPrev = currentChapterIndex > 0 && chapters.isNotEmpty()
+                                val hasNext = currentChapterIndex < chapters.size - 1 && chapters.isNotEmpty()
+
                                 FilledTonalButton(
                                     onClick = {
-                                        if (currentChapterIndex > 0) {
+                                        if (hasPrev) {
                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             currentChapterIndex--
                                         }
                                     },
-                                    enabled = currentChapterIndex > 0,
+                                    enabled = hasPrev,
+                                    modifier = Modifier.graphicsLayer { alpha = if (hasPrev) 1f else 0.30f },
                                     colors = ButtonDefaults.filledTonalButtonColors(
                                         containerColor = currentTheme.surface,
-                                        contentColor = currentTheme.text
+                                        contentColor = currentTheme.text,
+                                        disabledContainerColor = currentTheme.surface.copy(alpha = 0.40f),
+                                        disabledContentColor = currentTheme.secondaryText.copy(alpha = 0.40f)
                                     )
                                 ) {
                                     Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -630,15 +641,18 @@ fun NovelPlayerScreen(
 
                                 FilledTonalButton(
                                     onClick = {
-                                        if (currentChapterIndex < chapters.size - 1) {
+                                        if (hasNext) {
                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             currentChapterIndex++
                                         }
                                     },
-                                    enabled = currentChapterIndex < chapters.size - 1,
+                                    enabled = hasNext,
+                                    modifier = Modifier.graphicsLayer { alpha = if (hasNext) 1f else 0.30f },
                                     colors = ButtonDefaults.filledTonalButtonColors(
                                         containerColor = currentTheme.surface,
-                                        contentColor = currentTheme.text
+                                        contentColor = currentTheme.text,
+                                        disabledContainerColor = currentTheme.surface.copy(alpha = 0.40f),
+                                        disabledContentColor = currentTheme.secondaryText.copy(alpha = 0.40f)
                                     )
                                 ) {
                                     Text("Next Chapter")
@@ -724,14 +738,14 @@ fun NovelPlayerScreen(
                             Column(verticalArrangement = Arrangement.spacedBy(paragraphSpacingDp.dp)) {
                                 paragraphs.forEach { p ->
                                     if (p.isNotBlank()) {
-                                        Text(
-                                            text = p.trim(),
-                                            color = currentTheme.text,
-                                            fontSize = fontSizeSp.sp,
+                                        NovelParagraphBlock(
+                                            paragraph = p,
+                                            theme = currentTheme,
                                             fontFamily = resolvedFont,
-                                            lineHeight = (fontSizeSp * lineHeightMultiplier).sp,
+                                            fontSizeSp = fontSizeSp,
+                                            lineHeightMultiplier = lineHeightMultiplier,
                                             textAlign = textAlign,
-                                            modifier = Modifier.fillMaxWidth()
+                                            basePath = basePath
                                         )
                                     }
                                 }
@@ -1027,4 +1041,249 @@ fun NovelPlayerScreen(
             }
         }
     }
+}
+
+@Composable
+private fun NovelParagraphBlock(
+    paragraph: String,
+    theme: NovelTheme,
+    fontFamily: FontFamily,
+    fontSizeSp: Float,
+    lineHeightMultiplier: Float,
+    textAlign: TextAlign,
+    basePath: String?,
+    modifier: Modifier = Modifier
+) {
+    val trimmed = paragraph.trim()
+    if (trimmed.isBlank()) return
+
+    val context = LocalContext.current
+
+    // 1. Markdown Image: ![alt](url_or_path)
+    val imageMatch = Regex("""^!\[(.*?)\]\((.*?)\)$""").find(trimmed)
+    if (imageMatch != null) {
+        val alt = imageMatch.groupValues[1]
+        val rawPath = imageMatch.groupValues[2].trim()
+
+        val resolvedModel: Any = remember(rawPath, basePath) {
+            when {
+                rawPath.startsWith("http://") || rawPath.startsWith("https://") || rawPath.startsWith("content://") || rawPath.startsWith("file://") -> rawPath
+                basePath != null -> {
+                    val baseDir = if (basePath.startsWith("file://")) File(basePath.removePrefix("file://")) else File(basePath)
+                    val targetDir = if (baseDir.isDirectory) baseDir else (baseDir.parentFile ?: baseDir)
+                    val resolvedFile = File(targetDir, rawPath.removePrefix("./"))
+                    if (resolvedFile.exists()) resolvedFile else rawPath
+                }
+                else -> rawPath
+            }
+        }
+
+        Column(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            AsyncImage(
+                model = resolvedModel,
+                contentDescription = alt.ifBlank { null },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(theme.surface)
+            )
+            if (alt.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = alt,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.secondaryText,
+                    textAlign = TextAlign.Center,
+                    fontSize = (fontSizeSp * 0.85f).sp
+                )
+            }
+        }
+        return
+    }
+
+    // 2. Markdown Headings (# Header)
+    if (trimmed.startsWith("#")) {
+        val level = trimmed.takeWhile { it == '#' }.length
+        val headerText = trimmed.drop(level).trim()
+        val headingSize = when (level) {
+            1 -> (fontSizeSp + 8).sp
+            2 -> (fontSizeSp + 5).sp
+            else -> (fontSizeSp + 3).sp
+        }
+        Text(
+            text = headerText,
+            color = theme.text,
+            fontSize = headingSize,
+            fontWeight = FontWeight.Bold,
+            fontFamily = fontFamily,
+            lineHeight = (headingSize.value * 1.3f).sp,
+            textAlign = textAlign,
+            modifier = modifier.fillMaxWidth().padding(vertical = 6.dp)
+        )
+        return
+    }
+
+    // 3. Blockquote (> quote)
+    if (trimmed.startsWith(">")) {
+        val quoteText = trimmed.removePrefix(">").trim()
+        Surface(
+            color = theme.surface.copy(alpha = 0.5f),
+            shape = RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp),
+            border = BorderStroke(1.dp, theme.border.copy(alpha = 0.4f)),
+            modifier = modifier.fillMaxWidth().padding(vertical = 4.dp)
+        ) {
+            Row(modifier = Modifier.padding(12.dp)) {
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .fillMaxHeight()
+                        .background(theme.accent, RoundedCornerShape(2.dp))
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = quoteText,
+                    color = theme.text.copy(alpha = 0.9f),
+                    fontSize = fontSizeSp.sp,
+                    fontFamily = fontFamily,
+                    lineHeight = (fontSizeSp * lineHeightMultiplier).sp,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                )
+            }
+        }
+        return
+    }
+
+    // 4. Video / Media source link: e.g. [Watch Video](https://...mp4) or bare https://...mp4, youtube.com
+    val isMediaLink = trimmed.contains(".mp4", ignoreCase = true) ||
+            trimmed.contains(".webm", ignoreCase = true) ||
+            trimmed.contains(".mkv", ignoreCase = true) ||
+            trimmed.contains(".mp3", ignoreCase = true) ||
+            trimmed.contains("youtube.com/watch", ignoreCase = true) ||
+            trimmed.contains("youtu.be/", ignoreCase = true)
+
+    if (isMediaLink) {
+        val urlMatch = Regex("""https?://[^\s)]+""").find(trimmed)
+        if (urlMatch != null) {
+            val mediaUrl = urlMatch.value
+            Surface(
+                onClick = {
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(mediaUrl))
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                },
+                color = theme.surface,
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, theme.border),
+                modifier = modifier.fillMaxWidth().padding(vertical = 6.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = theme.accent.copy(alpha = 0.15f),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Rounded.PlayArrow,
+                                contentDescription = "Play Media",
+                                tint = theme.accent,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = trimmed.substringBefore("http").ifBlank { "Play Media Source" },
+                            color = theme.text,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = mediaUrl,
+                            color = theme.secondaryText,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+            return
+        }
+    }
+
+    // 5. Default text / paragraph (with link handling)
+    val hasLinks = trimmed.contains("http://") || trimmed.contains("https://")
+    if (hasLinks) {
+        val linkRegex = Regex("""https?://[^\s)]+""")
+        val urlMatch = linkRegex.find(trimmed)
+        if (urlMatch != null) {
+            val url = urlMatch.value
+            Column(modifier = modifier.fillMaxWidth()) {
+                Text(
+                    text = trimmed,
+                    color = theme.text,
+                    fontSize = fontSizeSp.sp,
+                    fontFamily = fontFamily,
+                    lineHeight = (fontSizeSp * lineHeightMultiplier).sp,
+                    textAlign = textAlign,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                TextButton(
+                    onClick = {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    },
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
+                        contentDescription = "Open Link",
+                        tint = theme.accent,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = "Open Link ($url)",
+                        color = theme.accent,
+                        fontSize = (fontSizeSp * 0.85f).sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            return
+        }
+    }
+
+    // Default plain text
+    Text(
+        text = trimmed,
+        color = theme.text,
+        fontSize = fontSizeSp.sp,
+        fontFamily = fontFamily,
+        lineHeight = (fontSizeSp * lineHeightMultiplier).sp,
+        textAlign = textAlign,
+        modifier = modifier.fillMaxWidth()
+    )
 }

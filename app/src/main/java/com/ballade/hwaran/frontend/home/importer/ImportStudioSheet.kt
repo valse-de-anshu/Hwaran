@@ -77,20 +77,20 @@ private val MEDIA_OPTIONS = listOf(
         modeId = 1,
         boxPurpose = "book",
         title = "Books",
-        subtitle = "PDF Documents",
+        subtitle = "PDF, EPUB, MOBI & Web-Books",
         icon = Icons.Rounded.Book,
         accentColor = Color(0xFFE2E8F0),
-        supportedFormats = listOf(".pdf")
+        supportedFormats = listOf(".pdf", ".epub", ".kf8.images", ".kindle.images", ".kf8", ".kindle", ".mobi", ".azw", ".azw3", ".html", ".htm", ".xhtml", ".fb2")
     ),
     ImportMediaOption(
         id = "novel",
         modeId = 4,
         boxPurpose = "novel",
         title = "Novels",
-        subtitle = "Web & Light Novels",
+        subtitle = "Plain Text & Markdown",
         icon = Icons.Rounded.ImportContacts,
         accentColor = Color(0xFFE2E8F0),
-        supportedFormats = listOf(".epub", ".txt", ".md")
+        supportedFormats = listOf(".txt", ".text", ".md", ".markdown")
     ),
     ImportMediaOption(
         id = "series",
@@ -497,8 +497,140 @@ fun ImportStudioSheet(
                         }
 
                         val computedPurpose = activeOption.boxPurpose
+                        val computedSingleFileMimeTypes = remember(activeOption.id) {
+                            when (activeOption.id) {
+                                "manga", "manhua" -> arrayOf("image/*", "application/zip", "application/x-cbz")
+                                "book" -> arrayOf(
+                                    "application/pdf",
+                                    "application/epub+zip",
+                                    "application/x-mobipocket-ebook",
+                                    "application/x-fictionbook+xml",
+                                    "text/html",
+                                    "application/xhtml+xml",
+                                    "*/*"
+                                )
+                                "novel" -> arrayOf(
+                                    "text/plain",
+                                    "text/markdown",
+                                    "*/*"
+                                )
+                                "series", "channel" -> arrayOf("video/*")
+                                "music" -> arrayOf("audio/*")
+                                else -> arrayOf("*/*")
+                            }
+                        }
 
-                        // Action 1: Single Title Folder
+                        // Action 1: Single File Import
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = Color.White.copy(alpha = 0.04f),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.White.copy(alpha = 0.08f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Rounded.InsertDriveFile,
+                                            contentDescription = null,
+                                            tint = Color(0xFFE2E8F0),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = "Single File Import",
+                                                color = Color.White,
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Surface(
+                                                color = Color.White.copy(alpha = 0.08f),
+                                                shape = RoundedCornerShape(6.dp),
+                                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                                            ) {
+                                                Text(
+                                                    text = "Direct File",
+                                                    color = Color.White.copy(alpha = 0.8f),
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = when (activeOption.id) {
+                                                "manga", "manhua" -> "Select a single image or archive file"
+                                                "book" -> "Select a standalone .pdf, .epub, .mobi, .kf8.images, or .html document"
+                                                "novel" -> "Select a standalone plain text or markdown file (.txt, .md)"
+                                                "series", "channel" -> "Select a single video file (.mp4, .mkv, .webm)"
+                                                "music" -> "Select a single audio track (.mp3, .flac, .wav, .m4a)"
+                                                else -> "Select a single media file"
+                                            },
+                                            color = Color.White.copy(alpha = 0.5f),
+                                            fontSize = 11.sp,
+                                            lineHeight = 15.sp,
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        )
+                                    }
+                                }
+
+                                Button(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onImportSingleFile(
+                                            activeOption.modeId,
+                                            1,
+                                            computedPurpose,
+                                            currentWorkspace,
+                                            initialIsNsfw,
+                                            computedSingleFileMimeTypes
+                                        )
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF1E222D),
+                                        contentColor = Color.White
+                                    ),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(46.dp)
+                                ) {
+                                    Icon(
+                                        Icons.AutoMirrored.Rounded.InsertDriveFile,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "SELECT MEDIA FILE",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        letterSpacing = 0.8.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        // Action 2: Single Title Folder
                         Surface(
                             shape = RoundedCornerShape(18.dp),
                             color = Color.White.copy(alpha = 0.04f),
@@ -557,8 +689,8 @@ fun ImportStudioSheet(
                                             text = when (activeOption.id) {
                                                 "manga" -> "Select a single manga title folder (contains chapter subfolders)"
                                                 "manhua" -> "Select a single webtoon/manhua folder with strip chapters"
-                                                "book" -> "Select a folder containing your PDF book(s)"
-                                                "novel" -> "Select a folder containing an EPUB or numbered text files"
+                                                "book" -> "Select an e-book or web-book folder (e.g. pg79569-h/ or folder containing PDF, EPUB, MOBI, HTML)"
+                                                "novel" -> "Select a folder containing plain text or markdown chapter files (.txt, .md)"
                                                 "series" -> "Select a show or anime folder containing season subfolders"
                                                 "channel" -> "Select a creator channel directory containing video files"
                                                 "music" -> "Select an album or music folder containing tracks"
@@ -609,7 +741,7 @@ fun ImportStudioSheet(
                             }
                         }
 
-                        // Action 2: Batch Master Scanner
+                        // Action 3: Batch Master Scanner
                         Surface(
                             shape = RoundedCornerShape(18.dp),
                             color = Color.White.copy(alpha = 0.04f),
@@ -668,8 +800,8 @@ fun ImportStudioSheet(
                                             text = when (activeOption.id) {
                                                 "manga" -> "Select a master folder containing multiple manga titles"
                                                 "manhua" -> "Select a master directory containing multiple webtoon series"
-                                                "book" -> "Select a root library folder containing dozens or hundreds of books"
-                                                "novel" -> "Select a master novel folder containing multiple book titles"
+                                                "book" -> "Select a master library folder containing multiple books (EPUB, MOBI, PDF, HTML web-books)"
+                                                "novel" -> "Select a master novel directory containing multiple text novel folders"
                                                 "series" -> "Select a root directory containing multiple TV shows or anime series"
                                                 "channel" -> "Select a master directory containing multiple creator channels"
                                                 "music" -> "Select a master music collection containing multiple artist/album folders"
@@ -968,32 +1100,38 @@ Tip: Recursively scans and imports all webtoon & manhua folders.
 
                 "book" -> if (guideTab == 0) {
                     """
-📁 Calculus Book/               ← Select book folder
-├── 🖼️ cover.jpg                (optional custom cover)
-└── 📄 calculus.pdf             (PDF document)
-Tip: If no cover image exists, the first page is automatically rendered as the cover.
+📁 Ashes - Gutenberg/           ← Select book folder or file
+├── 🖼️ cover.jpg                (optional custom cover or companion images/)
+├── 📄 79569.epub               (EPUB, MOBI, KF8, or PDF document)
+└── 📁 pg79569-h/               (or HTML web-book directory)
+    ├── 📁 images/cover.jpg
+    └── 📄 pg79569-images.html
+Tip: Supports PDF, EPUB, Kindle (.kf8, .mobi, .azw3), FB2, and Gutenberg HTML web-books with local media.
                     """.trimIndent()
                 } else {
                     """
-📁 PDF Library/                 ← Select master folder
+📁 Digital Books Library/       ← Select master folder
 ├── 📁 Dune/
 │   └── 📄 dune.pdf
 ├── 📁 Foundation/
-│   └── 📄 foundation.pdf
+│   └── 📄 foundation.epub
+├── 📁 pg79569-h/
+│   ├── 📁 images/
+│   └── 📄 pg79569-images.html
 └── 📁 Science/
-    └── 📄 physics.pdf
-Tip: Recursively indexes all PDF books found across your folder hierarchy.
+    └── 📄 physics.kf8.images
+Tip: Recursively indexes all PDFs, EPUBs, MOBIs, KF8s, and HTML web-books across your folder hierarchy.
                     """.trimIndent()
                 }
 
                 "novel" -> if (guideTab == 0) {
                     """
-📁 Shadow Slave/                ← Select novel folder
-├── 🖼️ cover.webp               (optional cover)
-├── 📄 novel.epub               (EPUB file)
-├── 📄 chapter_001.txt          (or numbered .txt / .md files)
-└── 📄 chapter_002.txt
-Tip: EPUB files and text files (.epub, .txt, .md) are parsed into readable chapters.
+📁 Shadow Slave/                ← Select text novel folder
+├── 🖼️ cover.jpg                (optional cover art)
+├── 📄 001_chapter_one.txt      (numbered text chapter files)
+├── 📄 002_chapter_two.txt
+└── 📄 003_chapter_three.md     (supports .txt & .md formatting)
+Tip: Strictly plain text and markdown novels. Chapter navigation and inline text markdown rendering.
                     """.trimIndent()
                 } else {
                     """
@@ -1002,10 +1140,11 @@ Tip: EPUB files and text files (.epub, .txt, .md) are parsed into readable chapt
 │   ├── 📄 ch001.txt
 │   └── 📄 ch002.txt
 ├── 📁 Lord of the Mysteries/
-│   └── 📄 novel.epub
+│   ├── 📄 001_prologue.md
+│   └── 📄 002_chapter.md
 └── 📁 Omniscient Reader/
-    └── 📄 novel.epub
-Tip: Fast multi-novel indexing across all subfolders.
+    └── 📄 orv_full_text.txt
+Tip: Fast multi-novel indexing of all text (.txt, .md) novel folders across subdirectories.
                     """.trimIndent()
                 }
 
@@ -1115,15 +1254,16 @@ Tip: Scans all artist and album folders into your library.
                         "Library Shelving: Automatically assigned to the Manhua / Webtoon category with strip reader presets."
                     )
                     "book" -> listOf(
-                        "Supported Format: .pdf documents only.",
-                        "Folder Import: Select the folder containing your PDF book(s).",
-                        "Auto-Render: First page is automatically extracted as the high-res cover.",
-                        "Reader Engine: Supports page-by-page, vertical scroll, bookmarks, and text search."
+                        "Supported Formats: .pdf, .epub, .kf8.images, .kindle.images, .kf8, .kindle, .mobi, .azw, .azw3, .html, .htm, .xhtml, .fb2.",
+                        "Rich Documents & E-Books: Supports PDF pagination, EPUB/MOBI e-readers, and Gutenberg HTML web-books.",
+                        "Web-Book Directories: HTML folders with companion images/ subfolders are automatically recognized with chapter splitting & local asset resolution.",
+                        "Reader Engine: Supports PDF page-by-page & vertical scroll, WebBookViewer with Eye Care filters, video/audio embeds, and zoom."
                     )
                     "novel" -> listOf(
-                        "Supported Formats: .epub, .txt, .md, .markdown.",
-                        "Folder Import: Select a folder containing an EPUB or numbered text chapter files.",
-                        "Chapter Ordering: For text novels, prefix file names with numbers (e.g. '001_intro.txt')."
+                        "Supported Formats: .txt, .text, .md, .markdown (Plain Text & Markdown).",
+                        "Folder Import: Select a folder containing plain text or markdown chapter files (or a single full text novel).",
+                        "Chapter Ordering: Prefix chapter files with numbers (e.g. '001_intro.txt', '002_chapter.md') for automatic sequencing.",
+                        "Reader Engine: Dedicated high-performance text reader with markdown formatting, inline media/link support, and disabled dimmer navigation."
                     )
                     "series" -> listOf(
                         "Supported Formats: .mp4, .mkv, .webm, .mov, .avi, .flv.",

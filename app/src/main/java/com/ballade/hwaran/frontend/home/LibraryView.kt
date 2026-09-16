@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -493,21 +494,21 @@ fun LibraryTagGuideCard(
             )
             "Manga" -> TagGuideInfo(
                 title = "Manga & Comics",
-                icon = Icons.Rounded.MenuBook,
+                icon = Icons.AutoMirrored.Rounded.MenuBook,
                 description = "Tailored for classic right-to-left manga, graphic novels, and comic archives. Features double-page spreads, zoom controls, e-ink dark mode, and custom page transitions.",
                 tip = "Organizing Tip: Keep volume folders or zip/cbz archives organized by chapter number."
             )
             "Light Novel", "Novel" -> TagGuideInfo(
-                title = "Light Novels & EPUBs",
-                icon = Icons.Rounded.Book,
-                description = "Immersive text reader for light novels, web novels, and EPUB books. Features customizable typography, line height, font sizing, theme presets, and reading progress indicators.",
-                tip = "Organizing Tip: Import .epub or .txt files directly via the Import Studio."
+                title = "Novels & Text",
+                icon = Icons.Rounded.ImportContacts,
+                description = "Dedicated high-performance reader for plain text and markdown novels (.txt, .md). Supports chapter sequencing, markdown headers, inline images/media, and theme presets.",
+                tip = "Import Tip: Import folders containing .txt or .md chapter files via Jellyball Import Studio."
             )
             "Book" -> TagGuideInfo(
-                title = "Books & PDFs",
-                icon = Icons.Rounded.PictureAsPdf,
-                description = "Dedicated viewer for PDF documents, digital manuals, and books. High-precision vector rendering, page thumbnail scrubbing, bookmarks, and orientation locks.",
-                tip = "Organizing Tip: Store PDF documents here for study, documentation, or offline reading."
+                title = "Books & Documents",
+                icon = Icons.Rounded.Book,
+                description = "Rich reader for PDFs, EPUBs, MOBIs, Kindle files (.kf8, .azw3), and Gutenberg HTML web-books. Features WebBookViewer, Eye Care modes, image zoom, and PDF page navigation.",
+                tip = "Import Tip: Import PDF, EPUB, MOBI, KF8 files or HTML web-book folders via Jellyball Import Studio."
             )
             "Series" -> TagGuideInfo(
                 title = "Series & Franchise Hub",
@@ -522,10 +523,10 @@ fun LibraryTagGuideCard(
                 tip = "Organizing Tip: Import video folders as channels for serial episode viewing."
             )
             else -> TagGuideInfo(
-                title = "Library Workspace",
+                title = "All Media Library",
                 icon = Icons.Rounded.GridView,
-                description = "Central hub for all imported media across comics, books, video series, and channels. Use top category pills to switch views or tap '+' in the bottom dock to import new media.",
-                tip = "Organizing Tip: Set custom workspaces in Settings to isolate different collections."
+                description = "All your imported media will appear here. Use the Jellyball button in the navigation dock to import manga, books, novels, videos, and music into your library!",
+                tip = "Import Tip: Tap the glowing Jellyball dock button anytime to launch Import Studio."
             )
         }
     }

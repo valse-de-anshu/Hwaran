@@ -29,6 +29,43 @@ class LibraryRepository(private val context: Context, private val database: AppD
         }
     }
 
+    private data class TreeFileInfo(val doc: DocumentFile, val relativePath: String)
+
+    private fun isSupportedFileName(name: String): Boolean {
+        val lower = name.lowercase()
+        if (lower.startsWith(".")) return false
+        val supportedExtensions = listOf(
+            ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif",
+            ".mp4", ".mkv", ".avi", ".webm", ".m4v", ".3gp", ".mov", ".flv",
+            ".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a", ".opus",
+            ".pdf", ".epub", ".kf8.images", ".kindle.images", ".kf8", ".kindle",
+            ".mobi", ".azw", ".azw3", ".html", ".htm", ".xhtml", ".fb2",
+            ".txt", ".text", ".md", ".markdown", ".json", ".zine"
+        )
+        return supportedExtensions.any { lower.endsWith(it) } ||
+               com.ballade.hwaran.backend.novel.NovelParser.isBookFile(lower) ||
+               com.ballade.hwaran.backend.novel.NovelParser.isNovelFile(lower)
+    }
+
+    private fun collectTreeFiles(
+        dir: DocumentFile,
+        currentRelativePath: String = ""
+    ): List<TreeFileInfo> {
+        val results = mutableListOf<TreeFileInfo>()
+        val children = dir.listFiles() ?: return results
+        for (child in children) {
+            val name = child.name ?: continue
+            if (name.startsWith(".")) continue
+            val relPath = if (currentRelativePath.isEmpty()) name else "$currentRelativePath/$name"
+            if (child.isDirectory) {
+                results.addAll(collectTreeFiles(child, relPath))
+            } else if (isSupportedFileName(name)) {
+                results.add(TreeFileInfo(child, relPath))
+            }
+        }
+        return results
+    }
+
     private suspend fun importMangaToVaultSaf(sourceDoc: DocumentFile, context: Context, isCancelled: () -> Boolean, onProgress: (Int) -> Unit): ImportResult? = withContext(Dispatchers.IO) {
         val vaultBase = File(context.filesDir, "manga_vault")
         if (!vaultBase.exists()) vaultBase.mkdirs()
@@ -38,34 +75,12 @@ class LibraryRepository(private val context: Context, private val database: AppD
         val destination = File(vaultBase, mangaName)
         if (!destination.exists()) destination.mkdirs()
 
-        val supportedExtensions = setOf(
-            "jpg", "jpeg", "png", "webp", "bmp", "gif",
-            "mp4", "mkv", "avi", "webm", "m4v", "3gp", "mov", "flv",
-            "mp3", "wav", "flac", "aac", "ogg", "m4a",
-            "pdf"
-        )
-        val isSupportedFile: (DocumentFile) -> Boolean = { file ->
-            val name = file.name ?: ""
-            !name.startsWith(".") && supportedExtensions.contains(name.substringAfterLast(".", "").lowercase())
-        }
-
-        val rootFiles = sourceDoc.listFiles() ?: emptyArray()
-        val chapterDocs = rootFiles.filter { it.isDirectory && !(it.name?.startsWith(".") == true) }
-        val looseFiles = rootFiles.filter { !it.isDirectory && isSupportedFile(it) }
-
-        // Cache all chapter subdirectory contents to avoid duplicate SAF queries
-        val chapterFilesMap = mutableMapOf<DocumentFile, List<DocumentFile>>()
-        var totalFilesCount = looseFiles.size
-        
-        chapterDocs.forEach { doc ->
-            val filesInChapter = doc.listFiles()?.filter { !it.isDirectory && isSupportedFile(it) } ?: emptyList()
-            chapterFilesMap[doc] = filesInChapter
-            totalFilesCount += filesInChapter.size
-        }
+        val allTreeFiles = collectTreeFiles(sourceDoc)
+        val totalFilesCount = allTreeFiles.size
 
         var copiedFilesCount = 0
         var lastReportedProgress = -1
-        
+
         val reportProgress: () -> Unit = {
             synchronized(this@LibraryRepository) {
                 copiedFilesCount++
@@ -82,15 +97,15 @@ class LibraryRepository(private val context: Context, private val database: AppD
         val semaphore = kotlinx.coroutines.sync.Semaphore(4)
 
         coroutineScope {
-            looseFiles.map { child ->
+            allTreeFiles.map { item ->
                 async(Dispatchers.IO) {
                     semaphore.withPermit {
                         if (isCancelled()) return@withPermit
                         ensureActive()
-                        val name = child.name ?: return@withPermit
-                        val destFile = File(destination, name)
+                        val destFile = File(destination, item.relativePath)
+                        destFile.parentFile?.mkdirs()
                         try {
-                            context.contentResolver.openInputStream(child.uri)?.use { input ->
+                            context.contentResolver.openInputStream(item.doc.uri)?.use { input ->
                                 destFile.outputStream().use { output ->
                                     val buffer = ByteArray(8192)
                                     var bytesRead = input.read(buffer)
@@ -116,56 +131,12 @@ class LibraryRepository(private val context: Context, private val database: AppD
             }.awaitAll()
         }
 
-        coroutineScope {
-            chapterDocs.map { chapterDoc ->
-                async(Dispatchers.IO) {
-                    semaphore.withPermit {
-                        if (isCancelled()) return@withPermit
-                        val name = chapterDoc.name ?: return@withPermit
-                        val chapterDest = File(destination, name)
-                        chapterDest.mkdirs()
-                        
-                        val children = chapterFilesMap[chapterDoc] ?: emptyList()
-                        children.forEach { child ->
-                            if (isCancelled()) return@forEach
-                            ensureActive()
-                            val childName = child.name ?: return@forEach
-                            val destFile = File(chapterDest, childName)
-                            try {
-                                context.contentResolver.openInputStream(child.uri)?.use { input ->
-                                    destFile.outputStream().use { output ->
-                                        val buffer = ByteArray(8192)
-                                        var bytesRead = input.read(buffer)
-                                        while (bytesRead >= 0) {
-                                            if (isCancelled()) {
-                                                break
-                                            }
-                                            output.write(buffer, 0, bytesRead)
-                                            bytesRead = input.read(buffer)
-                                        }
-                                    }
-                                }
-                                if (isCancelled()) {
-                                    destFile.delete()
-                                } else {
-                                    reportProgress()
-                                }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                        }
-                    }
-                }
-            }.awaitAll()
-        }
-
-        if (isCancelled() || copiedFilesCount < totalFilesCount) {
+        if (isCancelled() || (totalFilesCount > 0 && copiedFilesCount < totalFilesCount)) {
             destination.deleteRecursively()
             return@withContext null
         }
-        val copiedLoose = looseFiles.map { File(destination, it.name ?: "") }
-        val copiedChaps = chapterDocs.map { File(destination, it.name ?: "") }
-        sourceDoc.delete()
+        val copiedLoose = destination.listFiles()?.filter { it.isFile } ?: emptyList()
+        val copiedChaps = destination.listFiles()?.filter { it.isDirectory } ?: emptyList()
         onProgress(100)
         return@withContext ImportResult(destination, copiedChaps, copiedLoose)
     }
@@ -386,13 +357,14 @@ class LibraryRepository(private val context: Context, private val database: AppD
         val videoExtensions = listOf(".mp4", ".mkv", ".avi", ".webm", ".m4v", ".3gp", ".mov", ".flv")
         val imageExtensions = listOf(".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif")
         val audioExtensions = listOf(".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a")
-        val novelExtensions = listOf(".epub", ".txt", ".md", ".markdown")
+        val novelExtensions = com.ballade.hwaran.backend.novel.NovelParser.NOVEL_TEXT_EXTENSIONS
+        val bookExtensions = com.ballade.hwaran.backend.novel.NovelParser.BOOK_EBOOK_EXTENSIONS
 
         var computedContentType = 0
         if (isFile) {
             val name = rootDoc.name?.lowercase() ?: ""
             if (novelExtensions.any { name.endsWith(it) }) computedContentType = 4
-            else if (name.endsWith(".pdf")) computedContentType = 1
+            else if (bookExtensions.any { name.endsWith(it) }) computedContentType = 1
             else if (videoExtensions.any { name.endsWith(it) }) computedContentType = 2
             else if (audioExtensions.any { name.endsWith(it) }) computedContentType = 3
         } else {
@@ -410,12 +382,18 @@ class LibraryRepository(private val context: Context, private val database: AppD
                     }
                 }
             }
-            val hasPdf = if (isLocalMode) {
-                importResult!!.copiedLooseFiles.any { it.name.lowercase().endsWith(".pdf") }
+            val hasBook = if (isLocalMode) {
+                importResult!!.copiedLooseFiles.any { bookExtensions.any { ext -> it.name.lowercase().endsWith(ext) } } ||
+                importResult.copiedChapters.any { dir -> dir.listFiles()?.any { f -> bookExtensions.any { ext -> f.name.lowercase().endsWith(ext) } } == true }
             } else {
                 getRootDocFiles().any { item ->
                     val itemName = item.name
-                    itemName?.lowercase()?.endsWith(".pdf") == true
+                    itemName != null && bookExtensions.any { itemName.lowercase().endsWith(it) }
+                } || getRootDocFiles().filter { it.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }.any { dir ->
+                    dir.listFiles().any { f ->
+                        val fName = f.name
+                        fName != null && bookExtensions.any { fName.lowercase().endsWith(it) }
+                    }
                 }
             }
             val hasVideo = if (isLocalMode) {
@@ -459,11 +437,15 @@ class LibraryRepository(private val context: Context, private val database: AppD
                 parsedZine?.type?.equals("Light Novel", ignoreCase = true) == true ||
                 boxPurposeInput == "novel"
 
+            val isBookByMetadata = parsedZine?.type?.equals("Book", ignoreCase = true) == true ||
+                boxPurposeInput == "book"
+
             if (isNovelByMetadata) computedContentType = 4
+            else if (isBookByMetadata) computedContentType = 1
             else if (hasAudio) computedContentType = 3
             else if (hasVideo) computedContentType = 2
             else if (hasNovel) computedContentType = 4
-            else if (hasPdf) computedContentType = 1
+            else if (hasBook) computedContentType = 1
             else if (hasImages) computedContentType = 0
             else computedContentType = 0 // Default to manga/subfolder mode
             
@@ -481,41 +463,31 @@ class LibraryRepository(private val context: Context, private val database: AppD
         }
 
         if (coverPath.isEmpty() || existingManga == null) {
-            if (computedContentType == 4) {
-                val novelUriToExtract = if (isLocalMode) {
-                    val novelF = importResult!!.copiedLooseFiles.find { it.name.lowercase().endsWith(".epub") }
-                    if (novelF != null && novelF.isFile) Uri.fromFile(novelF) else null
+            if (computedContentType == 1) {
+                val bookUriToExtract = if (isLocalMode) {
+                    val bookF = importResult!!.copiedLooseFiles.find { com.ballade.hwaran.backend.novel.NovelParser.isBookFile(it.name) }
+                    if (bookF != null && bookF.isFile) Uri.fromFile(bookF) else null
                 } else {
                     if (isFile) {
                         rootUri
                     } else {
-                        getRootDocFiles().find { it.name?.lowercase()?.endsWith(".epub") == true }?.uri
+                        getRootDocFiles().find { com.ballade.hwaran.backend.novel.NovelParser.isBookFile(it.name) }?.uri
                     }
                 }
-                if (novelUriToExtract != null) {
-                    val coverDest = File(context.filesDir, "novel_cover_${System.currentTimeMillis()}.jpg")
-                    val generatedCover = extractNovelCover(context, novelUriToExtract, coverDest)
-                    if (generatedCover != null) {
-                        coverPath = generatedCover
-                    }
-                }
-            } else if (computedContentType == 1) {
-                val pdfUriToExtract = if (isLocalMode) {
-                    val pdfF = importResult!!.copiedLooseFiles.find { it.name.lowercase().endsWith(".pdf") }
-                    if (pdfF != null && pdfF.isFile) Uri.fromFile(pdfF) else null
-                } else {
-                    if (isFile) {
-                        rootUri
+                if (bookUriToExtract != null) {
+                    val name = bookUriToExtract.lastPathSegment?.lowercase() ?: ""
+                    if (name.endsWith(".pdf")) {
+                        val coverDest = File(context.filesDir, "book_cover_${System.currentTimeMillis()}.jpg")
+                        val generatedCover = com.ballade.hwaran.data.importer.book.BookImportUtils.generatePdfThumbnail(context, bookUriToExtract, coverDest)
+                        if (generatedCover != null) {
+                            coverPath = generatedCover
+                        }
                     } else {
-                        getRootDocFiles().find { it.name?.lowercase()?.endsWith(".pdf") == true }?.uri
-                    }
-                }
-                
-                if (pdfUriToExtract != null) {
-                    val coverDest = File(context.filesDir, "pdf_cover_${System.currentTimeMillis()}.jpg")
-                    val generatedCover = extractPdfCover(context, pdfUriToExtract, coverDest)
-                    if (generatedCover != null) {
-                        coverPath = generatedCover
+                        val coverDest = File(context.filesDir, "book_cover_${System.currentTimeMillis()}.jpg")
+                        val generatedCover = extractNovelCover(context, bookUriToExtract, coverDest)
+                        if (generatedCover != null) {
+                            coverPath = generatedCover
+                        }
                     }
                 }
             }
@@ -596,6 +568,18 @@ class LibraryRepository(private val context: Context, private val database: AppD
                     if (importResult!!.copiedLooseFiles.any { audioExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }) {
                         importResult.copiedLooseFiles.filter { audioExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }
                     } else importResult.copiedChapters
+                } else if (computedContentType == 1) {
+                    val looseBooks = importResult!!.copiedLooseFiles.filter { bookExtensions.any { ext -> it.name.lowercase().endsWith(ext) } || com.ballade.hwaran.backend.novel.NovelParser.isBookFile(it.name) }
+                    val subDirBookFiles = importResult.copiedChapters.flatMap { dir ->
+                        val list = dir.listFiles()?.filter { f ->
+                            !f.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(f.name) &&
+                            !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(f.name) &&
+                            (bookExtensions.any { f.name.lowercase().endsWith(it) } || com.ballade.hwaran.backend.novel.NovelParser.isBookFile(f.name))
+                        } ?: emptyList()
+                        if (list.isNotEmpty()) list else listOf(dir)
+                    }
+                    val allBooks = (looseBooks + subDirBookFiles).distinct()
+                    if (allBooks.isNotEmpty()) allBooks else importResult.copiedChapters
                 } else if (computedContentType == 4) {
                     val looseNovels = importResult!!.copiedLooseFiles.filter { novelExtensions.any { ext -> it.name.lowercase().endsWith(ext) } }
                     if (looseNovels.isNotEmpty()) {
@@ -714,6 +698,7 @@ class LibraryRepository(private val context: Context, private val database: AppD
                 val audioFiles = itemsInRoot.filter { file -> !file.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(file.name) && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(file.name) && audioExtensions.any { file.name?.lowercase()?.endsWith(it) == true } }
                 val imageFiles = itemsInRoot.filter { file -> !file.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(file.name) && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(file.name) && imageExtensions.any { file.name?.lowercase()?.endsWith(it) == true } }
                 val novelFiles = itemsInRoot.filter { file -> !file.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(file.name) && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(file.name) && novelExtensions.any { file.name?.lowercase()?.endsWith(it) == true } }
+                val bookFiles = itemsInRoot.filter { file -> !file.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(file.name) && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(file.name) && bookExtensions.any { file.name?.lowercase()?.endsWith(it) == true } }
 
                 val chaptersToInsert = if (computedContentType == 2) {
                     if (videoFiles.isNotEmpty()) {
@@ -730,6 +715,18 @@ class LibraryRepository(private val context: Context, private val database: AppD
                     }
                 } else if (computedContentType == 3) {
                     if (audioFiles.isNotEmpty()) audioFiles else subDirs
+                } else if (computedContentType == 1) {
+                    val directBooks = bookFiles
+                    val subDirBookFiles = subDirs.flatMap { dir ->
+                        val list = dir.listFiles().filter { f ->
+                            !f.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(f.name) &&
+                            !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(f.name) &&
+                            (bookExtensions.any { f.name?.lowercase()?.endsWith(it) == true } || com.ballade.hwaran.backend.novel.NovelParser.isBookFile(f.name))
+                        }
+                        if (list.isNotEmpty()) list else listOf(dir)
+                    }
+                    val allBooks = (directBooks + subDirBookFiles).distinct()
+                    if (allBooks.isNotEmpty()) allBooks else subDirs
                 } else if (computedContentType == 4) {
                     if (novelFiles.isNotEmpty()) {
                         novelFiles

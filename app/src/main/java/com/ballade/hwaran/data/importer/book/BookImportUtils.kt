@@ -10,31 +10,31 @@ import java.io.File
 
 object BookImportUtils {
 
-    val pdfExtensions = listOf(".pdf")
+    val bookExtensions = com.ballade.hwaran.backend.novel.NovelParser.BOOK_EBOOK_EXTENSIONS
 
     fun isBookFolderValid(folderDoc: DocumentFile): Pair<Boolean, String?> {
         val files = folderDoc.listFiles() ?: return false to "Could not read directory content"
         
-        // Valid if contains any PDF or subdirectories
-        val hasPdf = files.any { !it.isDirectory && it.name?.lowercase()?.endsWith(".pdf") == true }
-        if (hasPdf) return true to null
+        // Valid if contains any Book file (.pdf, .epub, .kf8, .mobi, .html, etc.) or subdirectories
+        val hasBook = files.any { !it.isDirectory && com.ballade.hwaran.backend.novel.NovelParser.isBookFile(it.name) }
+        if (hasBook) return true to null
         
         val validSubDirs = files.filter { it.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }
         if (validSubDirs.isNotEmpty()) return true to null
 
-        return false to "No PDF files found"
+        return false to "No book files found (.pdf, .epub, .kf8, .mobi, .html, etc.)"
     }
 
     fun detectImportMode(selectedFolder: DocumentFile): String {
         val files = selectedFolder.listFiles() ?: return "SINGLE"
         
-        // Rule: If selected folder contains >=1 pdf directly -> Single Folder (import each pdf)
-        val hasDirectPdf = files.any { !it.isDirectory && it.name?.lowercase()?.endsWith(".pdf") == true }
-        if (hasDirectPdf) {
+        // Rule: If selected folder contains >=1 book directly -> Single Folder (import folder / book)
+        val hasDirectBook = files.any { !it.isDirectory && com.ballade.hwaran.backend.novel.NovelParser.isBookFile(it.name) }
+        if (hasDirectBook) {
             return "SINGLE"
         }
         
-        // Else if: no pdf directly + child folders -> Mega Import
+        // Else if: no book directly + child folders -> Mega Import
         val hasChildFolders = files.any { it.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }
         if (hasChildFolders) {
             return "MEGA"
