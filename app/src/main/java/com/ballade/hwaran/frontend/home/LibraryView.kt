@@ -163,7 +163,7 @@ fun LibraryView(
         } else {
             LazyVerticalGrid(
                 state = libraryGridState,
-                columns = GridCells.Fixed(3),
+                columns = GridCells.Adaptive(minSize = 110.dp),
                 contentPadding = PaddingValues(
                     start = 16.dp,
                     end = 16.dp,

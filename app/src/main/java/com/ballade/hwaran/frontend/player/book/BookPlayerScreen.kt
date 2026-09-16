@@ -921,7 +921,7 @@ fun BookPlayerScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                val baseWidth = maxWidth
+                                val baseWidth = if (maxWidth > 600.dp) 720.dp else maxWidth
                                 val baseHeight = maxHeight
                                 
                                 LazyColumn(

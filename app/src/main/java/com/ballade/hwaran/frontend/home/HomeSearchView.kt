@@ -1583,7 +1583,7 @@ fun HomeSearchView(
         } else {
             Box(modifier = Modifier.fillMaxSize()) {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
+                    columns = GridCells.Adaptive(minSize = 105.dp),
                     contentPadding = PaddingValues(top = 14.dp, bottom = 80.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),

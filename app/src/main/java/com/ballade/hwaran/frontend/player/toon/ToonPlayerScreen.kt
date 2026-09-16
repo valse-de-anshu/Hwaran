@@ -367,7 +367,8 @@ fun ToonPlayerScreen(
                                 )
                             }
                     ) {
-                        val containerWidth = maxWidth
+                        val effectiveWidth = if (maxWidth > 600.dp) 680.dp else maxWidth
+                        val containerWidth = effectiveWidth
                         val targetItemWidth = containerWidth * cropZoom.coerceAtLeast(1.0f)
 
                         LazyColumn(
@@ -475,7 +476,8 @@ fun ToonPlayerScreen(
                                         .clipToBounds(),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    val itemWidth = maxWidth * cropZoom.coerceAtLeast(1.0f)
+                                    val maxPageWidth = if (maxWidth > 600.dp) 800.dp else maxWidth
+                                    val itemWidth = maxPageWidth * cropZoom.coerceAtLeast(1.0f)
                                     AsyncImage(
                                         model = ImageRequest.Builder(context)
                                             .data(data)

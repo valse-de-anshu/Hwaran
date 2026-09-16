@@ -512,16 +512,22 @@ fun NovelPlayerScreen(
                     saveProgress(currentChapterIndex)
                 }
 
-                LazyColumn(
-                    state = verticalListState,
-                    contentPadding = PaddingValues(
-                        top = if (isControlsVisible) 80.dp else 44.dp,
-                        bottom = 120.dp,
-                        start = horizontalMarginDp.dp,
-                        end = horizontalMarginDp.dp
-                    ),
-                    modifier = Modifier.fillMaxSize()
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
+                    LazyColumn(
+                        state = verticalListState,
+                        contentPadding = PaddingValues(
+                            top = if (isControlsVisible) 80.dp else 44.dp,
+                            bottom = 120.dp,
+                            start = horizontalMarginDp.dp,
+                            end = horizontalMarginDp.dp
+                        ),
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .widthIn(max = 750.dp)
+                    ) {
                     item(key = "ch_header_$currentChapterIndex") {
                         Column(
                             modifier = Modifier
@@ -643,6 +649,7 @@ fun NovelPlayerScreen(
                         }
                     }
                 }
+            }
 
             // ── Paginated Mode ────────────────────────────────────────────────────
             } else {
@@ -669,17 +676,22 @@ fun NovelPlayerScreen(
                     val chapter = chapters[page]
                     val scrollState = rememberScrollState()
 
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(scrollState)
-                            .padding(
-                                top = if (isControlsVisible) 80.dp else 40.dp,
-                                bottom = 120.dp,
-                                start = horizontalMarginDp.dp,
-                                end = horizontalMarginDp.dp
-                            )
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
                     ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .widthIn(max = 750.dp)
+                                .verticalScroll(scrollState)
+                                .padding(
+                                    top = if (isControlsVisible) 80.dp else 40.dp,
+                                    bottom = 120.dp,
+                                    start = horizontalMarginDp.dp,
+                                    end = horizontalMarginDp.dp
+                                )
+                        ) {
                         Text(
                             text = chapter.title,
                             fontFamily = resolvedFont,
@@ -725,7 +737,7 @@ fun NovelPlayerScreen(
                                 }
                             }
                         }
-                        Spacer(Modifier.height(40.dp))
+                        }
                     }
                 }
             }
