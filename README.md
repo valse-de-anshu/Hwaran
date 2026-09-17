@@ -38,6 +38,29 @@ Whether you collect:
 
 Hwaran puts everything behind a single, unified, biometric/PIN-protected vault. It elevates your raw folder dumps with fluid 120Hz Jetpack Compose animations, ambient Canvas shader backgrounds, paragraph-accurate reading checkpoints, synchronized LRC lyrics, and customizable workspaces.
 
+## 📸 App Previews
+
+<div align="center">
+  <table>
+    <tr>
+      <th align="center" width="33%">📖 Manga & Webtoon Reader</th>
+      <th align="center" width="33%">📚 Books & PDF Annotations</th>
+      <th align="center" width="33%">🎵 Music Player & Shaders</th>
+    </tr>
+    <tr>
+      <td align="center" valign="top">
+        <img src="Preview/toon.png" alt="Manga & Webtoon Reader Preview" width="100%" />
+      </td>
+      <td align="center" valign="top">
+        <img src="Preview/book%20reader.png" alt="Books & PDF Reader Preview" width="100%" />
+      </td>
+      <td align="center" valign="top">
+        <img src="Preview/music.png" alt="Music Player Preview" width="100%" />
+      </td>
+    </tr>
+  </table>
+</div>
+
 ---
 
 ## 🚀 Key Features
