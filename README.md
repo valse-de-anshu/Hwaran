@@ -1,7 +1,7 @@
 <div align="center">
 
 <p align="center">
-  <img src="app/src/main/assets/promo/06_one_app_all_worlds.png" alt="Hwaran Hero Banner" width="100%" />
+  <img src="Preview/08_more_than_media.png" alt="Hwaran Hero Banner" width="100%" />
 </p>
 
 # 🌸 Hwaran (화란)
