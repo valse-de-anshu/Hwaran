@@ -57,10 +57,16 @@ Hwaran puts everything behind a single, unified, biometric/PIN-protected vault. 
         <img src="Preview/video%20player.png" alt="Video & Anime Player" width="100%" />
       </td>
       <td align="center" valign="middle">
-        <img src="Preview/music.png" alt="Music Player & Visualizer" width="100%" />
+        <img src="Preview/music.jpg" alt="Music Player & Visualizer" width="100%" />
       </td>
     </tr>
   </table>
+
+  <br>
+
+  <video src="Preview/preview.mp4" width="100%" controls="controls">
+    <p>Your browser does not support HTML5 video. <a href="Preview/preview.mp4">Click here to watch the preview video</a>.</p>
+  </video>
 </div>
 
 ---
