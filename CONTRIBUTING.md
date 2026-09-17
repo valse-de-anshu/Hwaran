@@ -91,4 +91,4 @@ Hwaran follows **Feature-based Clean Architecture** with **Unidirectional Data F
 
 ## 📄 License
 
-By contributing to Hwaran, you agree that your contributions will be licensed under the project's [Apache-2.0 License](LICENSE).
+By contributing to Hwaran, you agree that your contributions will be licensed under the project's [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International Public License (CC BY-NC-SA 4.0)](LICENSE).

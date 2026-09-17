@@ -34,7 +34,7 @@ All notable changes, architectural milestones, and structural refactors to this 
 
 ### 🌐 Open-Source Release & Documentation Suite
 - **Open-Source Licensing (`LICENSE`)**:
-  - Added Apache License 2.0.
+  - Added Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0) License.
 - **Comprehensive Contributor Guide (`CONTRIBUTING.md`)**:
   - Detailed coding guardrails, PR workflows, UDF guidelines, and conventional commits.
 - **Security & Privacy Policy (`docs/SECURITY.md`)**:

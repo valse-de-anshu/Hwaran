@@ -12,7 +12,7 @@
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4.svg?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![Media3](https://img.shields.io/badge/AndroidX-Media3%20ExoPlayer-FF6F00.svg?style=for-the-badge&logo=googleplay&logoColor=white)](https://developer.android.com/guide/topics/media/media3)
 [![Room](https://img.shields.io/badge/Room-Database%20v16%20KSP-2E7D32.svg?style=for-the-badge&logo=sqlite&logoColor=white)](https://developer.android.com/training/data-storage/room)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge)](LICENSE)
+[![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-blue.svg?style=for-the-badge)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-brightgreen.svg?style=for-the-badge)](CONTRIBUTING.md)
 
 <p align="center">
@@ -229,7 +229,7 @@ hwaran/
 ├── docs/                       # Technical blueprints, database schema, changelogs, metadata spec
 ├── gradle/                     # Gradle wrapper & version catalogs
 ├── CONTRIBUTING.md             # Contribution guidelines & code of conduct
-├── LICENSE                     # Apache 2.0 Open Source License
+├── LICENSE                     # Creative Commons Attribution-NonCommercial-ShareAlike 4.0 (CC BY-NC-SA 4.0)
 └── README.md                   # Project documentation & overview
 ```
 
@@ -276,7 +276,12 @@ Contributions are welcome! If you want to fix a bug, add a feature, or improve d
 
 ## 📄 License
 
-Hwaran is open-source software licensed under the **[Apache License 2.0](LICENSE)**.
+Hwaran is open-source software licensed under the **[Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International Public License (CC BY-NC-SA 4.0)](LICENSE)**.
+
+- **Attribution**: You must give appropriate credit and provide a link to the license.
+- **NonCommercial**: You may not use the material for commercial purposes.
+- **ShareAlike**: If you remix, transform, or build upon the material, you must distribute your contributions under the same license as the original.
+
 All media files and documents consumed within Hwaran remain the sole property of their respective owners.
 
 <div align="center">
