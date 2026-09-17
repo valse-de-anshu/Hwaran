@@ -250,6 +250,19 @@ Explore in-depth documentation inside the [`docs/`](docs/) directory:
 
 ---
 
+## 🛠️ Companion Tools
+
+### 🌐 [Zine Scraper (CLI)](https://github.com/valse-de-anshu/zine-scraper)
+
+Need an automated tool to download, scrape, and organize your media archive?
+
+Check out **[Zine Scraper](https://github.com/valse-de-anshu/zine-scraper)** — a powerful companion CLI scraper built specifically for Hwaran. It is **100% compatible** with Hwaran's media engine:
+- Automatically downloads and structures manga, webtoons, light novels, music, and anime series.
+- Generates standard `.zine/*.json` and root metadata files with cover artwork matching rules.
+- Prepares structured folder hierarchies ready for instant 1-tap import into Hwaran.
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! If you want to fix a bug, add a feature, or improve documentation:
