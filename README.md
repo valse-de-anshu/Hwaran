@@ -4,8 +4,6 @@
   <img src="app/src/main/assets/promo/06_one_app_all_worlds.png" alt="Hwaran Hero Banner" width="100%" />
 </p>
 
-<img src="app/src/main/ic_launcher-playstore.png" alt="Hwaran Icon" width="100" height="100" />
-
 # 🌸 Hwaran (화란)
 ### *The Ultimate Private Offline Media Vault & Experience Engine for Android*
 
@@ -43,19 +41,23 @@ Hwaran puts everything behind a single, unified, biometric/PIN-protected vault. 
 <div align="center">
   <table>
     <tr>
-      <th align="center" width="33%">📖 Manga & Webtoon Reader</th>
-      <th align="center" width="33%">📚 Books & PDF Annotations</th>
-      <th align="center" width="33%">🎵 Music Player & Shaders</th>
+      <th align="center" width="25%">📖 Manga & Webtoons</th>
+      <th align="center" width="25%">📚 Books & Documents</th>
+      <th align="center" width="25%">🎬 Video & Anime</th>
+      <th align="center" width="25%">🎵 Music & Shaders</th>
     </tr>
     <tr>
-      <td align="center" valign="top">
-        <img src="Preview/toon.png" alt="Manga & Webtoon Reader Preview" width="100%" />
+      <td align="center" valign="middle">
+        <img src="Preview/toon.png" alt="Manga & Webtoon Reader" width="100%" />
       </td>
-      <td align="center" valign="top">
-        <img src="Preview/book%20reader.png" alt="Books & PDF Reader Preview" width="100%" />
+      <td align="center" valign="middle">
+        <img src="Preview/book%20reader.png" alt="Books & PDF Reader" width="100%" />
       </td>
-      <td align="center" valign="top">
-        <img src="Preview/music.png" alt="Music Player Preview" width="100%" />
+      <td align="center" valign="middle">
+        <img src="Preview/video%20player.png" alt="Video & Anime Player" width="100%" />
+      </td>
+      <td align="center" valign="middle">
+        <img src="Preview/music.png" alt="Music Player & Visualizer" width="100%" />
       </td>
     </tr>
   </table>
