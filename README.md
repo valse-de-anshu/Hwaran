@@ -64,9 +64,9 @@ Hwaran puts everything behind a single, unified, biometric/PIN-protected vault. 
 
   <br>
 
-  <video src="Preview/preview.mp4" width="100%" controls="controls">
-    <p>Your browser does not support HTML5 video. <a href="Preview/preview.mp4">Click here to watch the preview video</a>.</p>
-  </video>
+  <p align="center">
+    <img src="Preview/preview.gif" alt="Hwaran App Experience Preview" width="100%" />
+  </p>
 </div>
 
 ---
