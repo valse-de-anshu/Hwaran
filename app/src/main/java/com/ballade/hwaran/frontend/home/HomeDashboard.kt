@@ -76,6 +76,7 @@ fun HomeDashboard(
     onOpenMusic: () -> Unit = {},
     onPlaySong: (MangaEntity, List<ChapterEntity>, Int) -> Unit = { _, _, _ -> },
     onItemLongClick: (MangaEntity) -> Unit = {},
+    onNavigateToZineScraper: () -> Unit = {},
     glowColor: Color = Color(0xFFE2E8F0),
     isLibraryLocked: Boolean = false,
     modifier: Modifier = Modifier
@@ -482,7 +483,8 @@ fun HomeDashboard(
             channelCount = channelCount,
             musicCount = musicCount,
             onShortcutClick = onMediaShortcutClick,
-            onMusicClick = onOpenMusic
+            onMusicClick = onOpenMusic,
+            onZineScraperClick = onNavigateToZineScraper
         )
 
         Spacer(modifier = Modifier.height(22.dp))
@@ -691,12 +693,22 @@ private fun MediaShortcutsSection(
     channelCount: Int,
     musicCount: Int,
     onShortcutClick: (tag: String) -> Unit,
-    onMusicClick: () -> Unit
+    onMusicClick: () -> Unit,
+    onZineScraperClick: () -> Unit
 ) {
     SmoothFadingLazyRow(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(horizontal = 20.dp)
     ) {
+        item {
+            ShortcutCard(
+                icon = Icons.Rounded.CloudDownload,
+                title = "Zine",
+                subtitleText = "Scraper",
+                onClick = onZineScraperClick
+            )
+        }
+
         item {
             ShortcutCard(
                 icon = Icons.Rounded.GridView,
@@ -784,7 +796,8 @@ private fun MediaShortcutsSection(
 private fun ShortcutCard(
     icon: ImageVector,
     title: String,
-    count: Int,
+    count: Int = 0,
+    subtitleText: String? = null,
     accentColor: Color = Color(0xFFE2E8F0),
     onClick: () -> Unit
 ) {
@@ -826,7 +839,7 @@ private fun ShortcutCard(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = "$count",
+                    text = subtitleText ?: "$count",
                     color = Color.White.copy(alpha = 0.45f),
                     fontSize = 11.sp
                 )

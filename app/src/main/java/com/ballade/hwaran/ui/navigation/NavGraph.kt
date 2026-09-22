@@ -21,6 +21,7 @@ import com.ballade.hwaran.frontend.player.music.MusicPlayerScreen as NowPlayingS
 import com.ballade.hwaran.frontend.editor.music.EditPlaylistScreen
 import com.ballade.hwaran.frontend.editor.music.EditSongScreen
 import com.ballade.hwaran.frontend.settings.SettingsScreen
+import com.ballade.hwaran.frontend.zine.ZineScraperScreen
 import com.ballade.hwaran.frontend.lock.LockSelectionScreen
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -83,6 +84,7 @@ sealed class Screen(val route: String) {
     object ExternalImage : Screen("external_image/{uri}") {
         fun createRoute(uri: String) = "external_image/${java.net.URLEncoder.encode(uri, "UTF-8")}"
     }
+    object ZineScraper : Screen("zine_scraper")
 }
 
 private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
@@ -248,7 +250,8 @@ fun AppNavGraph(
                             4 -> navController.navigateSafely(Screen.NovelReader.createRoute(id))
                             else -> navController.navigateSafely(Screen.Reader.createRoute(id))
                         }
-                    }
+                    },
+                    onNavigateToZineScraper = { navController.navigateSafely(Screen.ZineScraper.route) }
                 )
             }
         }
@@ -282,6 +285,25 @@ fun AppNavGraph(
                     libraryViewModel = libraryViewModel,
                     settingsViewModel = settingsViewModel,
                     onNavigateBack = { navController.popBackStackSafely() }
+                )
+            }
+        }
+        composable(Screen.ZineScraper.route) {
+            BlockTouchesWhenExiting {
+                val libraryViewModel: LibraryViewModel = viewModel()
+                ZineScraperScreen(
+                    onNavigateBack = { navController.popBackStackSafely() },
+                    onImportFolder = { folderPath ->
+                        val dir = java.io.File(folderPath)
+                        if (dir.exists()) {
+                            val uri = android.net.Uri.fromFile(dir)
+                            libraryViewModel.importFolder(
+                                uri = uri,
+                                isFile = false,
+                                storageModeOverride = 0
+                            )
+                        }
+                    }
                 )
             }
         }

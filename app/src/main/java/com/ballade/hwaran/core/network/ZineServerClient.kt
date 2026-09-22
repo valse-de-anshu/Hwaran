@@ -26,7 +26,8 @@ data class ScrapeTaskInfo(
     val progress: Float,
     val message: String,
     val fileCount: Int,
-    val error: String
+    val error: String,
+    val mediaTitle: String = ""
 )
 
 object ZineServerClient {
@@ -277,7 +278,8 @@ object ZineServerClient {
             progress = json.optDouble("progress", 0.0).toFloat(),
             message = json.optString("message", ""),
             fileCount = json.optInt("file_count", 0),
-            error = json.optString("error", "")
+            error = json.optString("error", ""),
+            mediaTitle = json.optString("media_title", json.optString("title", ""))
         )
     }
 }

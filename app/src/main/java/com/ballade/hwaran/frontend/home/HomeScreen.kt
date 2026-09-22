@@ -105,7 +105,8 @@ fun HomeScreen(
     onNavigateToDescription: (Long) -> Unit,
     onNavigateToPlaylistDetail: (Long) -> Unit = onNavigateToDescription,
     onNavigateToEditDescription: (Long) -> Unit = onNavigateToDescription,
-    onNavigateToMedia: (Long, Int) -> Unit = { _, _ -> }
+    onNavigateToMedia: (Long, Int) -> Unit = { _, _ -> },
+    onNavigateToZineScraper: () -> Unit = {}
 ) {
     var activeDockTab by rememberSaveable { mutableIntStateOf(if (settingsViewModel.activeTab.value == 1) 4 else 0) }
     var previousDockTab by rememberSaveable { mutableIntStateOf(0) }
@@ -455,6 +456,7 @@ fun HomeScreen(
                             },
                             onOpenMusic = { openMusicWindow() },
                             onItemLongClick = { manga -> quickActionsManga = manga },
+                            onNavigateToZineScraper = onNavigateToZineScraper,
                             glowColor = Color(glowColor),
                             isLibraryLocked = isLibraryLocked
                         )
