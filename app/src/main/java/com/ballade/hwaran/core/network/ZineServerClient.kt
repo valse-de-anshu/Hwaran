@@ -81,14 +81,16 @@ object ZineServerClient {
         try { multicastLock?.release() } catch (e: Exception) {}
 
         // 2. High-speed parallel subnet sweep: probe all 254 hosts concurrently
-        // Returns the INSTANT any host responds with HTTP 200, cancelling all other probes immediately.
+        // Skips the phone's own IP address so it never misidentifies itself as the server.
+        val ownIp = getLocalDeviceIp()
         val subnet = getLocalSubnetPrefix()
         if (subnet != null) {
             val result = coroutineScope {
                 val channel = Channel<ZineServerInfo>(Channel.BUFFERED)
-                val jobs = (1..254).map { hostNum ->
+                val jobs = (1..254).mapNotNull { hostNum ->
+                    val ip = "$subnet.$hostNum"
+                    if (ip == ownIp) return@mapNotNull null
                     async {
-                        val ip = "$subnet.$hostNum"
                         if (isActive && pingServer(ip, 53318, timeoutMs = 450)) {
                             channel.trySend(ZineServerInfo(ip, 53318))
                         }
@@ -108,6 +110,25 @@ object ZineServerClient {
         }
 
         null
+    }
+
+    fun getLocalDeviceIp(): String {
+        try {
+            val interfaces = NetworkInterface.getNetworkInterfaces()
+            while (interfaces.hasMoreElements()) {
+                val iface = interfaces.nextElement()
+                if (iface.isLoopback || !iface.isUp) continue
+                val addrs = iface.inetAddresses
+                while (addrs.hasMoreElements()) {
+                    val addr = addrs.nextElement()
+                    if (addr is Inet4Address && !addr.isLoopbackAddress) {
+                        val ip = addr.hostAddress ?: ""
+                        if (!ip.startsWith("127.")) return ip
+                    }
+                }
+            }
+        } catch (e: Exception) {}
+        return ""
     }
 
     private fun getLocalSubnetPrefix(): String? {
@@ -335,6 +356,7 @@ object ZineServerClient {
         progressCb: ((Float) -> Unit)? = null
     ): Result<File> = withContext(Dispatchers.IO) {
         var conn: HttpURLConnection? = null
+        var tempFile: File? = null
         try {
             val endpoint = URL("http://$serverHost:$serverPort/api/download/$taskId")
             conn = (endpoint.openConnection() as HttpURLConnection).apply {
@@ -350,7 +372,26 @@ object ZineServerClient {
 
             val totalLen = conn.contentLengthLong.toFloat()
 
-            // Resolve target directory on phone: Download/Zine Scraper/<Vacuum or Quick grab>/
+            // 1. Download the full ZIP cleanly to a temporary file in cache first
+            tempFile = File.createTempFile("zine_dl_${taskId}_", ".zip", context.cacheDir)
+            var downloadedBytes = 0L
+            val buffer = ByteArray(65536)
+
+            conn.inputStream.buffered(65536).use { input ->
+                tempFile.outputStream().buffered(65536).use { output ->
+                    var bytes: Int
+                    while (input.read(buffer).also { bytes = it } != -1) {
+                        output.write(buffer, 0, bytes)
+                        downloadedBytes += bytes
+                        if (totalLen > 0) {
+                            progressCb?.invoke((downloadedBytes / totalLen).coerceIn(0f, 0.95f))
+                        }
+                    }
+                    output.flush()
+                }
+            }
+
+            // 2. Resolve target directory on phone: Download/Zine Scraper/<Vacuum or Quick grab>/
             val subFolder = if (mode.equals("vacuum", ignoreCase = true)) "Vacuum" else "Quick grab"
             val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
             val zineRoot = File(downloadsDir, "Zine Scraper/$subFolder").apply { mkdirs() }
@@ -361,39 +402,33 @@ object ZineServerClient {
                 File(context.getExternalFilesDir(null), "Zine Scraper/$subFolder").apply { mkdirs() }
             }
 
-            // High-throughput streaming extraction (64KB buffer)
-            var downloadedBytes = 0L
-            val zipIn = ZipInputStream(BufferedInputStream(conn.inputStream, 65536))
-            var entry = zipIn.nextEntry
-            val buffer = ByteArray(65536)
-
-            while (entry != null) {
+            // 3. Extract with ZipFile (verified central directory, never corrupts or leaves 0-byte files)
+            val zipFile = java.util.zip.ZipFile(tempFile)
+            val entries = zipFile.entries()
+            while (entries.hasMoreElements()) {
+                val entry = entries.nextElement()
                 val outFile = File(targetDir, entry.name)
                 if (entry.isDirectory) {
                     outFile.mkdirs()
                 } else {
                     outFile.parentFile?.mkdirs()
-                    BufferedOutputStream(FileOutputStream(outFile), 65536).use { bos ->
-                        var len: Int
-                        while (zipIn.read(buffer).also { len = it } > 0) {
-                            bos.write(buffer, 0, len)
-                            downloadedBytes += len
-                            if (totalLen > 0) {
-                                progressCb?.invoke(downloadedBytes / totalLen)
-                            }
+                    zipFile.getInputStream(entry).use { inStream ->
+                        FileOutputStream(outFile).buffered(65536).use { outStream ->
+                            inStream.copyTo(outStream)
                         }
-                        bos.flush()
                     }
                 }
-                zipIn.closeEntry()
-                entry = zipIn.nextEntry
             }
-            zipIn.close()
+            zipFile.close()
+            progressCb?.invoke(1.0f)
 
             Result.success(targetDir)
         } catch (e: Exception) {
+            Log.e(TAG, "Download/extraction failed: ${e.message}", e)
             conn?.disconnect()
             Result.failure(e)
+        } finally {
+            try { tempFile?.delete() } catch (e: Exception) {}
         }
     }
 
