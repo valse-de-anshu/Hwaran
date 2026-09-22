@@ -93,6 +93,7 @@ fun ZineScraperScreen(
     var directDownloadProgress by remember { mutableFloatStateOf(0f) }
     var downloadedLocalDir by remember { mutableStateOf<File?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var didLaunchLocalSend by remember { mutableStateOf(false) }
 
     // Animated breathing indicator for connection & active extraction
     val infiniteTransition = rememberInfiniteTransition(label = "pulse_aura")
@@ -199,6 +200,23 @@ fun ZineScraperScreen(
                 consecutiveFailures = 0
                 isServerConnected = true
                 activeTask = updated
+
+                // Automatically launch LocalSend on phone when server initiates LocalSend delivery
+                val isLocalSendTransfer = updated.status == "transferring" || updated.message.contains("LocalSend", ignoreCase = true)
+                if (isLocalSendTransfer && !didLaunchLocalSend) {
+                    didLaunchLocalSend = true
+                    openLocalSendApp(context)
+                }
+
+                // If completed or failed and we opened LocalSend, automatically bring Hwaran back to the front!
+                if (updated.status in listOf("completed", "failed") && didLaunchLocalSend) {
+                    didLaunchLocalSend = false
+                    coroutineScope.launch {
+                        delay(1200)
+                        bringHwaranToFront(context)
+                    }
+                }
+
                 if (updated.status == "completed" &&
                     (updated.message.contains("direct download", ignoreCase = true) || selectedTransferMethod == "direct")
                 ) {
@@ -1236,4 +1254,26 @@ fun ZineScraperScreen(
             }
         }
     }
+}
+
+private fun openLocalSendApp(context: Context) {
+    try {
+        val pm = context.packageManager
+        val launchIntent = pm.getLaunchIntentForPackage("org.localsend.localsend_app")
+        if (launchIntent != null) {
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(launchIntent)
+        }
+    } catch (e: Exception) {
+        // LocalSend not installed
+    }
+}
+
+private fun bringHwaranToFront(context: Context) {
+    try {
+        val intent = Intent(context, com.ballade.hwaran.MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {}
 }
