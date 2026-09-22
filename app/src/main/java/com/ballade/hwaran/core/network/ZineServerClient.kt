@@ -41,9 +41,14 @@ object ZineServerClient {
     /**
      * Listens for the Zine Scraper Server's UDP beacon on LAN,
      * or runs a lightning-fast concurrent subnet scan across the local network.
-     * Returns in milliseconds the instant ANY server responds.
      */
     suspend fun discoverServer(context: Context, timeoutMs: Int = 1500): ZineServerInfo? = withContext(Dispatchers.IO) {
+        // 0. Quick USB reverse / localhost bridge check
+        if (pingServer("127.0.0.1", 53318, timeoutMs = 300)) {
+            Log.i(TAG, "Discovered companion server via local bridge (127.0.0.1:53318)")
+            return@withContext ZineServerInfo("127.0.0.1", 53318)
+        }
+
         val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
         val multicastLock = wifiManager?.createMulticastLock("zine_discovery")?.apply {
             setReferenceCounted(false)
