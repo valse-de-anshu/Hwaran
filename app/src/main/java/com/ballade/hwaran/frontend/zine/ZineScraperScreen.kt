@@ -32,10 +32,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,16 +63,97 @@ private val SoftCoral = Color(0xFFF87171)
 
 private const val ZINE_GITHUB_URL = "https://github.com/valse-de-anshu/zine-scraper.git"
 
+@Composable
+fun LuminousPulsingBall(
+    color: Color,
+    isPulsing: Boolean,
+    modifier: Modifier = Modifier,
+    size: androidx.compose.ui.unit.Dp = 8.dp
+) {
+    if (isPulsing) {
+        val infiniteTransition = rememberInfiniteTransition(label = "luminous_pulse")
+        // Core contracts smoothly (goes small) and returns to normal
+        val coreScale by infiniteTransition.animateFloat(
+            initialValue = 1.0f,
+            targetValue = 0.65f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1000, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "core_scale"
+        )
+        // Outer faint glow pulses outward and dissolves
+        val auraScale by infiniteTransition.animateFloat(
+            initialValue = 0.85f,
+            targetValue = 2.1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1000, easing = LinearOutSlowInEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "aura_scale"
+        )
+        val auraAlpha by infiniteTransition.animateFloat(
+            initialValue = 0.38f,
+            targetValue = 0.0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1000, easing = LinearOutSlowInEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "aura_alpha"
+        )
+
+        Box(
+            modifier = modifier.size(size * 2.3f),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = color.copy(alpha = auraAlpha),
+                modifier = Modifier
+                    .size(size)
+                    .scale(auraScale)
+            ) {}
+            Surface(
+                shape = CircleShape,
+                color = color,
+                modifier = Modifier
+                    .size(size)
+                    .scale(coreScale)
+            ) {}
+        }
+    } else {
+        Box(
+            modifier = modifier.size(size * 2.3f),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = color.copy(alpha = 0.18f),
+                modifier = Modifier
+                    .size(size)
+                    .scale(1.4f)
+            ) {}
+            Surface(
+                shape = CircleShape,
+                color = color,
+                modifier = Modifier.size(size)
+            ) {}
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ZineScraperScreen(
     onNavigateBack: () -> Unit,
-    onImportFolder: ((String) -> Unit)? = null
+    onImportFolder: ((folderPath: String, openWhenDone: Boolean) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
     val clipboard = remember { context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager }
+    val focusManager = LocalFocusManager.current
+    var isInputFocused by remember { mutableStateOf(false) }
 
     val prefs = remember { context.getSharedPreferences("hwaran_zine_server", Context.MODE_PRIVATE) }
     var serverIp by remember { mutableStateOf(prefs.getString("server_ip", "") ?: "") }
@@ -256,11 +340,11 @@ fun ZineScraperScreen(
                                 downloadedLocalDir = dir
                                 when (postDownloadAction) {
                                     "import" -> {
-                                        onImportFolder?.invoke(dir.absolutePath)
+                                        onImportFolder?.invoke(dir.absolutePath, false)
                                         Toast.makeText(context, "Media saved and added to Library!", Toast.LENGTH_SHORT).show()
                                     }
                                     "open" -> {
-                                        onImportFolder?.invoke(dir.absolutePath)
+                                        onImportFolder?.invoke(dir.absolutePath, true)
                                         Toast.makeText(context, "Ready! Opening media...", Toast.LENGTH_SHORT).show()
                                     }
                                     else -> {
@@ -294,18 +378,16 @@ fun ZineScraperScreen(
             .fillMaxSize()
             .background(DarkOnyxBackground)
     ) {
-        // Soft ambient aura in background
+        // Soft ambient aura in background — full height, fades out gradually
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(440.dp)
+                .fillMaxSize()
                 .background(
-                    Brush.radialGradient(
+                    Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFF1B2130).copy(alpha = 0.40f),
+                            Color(0xFF1B2130).copy(alpha = 0.22f),
                             Color.Transparent
-                        ),
-                        radius = 700f
+                        )
                     )
                 )
         )
@@ -398,8 +480,10 @@ fun ZineScraperScreen(
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Normal
                         ),
-                        cursorBrush = SolidColor(Color.White),
-                        modifier = Modifier.weight(1f),
+                        cursorBrush = if (isInputFocused) SolidColor(Color.White) else SolidColor(Color.Transparent),
+                        modifier = Modifier
+                            .weight(1f)
+                            .onFocusChanged { isInputFocused = it.isFocused },
                         decorationBox = { innerTextField ->
                             if (urlInput.isEmpty()) {
                                 Text(
@@ -415,7 +499,10 @@ fun ZineScraperScreen(
 
                     if (urlInput.isNotBlank()) {
                         IconButton(
-                            onClick = { urlInput = "" },
+                            onClick = {
+                                urlInput = ""
+                                focusManager.clearFocus()
+                            },
                             modifier = Modifier.size(24.dp)
                         ) {
                             Icon(
@@ -435,7 +522,8 @@ fun ZineScraperScreen(
                             val clipText = clipboard?.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
                             if (clipText.isNotBlank()) {
                                 urlInput = clipText.trim()
-                                Toast.makeText(context, "Pasted", Toast.LENGTH_SHORT).show()
+                                focusManager.clearFocus()
+                                Toast.makeText(context, "Pasted link", Toast.LENGTH_SHORT).show()
                             } else {
                                 Toast.makeText(context, "Clipboard empty", Toast.LENGTH_SHORT).show()
                             }
@@ -585,113 +673,310 @@ fun ZineScraperScreen(
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically()
             ) {
-                Column(
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = GlassSurface,
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .padding(top = 10.dp)
                 ) {
-                    // Group 1: All Flags Together in One Unified Pill Container
-                    Text(
-                        text = "CLI FLAGS & SCOPE",
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White.copy(alpha = 0.45f),
-                        letterSpacing = 1.2.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = Color.White.copy(alpha = 0.035f),
-                        border = BorderStroke(1.dp, SubtleBorder),
-                        modifier = Modifier.fillMaxWidth()
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
                     ) {
-                        Column(modifier = Modifier.padding(6.dp)) {
-                            // Row 1: Scope Flags
+                        // Card Header
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                val scopes = listOf(
-                                    "single" to "Single (--0)",
-                                    "next_5" to "Next 5 (--5)",
-                                    "next_10" to "Next 10 (--10)",
-                                    "all" to "All (-a)"
-                                )
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Color.White.copy(alpha = 0.08f),
+                                    modifier = Modifier.size(30.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Terminal,
+                                            contentDescription = null,
+                                            tint = AccentTitanium,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                                Column {
+                                    Text(
+                                        text = "Scrape Scope & CLI Flags",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "Command parameters passed to companion engine",
+                                        fontSize = 11.sp,
+                                        color = Color.White.copy(alpha = 0.45f)
+                                    )
+                                }
+                            }
 
-                                scopes.forEach { (key, label) ->
-                                    val isSelected = selectedScopeKey == key
-                                    Surface(
-                                        onClick = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            selectedScopeKey = key
-                                            when (key) {
-                                                "single" -> {
-                                                    selectedMode = "quick_grab"
-                                                    sequentialLimit = 0
-                                                }
-                                                "next_5" -> {
-                                                    selectedMode = "vacuum"
-                                                    sequentialLimit = 5
-                                                }
-                                                "next_10" -> {
-                                                    selectedMode = "vacuum"
-                                                    sequentialLimit = 10
-                                                }
-                                                "all" -> {
-                                                    selectedMode = "vacuum"
-                                                    sequentialLimit = 0
-                                                }
-                                            }
-                                        },
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = if (isSelected) Color.White.copy(alpha = 0.12f) else Color.Transparent,
-                                        border = BorderStroke(1.dp, if (isSelected) ActiveBorder else Color.Transparent),
-                                        modifier = Modifier.weight(1f)
+                            if (selectedScopeKey != "single" || flagMetaOnly) {
+                                Surface(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        selectedScopeKey = "single"
+                                        selectedMode = "quick_grab"
+                                        sequentialLimit = 0
+                                        flagMetaOnly = false
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.White.copy(alpha = 0.07f)
+                                ) {
+                                    Text(
+                                        text = "Reset",
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color.White.copy(alpha = 0.6f),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Text(
+                            text = "INGESTION SCOPE",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White.copy(alpha = 0.40f),
+                            letterSpacing = 1.1.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // 2x2 Scope Grid: Solid, clear cards with no cramped text
+                        val scopes = listOf(
+                            Triple("single", "Single Item", "--0"),
+                            Triple("next_5", "Next 5", "--5"),
+                            Triple("next_10", "Next 10", "--10"),
+                            Triple("all", "All Media", "--a")
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            scopes.take(2).forEach { (key, label, flag) ->
+                                val isSelected = selectedScopeKey == key
+                                Surface(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        selectedScopeKey = key
+                                        when (key) {
+                                            "single" -> { selectedMode = "quick_grab"; sequentialLimit = 0 }
+                                            "next_5" -> { selectedMode = "vacuum"; sequentialLimit = 5 }
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (isSelected) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.035f),
+                                    border = BorderStroke(1.dp, if (isSelected) ActiveBorder else SubtleBorder),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Box(
-                                            modifier = Modifier.padding(vertical = 9.dp, horizontal = 2.dp),
-                                            contentAlignment = Alignment.Center
+                                        Text(
+                                            text = label,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.70f)
+                                        )
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = if (isSelected) AccentTitanium.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.05f)
                                         ) {
                                             Text(
-                                                text = label,
-                                                fontSize = 11.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.50f),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
+                                                text = flag,
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (isSelected) AccentTitanium else Color.White.copy(alpha = 0.45f),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                             )
                                         }
                                     }
                                 }
                             }
+                        }
 
-                            Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                            // Row 2: Metadata Flag unified in the exact same style
-                            Surface(
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    flagMetaOnly = !flagMetaOnly
-                                },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (flagMetaOnly) SoftEmerald.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.04f),
-                                border = BorderStroke(1.dp, if (flagMetaOnly) SoftEmerald.copy(alpha = 0.5f) else Color.Transparent),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Box(
-                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
-                                    contentAlignment = Alignment.Center
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            scopes.drop(2).forEach { (key, label, flag) ->
+                                val isSelected = selectedScopeKey == key
+                                Surface(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        selectedScopeKey = key
+                                        when (key) {
+                                            "next_10" -> { selectedMode = "vacuum"; sequentialLimit = 10 }
+                                            "all" -> { selectedMode = "vacuum"; sequentialLimit = 0 }
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (isSelected) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.035f),
+                                    border = BorderStroke(1.dp, if (isSelected) ActiveBorder else SubtleBorder),
+                                    modifier = Modifier.weight(1f)
                                 ) {
-                                    Text(
-                                        text = if (flagMetaOnly) "📑 Metadata Only (--meta) • ACTIVE" else "📑 Metadata Only (--meta)",
-                                        fontSize = 11.5.sp,
-                                        fontWeight = if (flagMetaOnly) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (flagMetaOnly) SoftEmerald else Color.White.copy(alpha = 0.50f)
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.70f)
+                                        )
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = if (isSelected) AccentTitanium.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.05f)
+                                        ) {
+                                            Text(
+                                                text = flag,
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (isSelected) AccentTitanium else Color.White.copy(alpha = 0.45f),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
                                 }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Text(
+                            text = "ADDITIONAL FLAGS",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White.copy(alpha = 0.40f),
+                            letterSpacing = 1.1.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Metadata Only Flag Toggle Card (NO EMOJIS, clean icon)
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                flagMetaOnly = !flagMetaOnly
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (flagMetaOnly) SoftEmerald.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.035f),
+                            border = BorderStroke(1.dp, if (flagMetaOnly) SoftEmerald.copy(alpha = 0.45f) else SubtleBorder),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Description,
+                                        contentDescription = null,
+                                        tint = if (flagMetaOnly) SoftEmerald else Color.White.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Column {
+                                        Text(
+                                            text = "Metadata Only (--meta)",
+                                            fontSize = 12.sp,
+                                            fontWeight = if (flagMetaOnly) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (flagMetaOnly) SoftEmerald else Color.White.copy(alpha = 0.85f)
+                                        )
+                                        Text(
+                                            text = "Fetch synopsis & cover without downloading chapter files",
+                                            fontSize = 10.5.sp,
+                                            color = Color.White.copy(alpha = 0.40f)
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (flagMetaOnly) SoftEmerald else Color.White.copy(alpha = 0.10f),
+                                    modifier = Modifier.size(16.dp)
+                                ) {
+                                    if (flagMetaOnly) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Check,
+                                                contentDescription = null,
+                                                tint = DarkOnyxBackground,
+                                                modifier = Modifier.size(11.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Terminal Command Preview Line
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color.Black.copy(alpha = 0.45f),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Code,
+                                    contentDescription = null,
+                                    tint = AccentTitanium.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                val flagPreview = buildString {
+                                    append("zine ")
+                                    when (selectedScopeKey) {
+                                        "single" -> append("--0 ")
+                                        "next_5" -> append("--5 ")
+                                        "next_10" -> append("--10 ")
+                                        "all" -> append("--a ")
+                                    }
+                                    if (flagMetaOnly) append("--meta ")
+                                    append(if (urlInput.isNotBlank()) urlInput.take(28) + if (urlInput.length > 28) "..." else "" else "<url>")
+                                }
+                                Text(
+                                    text = flagPreview,
+                                    fontSize = 11.sp,
+                                    color = AccentTitanium.copy(alpha = 0.70f),
+                                    fontFamily = FontFamily.Monospace,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                     }
@@ -704,6 +989,7 @@ fun ZineScraperScreen(
             Button(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    focusManager.clearFocus()
                     // Automatically collapse "v" section when sending signal
                     isConfigExpanded = false
 
@@ -727,7 +1013,7 @@ fun ZineScraperScreen(
                             "single" -> flags.add("--0")
                             "next_5" -> flags.add("--5")
                             "next_10" -> flags.add("--10")
-                            "all" -> flags.add("-a")
+                            "all" -> flags.add("--a")
                         }
                         if (flagMetaOnly) flags.add("--meta")
 
@@ -911,49 +1197,17 @@ fun ZineScraperScreen(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    // Blinking Ball Indicator
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.size(20.dp)
-                                    ) {
-                                        if (!isTaskCompleted && !isTaskFailed) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = (if (isTaskAlmostDone) SoftEmerald else SoftAmber).copy(
-                                                    alpha = (if (isTaskAlmostDone) fastPulseAlpha else pulseAlpha) * 0.35f
-                                                ),
-                                                modifier = Modifier
-                                                    .size(20.dp)
-                                                    .scale(if (isTaskAlmostDone) fastPulseScale else pulseScale)
-                                            ) {}
-                                        }
-
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = when {
-                                                isTaskCompleted -> SoftEmerald
-                                                isTaskFailed -> SoftCoral
-                                                isTaskAlmostDone -> SoftEmerald
-                                                else -> SoftAmber
-                                            },
-                                            modifier = Modifier
-                                                .size(10.dp)
-                                                .scale(
-                                                    when {
-                                                        isTaskCompleted || isTaskFailed -> 1f
-                                                        isTaskAlmostDone -> fastPulseScale
-                                                        else -> pulseScale
-                                                    }
-                                                )
-                                                .alpha(
-                                                    when {
-                                                        isTaskCompleted || isTaskFailed -> 1f
-                                                        isTaskAlmostDone -> fastPulseAlpha
-                                                        else -> pulseAlpha
-                                                    }
-                                                )
-                                        ) {}
-                                    }
+                                    // Pulsing Ball Indicator
+                                    LuminousPulsingBall(
+                                        color = when {
+                                            isTaskCompleted -> SoftEmerald
+                                            isTaskFailed -> SoftCoral
+                                            isTaskAlmostDone -> SoftEmerald
+                                            else -> SoftAmber
+                                        },
+                                        isPulsing = !isTaskCompleted && !isTaskFailed,
+                                        size = 9.dp
+                                    )
 
                                     Column {
                                         Text(
@@ -986,18 +1240,70 @@ fun ZineScraperScreen(
                                 }
 
                                 if (isTaskCompleted && downloadedLocalDir != null && onImportFolder != null && task.taskId == activeTask?.taskId) {
-                                    Text(
-                                        text = "Import",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = SoftEmerald,
-                                        modifier = Modifier
-                                            .padding(start = 8.dp)
-                                            .clickable {
-                                                downloadedLocalDir?.let { onImportFolder(it.absolutePath) }
-                                                Toast.makeText(context, "Importing to library...", Toast.LENGTH_SHORT).show()
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (postDownloadAction == "open" || postDownloadAction == "downloads") {
+                                            Surface(
+                                                onClick = {
+                                                    downloadedLocalDir?.let { onImportFolder(it.absolutePath, true) }
+                                                },
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = SoftEmerald.copy(alpha = 0.15f),
+                                                border = BorderStroke(1.dp, SoftEmerald.copy(alpha = 0.40f))
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.PlayArrow,
+                                                        contentDescription = "Open",
+                                                        tint = SoftEmerald,
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
+                                                    Text(
+                                                        text = "Open",
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = SoftEmerald
+                                                    )
+                                                }
                                             }
-                                    )
+                                        }
+                                        if (postDownloadAction == "import" || postDownloadAction == "downloads") {
+                                            Surface(
+                                                onClick = {
+                                                    downloadedLocalDir?.let { onImportFolder(it.absolutePath, false) }
+                                                    Toast.makeText(context, "Importing to library...", Toast.LENGTH_SHORT).show()
+                                                },
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = Color.White.copy(alpha = 0.08f),
+                                                border = BorderStroke(1.dp, SubtleBorder)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.AutoMirrored.Rounded.DriveFileMove,
+                                                        contentDescription = "Import",
+                                                        tint = AccentTitanium,
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
+                                                    Text(
+                                                        text = "Import",
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = AccentTitanium
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1050,17 +1356,15 @@ fun ZineScraperScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Surface(
-                        shape = CircleShape,
+                    LuminousPulsingBall(
                         color = when {
                             isServerConnected -> SoftEmerald
-                            isSearchingServer -> SoftAmber.copy(alpha = pulseAlpha)
+                            isSearchingServer -> SoftAmber
                             else -> SoftCoral
                         },
-                        modifier = Modifier
-                            .size(7.dp)
-                            .scale(if (isSearchingServer || activeTask?.status in listOf("scraping", "analyzing")) pulseScale else 1f)
-                    ) {}
+                        isPulsing = isSearchingServer || (activeTask?.status in listOf("scraping", "analyzing", "transferring")),
+                        size = 7.dp
+                    )
 
                     Text(
                         text = if (isServerConnected) "ZINE BRIDGE" else "BRIDGE OFFLINE",
