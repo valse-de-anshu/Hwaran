@@ -39,9 +39,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.spring
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -207,16 +218,19 @@ fun ToonPlayerScreen(
     val activePageIndex = if (readerMode == 0) currentStripPage else pagerState.currentPage
 
     // Zoom state for Mode 0 (Webtoon continuous strip)
-    var mode0ZoomScale by remember { mutableFloatStateOf(1f) }
-    var mode0PanOffset by remember { mutableStateOf(Offset.Zero) }
+    val mode0Scale = remember { Animatable(1f) }
+    val mode0PanX = remember { Animatable(0f) }
+    val mode0PanY = remember { Animatable(0f) }
 
     // Zoom state for Mode 1 (Page-by-page)
-    var mode1ZoomScale by remember { mutableFloatStateOf(1f) }
-    var mode1PanOffset by remember { mutableStateOf(Offset.Zero) }
+    val mode1Scale = remember { Animatable(1f) }
+    val mode1PanX = remember { Animatable(0f) }
+    val mode1PanY = remember { Animatable(0f) }
 
     LaunchedEffect(pagerState.currentPage) {
-        mode1ZoomScale = 1f
-        mode1PanOffset = Offset.Zero
+        mode1Scale.snapTo(1f)
+        mode1PanX.snapTo(0f)
+        mode1PanY.snapTo(0f)
     }
 
     // Smooth Preload next images only when scroll is idle to avoid frame drops during rapid scrolling
@@ -361,61 +375,28 @@ fun ToonPlayerScreen(
                     BoxWithConstraints(
                         modifier = Modifier
                             .fillMaxSize()
-                            .clipToBounds()
-                            .pointerInput(showControls, activeSettingTab, mode0ZoomScale) {
-                                detectTapGestures(
-                                    onDoubleTap = { tapOffset ->
-                                        if (mode0ZoomScale > 1.05f) {
-                                            mode0ZoomScale = 1f
-                                            mode0PanOffset = Offset.Zero
-                                        } else {
-                                            mode0ZoomScale = 2.0f
-                                            val centerX = size.width / 2f
-                                            val maxOffsetX = (size.width * 1.0f) / 2f
-                                            mode0PanOffset = Offset(
-                                                x = ((centerX - tapOffset.x) * 1.0f).coerceIn(-maxOffsetX, maxOffsetX),
-                                                y = 0f
-                                            )
-                                        }
-                                    },
-                                    onTap = { offset ->
-                                        // If controls or setting popup are open, tapping strip dismisses them
-                                        if (activeSettingTab != null) {
-                                            activeSettingTab = null
-                                        } else if (showControls) {
-                                            showControls = false
-                                        } else if (mode0ZoomScale > 1.05f) {
-                                            showControls = !showControls
-                                        } else {
-                                            // Trigger UI on right side (right ~22% zone, matching one-handed thumb tap)
-                                            val rightThreshold = size.width * 0.78f
-                                            if (offset.x >= rightThreshold) {
-                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                showControls = true
-                                            }
-                                        }
-                                    }
-                                )
-                            }
-                            .pointerInput(Unit) {
-                                detectTransformGestures { _, pan, zoom, _ ->
-                                    if (zoom != 1f || mode0ZoomScale > 1.05f) {
-                                        val newScale = (mode0ZoomScale * zoom).coerceIn(1f, 3.5f)
-                                        if (newScale > 1.02f) {
-                                            val maxOffsetX = (size.width * (newScale - 1f)) / 2f
-                                            val maxOffsetY = (size.height * (newScale - 1f)) / 2f
-                                            mode0PanOffset = Offset(
-                                                x = (mode0PanOffset.x + pan.x).coerceIn(-maxOffsetX, maxOffsetX),
-                                                y = (mode0PanOffset.y + pan.y).coerceIn(-maxOffsetY, maxOffsetY)
-                                            )
-                                            mode0ZoomScale = newScale
-                                        } else {
-                                            mode0ZoomScale = 1f
-                                            mode0PanOffset = Offset.Zero
+                            .readerZoomGestures(
+                                coroutineScope = coroutineScope,
+                                scale = mode0Scale,
+                                panX = mode0PanX,
+                                panY = mode0PanY,
+                                onSingleTap = { offset, width ->
+                                    if (activeSettingTab != null) {
+                                        activeSettingTab = null
+                                    } else if (showControls) {
+                                        showControls = false
+                                    } else if (mode0Scale.value > 1.05f) {
+                                        showControls = !showControls
+                                    } else {
+                                        // Trigger UI on right side (right ~22% zone, matching one-handed thumb tap)
+                                        val rightThreshold = width * 0.78f
+                                        if (offset.x >= rightThreshold) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            showControls = true
                                         }
                                     }
                                 }
-                            }
+                            )
                     ) {
                         val effectiveWidth = if (maxWidth > 600.dp) 680.dp else maxWidth
                         val containerWidth = effectiveWidth
@@ -426,12 +407,12 @@ fun ToonPlayerScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .graphicsLayer {
-                                    scaleX = mode0ZoomScale
-                                    scaleY = mode0ZoomScale
-                                    translationX = mode0PanOffset.x
-                                    translationY = mode0PanOffset.y
+                                    scaleX = mode0Scale.value
+                                    scaleY = mode0Scale.value
+                                    translationX = mode0PanX.value
+                                    translationY = mode0PanY.value
                                 },
-                            userScrollEnabled = mode0ZoomScale <= 1.05f,
+                            userScrollEnabled = mode0Scale.value <= 1.05f,
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             items(images, key = { it }) { filePath ->
@@ -486,38 +467,19 @@ fun ToonPlayerScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .clipToBounds()
-                            .pointerInput(isRtl, pagerState.currentPage, images.size, showControls, activeSettingTab, mode1ZoomScale) {
-                                detectTapGestures(
-                                    onDoubleTap = { tapOffset ->
-                                        if (mode1ZoomScale > 1.05f) {
-                                            mode1ZoomScale = 1f
-                                            mode1PanOffset = Offset.Zero
-                                        } else {
-                                            mode1ZoomScale = 2.5f
-                                            val centerX = size.width / 2f
-                                            val centerY = size.height / 2f
-                                            val maxOffsetX = (size.width * 1.5f) / 2f
-                                            val maxOffsetY = (size.height * 1.5f) / 2f
-                                            mode1PanOffset = Offset(
-                                                x = ((centerX - tapOffset.x) * 1.5f).coerceIn(-maxOffsetX, maxOffsetX),
-                                                y = ((centerY - tapOffset.y) * 1.5f).coerceIn(-maxOffsetY, maxOffsetY)
-                                            )
-                                        }
-                                    },
-                                    onTap = { offset ->
-                                        if (activeSettingTab != null) {
-                                            activeSettingTab = null
-                                            return@detectTapGestures
-                                        }
-                                        if (mode1ZoomScale > 1.05f) {
-                                            showControls = !showControls
-                                            return@detectTapGestures
-                                        }
-
-                                        val w = size.width
-                                        val leftThreshold = w * 0.28f
-                                        val rightThreshold = w * 0.72f
+                            .readerZoomGestures(
+                                coroutineScope = coroutineScope,
+                                scale = mode1Scale,
+                                panX = mode1PanX,
+                                panY = mode1PanY,
+                                onSingleTap = { offset, width ->
+                                    if (activeSettingTab != null) {
+                                        activeSettingTab = null
+                                    } else if (mode1Scale.value > 1.05f) {
+                                        showControls = !showControls
+                                    } else {
+                                        val leftThreshold = width * 0.28f
+                                        val rightThreshold = width * 0.72f
 
                                         when {
                                             offset.x < leftThreshold -> {
@@ -534,25 +496,8 @@ fun ToonPlayerScreen(
                                             }
                                         }
                                     }
-                                )
-                            }
-                            .pointerInput(Unit) {
-                                detectTransformGestures { _, pan, zoom, _ ->
-                                    val newScale = (mode1ZoomScale * zoom).coerceIn(1f, 4.0f)
-                                    if (newScale > 1.02f) {
-                                        val maxOffsetX = (size.width * (newScale - 1f)) / 2f
-                                        val maxOffsetY = (size.height * (newScale - 1f)) / 2f
-                                        mode1PanOffset = Offset(
-                                            x = (mode1PanOffset.x + pan.x).coerceIn(-maxOffsetX, maxOffsetX),
-                                            y = (mode1PanOffset.y + pan.y).coerceIn(-maxOffsetY, maxOffsetY)
-                                        )
-                                        mode1ZoomScale = newScale
-                                    } else {
-                                        mode1ZoomScale = 1f
-                                        mode1PanOffset = Offset.Zero
-                                    }
                                 }
-                            }
+                            )
                     ) {
                         HorizontalPager(
                             state = pagerState,
@@ -560,12 +505,12 @@ fun ToonPlayerScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .graphicsLayer {
-                                    scaleX = mode1ZoomScale
-                                    scaleY = mode1ZoomScale
-                                    translationX = mode1PanOffset.x
-                                    translationY = mode1PanOffset.y
+                                    scaleX = mode1Scale.value
+                                    scaleY = mode1Scale.value
+                                    translationX = mode1PanX.value
+                                    translationY = mode1PanY.value
                                 },
-                            userScrollEnabled = mode1ZoomScale <= 1.05f
+                            userScrollEnabled = mode1Scale.value <= 1.05f
                         ) { pageIndex ->
                             val filePath = images.getOrNull(pageIndex)
                             if (filePath != null) {
@@ -933,3 +878,155 @@ fun ToonPlayerScreen(
         }
     }
 }
+
+private fun Modifier.readerZoomGestures(
+    coroutineScope: CoroutineScope,
+    scale: Animatable<Float, AnimationVector1D>,
+    panX: Animatable<Float, AnimationVector1D>,
+    panY: Animatable<Float, AnimationVector1D>,
+    onSingleTap: (Offset, Float) -> Unit
+): Modifier = this
+    .clipToBounds()
+    .pointerInput(Unit) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            var isMultiTouch = false
+            var isPanningZoomed = false
+
+            while (true) {
+                val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                val activePointers = event.changes.filter { it.pressed }
+
+                if (activePointers.isEmpty()) {
+                    break
+                }
+
+                if (activePointers.size >= 2) {
+                    // Multi-touch pinch zoom!
+                    // Immediately consume all touches on Initial pass so child LazyColumn/Pager NEVER scrolls
+                    event.changes.forEach { it.consume() }
+                    isMultiTouch = true
+
+                    val zoomChange = event.calculateZoom()
+                    val panChange = event.calculatePan()
+                    val centroid = event.calculateCentroid(useCurrent = true)
+
+                    val currentScale = scale.value
+                    val newScale = (currentScale * zoomChange).coerceIn(0.75f, 6.0f)
+
+                    val maxPanX = (size.width * (newScale - 1f).coerceAtLeast(0f)) / 2f
+                    val maxPanY = (size.height * (newScale - 1f).coerceAtLeast(0f)) / 2f
+
+                    // Focal zoom adjustment: keep point under centroid pinned
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val focalPanAdjustment = if (centroid != Offset.Unspecified) {
+                        (centroid - center) * (1f - zoomChange)
+                    } else Offset.Zero
+
+                    val newPanX = (panX.value + panChange.x + focalPanAdjustment.x)
+                        .coerceIn(-maxPanX * 1.5f, maxPanX * 1.5f)
+                    val newPanY = (panY.value + panChange.y + focalPanAdjustment.y)
+                        .coerceIn(-maxPanY * 1.5f, maxPanY * 1.5f)
+
+                    coroutineScope.launch {
+                        scale.snapTo(newScale)
+                        panX.snapTo(newPanX)
+                        panY.snapTo(newPanY)
+                    }
+                } else if (activePointers.size == 1 && scale.value > 1.05f) {
+                    // Single finger panning when zoomed in
+                    val change = activePointers.first()
+                    val dragAmount = change.position - change.previousPosition
+                    if (dragAmount.getDistance() > 0.5f) {
+                        change.consume()
+                        isPanningZoomed = true
+
+                        val currentScale = scale.value
+                        val maxPanX = (size.width * (currentScale - 1f).coerceAtLeast(0f)) / 2f
+                        val maxPanY = (size.height * (currentScale - 1f).coerceAtLeast(0f)) / 2f
+
+                        val newPanX = (panX.value + dragAmount.x).coerceIn(-maxPanX * 1.25f, maxPanX * 1.25f)
+                        val newPanY = (panY.value + dragAmount.y).coerceIn(-maxPanY * 1.25f, maxPanY * 1.25f)
+
+                        coroutineScope.launch {
+                            panX.snapTo(newPanX)
+                            panY.snapTo(newPanY)
+                        }
+                    }
+                }
+            }
+
+            // Fingers lifted: animate back to valid bounds smoothly
+            if (isMultiTouch || isPanningZoomed) {
+                val targetScale = scale.value.coerceIn(1f, 4f)
+                val maxPanX = (size.width * (targetScale - 1f).coerceAtLeast(0f)) / 2f
+                val maxPanY = (size.height * (targetScale - 1f).coerceAtLeast(0f)) / 2f
+                val targetPanX = if (targetScale <= 1.02f) 0f else panX.value.coerceIn(-maxPanX, maxPanX)
+                val targetPanY = if (targetScale <= 1.02f) 0f else panY.value.coerceIn(-maxPanY, maxPanY)
+
+                coroutineScope.launch {
+                    launch {
+                        scale.animateTo(
+                            targetScale,
+                            spring(dampingRatio = 0.82f, stiffness = 400f)
+                        )
+                    }
+                    launch {
+                        panX.animateTo(
+                            targetPanX,
+                            spring(dampingRatio = 0.82f, stiffness = 400f)
+                        )
+                    }
+                    launch {
+                        panY.animateTo(
+                            targetPanY,
+                            spring(dampingRatio = 0.82f, stiffness = 400f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+    .pointerInput(onSingleTap) {
+        detectTapGestures(
+            onDoubleTap = { tapOffset ->
+                coroutineScope.launch {
+                    if (scale.value > 1.05f) {
+                        // Smoothly animate back to 1.0x
+                        launch {
+                            scale.animateTo(1f, tween(300, easing = FastOutSlowInEasing))
+                        }
+                        launch {
+                            panX.animateTo(0f, tween(300, easing = FastOutSlowInEasing))
+                        }
+                        launch {
+                            panY.animateTo(0f, tween(300, easing = FastOutSlowInEasing))
+                        }
+                    } else {
+                        // Smoothly animate in to 2.5x centered on tap
+                        val targetScale = 2.5f
+                        val centerX = size.width / 2f
+                        val centerY = size.height / 2f
+                        val maxPanX = (size.width * (targetScale - 1f)) / 2f
+                        val maxPanY = (size.height * (targetScale - 1f)) / 2f
+
+                        val targetPanX = ((centerX - tapOffset.x) * (targetScale - 1f)).coerceIn(-maxPanX, maxPanX)
+                        val targetPanY = ((centerY - tapOffset.y) * (targetScale - 1f)).coerceIn(-maxPanY, maxPanY)
+
+                        launch {
+                            scale.animateTo(targetScale, tween(300, easing = FastOutSlowInEasing))
+                        }
+                        launch {
+                            panX.animateTo(targetPanX, tween(300, easing = FastOutSlowInEasing))
+                        }
+                        launch {
+                            panY.animateTo(targetPanY, tween(300, easing = FastOutSlowInEasing))
+                        }
+                    }
+                }
+            },
+            onTap = { offset ->
+                onSingleTap(offset, size.width.toFloat())
+            }
+        )
+    }
