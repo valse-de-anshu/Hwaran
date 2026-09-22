@@ -109,7 +109,7 @@ fun HomeScreen(
 ) {
     var activeDockTab by rememberSaveable { mutableIntStateOf(if (settingsViewModel.activeTab.value == 1) 4 else 0) }
     var previousDockTab by rememberSaveable { mutableIntStateOf(0) }
-    var libraryInitialTag by rememberSaveable { mutableStateOf("All") }
+    val selectedLibraryCategory by libraryViewModel.selectedCategory.collectAsState()
     val isLibraryLocked by settingsViewModel.isLibraryLocked.collectAsState()
     val libraryPassword by settingsViewModel.libraryPassword.collectAsState()
     val activeTab by settingsViewModel.activeTab.collectAsState()
@@ -449,7 +449,7 @@ fun HomeScreen(
                                 if (targetTag == "Music") {
                                     openMusicWindow()
                                 } else {
-                                    libraryInitialTag = targetTag
+                                    libraryViewModel.setSelectedCategory(targetTag)
                                     activeDockTab = 1
                                 }
                             },
@@ -466,7 +466,10 @@ fun HomeScreen(
                                 val m = allManga.find { it.id == id }
                                 if (m?.contentType == 3) onNavigateToPlaylistDetail(id) else onNavigateToDescription(id)
                             },
-                            initialTag = libraryInitialTag,
+                            initialTag = selectedLibraryCategory,
+                            onTagChange = { newTag ->
+                                libraryViewModel.setSelectedCategory(newTag)
+                            },
                             isLibraryLocked = isLibraryLocked,
                             libraryPassword = libraryPassword,
                             glowColor = Color(glowColor),
@@ -530,10 +533,6 @@ fun HomeScreen(
                             if (tab == 3) {
                                 onNavigateToSettings()
                             } else {
-                                if (tab == 1 && activeDockTab != 1) {
-                                    // User explicitly tapped the Library tab from another tab → show All
-                                    libraryInitialTag = "All"
-                                }
                                 activeDockTab = tab
                                 settingsViewModel.setActiveTab(0)
                             }

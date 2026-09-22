@@ -33,6 +33,18 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private val _isNsfwFilter = MutableStateFlow(false)
     val isNsfwFilter: StateFlow<Boolean> = _isNsfwFilter
 
+    private val _selectedCategory = MutableStateFlow("All")
+    val selectedCategory: StateFlow<String> = _selectedCategory
+
+    fun setSelectedCategory(category: String) {
+        val normalized = when (category) {
+            "Favorite" -> "Fav"
+            "Novel" -> "Light Novel"
+            else -> category
+        }
+        _selectedCategory.value = normalized
+    }
+
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading
 

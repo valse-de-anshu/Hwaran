@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,6 +51,7 @@ fun LibraryView(
     allManga: List<MangaEntity>,
     onNavigateToDescription: (Long) -> Unit,
     initialTag: String = "All",
+    onTagChange: ((String) -> Unit)? = null,
     isLibraryLocked: Boolean = false,
     libraryPassword: String = "",
     glowColor: Color = Color(0xFFE2E8F0),
@@ -69,13 +71,15 @@ fun LibraryView(
             else -> initialTag
         }
     }
-    var selectedTag by remember(normalizedInitialTag) { mutableStateOf(if (normalizedInitialTag == "Music") "All" else normalizedInitialTag) }
+    var selectedTag by rememberSaveable {
+        mutableStateOf(if (normalizedInitialTag == "Music") "All" else normalizedInitialTag)
+    }
     val tagListState = rememberLazyListState()
 
     LaunchedEffect(normalizedInitialTag) {
         if (normalizedInitialTag == "Music") {
             onOpenMusic()
-        } else if (normalizedInitialTag.isNotBlank()) {
+        } else if (normalizedInitialTag.isNotBlank() && normalizedInitialTag != selectedTag) {
             selectedTag = normalizedInitialTag
         }
     }
@@ -269,6 +273,7 @@ fun LibraryView(
                                     onOpenMusic()
                                 } else {
                                     selectedTag = tag
+                                    onTagChange?.invoke(tag)
                                 }
                             },
                         shape = RoundedCornerShape(20.dp),
