@@ -215,9 +215,8 @@ fun HomeScreen(
         if (activeDockTab == 4) {
             closeMusicWindow()
         } else {
-            if (activeDockTab == 1) {
-                libraryInitialTag = "All"
-            }
+            // Do NOT reset libraryInitialTag here — preserve the user's last selected category
+            // (e.g. "Book") so they land back on the same tab when returning from a description.
             activeDockTab = 0
             settingsViewModel.setActiveTab(0)
         }
@@ -532,6 +531,7 @@ fun HomeScreen(
                                 onNavigateToSettings()
                             } else {
                                 if (tab == 1 && activeDockTab != 1) {
+                                    // User explicitly tapped the Library tab from another tab → show All
                                     libraryInitialTag = "All"
                                 }
                                 activeDockTab = tab

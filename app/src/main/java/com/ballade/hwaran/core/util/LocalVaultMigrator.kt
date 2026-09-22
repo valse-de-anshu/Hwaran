@@ -23,7 +23,7 @@ object LocalVaultMigrator {
         val path = manga.parentUri.trim()
         if (path.isEmpty()) return false
         if (path.startsWith("content://")) return false
-        return path.contains("vault", ignoreCase = true) || File(path).exists()
+        return path.contains("vault", ignoreCase = true)
     }
 
     suspend fun moveToVault(

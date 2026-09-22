@@ -19,10 +19,12 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.DriveFileMove
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import com.ballade.hwaran.core.util.LocalVaultMigrator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -152,9 +154,10 @@ fun HomeDashboard(
     }
 
     // Continue watching / in progress covers
-    val inProgressItems = remember(allManga, openedMangaIdsFromHistory, isLibraryLocked) {
+    val inProgressItems = remember(allManga, openedMangaIdsFromHistory) {
         val opened = allManga.filter { manga ->
-            if (isLibraryLocked && manga.isLocked) return@filter false
+            // Do NOT skip locked media — progress tracking is separate from privacy lock.
+            // A locked item still shows progress; the lock gate is handled at navigation time.
             if (manga.boxPurpose in listOf("season", "specials", "container")) return@filter false
             val hasProgress = manga.openCount > 0 ||
                 !manga.lastReadTitle.isNullOrBlank() ||
@@ -521,6 +524,7 @@ fun HomeDashboard(
         if (recentlyAdded.isNotEmpty()) {
             RecentlyAddedSection(
                 items = recentlyAdded.take(12),
+                isLibraryLocked = isLibraryLocked,
                 onItemClick = { manga -> if (manga.contentType == 3) onNavigateToPlaylistDetail(manga.id) else onNavigateToDescription(manga.id) },
                 onItemLongClick = onItemLongClick,
                 onViewAllClick = { showRecentlyAddedSheet = true }
@@ -534,6 +538,7 @@ fun HomeDashboard(
     if (showRecentlyAddedSheet) {
         RecentlyAddedSheet(
             allRecentlyAdded = recentlyAdded,
+            isLibraryLocked = isLibraryLocked,
             onDismiss = { showRecentlyAddedSheet = false },
             onItemClick = { manga -> if (manga.contentType == 3) onNavigateToPlaylistDetail(manga.id) else onNavigateToDescription(manga.id) },
             onItemLongClick = onItemLongClick
@@ -994,6 +999,7 @@ private fun ContinueWatchingSection(
 @Composable
 private fun RecentlyAddedSection(
     items: List<MangaEntity>,
+    isLibraryLocked: Boolean = false,
     onItemClick: (MangaEntity) -> Unit,
     onItemLongClick: (MangaEntity) -> Unit = {},
     onViewAllClick: () -> Unit
@@ -1014,6 +1020,7 @@ private fun RecentlyAddedSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(items, key = { it.id }) { manga ->
+                val isItemLocked = isLibraryLocked && manga.isLocked
                 Surface(
                     modifier = Modifier
                         .width(110.dp)
@@ -1031,74 +1038,112 @@ private fun RecentlyAddedSection(
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
-                        val coverModel = remember(manga.coverPath, manga.parentUri) {
-                            CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
-                        }
-                        if (coverModel != null) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(context)
-                                    .data(coverModel)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = manga.title,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
+                        if (isItemLocked) {
+                            // Show lock overlay — never reveal the cover of locked media
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .background(
-                                        Brush.verticalGradient(
-                                            listOf(Color(0xFF1E1D2A), Color(0xFF121118))
-                                        )
-                                    ),
+                                    .background(Color.Black.copy(alpha = 0.85f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = if (manga.contentType == 3) Icons.Rounded.MusicNote else Icons.Rounded.Image,
-                                    contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.25f),
-                                    modifier = Modifier.size(32.dp)
+                                    imageVector = Icons.Rounded.Lock,
+                                    contentDescription = "Locked",
+                                    tint = Color.White.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(28.dp)
                                 )
                             }
-                        }
+                        } else {
+                            val coverModel = remember(manga.coverPath, manga.parentUri) {
+                                CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
+                            }
+                            if (coverModel != null) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data(coverModel)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = manga.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(Color(0xFF1E1D2A), Color(0xFF121118))
+                                            )
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (manga.contentType == 3) Icons.Rounded.MusicNote else Icons.Rounded.Image,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.25f),
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
+                            }
 
-                        // Title inside the cover art
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .fillMaxHeight(0.6f)
-                                .align(Alignment.BottomCenter)
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(
-                                            Color.Transparent,
-                                            Color.Black.copy(alpha = 0.35f),
-                                            Color.Black.copy(alpha = 0.75f),
-                                            Color.Black.copy(alpha = 0.95f)
+                            // Title inside the cover art
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .fillMaxHeight(0.6f)
+                                    .align(Alignment.BottomCenter)
+                                    .background(
+                                        Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.Transparent,
+                                                Color.Black.copy(alpha = 0.35f),
+                                                Color.Black.copy(alpha = 0.75f),
+                                                Color.Black.copy(alpha = 0.95f)
+                                            )
                                         )
                                     )
+                                    .padding(horizontal = 7.dp, vertical = 6.dp),
+                                contentAlignment = Alignment.BottomStart
+                            ) {
+                                Text(
+                                    text = manga.title,
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    style = TextStyle(
+                                        shadow = Shadow(
+                                            color = Color.Black,
+                                            offset = Offset(0f, 2f),
+                                            blurRadius = 8f
+                                        )
+                                    ),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    lineHeight = 13.sp
                                 )
-                                .padding(horizontal = 7.dp, vertical = 6.dp),
-                            contentAlignment = Alignment.BottomStart
-                        ) {
-                            Text(
-                                text = manga.title,
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                style = TextStyle(
-                                    shadow = Shadow(
-                                        color = Color.Black,
-                                        offset = Offset(0f, 2f),
-                                        blurRadius = 8f
+                            }
+
+                            // Small subtle vault indicator badge in top-right corner
+                            val isVault = remember(manga.parentUri) { LocalVaultMigrator.isItemInVault(manga) }
+                            if (isVault) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(6.dp)
+                                        .size(20.dp)
+                                        .background(Color(0xFF0C1322).copy(alpha = 0.85f), CircleShape)
+                                        .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.45f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Rounded.DriveFileMove,
+                                        contentDescription = "Stored in Local Vault",
+                                        tint = Color(0xFF38BDF8),
+                                        modifier = Modifier.size(11.dp)
                                     )
-                                ),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                lineHeight = 13.sp
-                            )
+                                }
+                            }
                         }
                     }
                 }
@@ -1152,6 +1197,7 @@ private fun SectionHeader(
 @Composable
 private fun RecentlyAddedSheet(
     allRecentlyAdded: List<MangaEntity>,
+    isLibraryLocked: Boolean = false,
     onDismiss: () -> Unit,
     onItemClick: (MangaEntity) -> Unit,
     onItemLongClick: (MangaEntity) -> Unit = {}
@@ -1300,74 +1346,113 @@ private fun RecentlyAddedSheet(
                             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
                         ) {
                             Box(modifier = Modifier.fillMaxSize()) {
-                                val coverModel = remember(manga.coverPath, manga.parentUri) {
-                                    CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
-                                }
-                                if (coverModel != null) {
-                                    AsyncImage(
-                                        model = ImageRequest.Builder(context)
-                                            .data(coverModel)
-                                            .crossfade(true)
-                                            .build(),
-                                        contentDescription = manga.title,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                } else {
+                                val isItemLocked = isLibraryLocked && manga.isLocked
+                                if (isItemLocked) {
+                                    // Show lock overlay — never reveal the cover of locked media
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .background(
-                                                Brush.verticalGradient(
-                                                    listOf(Color(0xFF1E1D2A), Color(0xFF121118))
-                                                )
-                                            ),
+                                            .background(Color.Black.copy(alpha = 0.85f)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = if (manga.contentType == 3) Icons.Rounded.MusicNote else Icons.Rounded.Image,
-                                            contentDescription = null,
-                                            tint = Color.White.copy(alpha = 0.25f),
-                                            modifier = Modifier.size(32.dp)
+                                            imageVector = Icons.Rounded.Lock,
+                                            contentDescription = "Locked",
+                                            tint = Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(28.dp)
                                         )
                                     }
-                                }
+                                } else {
+                                    val coverModel = remember(manga.coverPath, manga.parentUri) {
+                                        CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, null, context)
+                                    }
+                                    if (coverModel != null) {
+                                        AsyncImage(
+                                            model = ImageRequest.Builder(context)
+                                                .data(coverModel)
+                                                .crossfade(true)
+                                                .build(),
+                                            contentDescription = manga.title,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(
+                                                    Brush.verticalGradient(
+                                                        listOf(Color(0xFF1E1D2A), Color(0xFF121118))
+                                                    )
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = if (manga.contentType == 3) Icons.Rounded.MusicNote else Icons.Rounded.Image,
+                                                contentDescription = null,
+                                                tint = Color.White.copy(alpha = 0.25f),
+                                                modifier = Modifier.size(32.dp)
+                                            )
+                                        }
+                                    }
 
-                                // Title inside the cover art
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .fillMaxHeight(0.6f)
-                                        .align(Alignment.BottomCenter)
-                                        .background(
-                                            Brush.verticalGradient(
-                                                colors = listOf(
-                                                    Color.Transparent,
-                                                    Color.Black.copy(alpha = 0.35f),
-                                                    Color.Black.copy(alpha = 0.75f),
-                                                    Color.Black.copy(alpha = 0.95f)
+                                    // Title inside the cover art
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .fillMaxHeight(0.6f)
+                                            .align(Alignment.BottomCenter)
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    colors = listOf(
+                                                        Color.Transparent,
+                                                        Color.Black.copy(alpha = 0.35f),
+                                                        Color.Black.copy(alpha = 0.75f),
+                                                        Color.Black.copy(alpha = 0.95f)
+                                                    )
                                                 )
                                             )
+                                            .padding(horizontal = 7.dp, vertical = 6.dp),
+                                        contentAlignment = Alignment.BottomStart
+                                    ) {
+                                        Text(
+                                            text = manga.title,
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            style = androidx.compose.ui.text.TextStyle(
+                                                shadow = androidx.compose.ui.graphics.Shadow(
+                                                    color = Color.Black,
+                                                    offset = androidx.compose.ui.geometry.Offset(0f, 2f),
+                                                    blurRadius = 8f
+                                                )
+                                            ),
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            lineHeight = 13.sp
                                         )
-                                        .padding(horizontal = 7.dp, vertical = 6.dp),
-                                    contentAlignment = Alignment.BottomStart
-                                ) {
-                                    Text(
-                                        text = manga.title,
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        style = androidx.compose.ui.text.TextStyle(
-                                            shadow = androidx.compose.ui.graphics.Shadow(
-                                                color = Color.Black,
-                                                offset = androidx.compose.ui.geometry.Offset(0f, 2f),
-                                                blurRadius = 8f
+                                    }
+
+                                    // Small subtle vault indicator badge in top-right corner
+                                    val isVault = remember(manga.parentUri) { LocalVaultMigrator.isItemInVault(manga) }
+                                    if (isVault) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(6.dp)
+                                                .size(20.dp)
+                                                .background(Color(0xFF0C1322).copy(alpha = 0.85f), CircleShape)
+                                                .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.45f), CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Rounded.DriveFileMove,
+                                                contentDescription = "Stored in Local Vault",
+                                                tint = Color(0xFF38BDF8),
+                                                modifier = Modifier.size(11.dp)
                                             )
-                                        ),
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                        lineHeight = 13.sp
-                                    )
+                                        }
+                                    }
                                 }
                             }
                         }

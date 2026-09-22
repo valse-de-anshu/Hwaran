@@ -43,6 +43,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.core.util.CoverArtResolver
+import com.ballade.hwaran.core.util.LocalVaultMigrator
 
 @Composable
 fun LibraryView(
@@ -459,6 +460,27 @@ private fun LibraryMaterialCard(
                         overflow = TextOverflow.Ellipsis,
                         lineHeight = 14.sp
                     )
+                }
+
+                // Small subtle vault indicator badge in top-right corner
+                val isVault = remember(manga.parentUri) { LocalVaultMigrator.isItemInVault(manga) }
+                if (isVault) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .size(20.dp)
+                            .background(Color(0xFF0C1322).copy(alpha = 0.85f), CircleShape)
+                            .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.45f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.DriveFileMove,
+                            contentDescription = "Stored in Local Vault",
+                            tint = Color(0xFF38BDF8),
+                            modifier = Modifier.size(11.dp)
+                        )
+                    }
                 }
             }
         }

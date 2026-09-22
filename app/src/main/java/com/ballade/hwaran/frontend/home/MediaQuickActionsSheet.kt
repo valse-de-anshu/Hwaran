@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.DriveFileMove
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +55,7 @@ fun MediaQuickActionsSheet(
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val isVault = remember(manga.parentUri) { LocalVaultMigrator.isItemInVault(manga) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showVaultConfirmDialog by remember { mutableStateOf(false) }
 
     val database = remember { com.ballade.hwaran.core.database.AppDatabase.getDatabase(context) }
     var fileExists by remember(manga.id) { mutableStateOf<Boolean?>(null) }
@@ -355,7 +358,7 @@ fun MediaQuickActionsSheet(
 
                     // ── Action 1: Shift to Local Vault ──
                     QuickActionItem(
-                        icon = if (isVault) Icons.Rounded.LockClock else Icons.Rounded.Lock,
+                        icon = if (isVault) Icons.Rounded.FolderShared else Icons.AutoMirrored.Rounded.DriveFileMove,
                         title = if (isVault) "Already in Local Vault" else "Shift to Local Vault",
                         subtitle = when {
                             fileExists == false -> "Source file was deleted from storage; cannot migrate"
@@ -366,7 +369,7 @@ fun MediaQuickActionsSheet(
                         trailingBadge = if (isVault) "PROTECTED" else null,
                         onClick = {
                             haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                            onShiftToLocal()
+                            showVaultConfirmDialog = true
                         }
                     )
 
@@ -435,6 +438,131 @@ fun MediaQuickActionsSheet(
                 onDeleteFromDisk()
                 onDismiss()
             }
+        )
+    }
+
+    // Confirmation Alert Dialog for Shift to Local Vault
+    if (showVaultConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showVaultConfirmDialog = false },
+            icon = {
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFF0F2432),
+                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f)),
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.DriveFileMove,
+                            contentDescription = null,
+                            tint = Color(0xFF38BDF8),
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+            },
+            title = {
+                Text(
+                    text = "Shift to Local Vault?",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "You are about to move \"${manga.title}\" into Hwaran's protected local vault.",
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.05f),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(
+                                    Icons.Rounded.Security,
+                                    contentDescription = null,
+                                    tint = Color(0xFF38BDF8),
+                                    modifier = Modifier.size(16.dp).padding(top = 2.dp)
+                                )
+                                Text(
+                                    text = "Hidden from other apps: Files are moved into Hwaran's private vault (.nomedia protected). Other gallery and file manager apps will no longer see or scan them.",
+                                    color = Color.White.copy(alpha = 0.75f),
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(
+                                    Icons.Rounded.PlayCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF4ADE80),
+                                    modifier = Modifier.size(16.dp).padding(top = 2.dp)
+                                )
+                                Text(
+                                    text = "Fully playable in Hwaran: All your reading progress, bookmarks, chapters, and history stay completely intact.",
+                                    color = Color.White.copy(alpha = 0.75f),
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(
+                                    Icons.Rounded.Refresh,
+                                    contentDescription = null,
+                                    tint = Color(0xFFA78BFA),
+                                    modifier = Modifier.size(16.dp).padding(top = 2.dp)
+                                )
+                                Text(
+                                    text = "Safe background transfer: A background service moves the files safely so you can continue using the app without interruptions.",
+                                    color = Color.White.copy(alpha = 0.75f),
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showVaultConfirmDialog = false
+                        onShiftToLocal()
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Shift to Vault", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showVaultConfirmDialog = false },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+                }
+            },
+            containerColor = Color(0xFF1B1A24),
+            shape = RoundedCornerShape(20.dp)
         )
     }
 }
