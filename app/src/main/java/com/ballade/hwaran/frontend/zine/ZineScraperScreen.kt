@@ -857,6 +857,7 @@ fun ZineScraperScreen(
                             mediaUrl = urlInput.trim(),
                             mode = if (selectedScopeKey == "single") "quick_grab" else "vacuum",
                             transferMethod = selectedTransferMethod,
+                            clientIp = getLocalDeviceIp(),
                             flags = flags,
                             limit = limitVal
                         )
@@ -1554,3 +1555,5 @@ private fun bringHwaranToFront(context: Context) {
         context.startActivity(intent)
     } catch (e: Exception) {}
 }
+
+private fun getLocalDeviceIp(): String = ZineServerClient.getLocalDeviceIp()
