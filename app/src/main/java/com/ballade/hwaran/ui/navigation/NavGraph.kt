@@ -300,6 +300,7 @@ fun AppNavGraph(
                             libraryViewModel.importFolder(
                                 uri = uri,
                                 isFile = file.isFile,
+                                mediaModeOverride = 0,
                                 storageModeOverride = 0
                             )
                         }

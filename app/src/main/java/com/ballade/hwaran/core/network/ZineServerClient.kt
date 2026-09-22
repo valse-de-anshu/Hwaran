@@ -410,6 +410,7 @@ object ZineServerClient {
             // 3. Extract with ZipFile (verified central directory, never corrupts or leaves 0-byte files)
             val zipFile = java.util.zip.ZipFile(tempFile)
             val entries = zipFile.entries()
+            var detectedSeriesDir: File? = null
             while (entries.hasMoreElements()) {
                 val entry = entries.nextElement()
                 val outFile = File(targetDir, entry.name)
@@ -423,11 +424,18 @@ object ZineServerClient {
                         }
                     }
                 }
+                val parts = entry.name.split("/")
+                if (parts.size > 1 && parts[0].isNotBlank()) {
+                    val candidate = File(targetDir, parts[0])
+                    if (detectedSeriesDir == null || detectedSeriesDir.name.startsWith("Chapter", ignoreCase = true) || detectedSeriesDir.name.startsWith("Episode", ignoreCase = true)) {
+                        detectedSeriesDir = candidate
+                    }
+                }
             }
             zipFile.close()
             progressCb?.invoke(1.0f)
 
-            Result.success(targetDir)
+            Result.success(detectedSeriesDir ?: targetDir)
         } catch (e: Exception) {
             Log.e(TAG, "Download/extraction failed: ${e.message}", e)
             conn?.disconnect()

@@ -9,6 +9,7 @@ import com.ballade.hwaran.core.metadata.MediaMetadataManager
 import com.ballade.hwaran.core.metadata.ZineMetadataExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 
 object ToonExternalSingleImport {
 
@@ -29,7 +30,11 @@ object ToonExternalSingleImport {
         onProgress: (Int) -> Unit
     ): Long? = withContext(Dispatchers.IO) {
 
-        val sourceDoc = DocumentFile.fromTreeUri(context, uri) ?: return@withContext null
+        val sourceDoc = if (uri.scheme == "file") {
+            uri.path?.let { DocumentFile.fromFile(File(it)) }
+        } else {
+            DocumentFile.fromTreeUri(context, uri)
+        } ?: return@withContext null
         val (isValid, _) = ToonImportUtils.isToonFolderValid(sourceDoc)
         if (!isValid) return@withContext null
         if (isCancelled()) return@withContext null

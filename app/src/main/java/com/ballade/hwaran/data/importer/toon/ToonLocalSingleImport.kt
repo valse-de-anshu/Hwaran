@@ -39,7 +39,11 @@ object ToonLocalSingleImport {
         onProgress: (Int) -> Unit
     ): Long? = withContext(Dispatchers.IO) {
 
-        val sourceDoc = DocumentFile.fromTreeUri(context, uri) ?: return@withContext null
+        val sourceDoc = if (uri.scheme == "file") {
+            uri.path?.let { DocumentFile.fromFile(File(it)) }
+        } else {
+            DocumentFile.fromTreeUri(context, uri)
+        } ?: return@withContext null
         val (isValid, _) = ToonImportUtils.isToonFolderValid(sourceDoc)
         if (!isValid) return@withContext null
         if (isCancelled()) return@withContext null

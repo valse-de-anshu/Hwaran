@@ -556,7 +556,13 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
                 val expectedPath = withContext(Dispatchers.IO) {
                     if (isLocalMode) {
-                        val folderDoc = if (isFile) DocumentFile.fromSingleUri(getApplication(), uri) else DocumentFile.fromTreeUri(getApplication(), uri)
+                        val folderDoc = if (isFile) {
+                            DocumentFile.fromSingleUri(getApplication(), uri)
+                        } else if (uri.scheme == "file") {
+                            uri.path?.let { DocumentFile.fromFile(java.io.File(it)) }
+                        } else {
+                            DocumentFile.fromTreeUri(getApplication(), uri)
+                        }
                         val folderName = folderDoc?.name ?: "Unknown"
                         val finalFolderName = if (isFile) folderName.substringBeforeLast(".") else folderName
                         val vaultBase = java.io.File(getApplication<Application>().filesDir, "manga_vault")
@@ -577,8 +583,10 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 }
 
                 try {
-                    val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                    getApplication<Application>().contentResolver.takePersistableUriPermission(uri, takeFlags)
+                    if (uri.scheme != "file") {
+                        val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                        getApplication<Application>().contentResolver.takePersistableUriPermission(uri, takeFlags)
+                    }
                 } catch (e: SecurityException) {
                     e.printStackTrace()
                 }
