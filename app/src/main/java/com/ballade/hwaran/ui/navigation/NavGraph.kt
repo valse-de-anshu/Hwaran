@@ -3,6 +3,8 @@ package com.ballade.hwaran.ui.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -291,9 +293,10 @@ fun AppNavGraph(
         composable(Screen.ZineScraper.route) {
             BlockTouchesWhenExiting {
                 val libraryViewModel: LibraryViewModel = viewModel()
+                val coroutineScope = rememberCoroutineScope()
                 ZineScraperScreen(
                     onNavigateBack = { navController.popBackStackSafely() },
-                    onImportFolder = { folderPath ->
+                    onImportFolder = { folderPath, openWhenDone ->
                         val file = java.io.File(folderPath)
                         if (file.exists()) {
                             val uri = android.net.Uri.fromFile(file)
@@ -301,7 +304,19 @@ fun AppNavGraph(
                                 uri = uri,
                                 isFile = file.isFile,
                                 mediaModeOverride = 0,
-                                storageModeOverride = 0
+                                storageModeOverride = 0,
+                                onImported = { importedId ->
+                                    if (openWhenDone) {
+                                        coroutineScope.launch {
+                                            val firstChapterId = libraryViewModel.getFirstChapterId(importedId)
+                                            if (firstChapterId != null) {
+                                                navController.navigateSafely(Screen.Reader.createRoute(firstChapterId))
+                                            } else {
+                                                navController.navigateSafely(Screen.Description.createRoute(importedId))
+                                            }
+                                        }
+                                    }
+                                }
                             )
                         }
                     }

@@ -579,6 +579,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                         "${existing.title} is already imported",
                         android.widget.Toast.LENGTH_SHORT
                     ).show()
+                    onImported(existing.id)
                     return@launch
                 }
 
@@ -1150,5 +1151,16 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             
             com.ballade.hwaran.core.util.HistoryTracker.logEvent("IMPORT", "Renamed Workspace", "$cleanOld -> $cleanNew")
         }
+    }
+
+    suspend fun getFirstChapterId(mangaId: Long): Long? = withContext(Dispatchers.IO) {
+        val chapters = database.trackDao().getChaptersForMangaList(mangaId)
+        chapters.sortedWith(compareBy<ChapterEntity> {
+            Regex("(\\d+(\\.\\d+)?)").find(it.title)?.value?.toFloat() ?: Float.MAX_VALUE
+        }.thenBy {
+            it.title.replace(Regex("\\d+")) { matchResult ->
+                matchResult.value.padStart(10, '0')
+            }
+        }).firstOrNull()?.id
     }
 }
