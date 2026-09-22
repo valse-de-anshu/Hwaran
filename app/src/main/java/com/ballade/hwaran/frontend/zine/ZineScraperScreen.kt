@@ -83,9 +83,8 @@ fun ZineScraperScreen(
     var selectedScopeKey by remember { mutableStateOf("single") } // "single" (--0), "next_5" (--5), "next_10" (--10), "all" (-a)
     var selectedMode by remember { mutableStateOf("quick_grab") } // "quick_grab" or "vacuum"
     var sequentialLimit by remember { mutableIntStateOf(0) }
-    var flagSlice by remember { mutableStateOf(false) } // --slice
-    var flagSubs by remember { mutableStateOf(false) } // --subs
     var flagMetaOnly by remember { mutableStateOf(false) } // --meta
+    var isConfigExpanded by remember { mutableStateOf(false) }
     var selectedTransferMethod by remember { mutableStateOf("hybrid") }
 
     // Post-download processing choice: "import" (save to library), "open" (open immediately), "downloads" (raw storage only)
@@ -439,7 +438,7 @@ fun ZineScraperScreen(
             Spacer(modifier = Modifier.height(18.dp))
 
             Text(
-                text = "Beam Media to Phone",
+                text = "Fetch Remote Media",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
@@ -546,146 +545,9 @@ fun ZineScraperScreen(
                 }
             }
 
-            // 4. Download Scope & Quantity (Directly visible 4-pill capsule)
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "DOWNLOAD SCOPE & QUANTITY",
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.45f),
-                    letterSpacing = 1.2.sp
-                )
+            Spacer(modifier = Modifier.height(20.dp))
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = Color.White.copy(alpha = 0.035f),
-                    border = BorderStroke(1.dp, SubtleBorder),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        val scopes = listOf(
-                            "single" to "Single (--0)",
-                            "next_5" to "Next 5 (--5)",
-                            "next_10" to "Next 10 (--10)",
-                            "all" to "All (-a)"
-                        )
-
-                        scopes.forEach { (key, label) ->
-                            val isSelected = selectedScopeKey == key
-                            Surface(
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    selectedScopeKey = key
-                                    when (key) {
-                                        "single" -> {
-                                            selectedMode = "quick_grab"
-                                            sequentialLimit = 0
-                                        }
-                                        "next_5" -> {
-                                            selectedMode = "vacuum"
-                                            sequentialLimit = 5
-                                        }
-                                        "next_10" -> {
-                                            selectedMode = "vacuum"
-                                            sequentialLimit = 10
-                                        }
-                                        "all" -> {
-                                            selectedMode = "vacuum"
-                                            sequentialLimit = 0
-                                        }
-                                    }
-                                },
-                                shape = RoundedCornerShape(14.dp),
-                                color = if (isSelected) Color.White.copy(alpha = 0.12f) else Color.Transparent,
-                                border = BorderStroke(1.dp, if (isSelected) ActiveBorder else Color.Transparent),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Box(
-                                    modifier = Modifier.padding(vertical = 10.dp, horizontal = 2.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = label,
-                                        fontSize = 11.5.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.50f),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 5. Feature Flags & Enhancements (Always visible toggle pills)
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "FEATURE FLAGS & ENHANCEMENTS",
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.45f),
-                    letterSpacing = 1.2.sp
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val flagsList = listOf(
-                        Triple(flagSlice, { flagSlice = !flagSlice }, "✂️ Slicer (--slice)"),
-                        Triple(flagSubs, { flagSubs = !flagSubs }, "💬 AI Subs (--subs)"),
-                        Triple(flagMetaOnly, { flagMetaOnly = !flagMetaOnly }, "📑 Meta Only (--meta)")
-                    )
-
-                    flagsList.forEach { (active, toggle, title) ->
-                        Surface(
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                toggle()
-                            },
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (active) SoftEmerald.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.035f),
-                            border = BorderStroke(1.dp, if (active) SoftEmerald.copy(alpha = 0.6f) else SubtleBorder),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Box(
-                                modifier = Modifier.padding(vertical = 9.dp, horizontal = 2.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = title,
-                                    fontSize = 10.5.sp,
-                                    fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (active) SoftEmerald else Color.White.copy(alpha = 0.50f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            // 5. Post-Download Processing (After Downloading Configuration)
+            // 4. Post-Download Processing (After Download Action)
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -761,12 +623,201 @@ fun ZineScraperScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(26.dp))
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 5. Expandable "v" Chevron Button for Advanced Options
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        isConfigExpanded = !isConfigExpanded
+                    },
+                    shape = RoundedCornerShape(18.dp),
+                    color = if (isConfigExpanded) Color.White.copy(alpha = 0.09f) else Color.White.copy(alpha = 0.04f),
+                    border = BorderStroke(1.dp, if (isConfigExpanded) ActiveBorder else SubtleBorder)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val hasCustomConfig = selectedScopeKey != "single" || flagMetaOnly
+                        if (hasCustomConfig) {
+                            Surface(
+                                shape = CircleShape,
+                                color = SoftEmerald,
+                                modifier = Modifier.size(6.dp)
+                            ) {}
+                        }
+                        Text(
+                            text = if (isConfigExpanded) "Options" else "Configure",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = if (isConfigExpanded) Color.White else Color.White.copy(alpha = 0.55f)
+                        )
+                        Icon(
+                            imageVector = if (isConfigExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                            contentDescription = if (isConfigExpanded) "Collapse options" else "Expand options",
+                            tint = if (isConfigExpanded) AccentTitanium else Color.White.copy(alpha = 0.55f),
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+                }
+            }
+
+            // Expandable Configuration Section (Scope & Metadata Flag)
+            AnimatedVisibility(
+                visible = isConfigExpanded,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "DOWNLOAD SCOPE & FLAGS",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White.copy(alpha = 0.45f),
+                        letterSpacing = 1.2.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Scope & Quantity Pills
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color.White.copy(alpha = 0.035f),
+                        border = BorderStroke(1.dp, SubtleBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            val scopes = listOf(
+                                "single" to "Single (--0)",
+                                "next_5" to "Next 5 (--5)",
+                                "next_10" to "Next 10 (--10)",
+                                "all" to "All (-a)"
+                            )
+
+                            scopes.forEach { (key, label) ->
+                                val isSelected = selectedScopeKey == key
+                                Surface(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        selectedScopeKey = key
+                                        when (key) {
+                                            "single" -> {
+                                                selectedMode = "quick_grab"
+                                                sequentialLimit = 0
+                                            }
+                                            "next_5" -> {
+                                                selectedMode = "vacuum"
+                                                sequentialLimit = 5
+                                            }
+                                            "next_10" -> {
+                                                selectedMode = "vacuum"
+                                                sequentialLimit = 10
+                                            }
+                                            "all" -> {
+                                                selectedMode = "vacuum"
+                                                sequentialLimit = 0
+                                            }
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = if (isSelected) Color.White.copy(alpha = 0.12f) else Color.Transparent,
+                                    border = BorderStroke(1.dp, if (isSelected) ActiveBorder else Color.Transparent),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Box(
+                                        modifier = Modifier.padding(vertical = 10.dp, horizontal = 2.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 11.5.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.50f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Metadata Only Flag Pill
+                    Surface(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            flagMetaOnly = !flagMetaOnly
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (flagMetaOnly) SoftEmerald.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.035f),
+                        border = BorderStroke(1.dp, if (flagMetaOnly) SoftEmerald.copy(alpha = 0.6f) else SubtleBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(text = "📑", fontSize = 13.sp)
+                                Text(
+                                    text = "Metadata Only (--meta)",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = if (flagMetaOnly) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (flagMetaOnly) SoftEmerald else Color.White.copy(alpha = 0.70f)
+                                )
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (flagMetaOnly) SoftEmerald else Color.White.copy(alpha = 0.1f),
+                                modifier = Modifier.size(width = 34.dp, height = 18.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = if (flagMetaOnly) Alignment.CenterEnd else Alignment.CenterStart
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (flagMetaOnly) Color.Black else Color.White.copy(alpha = 0.4f),
+                                        modifier = Modifier.padding(2.dp).size(14.dp)
+                                    ) {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
 
             // 6. Signal Transmission Button ("Send Signal" with Signal Tower Icon)
             Button(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    // Automatically collapse "v" section when sending signal
+                    isConfigExpanded = false
+
                     if (!isServerConnected) {
                         Toast.makeText(context, "Companion server offline. Run 'zine --server' on your PC", Toast.LENGTH_SHORT).show()
                         showServerDialog = true
@@ -789,8 +840,6 @@ fun ZineScraperScreen(
                             "next_10" -> flags.add("--10")
                             "all" -> flags.add("-a")
                         }
-                        if (flagSlice) flags.add("--slice")
-                        if (flagSubs) flags.add("--subs")
                         if (flagMetaOnly) flags.add("--meta")
 
                         val limitVal = when (selectedScopeKey) {
