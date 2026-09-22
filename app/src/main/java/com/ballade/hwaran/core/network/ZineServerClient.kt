@@ -148,11 +148,17 @@ object ZineServerClient {
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
             }
 
+            android.util.Log.i("HwaranZine", "Transmitting scrape signal: $mediaUrl ($mode) to $serverHost:$serverPort")
             val payload = JSONObject().apply {
                 put("url", mediaUrl)
                 put("mode", mode)
                 if (clientIp.isNotBlank()) put("target_ip", clientIp)
                 put("transfer", transferMethod)
+                put("device_name", android.os.Build.MODEL)
+                put("device_brand", android.os.Build.MANUFACTURER)
+                put("app_name", "Hwaran")
+                put("app_version", "2.1.0")
+                put("timestamp", System.currentTimeMillis())
             }
 
             OutputStreamWriter(conn.outputStream, "UTF-8").use { writer ->
