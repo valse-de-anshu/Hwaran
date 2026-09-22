@@ -260,7 +260,7 @@ object ZineServerClient {
         mediaUrl: String,
         mode: String = "quick_grab",
         clientIp: String = "",
-        transferMethod: String = "hybrid",
+        transferMethod: String = "direct",
         flags: List<String> = emptyList(),
         limit: Int? = null
     ): Result<ScrapeTaskInfo> = withContext(Dispatchers.IO) {
