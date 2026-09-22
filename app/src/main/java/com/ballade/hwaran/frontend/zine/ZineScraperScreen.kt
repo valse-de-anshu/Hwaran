@@ -88,7 +88,6 @@ fun ZineScraperScreen(
     var sequentialLimit by remember { mutableIntStateOf(0) }
     var flagMetaOnly by remember { mutableStateOf(false) } // --meta
     var isConfigExpanded by remember { mutableStateOf(false) }
-    var selectedTransferMethod by remember { mutableStateOf("kdeconnect") }
 
     // Post-download processing choice: "import" (save to library), "open" (open immediately), "downloads" (raw storage only)
     var postDownloadAction by remember { mutableStateOf("import") }
@@ -100,7 +99,6 @@ fun ZineScraperScreen(
     var directDownloadProgress by remember { mutableFloatStateOf(0f) }
     var downloadedLocalDir by remember { mutableStateOf<File?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var didLaunchLocalSend by remember { mutableStateOf(false) }
 
     // Animated breathing indicator for connection & active extraction
     val infiniteTransition = rememberInfiniteTransition(label = "pulse_aura")
@@ -240,54 +238,8 @@ fun ZineScraperScreen(
                     listOf(updated) + tasksList
                 }
 
-                // Automatically launch LocalSend on phone when server initiates LocalSend delivery
-                val isLocalSendTransfer = updated.status == "transferring" || updated.message.contains("LocalSend", ignoreCase = true)
-                if (isLocalSendTransfer && !didLaunchLocalSend) {
-                    didLaunchLocalSend = true
-                    openLocalSendApp(context)
-                }
-
-                // If completed or failed and we opened LocalSend, automatically bring Hwaran back to the front!
-                if (updated.status in listOf("completed", "failed") && didLaunchLocalSend) {
-                    didLaunchLocalSend = false
-                    coroutineScope.launch {
-                        delay(1200)
-                        bringHwaranToFront(context)
-                    }
-                }
-
-                // Handle KDE Connect delivery completion (file received in Download/)
-                if (updated.status == "completed" && updated.message.contains("KDE Connect", ignoreCase = true)) {
-                    if (downloadedLocalDir == null) {
-                        val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
-                        val recentZip = downloadsDir?.listFiles()?.filter {
-                            it.isFile && it.name.endsWith(".zip", ignoreCase = true) &&
-                            (it.lastModified() > System.currentTimeMillis() - 180_000)
-                        }?.maxByOrNull { it.lastModified() }
-
-                        val targetFile = recentZip ?: downloadsDir
-                        if (targetFile != null) {
-                            downloadedLocalDir = targetFile
-                            when (postDownloadAction) {
-                                "import" -> {
-                                    onImportFolder?.invoke(targetFile.absolutePath)
-                                    Toast.makeText(context, "KDE Connect file added to Library!", Toast.LENGTH_SHORT).show()
-                                }
-                                "open" -> {
-                                    onImportFolder?.invoke(targetFile.absolutePath)
-                                    Toast.makeText(context, "Ready! Opening media...", Toast.LENGTH_SHORT).show()
-                                }
-                                else -> {
-                                    Toast.makeText(context, "Saved in Download/ via KDE Connect!", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (updated.status == "completed" &&
-                    (updated.message.contains("direct download", ignoreCase = true) || selectedTransferMethod == "direct")
-                ) {
+                // Automatically stream and extract media into Hwaran library when scrape completes
+                if (updated.status == "completed") {
                     if (downloadedLocalDir == null && !isDirectDownloading) {
                         coroutineScope.launch {
                             isDirectDownloading = true
@@ -316,7 +268,7 @@ fun ZineScraperScreen(
                                     }
                                 }
                             }.onFailure { err ->
-                                errorMessage = "Stream failed: ${err.message}"
+                                errorMessage = "Download failed: ${err.message}"
                             }
                         }
                     }
@@ -603,7 +555,7 @@ fun ZineScraperScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        val hasCustomConfig = selectedScopeKey != "single" || flagMetaOnly || selectedTransferMethod != "hybrid"
+                        val hasCustomConfig = selectedScopeKey != "single" || flagMetaOnly
                         if (hasCustomConfig) {
                             Surface(
                                 shape = CircleShape,
@@ -743,72 +695,6 @@ fun ZineScraperScreen(
                             }
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Group 2: Transfer Method (Server Side Python vs LocalSend)
-                    Text(
-                        text = "DELIVERY METHOD",
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White.copy(alpha = 0.45f),
-                        letterSpacing = 1.2.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = Color.White.copy(alpha = 0.035f),
-                        border = BorderStroke(1.dp, SubtleBorder),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            val deliveryModes = listOf(
-                                Triple("kdeconnect", "KDE Connect", Icons.Rounded.Devices),
-                                Triple("localsend", "LocalSend", Icons.Rounded.Share),
-                                Triple("direct", "Direct Stream", Icons.Rounded.CloudDownload)
-                            )
-                            deliveryModes.forEach { (method, label, icon) ->
-                                val isSelected = selectedTransferMethod == method
-                                Surface(
-                                    onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        selectedTransferMethod = method
-                                    },
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = if (isSelected) Color.White.copy(alpha = 0.12f) else Color.Transparent,
-                                    border = BorderStroke(1.dp, if (isSelected) ActiveBorder else Color.Transparent),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(vertical = 9.dp, horizontal = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = icon,
-                                            contentDescription = null,
-                                            tint = if (isSelected) Color.White else Color.White.copy(alpha = 0.45f),
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(5.dp))
-                                        Text(
-                                            text = label,
-                                            fontSize = 11.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.50f),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
 
@@ -856,7 +742,7 @@ fun ZineScraperScreen(
                             serverPort = serverPort,
                             mediaUrl = urlInput.trim(),
                             mode = if (selectedScopeKey == "single") "quick_grab" else "vacuum",
-                            transferMethod = selectedTransferMethod,
+                            transferMethod = "direct",
                             clientIp = getLocalDeviceIp(),
                             flags = flags,
                             limit = limitVal
@@ -1532,28 +1418,6 @@ fun ZineScraperScreen(
             }
         }
     }
-}
-
-private fun openLocalSendApp(context: Context) {
-    try {
-        val pm = context.packageManager
-        val launchIntent = pm.getLaunchIntentForPackage("org.localsend.localsend_app")
-        if (launchIntent != null) {
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(launchIntent)
-        }
-    } catch (e: Exception) {
-        // LocalSend not installed
-    }
-}
-
-private fun bringHwaranToFront(context: Context) {
-    try {
-        val intent = Intent(context, com.ballade.hwaran.MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        context.startActivity(intent)
-    } catch (e: Exception) {}
 }
 
 private fun getLocalDeviceIp(): String = ZineServerClient.getLocalDeviceIp()
