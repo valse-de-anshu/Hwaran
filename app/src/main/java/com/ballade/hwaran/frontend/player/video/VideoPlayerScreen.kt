@@ -201,7 +201,13 @@ private fun SleekFadeDialog(
  * Uses exact filename for label instead of hardcoded language tags.
  */
 @UnstableApi
-private fun findSidecarSubtitles(context: Context, videoUri: Uri, chapterTitle: String? = null): List<MediaItem.SubtitleConfiguration> {
+private fun findSidecarSubtitles(
+    context: Context,
+    videoUri: Uri,
+    chapterTitle: String? = null,
+    folderUriStr: String? = null,
+    mangaParentUriStr: String? = null
+): List<MediaItem.SubtitleConfiguration> {
     val result = mutableListOf<MediaItem.SubtitleConfiguration>()
     val addedUris = mutableSetOf<String>()
 
@@ -216,10 +222,21 @@ private fun findSidecarSubtitles(context: Context, videoUri: Uri, chapterTitle: 
             "ass", "ssa" -> MimeTypes.TEXT_SSA
             else -> MimeTypes.APPLICATION_SUBRIP
         }
+        val lowerName = name.lowercase()
+        val lang = when {
+            lowerName.contains("ja") || lowerName.contains("jpn") || lowerName.contains("japanese") -> "ja"
+            lowerName.contains("es") || lowerName.contains("spa") || lowerName.contains("spanish") -> "es"
+            lowerName.contains("fr") || lowerName.contains("fre") || lowerName.contains("french") -> "fr"
+            lowerName.contains("de") || lowerName.contains("ger") || lowerName.contains("german") -> "de"
+            lowerName.contains("ko") || lowerName.contains("kor") || lowerName.contains("korean") -> "ko"
+            lowerName.contains("zh") || lowerName.contains("chi") || lowerName.contains("chinese") -> "zh"
+            else -> "en"
+        }
         val subConfig = MediaItem.SubtitleConfiguration.Builder(uri)
             .setMimeType(mimeType)
             .setLabel(name)
             .setId(name)
+            .setLanguage(lang)
             .setSelectionFlags(if (isDefault) C.SELECTION_FLAG_DEFAULT else 0)
             .setRoleFlags(C.ROLE_FLAG_SUBTITLE)
             .build()
@@ -227,194 +244,211 @@ private fun findSidecarSubtitles(context: Context, videoUri: Uri, chapterTitle: 
     }
 
     fun extractEpNum(str: String): String? {
-        val match = Regex("""(?i)(?:ep|episode|e|ch|chapter|v)?[\s._-]*0*(\d+)""").find(str)
-        if (match != null && match.groupValues[1].isNotBlank()) return match.groupValues[1]
-        val standaloneNum = Regex("""\b0*(\d+)\b""").find(str)
-        return standaloneNum?.groupValues[1]
+        val stripped = str.replace(Regex("""\[.*?\]|\(.*?\)|1080p|720p|2160p|480p|x264|x265|hevc|h264|h265|bluray|web-dl|webrip""", RegexOption.IGNORE_CASE), " ")
+        val explicitMatch = Regex("""(?i)\b(?:ep|episode|e|ch|chapter)[\s._-]*0*(\d+)\b""").find(stripped)
+        if (explicitMatch != null) return explicitMatch.groupValues[1]
+
+        val standaloneMatches = Regex("""\b0*(\d+)\b""").findAll(stripped).map { it.groupValues[1] }.toList()
+        for (num in standaloneMatches) {
+            val n = num.toIntOrNull() ?: continue
+            if (n in 1950..2035) continue
+            return num
+        }
+        return null
     }
 
     fun cleanName(str: String): String {
-        return str.replace(Regex("\\[.*?\\]|\\(.*?\\)"), "")
-            .replace(Regex("(?i)\\.(srt|vtt|ass|ssa|sub)$"), "")
-            .replace(Regex("[_.-]+"), " ")
+        return str.replace(Regex("""\[.*?\]|\(.*?\)|1080p|720p|2160p|480p|x264|x265|hevc|bluray|web-dl|webrip""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""(?i)\.(srt|vtt|ass|ssa|sub)$"""), "")
+            .replace(Regex("""[._\-\s]+"""), " ")
             .trim()
             .lowercase()
     }
 
-    fun isSubtitleMatch(videoName: String, subFileName: String): Boolean {
-        val vidClean = cleanName(videoName)
-        val subClean = cleanName(subFileName)
-        val subBaseName = subFileName.substringBeforeLast(".").lowercase()
+    fun isSubtitleMatch(videoName: String, subFileName: String, isSingleVideoInFolder: Boolean = false): Boolean {
         val vidBaseName = videoName.substringBeforeLast(".").lowercase()
+        val subBaseName = subFileName.substringBeforeLast(".").lowercase()
 
         if (subBaseName == vidBaseName) return true
-        if (subClean.isNotBlank() && subClean == vidClean) return true
+        if (subBaseName.startsWith(vidBaseName)) return true
+
+        val vidClean = cleanName(videoName)
+        val subClean = cleanName(subFileName)
+        if (vidClean.isNotBlank() && subClean.isNotBlank()) {
+            if (subClean == vidClean) return true
+            if (subClean.startsWith(vidClean) || vidClean.startsWith(subClean)) return true
+        }
+
+        // Generic subtitle filenames (sub.srt, subtitle.srt, subtitles.srt, english.srt, eng.srt, default.srt)
+        val genericBase = subBaseName.trim().lowercase()
+        val genericMatches = listOf("sub", "subs", "subtitle", "subtitles", "english", "eng", "en", "default", "track1", "track01", "sdh")
+        if (genericMatches.any { genericBase == it || genericBase.startsWith("$it.") || genericBase.startsWith("${it}_") || genericBase.startsWith("$it-") }) {
+            return true
+        }
 
         val langSuffixes = listOf("eng", "en", "english", "ja", "jpn", "japanese", "sub", "subs", "default", "sdh")
         for (suffix in langSuffixes) {
-            if (subClean == "$vidClean $suffix" || subClean == "$vidClean-$suffix") return true
+            if (subClean == "$vidClean $suffix" || subClean == "$vidClean-$suffix" || subClean == "${vidClean}_$suffix") return true
             if (subBaseName.startsWith(vidBaseName) && subBaseName.substring(vidBaseName.length).contains(suffix)) return true
-        }
-
-        if (subClean.isNotBlank() && vidClean.isNotBlank()) {
-            if (subClean.startsWith(vidClean) || vidClean.startsWith(subClean)) return true
         }
 
         val vidEp = extractEpNum(videoName) ?: chapterTitle?.let { extractEpNum(it) }
         val subEp = extractEpNum(subFileName)
-        if (vidEp != null && subEp != null && vidEp == subEp) return true
+        if (vidEp != null && subEp != null) {
+            val vNum = vidEp.toIntOrNull()
+            val sNum = subEp.toIntOrNull()
+            if (vNum != null && sNum != null && vNum == sNum) return true
+        }
 
+        if (isSingleVideoInFolder) return true
         return false
     }
 
-    try {
-        var resolvedFilePath: String? = null
-        val scheme = videoUri.scheme
-
-        if (scheme == "file") {
-            resolvedFilePath = videoUri.path
-        } else if (scheme.isNullOrBlank()) {
-            resolvedFilePath = videoUri.toString()
-        } else if (scheme == "content") {
+    fun resolveToFilePath(uri: Uri): String? {
+        if (uri.scheme == "file") return uri.path
+        if (uri.scheme.isNullOrBlank()) return uri.toString()
+        val p = uri.path
+        if (p != null) {
+            val sIdx = p.indexOf("/storage/")
+            if (sIdx != -1) {
+                val path = p.substring(sIdx)
+                if (File(path).exists()) return path
+            }
+            val dIdx = p.indexOf("/data/")
+            if (dIdx != -1) {
+                val path = p.substring(dIdx)
+                if (File(path).exists()) return path
+            }
+        }
+        if (uri.scheme == "content") {
             try {
-                context.contentResolver.query(videoUri, arrayOf(android.provider.MediaStore.MediaColumns.DATA), null, null, null)?.use { cursor ->
+                context.contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DATA), null, null, null)?.use { cursor ->
                     if (cursor.moveToFirst()) {
                         val idx = cursor.getColumnIndex(android.provider.MediaStore.MediaColumns.DATA)
                         if (idx != -1) {
                             val path = cursor.getString(idx)
-                            if (!path.isNullOrBlank() && File(path).exists()) {
-                                resolvedFilePath = path
-                            }
+                            if (!path.isNullOrBlank() && File(path).exists()) return path
                         }
                     }
                 }
-            } catch (e: Exception) { e.printStackTrace() }
+            } catch (e: Exception) { }
 
-            if (resolvedFilePath == null) {
-                val path = videoUri.path
-                if (path != null) {
-                    val storageIdx = path.indexOf("/storage/")
-                    if (storageIdx != -1) {
-                        val p = path.substring(storageIdx)
-                        if (File(p).exists()) resolvedFilePath = p
-                    }
-                    if (resolvedFilePath == null) {
-                        val sdcardIdx = path.indexOf("/sdcard/")
-                        if (sdcardIdx != -1) {
-                            val p = path.substring(sdcardIdx)
-                            if (File(p).exists()) resolvedFilePath = p
-                        }
-                    }
-                }
-            }
-        }
-
-        if (resolvedFilePath != null) {
-            val videoFile = File(resolvedFilePath)
-            val parentDir = videoFile.parentFile
-            if (parentDir != null && parentDir.exists() && parentDir.isDirectory) {
-                val videoName = videoFile.name
-                val possibleExtensions = setOf("srt", "vtt", "ass", "ssa", "sub")
-                val subFolders = listOf(".", "subs", "subtitles", "sub", "Subs", "Subtitles", "Sub")
-
-                for (folderName in subFolders) {
-                    val targetDir = if (folderName == ".") parentDir else File(parentDir, folderName)
-                    if (targetDir.exists() && targetDir.isDirectory) {
-                        val files = targetDir.listFiles() ?: continue
-                        val subFiles = files.filter { it.isFile && possibleExtensions.contains(it.extension.lowercase()) }
-
-                        for (file in subFiles) {
-                            if (isSubtitleMatch(videoName, file.name) || (folderName != "." && subFiles.size == 1)) {
-                                val isFirstMatch = result.isEmpty()
-                                addSubtitleConfig(Uri.fromFile(file), file.name, isDefault = isFirstMatch)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (result.isEmpty() && scheme == "content") {
             try {
-                val docId = try { android.provider.DocumentsContract.getDocumentId(videoUri) } catch (e: Exception) { null }
-                if (docId != null && docId.contains("/")) {
-                    val parentDocId = docId.substringBeforeLast("/")
-                    val authority = videoUri.authority
-                    if (authority != null) {
-                        val parentChildUri = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(
-                            videoUri, parentDocId
-                        )
-                        context.contentResolver.query(
-                            parentChildUri,
-                            arrayOf(
-                                android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-                                android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-                                android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE
-                            ),
-                            null, null, null
-                        )?.use { cursor ->
-                            val idIdx = cursor.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID)
-                            val nameIdx = cursor.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-                            val mimeIdx = cursor.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE)
+                val docId = try { android.provider.DocumentsContract.getDocumentId(uri) } catch (e: Exception) { uri.lastPathSegment }
+                if (docId != null) {
+                    if (docId.startsWith("primary:")) {
+                        val rel = docId.substringAfter("primary:")
+                        val f = File("/storage/emulated/0", rel)
+                        if (f.exists()) return f.absolutePath
+                    } else if (docId.contains(":")) {
+                        val parts = docId.split(":", limit = 2)
+                        if (parts.size == 2) {
+                            val f = File("/storage/${parts[0]}", parts[1])
+                            if (f.exists()) return f.absolutePath
+                        }
+                    }
+                }
+            } catch (e: Exception) { }
+        }
+        return null
+    }
 
-                            while (cursor.moveToNext()) {
-                                val childId = if (idIdx != -1) cursor.getString(idIdx) else null
-                                val name = if (nameIdx != -1) cursor.getString(nameIdx) else null
-                                val mime = if (mimeIdx != -1) cursor.getString(mimeIdx) else null
+    val possibleExtensions = setOf("srt", "vtt", "ass", "ssa", "sub")
+    val subFolderNames = listOf(".", "subs", "subtitles", "sub", "subtitle", "Subs", "Subtitles", "Sub", "Subtitle", "SUBS", "SUBTITLES", "SUB")
 
-                                if (childId != null && name != null) {
-                                    val isDir = mime == android.provider.DocumentsContract.Document.MIME_TYPE_DIR
-                                    if (isDir && listOf("subs", "subtitles", "sub").contains(name.lowercase())) {
-                                        try {
-                                            val subfolderUri = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(videoUri, childId)
-                                            context.contentResolver.query(
-                                                subfolderUri,
-                                                arrayOf(
-                                                    android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-                                                    android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME
-                                                ),
-                                                null, null, null
-                                            )?.use { subCursor ->
-                                                val sIdIdx = subCursor.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID)
-                                                val sNameIdx = subCursor.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-                                                val sCount = subCursor.count
-                                                while (subCursor.moveToNext()) {
-                                                    val sChildId = if (sIdIdx != -1) subCursor.getString(sIdIdx) else null
-                                                    val sName = if (sNameIdx != -1) subCursor.getString(sNameIdx) else null
-                                                    if (sChildId != null && sName != null) {
-                                                        val sExt = sName.substringAfterLast(".", "").lowercase()
-                                                        if (setOf("srt", "vtt", "ass", "ssa", "sub").contains(sExt)) {
-                                                            val videoName = videoUri.lastPathSegment?.substringAfterLast("/") ?: chapterTitle ?: "video"
-                                                            if (isSubtitleMatch(videoName, sName) || sCount == 1) {
-                                                                val subDocUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(videoUri, sChildId)
-                                                                val isFirstMatch = result.isEmpty()
-                                                                addSubtitleConfig(subDocUri, sName, isDefault = isFirstMatch)
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
-                                        }
-                                    } else {
-                                        val ext = name.substringAfterLast(".", "").lowercase()
-                                        if (setOf("srt", "vtt", "ass", "ssa", "sub").contains(ext)) {
-                                            val videoName = videoUri.lastPathSegment?.substringAfterLast("/") ?: chapterTitle ?: "video"
-                                            if (isSubtitleMatch(videoName, name)) {
-                                                val childUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(videoUri, childId)
-                                                val isFirstMatch = result.isEmpty()
-                                                addSubtitleConfig(childUri, name, isDefault = isFirstMatch)
-                                            }
-                                        }
+    try {
+        // 1. Filesystem scanning
+        val candidatePaths = mutableSetOf<String>()
+        resolveToFilePath(videoUri)?.let { candidatePaths.add(it) }
+        folderUriStr?.let { f ->
+            if (f.startsWith("/")) candidatePaths.add(f)
+            else if (f.startsWith("file://")) Uri.parse(f).path?.let { candidatePaths.add(it) }
+            else resolveToFilePath(Uri.parse(f))?.let { candidatePaths.add(it) }
+        }
+        mangaParentUriStr?.let { m ->
+            if (m.startsWith("/")) candidatePaths.add(m)
+            else if (m.startsWith("file://")) Uri.parse(m).path?.let { candidatePaths.add(it) }
+            else resolveToFilePath(Uri.parse(m))?.let { candidatePaths.add(it) }
+        }
+
+        val videoFile = candidatePaths.map { File(it) }.firstOrNull { it.exists() && it.isFile }
+        val videoName = videoFile?.name ?: videoUri.lastPathSegment?.substringAfterLast("/") ?: chapterTitle ?: "video"
+
+        val searchDirs = mutableSetOf<File>()
+        for (path in candidatePaths) {
+            val f = File(path)
+            if (f.exists()) {
+                if (f.isDirectory) {
+                    searchDirs.add(f)
+                    f.parentFile?.let { searchDirs.add(it) }
+                } else if (f.isFile) {
+                    f.parentFile?.let { pf ->
+                        searchDirs.add(pf)
+                        pf.parentFile?.let { searchDirs.add(it) }
+                    }
+                }
+            }
+        }
+
+        for (baseDir in searchDirs) {
+            if (!baseDir.exists() || !baseDir.isDirectory) continue
+            val videoFilesCount = baseDir.listFiles()?.count { it.isFile && setOf("mp4", "mkv", "webm", "avi", "mov", "ts").contains(it.extension.lowercase()) } ?: 1
+            val isSingleVideo = videoFilesCount <= 1
+
+            for (subFolder in subFolderNames) {
+                val targetDir = if (subFolder == ".") baseDir else File(baseDir, subFolder)
+                if (targetDir.exists() && targetDir.isDirectory) {
+                    val files = targetDir.listFiles() ?: continue
+                    val subFiles = files.filter { it.isFile && possibleExtensions.contains(it.extension.lowercase()) }
+                    for (file in subFiles) {
+                        val isSubFolder = subFolder != "."
+                        if (isSubtitleMatch(videoName, file.name, isSingleVideo) || (isSubFolder && subFiles.size == 1)) {
+                            val isFirst = result.isEmpty()
+                            addSubtitleConfig(Uri.fromFile(file), file.name, isDefault = isFirst)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. SAF DocumentFile fallback if no subtitles found
+        if (result.isEmpty()) {
+            val safUrisToTry = listOfNotNull(
+                videoUri.takeIf { it.scheme == "content" },
+                folderUriStr?.let { Uri.parse(it) }?.takeIf { it.scheme == "content" },
+                mangaParentUriStr?.let { Uri.parse(it) }?.takeIf { it.scheme == "content" }
+            )
+
+            for (sUri in safUrisToTry) {
+                try {
+                    val docFolder: androidx.documentfile.provider.DocumentFile? = if (android.provider.DocumentsContract.isTreeUri(sUri)) {
+                        androidx.documentfile.provider.DocumentFile.fromTreeUri(context, sUri)
+                    } else {
+                        val single = androidx.documentfile.provider.DocumentFile.fromSingleUri(context, sUri)
+                        if (single != null && single.isDirectory) single else single?.parentFile
+                    }
+                    if (docFolder != null && docFolder.isDirectory) {
+                        val children = docFolder.listFiles()
+                        for (child in children) {
+                            val cName = child.name ?: continue
+                            if (child.isFile) {
+                                val ext = cName.substringAfterLast(".", "").lowercase()
+                                if (possibleExtensions.contains(ext) && isSubtitleMatch(videoName, cName, true)) {
+                                    addSubtitleConfig(child.uri, cName, isDefault = result.isEmpty())
+                                }
+                            } else if (child.isDirectory && listOf("subs", "subtitles", "sub", "subtitle").contains(cName.lowercase())) {
+                                for (subFile in child.listFiles()) {
+                                    val sName = subFile.name ?: continue
+                                    val sExt = sName.substringAfterLast(".", "").lowercase()
+                                    if (possibleExtensions.contains(sExt) && (isSubtitleMatch(videoName, sName, true) || child.listFiles().size == 1)) {
+                                        addSubtitleConfig(subFile.uri, sName, isDefault = result.isEmpty())
                                     }
                                 }
                             }
                         }
                     }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
+                } catch (e: Exception) { }
+                if (result.isNotEmpty()) break
             }
         }
     } catch (e: Exception) {
@@ -652,6 +686,30 @@ fun VideoPlayerScreen(
             }
             override fun onTracksChanged(tracks: Tracks) {
                 currentTracks = tracks
+                val textGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }
+                if (textGroups.isNotEmpty()) {
+                    val isAnySelected = textGroups.any { it.isSelected }
+                    val isSubDisabled = exoPlayer.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
+                    if (!isAnySelected && !isSubDisabled) {
+                        val targetGroup = textGroups.firstOrNull { group ->
+                            for (i in 0 until group.length) {
+                                val format = group.getTrackFormat(i)
+                                if ((format.selectionFlags and C.SELECTION_FLAG_DEFAULT) != 0) return@firstOrNull true
+                            }
+                            false
+                        } ?: textGroups.first()
+
+                        try {
+                            exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                                .buildUpon()
+                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                .setOverrideForType(TrackSelectionOverride(targetGroup.mediaTrackGroup, 0))
+                                .build()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
             }
         }
         exoPlayer.addListener(listener)
@@ -774,8 +832,17 @@ fun VideoPlayerScreen(
     LaunchedEffect(videoUri, currentChapterId, customSubtitles) {
         val uri = videoUri ?: return@LaunchedEffect
         
+        // Query parent paths from DB for comprehensive subtitle scanning
+        val (chapterFolderUri, mangaParentUri) = withContext(Dispatchers.IO) {
+            val ch = database.trackDao().getChapterById(currentChapterId)
+            val m = ch?.let { database.libraryDao().getMangaById(it.mangaId) }
+            Pair(ch?.folderUri, m?.parentUri)
+        }
+
         // Scan for local sidecar subtitles (.srt, .vtt, .ass) + user added subtitles
-        val sidecarSubtitles = withContext(Dispatchers.IO) { findSidecarSubtitles(context, uri, chapterTitle) }
+        val sidecarSubtitles = withContext(Dispatchers.IO) { 
+            findSidecarSubtitles(context, uri, chapterTitle, chapterFolderUri, mangaParentUri) 
+        }
         val allSubs = sidecarSubtitles + customSubtitles
         val mediaItem = MediaItem.Builder()
             .setUri(uri)
@@ -791,10 +858,12 @@ fun VideoPlayerScreen(
         exoPlayer.setMediaItem(mediaItem)
         exoPlayer.prepare()
 
-        // Ensure text/subtitle tracks are enabled by default in track selection parameters
+        // Ensure text/subtitle tracks are enabled by default and automatically selected
         exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
             .buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+            .setSelectUndeterminedTextLanguage(true)
+            .setPreferredTextLanguage("en")
             .build()
 
         if (currentPos > 0) {
@@ -2065,12 +2134,14 @@ fun VideoPlayerScreen(
                         item {
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = Color.Black.copy(alpha = 0.6f),
+                                color = Color.Transparent,
                                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Box(
-                                    modifier = Modifier.padding(16.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 20.dp, horizontal = 16.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Surface(
