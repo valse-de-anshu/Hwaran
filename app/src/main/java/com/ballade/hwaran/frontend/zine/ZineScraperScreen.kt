@@ -80,8 +80,12 @@ fun ZineScraperScreen(
     var showSetupGuideDialog by remember { mutableStateOf(false) }
 
     var urlInput by remember { mutableStateOf("") }
+    var selectedScopeKey by remember { mutableStateOf("single") } // "single" (--0), "next_5" (--5), "next_10" (--10), "all" (-a)
     var selectedMode by remember { mutableStateOf("quick_grab") } // "quick_grab" or "vacuum"
-    var sequentialLimit by remember { mutableIntStateOf(0) } // 0 = all chapters (-a), 5 = --5, 10 = --10, 20 = --20
+    var sequentialLimit by remember { mutableIntStateOf(0) }
+    var flagSlice by remember { mutableStateOf(false) } // --slice
+    var flagSubs by remember { mutableStateOf(false) } // --subs
+    var flagMetaOnly by remember { mutableStateOf(false) } // --meta
     var selectedTransferMethod by remember { mutableStateOf("hybrid") }
 
     // Post-download processing choice: "import" (save to library), "open" (open immediately), "downloads" (raw storage only)
@@ -163,21 +167,31 @@ fun ZineScraperScreen(
             }
         }
 
-        // Active heartbeat polling every 2 seconds: immediately detects when server shuts off or restarts
+        // Active heartbeat polling every 2.5 seconds: debounced to prevent false disconnects during heavy network traffic
+        var consecutivePingFails = 0
         while (true) {
-            delay(2000)
+            delay(2500)
             if (serverIp.isNotBlank()) {
-                val alive = ZineServerClient.pingServer(serverIp, serverPort, timeoutMs = 1200)
-                if (isServerConnected != alive) {
-                    isServerConnected = alive
+                val alive = ZineServerClient.pingServer(serverIp, serverPort, timeoutMs = 2500)
+                if (alive) {
+                    consecutivePingFails = 0
+                    if (!isServerConnected) {
+                        isServerConnected = true
+                    }
+                } else {
+                    consecutivePingFails++
+                    if (consecutivePingFails >= 2 && isServerConnected) {
+                        isServerConnected = false
+                    }
                 }
-                // If disconnected, try a quick background discovery in case server changed IP
-                if (!alive) {
-                    val quickFound = ZineServerClient.discoverServer(context, timeoutMs = 600)
+                // If disconnected for 2+ consecutive checks, attempt background discovery in case IP changed
+                if (!alive && consecutivePingFails >= 2) {
+                    val quickFound = ZineServerClient.discoverServer(context, timeoutMs = 800)
                     if (quickFound != null) {
                         serverIp = quickFound.host
                         serverPort = quickFound.port
                         isServerConnected = true
+                        consecutivePingFails = 0
                         prefs.edit().putString("server_ip", serverIp).putInt("server_port", serverPort).apply()
                     }
                 }
@@ -532,128 +546,137 @@ fun ZineScraperScreen(
                 }
             }
 
-            val isQuickGrab = selectedMode == "quick_grab"
-            val isVacuum = selectedMode == "vacuum"
-
-            // 4. Ultra-Minimal Capsule Scope Switcher
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = Color.White.copy(alpha = 0.035f),
-                border = BorderStroke(1.dp, SubtleBorder),
-                modifier = Modifier.fillMaxWidth()
+            // 4. Download Scope & Quantity (Directly visible 4-pill capsule)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(
-                    modifier = Modifier.padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Surface(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            selectedMode = "quick_grab"
-                        },
-                        shape = RoundedCornerShape(16.dp),
-                        color = if (isQuickGrab) Color.White.copy(alpha = 0.12f) else Color.Transparent,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(vertical = 10.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.FlashOn,
-                                contentDescription = null,
-                                tint = if (isQuickGrab) Color.White else Color.White.copy(alpha = 0.45f),
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Single Item",
-                                fontSize = 12.5.sp,
-                                fontWeight = if (isQuickGrab) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isQuickGrab) Color.White else Color.White.copy(alpha = 0.55f)
-                            )
-                        }
-                    }
+                Text(
+                    text = "DOWNLOAD SCOPE & QUANTITY",
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.45f),
+                    letterSpacing = 1.2.sp
+                )
 
-                    Surface(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            selectedMode = "vacuum"
-                        },
-                        shape = RoundedCornerShape(16.dp),
-                        color = if (isVacuum) Color.White.copy(alpha = 0.12f) else Color.Transparent,
-                        modifier = Modifier.weight(1f)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = Color.White.copy(alpha = 0.035f),
+                    border = BorderStroke(1.dp, SubtleBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(vertical = 10.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.vacum),
-                                contentDescription = null,
-                                tint = if (isVacuum) Color.White else Color.White.copy(alpha = 0.45f),
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Full Series",
-                                fontSize = 12.5.sp,
-                                fontWeight = if (isVacuum) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isVacuum) Color.White else Color.White.copy(alpha = 0.55f)
-                            )
+                        val scopes = listOf(
+                            "single" to "Single (--0)",
+                            "next_5" to "Next 5 (--5)",
+                            "next_10" to "Next 10 (--10)",
+                            "all" to "All (-a)"
+                        )
+
+                        scopes.forEach { (key, label) ->
+                            val isSelected = selectedScopeKey == key
+                            Surface(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    selectedScopeKey = key
+                                    when (key) {
+                                        "single" -> {
+                                            selectedMode = "quick_grab"
+                                            sequentialLimit = 0
+                                        }
+                                        "next_5" -> {
+                                            selectedMode = "vacuum"
+                                            sequentialLimit = 5
+                                        }
+                                        "next_10" -> {
+                                            selectedMode = "vacuum"
+                                            sequentialLimit = 10
+                                        }
+                                        "all" -> {
+                                            selectedMode = "vacuum"
+                                            sequentialLimit = 0
+                                        }
+                                    }
+                                },
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (isSelected) Color.White.copy(alpha = 0.12f) else Color.Transparent,
+                                border = BorderStroke(1.dp, if (isSelected) ActiveBorder else Color.Transparent),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 10.dp, horizontal = 2.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.50f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            // Sequential limit selector for Full Series mode (-<N> sequential limit flag)
-            AnimatedVisibility(
-                visible = isVacuum,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 5. Feature Flags & Enhancements (Always visible toggle pills)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Text(
+                    text = "FEATURE FLAGS & ENHANCEMENTS",
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.45f),
+                    letterSpacing = 1.2.sp
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf(
-                            0 to "All (-a)",
-                            5 to "Next 5 (--5)",
-                            10 to "Next 10 (--10)",
-                            20 to "Next 20 (--20)"
-                        ).forEach { (lim, title) ->
-                            val isLimActive = (sequentialLimit == lim)
-                            Surface(
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    sequentialLimit = lim
-                                },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isLimActive) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.035f),
-                                border = BorderStroke(1.dp, if (isLimActive) ActiveBorder else SubtleBorder),
-                                modifier = Modifier.weight(1f)
+                    val flagsList = listOf(
+                        Triple(flagSlice, { flagSlice = !flagSlice }, "✂️ Slicer (--slice)"),
+                        Triple(flagSubs, { flagSubs = !flagSubs }, "💬 AI Subs (--subs)"),
+                        Triple(flagMetaOnly, { flagMetaOnly = !flagMetaOnly }, "📑 Meta Only (--meta)")
+                    )
+
+                    flagsList.forEach { (active, toggle, title) ->
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                toggle()
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (active) SoftEmerald.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.035f),
+                            border = BorderStroke(1.dp, if (active) SoftEmerald.copy(alpha = 0.6f) else SubtleBorder),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(vertical = 9.dp, horizontal = 2.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier.padding(vertical = 7.dp, horizontal = 2.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = title,
-                                        fontSize = 10.5.sp,
-                                        fontWeight = if (isLimActive) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isLimActive) Color.White else Color.White.copy(alpha = 0.55f),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
+                                Text(
+                                    text = title,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (active) SoftEmerald else Color.White.copy(alpha = 0.50f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                     }
@@ -759,22 +782,31 @@ fun ZineScraperScreen(
                         errorMessage = null
                         downloadedLocalDir = null
 
-                        val flags = if (selectedMode == "quick_grab") {
-                            listOf("--0")
-                        } else if (sequentialLimit > 0) {
-                            listOf("--$sequentialLimit")
-                        } else {
-                            listOf("-a")
+                        val flags = mutableListOf<String>()
+                        when (selectedScopeKey) {
+                            "single" -> flags.add("--0")
+                            "next_5" -> flags.add("--5")
+                            "next_10" -> flags.add("--10")
+                            "all" -> flags.add("-a")
+                        }
+                        if (flagSlice) flags.add("--slice")
+                        if (flagSubs) flags.add("--subs")
+                        if (flagMetaOnly) flags.add("--meta")
+
+                        val limitVal = when (selectedScopeKey) {
+                            "next_5" -> 5
+                            "next_10" -> 10
+                            else -> null
                         }
 
                         val result = ZineServerClient.submitScrape(
                             serverHost = serverIp,
                             serverPort = serverPort,
                             mediaUrl = urlInput.trim(),
-                            mode = selectedMode,
+                            mode = if (selectedScopeKey == "single") "quick_grab" else "vacuum",
                             transferMethod = selectedTransferMethod,
                             flags = flags,
-                            limit = if (sequentialLimit > 0) sequentialLimit else null
+                            limit = limitVal
                         )
                         isSubmitting = false
 
