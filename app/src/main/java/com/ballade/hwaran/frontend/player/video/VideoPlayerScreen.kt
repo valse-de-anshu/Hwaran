@@ -355,19 +355,57 @@ private fun findSidecarSubtitles(context: Context, videoUri: Uri, chapterTitle: 
                         )?.use { cursor ->
                             val idIdx = cursor.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID)
                             val nameIdx = cursor.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                            val mimeIdx = cursor.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE)
 
                             while (cursor.moveToNext()) {
                                 val childId = if (idIdx != -1) cursor.getString(idIdx) else null
                                 val name = if (nameIdx != -1) cursor.getString(nameIdx) else null
+                                val mime = if (mimeIdx != -1) cursor.getString(mimeIdx) else null
 
                                 if (childId != null && name != null) {
-                                    val ext = name.substringAfterLast(".", "").lowercase()
-                                    if (setOf("srt", "vtt", "ass", "ssa", "sub").contains(ext)) {
-                                        val videoName = videoUri.lastPathSegment?.substringAfterLast("/") ?: chapterTitle ?: "video"
-                                        if (isSubtitleMatch(videoName, name)) {
-                                            val childUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(videoUri, childId)
-                                            val isFirstMatch = result.isEmpty()
-                                            addSubtitleConfig(childUri, name, isDefault = isFirstMatch)
+                                    val isDir = mime == android.provider.DocumentsContract.Document.MIME_TYPE_DIR
+                                    if (isDir && listOf("subs", "subtitles", "sub").contains(name.lowercase())) {
+                                        try {
+                                            val subfolderUri = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(videoUri, childId)
+                                            context.contentResolver.query(
+                                                subfolderUri,
+                                                arrayOf(
+                                                    android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                                                    android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME
+                                                ),
+                                                null, null, null
+                                            )?.use { subCursor ->
+                                                val sIdIdx = subCursor.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                                                val sNameIdx = subCursor.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                                                val sCount = subCursor.count
+                                                while (subCursor.moveToNext()) {
+                                                    val sChildId = if (sIdIdx != -1) subCursor.getString(sIdIdx) else null
+                                                    val sName = if (sNameIdx != -1) subCursor.getString(sNameIdx) else null
+                                                    if (sChildId != null && sName != null) {
+                                                        val sExt = sName.substringAfterLast(".", "").lowercase()
+                                                        if (setOf("srt", "vtt", "ass", "ssa", "sub").contains(sExt)) {
+                                                            val videoName = videoUri.lastPathSegment?.substringAfterLast("/") ?: chapterTitle ?: "video"
+                                                            if (isSubtitleMatch(videoName, sName) || sCount == 1) {
+                                                                val subDocUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(videoUri, sChildId)
+                                                                val isFirstMatch = result.isEmpty()
+                                                                addSubtitleConfig(subDocUri, sName, isDefault = isFirstMatch)
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                        }
+                                    } else {
+                                        val ext = name.substringAfterLast(".", "").lowercase()
+                                        if (setOf("srt", "vtt", "ass", "ssa", "sub").contains(ext)) {
+                                            val videoName = videoUri.lastPathSegment?.substringAfterLast("/") ?: chapterTitle ?: "video"
+                                            if (isSubtitleMatch(videoName, name)) {
+                                                val childUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(videoUri, childId)
+                                                val isFirstMatch = result.isEmpty()
+                                                addSubtitleConfig(childUri, name, isDefault = isFirstMatch)
+                                            }
                                         }
                                     }
                                 }
@@ -970,6 +1008,8 @@ fun VideoPlayerScreen(
                             null
                         )
                         subtitleView?.apply {
+                            setApplyEmbeddedStyles(false)
+                            setApplyEmbeddedFontSizes(false)
                             setStyle(subStyle)
                             setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, subtitleTextSizeSp)
                             visibility = android.view.View.VISIBLE
@@ -999,6 +1039,8 @@ fun VideoPlayerScreen(
                         null
                     )
                     view.subtitleView?.apply {
+                        setApplyEmbeddedStyles(false)
+                        setApplyEmbeddedFontSizes(false)
                         setStyle(subStyle)
                         setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, subtitleTextSizeSp)
                         visibility = android.view.View.VISIBLE

@@ -11,6 +11,8 @@ object VideoImportUtils {
         "mp4", "mkv", "webm", "mov", "avi", "m4v", "3gp", "flv", "ts", "wmv", "asf"
     )
 
+    val subtitleExtensions = setOf("srt", "vtt", "ass", "ssa", "sub")
+
     val coverExtensions = setOf("jpg", "jpeg", "png", "webp", "gif")
 
     fun naturalSortKey(name: String): String {
@@ -40,6 +42,31 @@ object VideoImportUtils {
                 dir.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(dir.name)
             }.sortedWith(compareBy { naturalSortKey(it.name ?: "") })
 
+            for (sub in subfolders) {
+                search(sub, depth + 1)
+            }
+        }
+        search(folderDoc, 1)
+        return result
+    }
+
+    /**
+     * Recursively collect all subtitle files (.srt, .vtt, .ass, etc.) from a DocumentFile folder.
+     */
+    fun findSubtitleFiles(folderDoc: DocumentFile, maxDepth: Int = 3): List<DocumentFile> {
+        val result = mutableListOf<DocumentFile>()
+        fun search(current: DocumentFile, depth: Int) {
+            if (depth > maxDepth) return
+            val files = current.listFiles()
+            val subs = files.filter { file ->
+                !file.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(file.name) &&
+                subtitleExtensions.any { ext -> file.name?.lowercase()?.endsWith(".$ext") == true }
+            }.sortedWith(compareBy { naturalSortKey(it.name ?: "") })
+            result.addAll(subs)
+
+            val subfolders = files.filter { dir ->
+                dir.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(dir.name)
+            }
             for (sub in subfolders) {
                 search(sub, depth + 1)
             }

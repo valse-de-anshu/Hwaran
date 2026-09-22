@@ -43,16 +43,22 @@ fun LiquidNavigation(
     )
 
     // Breathing pulse for the halo
-    val infiniteTransition = rememberInfiniteTransition(label = "haloPulse")
-    val pulse by infiniteTransition.animateFloat(
-        initialValue = 0.7f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse"
-    )
+    val isBatterySaving = com.ballade.hwaran.ui.theme.LocalBatterySaving.current
+    val pulse = if (isBatterySaving) {
+        0.85f
+    } else {
+        val infiniteTransition = rememberInfiniteTransition(label = "haloPulse")
+        val animatedPulse by infiniteTransition.animateFloat(
+            initialValue = 0.7f,
+            targetValue = 1.0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(4000, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulse"
+        )
+        animatedPulse
+    }
 
     // Pre-load vector painters to draw them directly on Canvas
     val homePainter = rememberVectorPainter(Icons.Rounded.Home)

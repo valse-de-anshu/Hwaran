@@ -60,11 +60,12 @@ object VideoLocalSingleImport {
         val existingManga = repository.getRootMangaByUri(destination.absolutePath)
         if (existingManga != null) return@withContext existingManga.id
 
-        // 2. Discover all video files (root + subfolders like Videos/, season 1/, etc.)
+        // 2. Discover all video and subtitle files (root + subfolders like Videos/, season 1/, etc.)
         val videoSourceFiles = VideoImportUtils.findVideoFiles(sourceDoc)
+        val subtitleSourceFiles = VideoImportUtils.findSubtitleFiles(sourceDoc)
         val coverDoc = VideoImportUtils.findCover(sourceDoc, parsedZine?.coverFileName)
 
-        val totalFilesCount = videoSourceFiles.size + if (coverDoc != null) 1 else 0
+        val totalFilesCount = videoSourceFiles.size + subtitleSourceFiles.size + if (coverDoc != null) 1 else 0
         var copiedFilesCount = 0
         var lastReportedProgress = -1
 
@@ -116,6 +117,24 @@ object VideoLocalSingleImport {
                 }
                 val originalTitle = child.name?.substringBeforeLast(".") ?: "Unknown"
                 copiedVideoFiles.add(destFile to originalTitle)
+                reportProgress()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // Copy subtitle files into destination vault
+        for (subDoc in subtitleSourceFiles) {
+            if (isCancelled()) {
+                destination.deleteRecursively()
+                return@withContext null
+            }
+            val subName = subDoc.name ?: "subtitle.srt"
+            val destSubFile = File(destination, subName)
+            try {
+                context.contentResolver.openInputStream(subDoc.uri)?.use { input ->
+                    destSubFile.outputStream().use { output -> input.copyTo(output) }
+                }
                 reportProgress()
             } catch (e: Exception) {
                 e.printStackTrace()

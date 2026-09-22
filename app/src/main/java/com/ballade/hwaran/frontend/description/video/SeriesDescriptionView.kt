@@ -1046,10 +1046,10 @@ fun SeriesDescriptionView(
                             )
                             MetadataItemView(
                                 modifier = Modifier.weight(1f),
-                                label = "Network / Platform",
-                                value = if (isEditMode) draftSerialization else entryMetadata.serialization.ifBlank { "—" },
+                                label = "Format",
+                                value = if (isEditMode) draftMaterialTag else entryMetadata.type.ifBlank { "Series" },
                                 isEditMode = isEditMode,
-                                onValueChange = onUpdateDraftSerialization
+                                onValueChange = onSetMaterialTag
                             )
                         }
 

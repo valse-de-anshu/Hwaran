@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.dp
 import androidx.compose.animation.togetherWith
+import com.ballade.hwaran.ui.theme.LocalBatterySaving
 
 @Composable
 fun MediaModeIndicator(mediaMode: Int, videoLayoutMode: Int = 0, modifier: Modifier = Modifier) {
@@ -66,16 +67,22 @@ fun MediaModeIndicator(mediaMode: Int, videoLayoutMode: Int = 0, modifier: Modif
 
 @Composable
 fun ToonIndicator() {
-    val infiniteTransition = rememberInfiniteTransition("toon")
-    val scrollY by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 24f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "scroll"
-    )
+    val isBatterySaving = LocalBatterySaving.current
+    val scrollY = if (isBatterySaving) {
+        0f
+    } else {
+        val infiniteTransition = rememberInfiniteTransition("toon")
+        val scroll by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 24f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(3500, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "scroll"
+        )
+        scroll
+    }
 
     Canvas(modifier = Modifier.size(20.dp)) {
         val stroke = Stroke(width = 1.25.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
@@ -114,80 +121,100 @@ fun ToonIndicator() {
 
 @Composable
 fun BookIndicator() {
-    val infiniteTransition = rememberInfiniteTransition("book")
-    
-    val coverScaleX by infiniteTransition.animateFloat(
-        initialValue = -1f, targetValue = -1f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 6000
-                -1f at 0
-                -1f at 600
-                1f at 1500 using FastOutSlowInEasing
-                1f at 4500
-                -1f at 5400 using FastOutSlowInEasing
-                -1f at 6000
-            }
-        ), label = "cover"
-    )
-    
-    val page1ScaleX by infiniteTransition.animateFloat(
-        initialValue = 1f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 6000
-                1f at 0
-                1f at 1500
-                1f at 2100
-                -1f at 2700 using FastOutSlowInEasing
-                -1f at 5400
-                -1f at 6000
-            }
-        ), label = "page1_scale"
-    )
-    val page1Alpha by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 6000
-                0f at 0
-                0f at 1490
-                1f at 1500
-                1f at 5400
-                0f at 5410
-                0f at 6000
-            }
-        ), label = "page1_alpha"
-    )
+    val isBatterySaving = LocalBatterySaving.current
 
-    val page2ScaleX by infiniteTransition.animateFloat(
-        initialValue = 1f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 6000
-                1f at 0
-                1f at 1500
-                1f at 3000
-                -1f at 3600 using FastOutSlowInEasing
-                -1f at 5400
-                -1f at 6000
-            }
-        ), label = "page2_scale"
-    )
-    val page2Alpha by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 6000
-                0f at 0
-                0f at 1490
-                1f at 1500
-                1f at 5400
-                0f at 5410
-                0f at 6000
-            }
-        ), label = "page2_alpha"
-    )
+    val coverScaleX: Float
+    val page1ScaleX: Float
+    val page1Alpha: Float
+    val page2ScaleX: Float
+    val page2Alpha: Float
+
+    if (isBatterySaving) {
+        coverScaleX = 1f
+        page1ScaleX = 1f
+        page1Alpha = 0f
+        page2ScaleX = 1f
+        page2Alpha = 0f
+    } else {
+        val infiniteTransition = rememberInfiniteTransition("book")
+
+        val cScale by infiniteTransition.animateFloat(
+            initialValue = -1f, targetValue = -1f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = 6000
+                    -1f at 0
+                    -1f at 600
+                    1f at 1500 using FastOutSlowInEasing
+                    1f at 4500
+                    -1f at 5400 using FastOutSlowInEasing
+                    -1f at 6000
+                }
+            ), label = "cover"
+        )
+        val p1Scale by infiniteTransition.animateFloat(
+            initialValue = 1f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = 6000
+                    1f at 0
+                    1f at 1500
+                    1f at 2100
+                    -1f at 2700 using FastOutSlowInEasing
+                    -1f at 5400
+                    -1f at 6000
+                }
+            ), label = "page1_scale"
+        )
+        val p1Alpha by infiniteTransition.animateFloat(
+            initialValue = 0f, targetValue = 0f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = 6000
+                    0f at 0
+                    0f at 1490
+                    1f at 1500
+                    1f at 5400
+                    0f at 5410
+                    0f at 6000
+                }
+            ), label = "page1_alpha"
+        )
+        val p2Scale by infiniteTransition.animateFloat(
+            initialValue = 1f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = 6000
+                    1f at 0
+                    1f at 1500
+                    1f at 3000
+                    -1f at 3600 using FastOutSlowInEasing
+                    -1f at 5400
+                    -1f at 6000
+                }
+            ), label = "page2_scale"
+        )
+        val p2Alpha by infiniteTransition.animateFloat(
+            initialValue = 0f, targetValue = 0f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = 6000
+                    0f at 0
+                    0f at 1490
+                    1f at 1500
+                    1f at 5400
+                    0f at 5410
+                    0f at 6000
+                }
+            ), label = "page2_alpha"
+        )
+
+        coverScaleX = cScale
+        page1ScaleX = p1Scale
+        page1Alpha = p1Alpha
+        page2ScaleX = p2Scale
+        page2Alpha = p2Alpha
+    }
 
     Canvas(modifier = Modifier.size(20.dp)) {
         val stroke = Stroke(width = 1.25.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
@@ -248,47 +275,62 @@ fun BookIndicator() {
 
 @Composable
 fun VideoSeriesIndicator() {
-    val infiniteTransition = rememberInfiniteTransition("video_series")
-    
-    val scrubberX by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 14f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 3500
-                0f at 0
-                0f at 350
-                14f at 2975 using FastOutSlowInEasing
-                14f at 3500
-            }
-        ), label = "scrub_x"
-    )
-    val scrubberAlpha by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 3500
-                0f at 0
-                1f at 350
-                1f at 2975
-                0f at 3325
-                0f at 3500
-            }
-        ), label = "scrub_alpha"
-    )
-    
-    val pulse by infiniteTransition.animateFloat(
-        initialValue = 1f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 3500
-                1f at 0
-                1f at 2975
-                0.85f at 3150
-                1f at 3325
-                1f at 3500
-            }
-        ), label = "pulse"
-    )
+    val isBatterySaving = LocalBatterySaving.current
+
+    val scrubberX: Float
+    val scrubberAlpha: Float
+    val pulse: Float
+
+    if (isBatterySaving) {
+        scrubberX = 7f
+        scrubberAlpha = 0.8f
+        pulse = 1f
+    } else {
+        val infiniteTransition = rememberInfiniteTransition("video_series")
+
+        val sX by infiniteTransition.animateFloat(
+            initialValue = 0f, targetValue = 14f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = 3500
+                    0f at 0
+                    0f at 350
+                    14f at 2975 using FastOutSlowInEasing
+                    14f at 3500
+                }
+            ), label = "scrub_x"
+        )
+        val sAlpha by infiniteTransition.animateFloat(
+            initialValue = 0f, targetValue = 0f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = 3500
+                    0f at 0
+                    1f at 350
+                    1f at 2975
+                    0f at 3325
+                    0f at 3500
+                }
+            ), label = "scrub_alpha"
+        )
+        val pPulse by infiniteTransition.animateFloat(
+            initialValue = 1f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = 3500
+                    1f at 0
+                    1f at 2975
+                    0.85f at 3150
+                    1f at 3325
+                    1f at 3500
+                }
+            ), label = "pulse"
+        )
+
+        scrubberX = sX
+        scrubberAlpha = sAlpha
+        pulse = pPulse
+    }
 
     Canvas(modifier = Modifier.size(20.dp)) {
         val stroke = Stroke(width = 1.25.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
@@ -333,47 +375,62 @@ fun VideoSeriesIndicator() {
 
 @Composable
 fun VideoCreatorIndicator() {
-    val infiniteTransition = rememberInfiniteTransition("video_creator")
-    
-    val scrubberX by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 14f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 3500
-                0f at 0
-                0f at 350
-                14f at 2975 using FastOutSlowInEasing
-                14f at 3500
-            }
-        ), label = "scrub_x"
-    )
-    val scrubberAlpha by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 3500
-                0f at 0
-                1f at 350
-                1f at 2975
-                0f at 3325
-                0f at 3500
-            }
-        ), label = "scrub_alpha"
-    )
-    
-    val pulse by infiniteTransition.animateFloat(
-        initialValue = 1f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 3500
-                1f at 0
-                1f at 2975
-                0.85f at 3150
-                1f at 3325
-                1f at 3500
-            }
-        ), label = "pulse"
-    )
+    val isBatterySaving = LocalBatterySaving.current
+
+    val scrubberX: Float
+    val scrubberAlpha: Float
+    val pulse: Float
+
+    if (isBatterySaving) {
+        scrubberX = 7f
+        scrubberAlpha = 0.8f
+        pulse = 1f
+    } else {
+        val infiniteTransition = rememberInfiniteTransition("video_creator")
+
+        val sX by infiniteTransition.animateFloat(
+            initialValue = 0f, targetValue = 14f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = 3500
+                    0f at 0
+                    0f at 350
+                    14f at 2975 using FastOutSlowInEasing
+                    14f at 3500
+                }
+            ), label = "scrub_x"
+        )
+        val sAlpha by infiniteTransition.animateFloat(
+            initialValue = 0f, targetValue = 0f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = 3500
+                    0f at 0
+                    1f at 350
+                    1f at 2975
+                    0f at 3325
+                    0f at 3500
+                }
+            ), label = "scrub_alpha"
+        )
+        val pPulse by infiniteTransition.animateFloat(
+            initialValue = 1f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = 3500
+                    1f at 0
+                    1f at 2975
+                    0.85f at 3150
+                    1f at 3325
+                    1f at 3500
+                }
+            ), label = "pulse"
+        )
+
+        scrubberX = sX
+        scrubberAlpha = sAlpha
+        pulse = pPulse
+    }
 
     Canvas(modifier = Modifier.size(20.dp)) {
         val stroke = Stroke(width = 1.25.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)

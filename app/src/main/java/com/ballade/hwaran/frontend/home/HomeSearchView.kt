@@ -242,24 +242,26 @@ fun HomeSearchView(
             else -> allManga.filter { matchesMediaType(it, selectedMedia) }
         }
         val mangaTags = filteredManga.flatMap { manga ->
-            manga.genre?.split(",", ";", "•")?.map { it.trim() }?.filter { it.isNotBlank() && !formatKeywords.contains(it.lowercase()) } ?: emptyList()
+            manga.genre?.split(",", ";", "•", "/")?.map { it.trim() }?.filter { it.isNotBlank() && !formatKeywords.contains(it.lowercase()) } ?: emptyList()
         }
         val chapterTags = if (selectedMedia in listOf("All", "Music", "Fav", "Favorite")) {
             allChapters.flatMap { chapter ->
-                chapter.genre?.split(",", ";", "•")?.map { it.trim() }?.filter { it.isNotBlank() && !formatKeywords.contains(it.lowercase()) } ?: emptyList()
+                chapter.genre?.split(",", ";", "•", "/")?.map { it.trim() }?.filter { it.isNotBlank() && !formatKeywords.contains(it.lowercase()) } ?: emptyList()
             }
         } else emptyList()
 
         val extracted = (mangaTags + chapterTags).distinct().sorted()
 
-        if (extracted.isNotEmpty()) extracted
-        else when (selectedMedia) {
-            "Music" -> listOf("Pop", "Rock", "Lo-Fi", "Classical", "Jazz", "Electronic", "Acoustic", "Hip Hop", "OST", "R&B")
-            "Book", "Light Novel" -> listOf("Fiction", "Non-Fiction", "Novel", "Science", "History", "Philosophy", "Biography", "Self-Help", "Tutorial", "Classic")
-            "Manga", "Manhua" -> listOf("Action", "Romance", "Comedy", "Fantasy", "Sci-Fi", "Mystery", "Horror", "Drama", "Isekai", "Slice of Life")
-            "Series", "Channel" -> listOf("Anime", "Documentary", "Educational", "Movie", "Live", "Animation", "Drama", "Tutorial")
-            else -> listOf("Action", "Romance", "Comedy", "Fantasy", "Sci-Fi", "Mystery", "Lo-Fi", "Pop", "Documentary")
+        val defaultModeTags = when (selectedMedia) {
+            "Music" -> listOf("Pop", "Rock", "Lo-Fi", "Hip Hop", "Classical", "Jazz", "Electronic", "Acoustic", "OST", "R&B", "Indie", "Ambient")
+            "Book", "Light Novel" -> listOf("Fiction", "Fantasy", "Sci-Fi", "Mystery", "Thriller", "Romance", "History", "Philosophy", "Biography", "Self-Help", "Adventure", "Classic")
+            "Manhua" -> listOf("Action", "Cultivation", "Martial Arts", "Fantasy", "Reincarnation", "System", "Murim", "Romance", "Supernatural", "Webtoon", "Adventure", "Comedy")
+            "Manga" -> listOf("Action", "Romance", "Comedy", "Fantasy", "Sci-Fi", "Shounen", "Seinen", "Isekai", "Supernatural", "Mystery", "Horror", "Drama", "Slice of Life")
+            "Series", "Channel" -> listOf("Anime", "Movie", "Series", "Documentary", "Educational", "Animation", "Drama", "Action", "Comedy", "Tutorial")
+            else -> listOf("Action", "Romance", "Comedy", "Fantasy", "Sci-Fi", "Mystery", "Lo-Fi", "Pop", "Documentary", "Drama")
         }
+
+        (extracted + defaultModeTags).distinct()
     }
 
     // Extract all unique artists across the music library
@@ -412,8 +414,8 @@ fun HomeSearchView(
 
                     // Tags filter
                     if (selectedTags.isNotEmpty()) {
-                        val chTags = chapter.genre?.split(",")?.map { it.trim().lowercase() } ?: emptyList()
-                        val pTags = parentManga?.genre?.split(",")?.map { it.trim().lowercase() } ?: emptyList()
+                        val chTags = chapter.genre?.split(",", ";", "•", "/")?.map { it.trim().lowercase() } ?: emptyList()
+                        val pTags = parentManga?.genre?.split(",", ";", "•", "/")?.map { it.trim().lowercase() } ?: emptyList()
                         val combined = (chTags + pTags).toSet()
                         val matchesTags = if (matchAllTags) {
                             selectedTags.all { t -> combined.any { it.contains(t.lowercase()) } }
@@ -525,8 +527,8 @@ fun HomeSearchView(
             }
 
             if (selectedTags.isNotEmpty()) {
-                val mTags = manga.genre?.split(",")?.map { it.trim().lowercase() } ?: emptyList()
-                val chTags = mangaChapters.flatMap { it.genre?.split(",")?.map { g -> g.trim().lowercase() } ?: emptyList() }
+                val mTags = manga.genre?.split(",", ";", "•", "/")?.map { it.trim().lowercase() } ?: emptyList()
+                val chTags = mangaChapters.flatMap { it.genre?.split(",", ";", "•", "/")?.map { g -> g.trim().lowercase() } ?: emptyList() }
                 val combined = (mTags + chTags).toSet()
                 val matchesTags = if (matchAllTags) {
                     selectedTags.all { t -> combined.any { it.contains(t.lowercase()) } }
@@ -699,7 +701,9 @@ fun HomeSearchView(
                 shape = RoundedCornerShape(26.dp),
                 placeholder = {
                     Text(
-                        when (selectedScope) {
+                        if (selectedTags.isNotEmpty()) {
+                            "Filtering by: ${selectedTags.joinToString(", ")}"
+                        } else when (selectedScope) {
                             SearchScope.ALL -> when (selectedMedia) {
                                 "Music" -> "Search all (song, artist, album, lyrics)..."
                                 "Book", "Light Novel" -> "Search books (title, author, synopsis, shelf)..."
@@ -872,6 +876,96 @@ fun HomeSearchView(
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                     )
+                }
+            }
+        }
+
+        // ── 2b. Always-Visible Mode-Specific Quick Tag Pills & Active Chips ──
+        val tagRowState = rememberLazyListState()
+        LazyRow(
+            state = tagRowState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 10.dp)
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    val fadeWidth = 18.dp.toPx()
+                    if (fadeWidth > 0f && size.width > fadeWidth * 2) {
+                        val leftFade = if (tagRowState.firstVisibleItemIndex > 0 || tagRowState.firstVisibleItemScrollOffset > 0) (fadeWidth / size.width) else 0f
+                        val rightFade = if (tagRowState.canScrollForward) ((size.width - fadeWidth) / size.width) else 1f
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                0f to (if (tagRowState.firstVisibleItemIndex > 0 || tagRowState.firstVisibleItemScrollOffset > 0) Color.Transparent else Color.Black),
+                                leftFade to Color.Black,
+                                rightFade to Color.Black,
+                                1f to (if (tagRowState.canScrollForward) Color.Transparent else Color.Black)
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+                },
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // If any tags are selected, show a small "Clear" pill first
+            if (selectedTags.isNotEmpty()) {
+                item {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0x33E57373),
+                        border = BorderStroke(1.dp, Color(0x66E57373)),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { selectedTags = emptySet() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Icon(Icons.Rounded.Close, contentDescription = "Clear tags", tint = Color(0xFFE57373), modifier = Modifier.size(12.dp))
+                            Text(
+                                text = "Clear (${selectedTags.size})",
+                                color = Color(0xFFE57373),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Tags for this media mode
+            items(libraryTags) { tag ->
+                val isSelected = selectedTags.contains(tag)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
+                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.07f)),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            selectedTags = if (isSelected) selectedTags - tag else selectedTags + tag
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (isSelected) {
+                            Icon(Icons.Rounded.Check, contentDescription = null, tint = Color(0xFF8EB69B), modifier = Modifier.size(12.dp))
+                        } else {
+                            Text("#", color = Color.White.copy(alpha = 0.35f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text(
+                            text = tag,
+                            color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.55f),
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
                 }
             }
         }

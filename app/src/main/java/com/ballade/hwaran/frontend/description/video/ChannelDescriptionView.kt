@@ -931,10 +931,10 @@ fun ChannelDescriptionView(
                             )
                             MetadataItemView(
                                 modifier = Modifier.weight(1f),
-                                label = "Platform / Source",
-                                value = if (isEditMode) draftSerialization else entryMetadata.serialization.ifBlank { "—" },
+                                label = "Format",
+                                value = if (isEditMode) draftMaterialTag else entryMetadata.type.ifBlank { "Channel" },
                                 isEditMode = isEditMode,
-                                onValueChange = onUpdateDraftSerialization
+                                onValueChange = onSetMaterialTag
                             )
                         }
 

@@ -80,9 +80,21 @@ data class ParsedZineMetadata(
 object ZineMetadataExtractor {
 
     private val PREFERRED_JSON_NAMES = listOf(
-        "metadata.json", "info.json", "entry.json", "data.json",
+        "metadata.json", "meta.json", "info.json", "entry.json", "data.json",
         "series.json", "album.json", "book.json", "artist.json"
     )
+
+    private val IGNORED_JSON_NAMES = setOf(
+        "history.json", "download_history.json", "batch_history.json", "url_history.json", "history.bak"
+    )
+
+    fun isIgnoredJson(name: String?): Boolean {
+        if (name == null) return false
+        val lower = name.lowercase().trim()
+        if (lower in IGNORED_JSON_NAMES) return true
+        if (lower.endsWith(".history.json") || lower.endsWith("_history.json") || lower == "history.json") return true
+        return false
+    }
 
     private val DEDICATED_COVER_NAMES = setOf(
         "cover.jpg", "cover.jpeg", "cover.png", "cover.webp",
@@ -101,6 +113,7 @@ object ZineMetadataExtractor {
         if (name == null) return false
         val lower = name.lowercase().trim()
         if (lower == ".zine" || lower.startsWith(".zine/") || lower.startsWith(".zine\\")) return true
+        if (isIgnoredJson(lower)) return true
         if (lower.endsWith(".json")) return true
         if (lower == ".nomedia") return true
         if (lower.endsWith(".lrc")) return true
@@ -167,7 +180,7 @@ object ZineMetadataExtractor {
 
     fun findJsonFileInDir(dir: File): File? {
         val jsonFiles = dir.listFiles()?.filter {
-            it.isFile && it.name.lowercase().endsWith(".json")
+            it.isFile && it.name.lowercase().endsWith(".json") && !isIgnoredJson(it.name)
         } ?: return null
         if (jsonFiles.isEmpty()) return null
 
@@ -284,7 +297,7 @@ object ZineMetadataExtractor {
 
     fun findJsonDocInDir(dirDoc: DocumentFile): DocumentFile? {
         val files = dirDoc.listFiles().filter {
-            !it.isDirectory && it.name?.lowercase()?.endsWith(".json") == true
+            !it.isDirectory && it.name?.lowercase()?.endsWith(".json") == true && !isIgnoredJson(it.name)
         }
         if (files.isEmpty()) return null
 

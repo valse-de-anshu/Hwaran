@@ -172,6 +172,9 @@ fun HomeScreen(
     var unlockPasswordInputInHome by remember { mutableStateOf("") }
     var showIncorrectPasswordInHome by remember { mutableStateOf(false) }
     var pendingActionInHome by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var showSetPasswordForLockDialog by remember { mutableStateOf(false) }
+    var pendingLockManga by remember { mutableStateOf<MangaEntity?>(null) }
+    var newLockPasswordInput by remember { mutableStateOf("") }
 
     fun checkLockAndExecute(manga: MangaEntity?, action: () -> Unit) {
         if (isLibraryLocked && manga != null && manga.isLocked) {
@@ -673,6 +676,32 @@ fun HomeScreen(
                 quickActionsManga = null
                 onNavigateToEditDescription(manga.id)
             },
+            onToggleLock = {
+                val targetManga = manga
+                quickActionsManga = null
+                if (targetManga.isLocked) {
+                    if (libraryPassword.isNotBlank()) {
+                        mangaToUnlockInHome = targetManga
+                        pendingActionInHome = {
+                            libraryViewModel.updateMangaLockState(targetManga, false)
+                            Toast.makeText(context, "\"${targetManga.title}\" unlocked", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        libraryViewModel.updateMangaLockState(targetManga, false)
+                        Toast.makeText(context, "\"${targetManga.title}\" unlocked", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    if (libraryPassword.isBlank()) {
+                        pendingLockManga = targetManga
+                        newLockPasswordInput = ""
+                        showSetPasswordForLockDialog = true
+                    } else {
+                        settingsViewModel.setIsLibraryLocked(true)
+                        libraryViewModel.updateMangaLockState(targetManga, true)
+                        Toast.makeText(context, "\"${targetManga.title}\" is now locked", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
             onRemoveFromApp = {
                 coroutineScope.launch {
                     database.mediaDao().deleteManga(manga)
@@ -692,6 +721,71 @@ fun HomeScreen(
             onDismiss = {
                 quickActionsManga = null
             }
+        )
+    }
+
+    if (showSetPasswordForLockDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showSetPasswordForLockDialog = false
+                pendingLockManga = null
+                newLockPasswordInput = ""
+            },
+            title = { Text("Set Passcode to Lock Media", color = Color.White, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        text = "To lock \"${pendingLockManga?.title ?: "media"}\", please create a library passcode first:",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    OutlinedTextField(
+                        value = newLockPasswordInput,
+                        onValueChange = { newLockPasswordInput = it },
+                        label = { Text("New Passcode", color = Color.White.copy(alpha = 0.5f)) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(glowColor),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (newLockPasswordInput.isNotBlank()) {
+                            val pass = newLockPasswordInput
+                            settingsViewModel.setLibraryPassword(pass)
+                            settingsViewModel.setIsLibraryLocked(true)
+                            pendingLockManga?.let { m ->
+                                libraryViewModel.updateMangaLockState(m, true)
+                                Toast.makeText(context, "\"${m.title}\" is now locked", Toast.LENGTH_SHORT).show()
+                            }
+                            showSetPasswordForLockDialog = false
+                            newLockPasswordInput = ""
+                            pendingLockManga = null
+                        }
+                    }
+                ) {
+                    Text("Set & Lock", color = Color(glowColor), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showSetPasswordForLockDialog = false
+                        pendingLockManga = null
+                        newLockPasswordInput = ""
+                    }
+                ) {
+                    Text("Cancel", color = Color.White.copy(alpha = 0.6f))
+                }
+            },
+            containerColor = Color(0xFF1E222B)
         )
     }
 

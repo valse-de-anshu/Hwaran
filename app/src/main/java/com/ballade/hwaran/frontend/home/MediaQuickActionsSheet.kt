@@ -42,6 +42,7 @@ fun MediaQuickActionsSheet(
     migrationStatus: String = "",
     onShiftToLocal: () -> Unit,
     onEditMetadata: () -> Unit,
+    onToggleLock: () -> Unit = {},
     onRemoveFromApp: () -> Unit,
     onDeleteFromDisk: () -> Unit,
     onDismiss: () -> Unit
@@ -378,6 +379,19 @@ fun MediaQuickActionsSheet(
                         onClick = {
                             haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                             onEditMetadata()
+                        }
+                    )
+
+                    // ── Action 3: Lock / Unlock Media ──
+                    QuickActionItem(
+                        icon = if (manga.isLocked) Icons.Rounded.LockOpen else Icons.Rounded.Lock,
+                        title = if (manga.isLocked) "Unlock Media" else "Lock Media",
+                        subtitle = if (manga.isLocked) "Remove passcode protection from this media item" else "Protect with passcode so only you can view it",
+                        enabled = !effectiveIsMigrating,
+                        trailingBadge = if (manga.isLocked) "LOCKED" else null,
+                        onClick = {
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                            onToggleLock()
                         }
                     )
 

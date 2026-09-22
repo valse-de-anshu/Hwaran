@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenu
@@ -751,6 +752,57 @@ fun BookDescriptionView(
                 }
             }
 
+            // ── Source URL Card (shown if URL is present in metadata) ──
+            val bookUrl = entryMetadata.url
+            if (bookUrl.isNotBlank()) {
+                item {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable {
+                                try {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(bookUrl))
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            },
+                        shape = RoundedCornerShape(14.dp),
+                        color = CardBg,
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Language,
+                                contentDescription = "Open Source URL",
+                                tint = Color(0xFF64B5F6),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = bookUrl,
+                                color = Color(0xFF64B5F6),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
+                                contentDescription = null,
+                                tint = Color(0xFF64B5F6).copy(alpha = 0.7f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
             // ── Additional Information Grid ──
             item {
                 Surface(
@@ -779,10 +831,10 @@ fun BookDescriptionView(
                                 )
                                 BookMetadataItemView(
                                     modifier = Modifier.weight(1f),
-                                    label = "Publisher",
-                                    value = if (isEditMode) draftPublisher else entryMetadata.publisher.ifBlank { "Unknown" },
+                                    label = "Format",
+                                    value = if (isEditMode) draftMaterialTag else entryMetadata.type.ifBlank { if (manga.contentType == 4) "Novel" else "Book" },
                                     isEditMode = isEditMode,
-                                    onValueChange = onUpdateDraftPublisher
+                                    onValueChange = onSetMaterialTag
                                 )
                             }
                             HorizontalDivider(color = Color.White.copy(alpha = 0.06f))

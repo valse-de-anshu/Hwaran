@@ -29,6 +29,41 @@ fun WobblySnakeRing(
     showOuterRing: Boolean = true,
     trackAlpha: Float = 0.15f
 ) {
+    val isBatterySaving = com.ballade.hwaran.ui.theme.LocalBatterySaving.current
+    if (isBatterySaving) {
+        Canvas(modifier = modifier) {
+            val center = Offset(size.width / 2, size.height / 2)
+            val baseRadius = baseRadiusOverride ?: (size.minDimension / 2 - 12.dp.toPx())
+            val brush = if (colors.size >= 2) {
+                Brush.sweepGradient(colors = colors, center = center)
+            } else {
+                SolidColor(colors.firstOrNull() ?: Color.White)
+            }
+            // Track
+            drawCircle(
+                brush = brush,
+                radius = baseRadius,
+                center = center,
+                alpha = trackAlpha,
+                style = Stroke(width = strokeWidth)
+            )
+            // Progress
+            if (progress > 0.01f) {
+                drawArc(
+                    brush = brush,
+                    startAngle = -90f,
+                    sweepAngle = 360f * progress.coerceIn(0f, 1f),
+                    useCenter = false,
+                    topLeft = Offset(center.x - baseRadius, center.y - baseRadius),
+                    size = androidx.compose.ui.geometry.Size(baseRadius * 2, baseRadius * 2),
+                    alpha = 0.9f,
+                    style = Stroke(width = strokeWidth * 1.2f, cap = StrokeCap.Round)
+                )
+            }
+        }
+        return
+    }
+
     val infiniteTransition = rememberInfiniteTransition(label = "fluid_rings")
     
     val rotationState = infiniteTransition.animateFloat(

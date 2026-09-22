@@ -72,7 +72,8 @@ fun WavyMusicSlider(
         label = "ThumbInteractionAnim"
     )
 
-    val shouldShowWave = isWaveEligible && isPlaying && !isInteracting
+    val isBatterySaving = com.ballade.hwaran.ui.theme.LocalBatterySaving.current
+    val shouldShowWave = isWaveEligible && isPlaying && !isInteracting && !isBatterySaving
 
     val animatedWaveAmplitude by animateDpAsState(
         targetValue = if (shouldShowWave) waveAmplitudeWhenPlaying else 0.dp,

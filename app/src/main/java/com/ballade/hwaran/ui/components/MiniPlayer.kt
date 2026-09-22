@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.ballade.hwaran.ui.viewmodels.MusicViewModel
+import com.ballade.hwaran.ui.theme.LocalBatterySaving
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.graphics.BitmapFactory
@@ -243,16 +244,22 @@ fun MiniPlayer(
                                     modifier = Modifier.size(20.dp)
                                 )
                                 if (isPlaying) {
-                                    val infiniteTransition = rememberInfiniteTransition(label = "pulse_dot")
-                                    val dotAlpha by infiniteTransition.animateFloat(
-                                        initialValue = 0.35f,
-                                        targetValue = 1f,
-                                        animationSpec = infiniteRepeatable(
-                                            animation = tween(800, easing = FastOutSlowInEasing),
-                                            repeatMode = RepeatMode.Reverse
-                                        ),
-                                        label = "dot_alpha"
-                                    )
+                                    val isBatterySaving = LocalBatterySaving.current
+                                    val dotAlpha = if (isBatterySaving) {
+                                        0.85f
+                                    } else {
+                                        val infiniteTransition = rememberInfiniteTransition(label = "pulse_dot")
+                                        val animatedAlpha by infiniteTransition.animateFloat(
+                                            initialValue = 0.35f,
+                                            targetValue = 1f,
+                                            animationSpec = infiniteRepeatable(
+                                                animation = tween(800, easing = FastOutSlowInEasing),
+                                                repeatMode = RepeatMode.Reverse
+                                            ),
+                                            label = "dot_alpha"
+                                        )
+                                        animatedAlpha
+                                    }
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Box(
                                         modifier = Modifier
@@ -314,17 +321,20 @@ fun MiniPlayer(
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 // Spinning vinyl album art with progress ring
-                                val infiniteTransition = rememberInfiniteTransition(label = "vinyl_spin")
-                                val rotation by infiniteTransition.animateFloat(
-                                    initialValue = 0f,
-                                    targetValue = 360f,
-                                    animationSpec = infiniteRepeatable(
-                                        animation = tween(12000, easing = LinearEasing),
-                                        repeatMode = RepeatMode.Restart
-                                    ),
-                                    label = "vinyl_angle"
-                                )
-                                val currentRotation = if (isPlaying) rotation else 0f
+                                val isBatterySaving = LocalBatterySaving.current
+                                val currentRotation = if (isPlaying && !isBatterySaving) {
+                                    val infiniteTransition = rememberInfiniteTransition(label = "vinyl_spin")
+                                    val rotation by infiniteTransition.animateFloat(
+                                        initialValue = 0f,
+                                        targetValue = 360f,
+                                        animationSpec = infiniteRepeatable(
+                                            animation = tween(12000, easing = LinearEasing),
+                                            repeatMode = RepeatMode.Restart
+                                        ),
+                                        label = "vinyl_angle"
+                                    )
+                                    rotation
+                                } else 0f
 
                                 Box(
                                     modifier = Modifier

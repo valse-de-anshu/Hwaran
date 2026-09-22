@@ -17,25 +17,33 @@ fun AnimatedEqualizer(
     color: Color = Color.White,
     barCount: Int = 3
 ) {
+    val isBatterySaving = com.ballade.hwaran.ui.theme.LocalBatterySaving.current
+    val staticHeights = remember { listOf(0.4f, 0.85f, 0.55f, 0.75f, 0.45f) }
+
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.Bottom
     ) {
         repeat(barCount) { i ->
-            val infiniteTransition = rememberInfiniteTransition(label = "equalizer")
-            val heightScale by infiniteTransition.animateFloat(
-                initialValue = 0.2f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(
-                        durationMillis = 400 + (i * 150),
-                        easing = FastOutSlowInEasing
+            val heightScale = if (isBatterySaving) {
+                staticHeights[i % staticHeights.size]
+            } else {
+                val infiniteTransition = rememberInfiniteTransition(label = "equalizer_$i")
+                val animatedHeight by infiniteTransition.animateFloat(
+                    initialValue = 0.2f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(
+                            durationMillis = 400 + (i * 150),
+                            easing = FastOutSlowInEasing
+                        ),
+                        repeatMode = RepeatMode.Reverse
                     ),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "barHeight"
-            )
+                    label = "barHeight"
+                )
+                animatedHeight
+            }
 
             Box(
                 modifier = Modifier
