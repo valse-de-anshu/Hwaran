@@ -138,41 +138,66 @@ fun ZineScraperScreen(
         onNavigateBack()
     }
 
-    // Auto-discover server or test saved IP on launch
-    LaunchedEffect(Unit) {
+    // 1. Continuous Heartbeat Loop & Background Discovery
+    LaunchedEffect(serverIp, serverPort) {
+        // Immediate initial check
         if (serverIp.isNotBlank()) {
-            val alive = ZineServerClient.pingServer(serverIp, serverPort)
-            if (alive) {
+            val alive = ZineServerClient.pingServer(serverIp, serverPort, timeoutMs = 1000)
+            isServerConnected = alive
+        }
+
+        if (!isServerConnected) {
+            isSearchingServer = true
+            val found = ZineServerClient.discoverServer(context, timeoutMs = 1500)
+            isSearchingServer = false
+            if (found != null) {
+                serverIp = found.host
+                serverPort = found.port
                 isServerConnected = true
-                return@LaunchedEffect
+                prefs.edit().putString("server_ip", serverIp).putInt("server_port", serverPort).apply()
+            } else if (serverIp.isNotBlank()) {
+                isServerConnected = ZineServerClient.pingServer(serverIp, serverPort, timeoutMs = 1000)
+            } else {
+                isServerConnected = false
             }
         }
 
-        isSearchingServer = true
-        val found = ZineServerClient.discoverServer(context, timeoutMs = 2000)
-        isSearchingServer = false
-
-        if (found != null) {
-            serverIp = found.host
-            serverPort = found.port
-            isServerConnected = true
-            prefs.edit().putString("server_ip", serverIp).putInt("server_port", serverPort).apply()
-        } else if (serverIp.isNotBlank()) {
-            isServerConnected = ZineServerClient.pingServer(serverIp, serverPort)
-        } else {
-            isServerConnected = false
+        // Active heartbeat polling every 2 seconds: immediately detects when server shuts off or restarts
+        while (true) {
+            delay(2000)
+            if (serverIp.isNotBlank()) {
+                val alive = ZineServerClient.pingServer(serverIp, serverPort, timeoutMs = 1200)
+                if (isServerConnected != alive) {
+                    isServerConnected = alive
+                }
+                // If disconnected, try a quick background discovery in case server changed IP
+                if (!alive) {
+                    val quickFound = ZineServerClient.discoverServer(context, timeoutMs = 600)
+                    if (quickFound != null) {
+                        serverIp = quickFound.host
+                        serverPort = quickFound.port
+                        isServerConnected = true
+                        prefs.edit().putString("server_ip", serverIp).putInt("server_port", serverPort).apply()
+                    }
+                }
+            } else {
+                isServerConnected = false
+            }
         }
     }
 
-    // Task polling loop
-    LaunchedEffect(activeTask?.taskId, isServerConnected) {
+    // 2. Active Task polling loop with connection loss detection
+    LaunchedEffect(activeTask?.taskId) {
         val task = activeTask ?: return@LaunchedEffect
         if (task.status in listOf("completed", "failed")) return@LaunchedEffect
 
+        var consecutiveFailures = 0
         while (true) {
             delay(1200)
             val res = ZineServerClient.getTaskStatus(serverIp, serverPort, task.taskId)
             res.onSuccess { updated ->
+                consecutiveFailures = 0
+                isServerConnected = true
                 activeTask = updated
                 if (updated.status == "completed" &&
                     (updated.message.contains("direct download", ignoreCase = true) || selectedTransferMethod == "direct")
@@ -208,6 +233,18 @@ fun ZineScraperScreen(
                                 errorMessage = "Stream failed: ${err.message}"
                             }
                         }
+                    }
+                }
+            }.onFailure {
+                consecutiveFailures++
+                if (consecutiveFailures >= 2) {
+                    isServerConnected = false
+                    if (activeTask?.status !in listOf("completed", "failed")) {
+                        activeTask = activeTask?.copy(
+                            status = "failed",
+                            message = "Server stopped responding",
+                            error = "Companion server connection lost"
+                        )
                     }
                 }
             }
@@ -294,10 +331,10 @@ fun ZineScraperScreen(
                     ) {}
 
                     Text(
-                        text = "ZINE BRIDGE",
+                        text = if (isServerConnected) "ZINE BRIDGE" else "BRIDGE OFFLINE",
                         fontSize = 14.5.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White.copy(alpha = 0.90f),
+                        color = if (isServerConnected) Color.White.copy(alpha = 0.90f) else SoftCoral,
                         letterSpacing = 1.6.sp
                     )
                 }
@@ -319,7 +356,7 @@ fun ZineScraperScreen(
                             Icon(
                                 imageVector = if (isServerConnected) Icons.Rounded.Dns else Icons.Rounded.Storage,
                                 contentDescription = "Server Network",
-                                tint = if (isServerConnected) SoftEmerald else AccentTitanium,
+                                tint = if (isServerConnected) SoftEmerald else SoftCoral,
                                 modifier = Modifier.size(19.dp)
                             )
                         }
@@ -689,8 +726,8 @@ fun ZineScraperScreen(
             Button(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    if (!isServerConnected && serverIp.isBlank()) {
-                        Toast.makeText(context, "Please configure server endpoint first", Toast.LENGTH_SHORT).show()
+                    if (!isServerConnected) {
+                        Toast.makeText(context, "Companion server offline. Run 'zine --server' on your PC", Toast.LENGTH_SHORT).show()
                         showServerDialog = true
                         return@Button
                     }
@@ -731,9 +768,9 @@ fun ZineScraperScreen(
                         }
                     }
                 },
-                enabled = !isSubmitting && urlInput.isNotBlank(),
+                enabled = !isSubmitting && (urlInput.isNotBlank() || !isServerConnected),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AccentTitanium,
+                    containerColor = if (isServerConnected) AccentTitanium else SoftCoral.copy(alpha = 0.88f),
                     disabledContainerColor = Color.White.copy(alpha = 0.08f)
                 ),
                 shape = RoundedCornerShape(26.dp),
@@ -750,6 +787,20 @@ fun ZineScraperScreen(
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = "Transmitting Signal...",
+                        color = DarkOnyxBackground,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                } else if (!isServerConnected) {
+                    Icon(
+                        imageVector = Icons.Rounded.Storage,
+                        contentDescription = null,
+                        tint = DarkOnyxBackground,
+                        modifier = Modifier.size(19.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Server Offline (Tap to Configure)",
                         color = DarkOnyxBackground,
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold
