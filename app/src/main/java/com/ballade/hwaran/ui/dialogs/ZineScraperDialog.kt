@@ -68,7 +68,7 @@ fun ZineScraperDialog(
         }
         // Run LAN discovery
         isSearchingServer = true
-        val found = ZineServerClient.discoverServer(timeoutMs = 2000)
+        val found = ZineServerClient.discoverServer(context, timeoutMs = 2000)
         isSearchingServer = false
         if (found != null) {
             serverIp = found.host
@@ -77,6 +77,9 @@ fun ZineScraperDialog(
             prefs.edit().putString("server_ip", serverIp).putInt("server_port", serverPort).apply()
         } else if (serverIp.isNotBlank()) {
             isServerConnected = ZineServerClient.pingServer(serverIp, serverPort)
+        }
+        if (!isServerConnected) {
+            showManualIp = true
         }
     }
 

@@ -3,6 +3,9 @@ package com.ballade.hwaran.core.network
 import android.content.Context
 import android.os.Environment
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.*
@@ -29,12 +32,20 @@ data class ScrapeTaskInfo(
 object ZineServerClient {
 
     /**
-     * Listens for the Zine Scraper Server's UDP beacon on LAN for up to [timeoutMs].
+     * Listens for the Zine Scraper Server's UDP beacon on LAN, or probes the local subnet if beacon is blocked.
      */
-    suspend fun discoverServer(timeoutMs: Int = 2500): ZineServerInfo? = withContext(Dispatchers.IO) {
+    suspend fun discoverServer(context: Context, timeoutMs: Int = 1500): ZineServerInfo? = withContext(Dispatchers.IO) {
+        val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+        val multicastLock = wifiManager?.createMulticastLock("zine_discovery")?.apply {
+            setReferenceCounted(false)
+            acquire()
+        }
+
         var socket: DatagramSocket? = null
         try {
-            socket = DatagramSocket(53318).apply {
+            socket = DatagramSocket(null).apply {
+                reuseAddress = true
+                bind(InetSocketAddress(53318))
                 soTimeout = timeoutMs
                 broadcast = true
             }
@@ -50,22 +61,63 @@ object ZineServerClient {
                 return@withContext ZineServerInfo(host, port, version)
             }
         } catch (e: Exception) {
-            // Timeout or port in use
+            // UDP broadcast blocked by router or timed out -> try fast subnet probe
         } finally {
             socket?.close()
+            try { multicastLock?.release() } catch (e: Exception) {}
         }
+
+        // Fast concurrent subnet probe fallback
+        val subnet = getLocalSubnetPrefix()
+        if (subnet != null) {
+            val found = coroutineScope {
+                val deferreds = (1..254).map { hostNum ->
+                    async {
+                        val ip = "$subnet.$hostNum"
+                        if (pingServer(ip, 53318, timeoutMs = 350)) {
+                            ZineServerInfo(ip, 53318)
+                        } else null
+                    }
+                }
+                deferreds.awaitAll().firstOrNull { it != null }
+            }
+            if (found != null) return@withContext found
+        }
+
         null
+    }
+
+    private fun getLocalSubnetPrefix(): String? {
+        try {
+            val interfaces = NetworkInterface.getNetworkInterfaces()
+            while (interfaces.hasMoreElements()) {
+                val iface = interfaces.nextElement()
+                if (iface.isLoopback || !iface.isUp) continue
+                val addresses = iface.inetAddresses
+                while (addresses.hasMoreElements()) {
+                    val addr = addresses.nextElement()
+                    if (addr is Inet4Address && !addr.isLoopbackAddress) {
+                        val ip = addr.hostAddress ?: continue
+                        val parts = ip.split(".")
+                        if (parts.size == 4) {
+                            return "${parts[0]}.${parts[1]}.${parts[2]}"
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {}
+        return null
     }
 
     /**
      * Pings a server at host:port to verify connectivity.
      */
-    suspend fun pingServer(host: String, port: Int = 53318): Boolean = withContext(Dispatchers.IO) {
+    suspend fun pingServer(host: String, port: Int = 53318, timeoutMs: Int = 1500): Boolean = withContext(Dispatchers.IO) {
         try {
             val url = URL("http://$host:$port/api/ping")
             val conn = (url.openConnection() as HttpURLConnection).apply {
-                connectTimeout = 1500
-                readTimeout = 1500
+                connectTimeout = timeoutMs
+                readTimeout = timeoutMs
                 requestMethod = "GET"
             }
             conn.responseCode == 200
