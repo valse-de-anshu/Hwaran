@@ -470,14 +470,14 @@ private fun LibraryMaterialCard(
                             .align(Alignment.TopEnd)
                             .padding(6.dp)
                             .size(20.dp)
-                            .background(Color(0xFF0C1322).copy(alpha = 0.85f), CircleShape)
-                            .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.45f), CircleShape),
+                            .background(Color.Black.copy(alpha = 0.75f), CircleShape)
+                            .border(BorderStroke(0.75.dp, Color.White.copy(alpha = 0.22f)), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.DriveFileMove,
                             contentDescription = "Stored in Local Vault",
-                            tint = Color(0xFF38BDF8),
+                            tint = Color(0xFFD4D8E0),
                             modifier = Modifier.size(11.dp)
                         )
                     }

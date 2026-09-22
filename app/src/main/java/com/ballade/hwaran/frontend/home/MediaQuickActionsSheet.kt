@@ -448,16 +448,16 @@ fun MediaQuickActionsSheet(
             icon = {
                 Surface(
                     shape = CircleShape,
-                    color = Color(0xFF0F2432),
-                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f)),
-                    modifier = Modifier.size(48.dp)
+                    color = Color.White.copy(alpha = 0.06f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)),
+                    modifier = Modifier.size(52.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.DriveFileMove,
                             contentDescription = null,
-                            tint = Color(0xFF38BDF8),
-                            modifier = Modifier.size(26.dp)
+                            tint = Color(0xFFD4D8E0),
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
@@ -474,64 +474,64 @@ fun MediaQuickActionsSheet(
             },
             text = {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         text = "You are about to move \"${manga.title}\" into Hwaran's protected local vault.",
-                        color = Color.White.copy(alpha = 0.9f),
+                        color = Color.White.copy(alpha = 0.85f),
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Medium
                     )
 
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color.White.copy(alpha = 0.05f),
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color.White.copy(alpha = 0.04f),
                         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Icon(
                                     Icons.Rounded.Security,
                                     contentDescription = null,
-                                    tint = Color(0xFF38BDF8),
+                                    tint = Color(0xFFD4D8E0).copy(alpha = 0.85f),
                                     modifier = Modifier.size(16.dp).padding(top = 2.dp)
                                 )
                                 Text(
-                                    text = "Hidden from other apps: Files are moved into Hwaran's private vault (.nomedia protected). Other gallery and file manager apps will no longer see or scan them.",
-                                    color = Color.White.copy(alpha = 0.75f),
+                                    text = "Hidden from other apps: Files are moved into Hwaran's private vault (.nomedia protected). Gallery and file manager apps will no longer scan or display them.",
+                                    color = Color.White.copy(alpha = 0.70f),
                                     fontSize = 12.sp,
                                     lineHeight = 16.sp
                                 )
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Icon(
                                     Icons.Rounded.PlayCircle,
                                     contentDescription = null,
-                                    tint = Color(0xFF4ADE80),
+                                    tint = Color(0xFFD4D8E0).copy(alpha = 0.85f),
                                     modifier = Modifier.size(16.dp).padding(top = 2.dp)
                                 )
                                 Text(
                                     text = "Fully playable in Hwaran: All your reading progress, bookmarks, chapters, and history stay completely intact.",
-                                    color = Color.White.copy(alpha = 0.75f),
+                                    color = Color.White.copy(alpha = 0.70f),
                                     fontSize = 12.sp,
                                     lineHeight = 16.sp
                                 )
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Icon(
                                     Icons.Rounded.Refresh,
                                     contentDescription = null,
-                                    tint = Color(0xFFA78BFA),
+                                    tint = Color(0xFFD4D8E0).copy(alpha = 0.85f),
                                     modifier = Modifier.size(16.dp).padding(top = 2.dp)
                                 )
                                 Text(
                                     text = "Safe background transfer: A background service moves the files safely so you can continue using the app without interruptions.",
-                                    color = Color.White.copy(alpha = 0.75f),
+                                    color = Color.White.copy(alpha = 0.70f),
                                     fontSize = 12.sp,
                                     lineHeight = 16.sp
                                 )
@@ -547,22 +547,25 @@ fun MediaQuickActionsSheet(
                         onShiftToLocal()
                         onDismiss()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
-                    shape = RoundedCornerShape(10.dp)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFD4D8E0),
+                        contentColor = Color(0xFF090A0F)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Shift to Vault", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Shift to Vault", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             },
             dismissButton = {
                 TextButton(
                     onClick = { showVaultConfirmDialog = false },
-                    shape = RoundedCornerShape(10.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+                    Text("Cancel", color = Color.White.copy(alpha = 0.6f), fontWeight = FontWeight.Medium, fontSize = 13.sp)
                 }
             },
-            containerColor = Color(0xFF1B1A24),
-            shape = RoundedCornerShape(20.dp)
+            containerColor = Color(0xFF14131C),
+            shape = RoundedCornerShape(24.dp)
         )
     }
 }
