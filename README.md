@@ -3,8 +3,7 @@
 <p align="center">
   <img src="Preview/08_more_than_media.png" alt="Hwaran Hero Banner" width="100%" />
 </p>
-
-# 🌸 Hwaran (화란)
+<img src="Preview/hwaran.png" alt="Hwaran Image" width="100%" />
 ### *The Ultimate Private Offline Media Vault & Experience Engine for Android*
 
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF.svg?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
@@ -250,19 +249,6 @@ Explore in-depth documentation inside the [`docs/`](docs/) directory:
 
 ---
 
-## 🛠️ Companion Tools
-
-### 🌐 [Zine Scraper (CLI)](https://github.com/valse-de-anshu/zine-scraper)
-
-Need an automated tool to download, scrape, and organize your media archive?
-
-Check out **[Zine Scraper](https://github.com/valse-de-anshu/zine-scraper)** — a powerful companion CLI scraper built specifically for Hwaran. It is **100% compatible** with Hwaran's media engine:
-- Automatically downloads and structures manga, webtoons, light novels, music, and anime series.
-- Generates standard `.zine/*.json` and root metadata files with cover artwork matching rules.
-- Prepares structured folder hierarchies ready for instant 1-tap import into Hwaran.
-
----
-
 ## 🤝 Contributing
 
 Contributions are welcome! If you want to fix a bug, add a feature, or improve documentation:
@@ -284,6 +270,45 @@ Hwaran is open-source software licensed under the **[Creative Commons Attributio
 
 All media files and documents consumed within Hwaran remain the sole property of their respective owners.
 
+---
+
 <div align="center">
-  <sub>Crafted with passion for offline media enthusiasts.</sub>
+
+## 🔗 Soulmate Project
+
+<a href="https://github.com/valse-de-anshu/zine-scraper">
+  <img src="Preview/zine_banner.png" alt="Zine Scraper Banner" width="100%" />
+</a>
+
+<a href="https://github.com/valse-de-anshu/zine-scraper">
+  <img src="Preview/zine_logo_banner.png" alt="Zine Scraper Logo" width="100%" />
+</a>
+
+### [Zine Scraper](https://github.com/valse-de-anshu/zine-scraper) — *The Engine That Feeds Hwaran*
+
+Hwaran is the **experience**. Zine Scraper is the **supply chain**.
+
+Together they form a complete offline media pipeline — scrape, organize, and consume your entire media archive without ever going online twice.
+
+| What Zine Scraper Does | What Hwaran Does |
+|:---|:---|
+| 🌐 Scrapes 48+ platforms (manga, anime, music, novels, video) | 📱 Reads, watches, and plays everything offline |
+| 📦 Generates `.zine/*.json` metadata + cover art | 🏷️ Imports metadata with 1-tap SAF import |
+| 📂 Structures folders for instant Hwaran import | 🔒 Vaults content behind biometric/PIN protection |
+| 🎵 Downloads lossless FLAC + synced `.lrc` lyrics | 🎶 Plays with 8 reactive Canvas shaders + lyrics sync |
+| 🤖 AI TTS audiobooks + AI subtitle generation | 📖 Renders books, PDFs, and novels with checkpoints |
+
+<br>
+
+<img src="Preview/zine_preview.png" alt="Zine Scraper Preview" width="60%" />
+
+<br>
+
+**One scrapes. One plays. Built for each other.**
+
+[![Zine Scraper](https://img.shields.io/badge/Zine%20Scraper-Companion%20CLI-orange?style=for-the-badge)](https://github.com/valse-de-anshu/zine-scraper)
+[![Hwaran](https://img.shields.io/badge/Hwaran-Android%20Media%20Vault-7F52FF?style=for-the-badge)](https://github.com/valse-de-anshu/hwaran)
+
+<sub>Crafted with passion for offline media enthusiasts.</sub>
+
 </div>
