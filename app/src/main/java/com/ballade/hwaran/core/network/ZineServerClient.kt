@@ -114,17 +114,51 @@ object ZineServerClient {
     /**
      * Pings a server at host:port to verify connectivity.
      */
-    suspend fun pingServer(host: String, port: Int = 53318, timeoutMs: Int = 1500): Boolean = withContext(Dispatchers.IO) {
+    suspend fun pingServer(host: String, port: Int = 53318, timeoutMs: Int = 3000): Boolean = withContext(Dispatchers.IO) {
         try {
             val url = URL("http://$host:$port/api/ping")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 connectTimeout = timeoutMs
                 readTimeout = timeoutMs
                 requestMethod = "GET"
+                setRequestProperty("Connection", "keep-alive")
             }
             conn.responseCode == 200
         } catch (e: Exception) {
             false
+        }
+    }
+
+    /**
+     * Retrieves active or recent tasks from the companion server.
+     */
+    suspend fun getActiveTasks(
+        serverHost: String,
+        serverPort: Int
+    ): Result<List<ScrapeTaskInfo>> = withContext(Dispatchers.IO) {
+        try {
+            val endpoint = URL("http://$serverHost:$serverPort/api/tasks")
+            val conn = (endpoint.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 5000
+                readTimeout = 8000
+                requestMethod = "GET"
+                setRequestProperty("Connection", "keep-alive")
+            }
+            if (conn.responseCode == 200) {
+                val text = conn.inputStream.bufferedReader().use { it.readText() }
+                val root = JSONObject(text)
+                val arr = root.optJSONArray("tasks") ?: JSONArray()
+                val list = mutableListOf<ScrapeTaskInfo>()
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    list.add(parseTaskJson(obj))
+                }
+                Result.success(list)
+            } else {
+                Result.failure(IOException("HTTP ${conn.responseCode}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
@@ -144,11 +178,12 @@ object ZineServerClient {
         try {
             val endpoint = URL("http://$serverHost:$serverPort/api/scrape")
             val conn = (endpoint.openConnection() as HttpURLConnection).apply {
-                connectTimeout = 5000
-                readTimeout = 10000
+                connectTimeout = 6000
+                readTimeout = 15000
                 requestMethod = "POST"
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                setRequestProperty("Connection", "keep-alive")
             }
 
             android.util.Log.i("HwaranZine", "Transmitting scrape signal: $mediaUrl ($mode, flags: $flags, limit: $limit) to $serverHost:$serverPort")
@@ -200,9 +235,10 @@ object ZineServerClient {
         try {
             val endpoint = URL("http://$serverHost:$serverPort/api/tasks/$taskId")
             val conn = (endpoint.openConnection() as HttpURLConnection).apply {
-                connectTimeout = 3000
-                readTimeout = 3000
+                connectTimeout = 5000
+                readTimeout = 8000
                 requestMethod = "GET"
+                setRequestProperty("Connection", "keep-alive")
             }
             if (conn.responseCode == 200) {
                 val text = conn.inputStream.bufferedReader().use { it.readText() }
@@ -230,9 +266,10 @@ object ZineServerClient {
         try {
             val endpoint = URL("http://$serverHost:$serverPort/api/download/$taskId")
             val conn = (endpoint.openConnection() as HttpURLConnection).apply {
-                connectTimeout = 10000
-                readTimeout = 120000
+                connectTimeout = 15000
+                readTimeout = 300000
                 requestMethod = "GET"
+                setRequestProperty("Connection", "keep-alive")
             }
 
             if (conn.responseCode != 200) {

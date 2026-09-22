@@ -142,12 +142,17 @@ fun ZineScraperScreen(
         onNavigateBack()
     }
 
-    // 1. Continuous Heartbeat Loop & Background Discovery
+    // 1. Initial Server Check & Automatic Active Task Recovery
     LaunchedEffect(serverIp, serverPort) {
-        // Immediate initial check
         if (serverIp.isNotBlank()) {
-            val alive = ZineServerClient.pingServer(serverIp, serverPort, timeoutMs = 1000)
+            val alive = ZineServerClient.pingServer(serverIp, serverPort, timeoutMs = 3000)
             isServerConnected = alive
+            if (alive && activeTask == null) {
+                // Auto-recover any ongoing or recent task on the companion server!
+                ZineServerClient.getActiveTasks(serverIp, serverPort).onSuccess { list ->
+                    list.firstOrNull { it.status !in listOf("failed") }?.let { activeTask = it }
+                }
+            }
         }
 
         if (!isServerConnected) {
@@ -159,39 +164,44 @@ fun ZineScraperScreen(
                 serverPort = found.port
                 isServerConnected = true
                 prefs.edit().putString("server_ip", serverIp).putInt("server_port", serverPort).apply()
+                // Auto-recover task on discovered server
+                ZineServerClient.getActiveTasks(serverIp, serverPort).onSuccess { list ->
+                    list.firstOrNull { it.status !in listOf("failed") }?.let { activeTask = it }
+                }
             } else if (serverIp.isNotBlank()) {
-                isServerConnected = ZineServerClient.pingServer(serverIp, serverPort, timeoutMs = 1000)
+                isServerConnected = ZineServerClient.pingServer(serverIp, serverPort, timeoutMs = 3000)
             } else {
                 isServerConnected = false
             }
         }
+    }
 
-        // Active heartbeat polling every 2.5 seconds: debounced to prevent false disconnects during heavy network traffic
+    // 2. Calm Idle Heartbeat Loop: Only runs when IDLE (never collides with active scrape/downloads)
+    LaunchedEffect(serverIp, serverPort, activeTask?.status) {
+        val isTaskActive = activeTask != null && activeTask?.status !in listOf("completed", "failed")
+        if (isTaskActive) return@LaunchedEffect // Active task poller manages connection during downloads
+
         var consecutivePingFails = 0
         while (true) {
-            delay(2500)
+            delay(10000) // Calm 10-second check, no connection flapping or Wi-Fi congestion
             if (serverIp.isNotBlank()) {
-                val alive = ZineServerClient.pingServer(serverIp, serverPort, timeoutMs = 2500)
+                val alive = ZineServerClient.pingServer(serverIp, serverPort, timeoutMs = 4000)
                 if (alive) {
                     consecutivePingFails = 0
                     if (!isServerConnected) {
                         isServerConnected = true
+                        // Auto-recover task if one was triggered externally
+                        if (activeTask == null) {
+                            ZineServerClient.getActiveTasks(serverIp, serverPort).onSuccess { list ->
+                                list.firstOrNull { it.status !in listOf("failed") }?.let { activeTask = it }
+                            }
+                        }
                     }
                 } else {
                     consecutivePingFails++
-                    if (consecutivePingFails >= 2 && isServerConnected) {
+                    // Require 4 consecutive failures (40 seconds of continuous silence) before declaring disconnected
+                    if (consecutivePingFails >= 4 && isServerConnected) {
                         isServerConnected = false
-                    }
-                }
-                // If disconnected for 2+ consecutive checks, attempt background discovery in case IP changed
-                if (!alive && consecutivePingFails >= 2) {
-                    val quickFound = ZineServerClient.discoverServer(context, timeoutMs = 800)
-                    if (quickFound != null) {
-                        serverIp = quickFound.host
-                        serverPort = quickFound.port
-                        isServerConnected = true
-                        consecutivePingFails = 0
-                        prefs.edit().putString("server_ip", serverIp).putInt("server_port", serverPort).apply()
                     }
                 }
             } else {
@@ -200,14 +210,14 @@ fun ZineScraperScreen(
         }
     }
 
-    // 2. Active Task polling loop with connection loss detection
+    // 3. Resilient Active Task Polling: NEVER aborts or drops download card on temporary network hiccups
     LaunchedEffect(activeTask?.taskId) {
         val task = activeTask ?: return@LaunchedEffect
         if (task.status in listOf("completed", "failed")) return@LaunchedEffect
 
         var consecutiveFailures = 0
         while (true) {
-            delay(1200)
+            delay(1500)
             val res = ZineServerClient.getTaskStatus(serverIp, serverPort, task.taskId)
             res.onSuccess { updated ->
                 consecutiveFailures = 0
@@ -268,16 +278,14 @@ fun ZineScraperScreen(
                 }
             }.onFailure {
                 consecutiveFailures++
-                if (consecutiveFailures >= 2) {
+                // DO NOT fail the task or break the loop!
+                // During heavy download/scrape, Wi-Fi latency can briefly spike.
+                // We keep activeTask alive and retry indefinitely!
+                if (consecutiveFailures >= 6) {
                     isServerConnected = false
-                    if (activeTask?.status !in listOf("completed", "failed")) {
-                        activeTask = activeTask?.copy(
-                            status = "failed",
-                            message = "Server stopped responding",
-                            error = "Companion server connection lost"
-                        )
-                    }
                 }
+                // Back off slightly when network is unresponsive
+                delay(1000)
             }
 
             if (activeTask?.status in listOf("completed", "failed")) break
