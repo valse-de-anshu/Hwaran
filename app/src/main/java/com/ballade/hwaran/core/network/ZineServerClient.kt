@@ -163,6 +163,31 @@ object ZineServerClient {
     }
 
     /**
+     * Clears all scrape tasks on the companion server.
+     */
+    suspend fun clearAllTasks(
+        serverHost: String,
+        serverPort: Int
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val endpoint = URL("http://$serverHost:$serverPort/api/tasks/clear")
+            val conn = (endpoint.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 4000
+                readTimeout = 4000
+                requestMethod = "POST"
+                setRequestProperty("Connection", "keep-alive")
+            }
+            if (conn.responseCode in 200..299) {
+                Result.success(true)
+            } else {
+                Result.failure(IOException("HTTP ${conn.responseCode}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Sends a scrape job request to the Zine Scraper Server.
      */
     suspend fun submitScrape(
