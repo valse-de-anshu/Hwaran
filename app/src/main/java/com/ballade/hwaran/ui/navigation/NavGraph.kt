@@ -294,12 +294,12 @@ fun AppNavGraph(
                 ZineScraperScreen(
                     onNavigateBack = { navController.popBackStackSafely() },
                     onImportFolder = { folderPath ->
-                        val dir = java.io.File(folderPath)
-                        if (dir.exists()) {
-                            val uri = android.net.Uri.fromFile(dir)
+                        val file = java.io.File(folderPath)
+                        if (file.exists()) {
+                            val uri = android.net.Uri.fromFile(file)
                             libraryViewModel.importFolder(
                                 uri = uri,
-                                isFile = false,
+                                isFile = file.isFile,
                                 storageModeOverride = 0
                             )
                         }

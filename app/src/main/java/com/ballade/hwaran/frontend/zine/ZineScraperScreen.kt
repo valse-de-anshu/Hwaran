@@ -88,7 +88,7 @@ fun ZineScraperScreen(
     var sequentialLimit by remember { mutableIntStateOf(0) }
     var flagMetaOnly by remember { mutableStateOf(false) } // --meta
     var isConfigExpanded by remember { mutableStateOf(false) }
-    var selectedTransferMethod by remember { mutableStateOf("hybrid") }
+    var selectedTransferMethod by remember { mutableStateOf("kdeconnect") }
 
     // Post-download processing choice: "import" (save to library), "open" (open immediately), "downloads" (raw storage only)
     var postDownloadAction by remember { mutableStateOf("import") }
@@ -253,6 +253,35 @@ fun ZineScraperScreen(
                     coroutineScope.launch {
                         delay(1200)
                         bringHwaranToFront(context)
+                    }
+                }
+
+                // Handle KDE Connect delivery completion (file received in Download/)
+                if (updated.status == "completed" && updated.message.contains("KDE Connect", ignoreCase = true)) {
+                    if (downloadedLocalDir == null) {
+                        val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                        val recentZip = downloadsDir?.listFiles()?.filter {
+                            it.isFile && it.name.endsWith(".zip", ignoreCase = true) &&
+                            (it.lastModified() > System.currentTimeMillis() - 180_000)
+                        }?.maxByOrNull { it.lastModified() }
+
+                        val targetFile = recentZip ?: downloadsDir
+                        if (targetFile != null) {
+                            downloadedLocalDir = targetFile
+                            when (postDownloadAction) {
+                                "import" -> {
+                                    onImportFolder?.invoke(targetFile.absolutePath)
+                                    Toast.makeText(context, "KDE Connect file added to Library!", Toast.LENGTH_SHORT).show()
+                                }
+                                "open" -> {
+                                    onImportFolder?.invoke(targetFile.absolutePath)
+                                    Toast.makeText(context, "Ready! Opening media...", Toast.LENGTH_SHORT).show()
+                                }
+                                else -> {
+                                    Toast.makeText(context, "Saved in Download/ via KDE Connect!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -739,9 +768,9 @@ fun ZineScraperScreen(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             val deliveryModes = listOf(
-                                Triple("direct", "Python Stream", Icons.Rounded.CloudDownload),
+                                Triple("kdeconnect", "KDE Connect", Icons.Rounded.Devices),
                                 Triple("localsend", "LocalSend", Icons.Rounded.Share),
-                                Triple("hybrid", "Auto (Hybrid)", Icons.Rounded.AutoMode)
+                                Triple("direct", "Direct Stream", Icons.Rounded.CloudDownload)
                             )
                             deliveryModes.forEach { (method, label, icon) ->
                                 val isSelected = selectedTransferMethod == method
