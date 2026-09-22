@@ -378,18 +378,15 @@ fun ZineScraperScreen(
             .fillMaxSize()
             .background(DarkOnyxBackground)
     ) {
-        // Soft ambient aura in background
+        // Subtle top-to-transparent aura — full screen height, no seam
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(440.dp)
+                .fillMaxSize()
                 .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            Color(0xFF1B2130).copy(alpha = 0.40f),
-                            Color.Transparent
-                        ),
-                        radius = 700f
+                    Brush.verticalGradient(
+                        0.0f to Color(0xFF1A2035).copy(alpha = 0.18f),
+                        0.45f to Color(0xFF1A2035).copy(alpha = 0.06f),
+                        1.0f to Color.Transparent
                     )
                 )
         )
