@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -29,10 +30,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -91,6 +94,7 @@ fun ZineScraperScreen(
     var postDownloadAction by remember { mutableStateOf("import") }
 
     var activeTask by remember { mutableStateOf<ScrapeTaskInfo?>(null) }
+    var tasksList by remember { mutableStateOf<List<ScrapeTaskInfo>>(emptyList()) }
     var isSubmitting by remember { mutableStateOf(false) }
     var isDirectDownloading by remember { mutableStateOf(false) }
     var directDownloadProgress by remember { mutableFloatStateOf(0f) }
@@ -147,10 +151,13 @@ fun ZineScraperScreen(
         if (serverIp.isNotBlank()) {
             val alive = ZineServerClient.pingServer(serverIp, serverPort, timeoutMs = 3000)
             isServerConnected = alive
-            if (alive && activeTask == null) {
+            if (alive) {
                 // Auto-recover any ongoing or recent task on the companion server!
                 ZineServerClient.getActiveTasks(serverIp, serverPort).onSuccess { list ->
-                    list.firstOrNull { it.status !in listOf("failed") }?.let { activeTask = it }
+                    tasksList = list
+                    if (activeTask == null) {
+                        list.firstOrNull { it.status !in listOf("failed") }?.let { activeTask = it }
+                    }
                 }
             }
         }
@@ -166,7 +173,10 @@ fun ZineScraperScreen(
                 prefs.edit().putString("server_ip", serverIp).putInt("server_port", serverPort).apply()
                 // Auto-recover task on discovered server
                 ZineServerClient.getActiveTasks(serverIp, serverPort).onSuccess { list ->
-                    list.firstOrNull { it.status !in listOf("failed") }?.let { activeTask = it }
+                    tasksList = list
+                    if (activeTask == null) {
+                        list.firstOrNull { it.status !in listOf("failed") }?.let { activeTask = it }
+                    }
                 }
             } else if (serverIp.isNotBlank()) {
                 isServerConnected = ZineServerClient.pingServer(serverIp, serverPort, timeoutMs = 3000)
@@ -191,8 +201,9 @@ fun ZineScraperScreen(
                     if (!isServerConnected) {
                         isServerConnected = true
                         // Auto-recover task if one was triggered externally
-                        if (activeTask == null) {
-                            ZineServerClient.getActiveTasks(serverIp, serverPort).onSuccess { list ->
+                        ZineServerClient.getActiveTasks(serverIp, serverPort).onSuccess { list ->
+                            tasksList = list
+                            if (activeTask == null) {
                                 list.firstOrNull { it.status !in listOf("failed") }?.let { activeTask = it }
                             }
                         }
@@ -223,6 +234,11 @@ fun ZineScraperScreen(
                 consecutiveFailures = 0
                 isServerConnected = true
                 activeTask = updated
+                tasksList = if (tasksList.any { it.taskId == updated.taskId }) {
+                    tasksList.map { if (it.taskId == updated.taskId) updated else it }
+                } else {
+                    listOf(updated) + tasksList
+                }
 
                 // Automatically launch LocalSend on phone when server initiates LocalSend delivery
                 val isLocalSendTransfer = updated.status == "transferring" || updated.message.contains("LocalSend", ignoreCase = true)
@@ -313,118 +329,20 @@ fun ZineScraperScreen(
                 )
         )
 
+        // Scrollable Content (Passes underneath the pinned top bar and fading blur)
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .displayCutoutPadding()
-                .padding(top = 18.dp)
+                .padding(top = 68.dp)
                 .navigationBarsPadding()
-                .padding(bottom = 24.dp)
+                .padding(bottom = 32.dp)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 1. Safe Top Navigation Bar
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Back Button
-                Surface(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onNavigateBack()
-                    },
-                    shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.05f),
-                    border = BorderStroke(1.dp, SubtleBorder),
-                    modifier = Modifier.size(42.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
-                            tint = AccentTitanium,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                // Title & Connection Light
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = when {
-                            isServerConnected -> SoftEmerald
-                            isSearchingServer -> SoftAmber.copy(alpha = pulseAlpha)
-                            else -> SoftCoral
-                        },
-                        modifier = Modifier
-                            .size(7.dp)
-                            .scale(if (isSearchingServer || activeTask?.status in listOf("scraping", "analyzing")) pulseScale else 1f)
-                    ) {}
-
-                    Text(
-                        text = if (isServerConnected) "ZINE BRIDGE" else "BRIDGE OFFLINE",
-                        fontSize = 14.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isServerConnected) Color.White.copy(alpha = 0.90f) else SoftCoral,
-                        letterSpacing = 1.6.sp
-                    )
-                }
-
-                // Top Actions (Normal Server Icon & Vacuum Icon)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Normal Server Icon
-                    Surface(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            showServerDialog = true
-                        },
-                        shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.05f),
-                        border = BorderStroke(1.dp, SubtleBorder),
-                        modifier = Modifier.size(42.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = if (isServerConnected) Icons.Rounded.Dns else Icons.Rounded.Storage,
-                                contentDescription = "Server Network",
-                                tint = if (isServerConnected) SoftEmerald else SoftCoral,
-                                modifier = Modifier.size(19.dp)
-                            )
-                        }
-                    }
-
-                    // Vacuum Icon for CLI Pop up
-                    Surface(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            showSetupGuideDialog = true
-                        },
-                        shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.05f),
-                        border = BorderStroke(1.dp, SubtleBorder),
-                        modifier = Modifier.size(42.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.vacum),
-                                contentDescription = "Zine Scraper Tool",
-                                tint = AccentTitanium,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(34.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // 2. Artistic Centerpiece: Server Artifact
             Surface(
@@ -463,9 +381,9 @@ fun ZineScraperScreen(
                 lineHeight = 17.sp
             )
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(26.dp))
 
-            // 3. The Minimal Pill URL Input
+            // 3. The Minimal Pill URL Input with unrestricted horizontal sliding
             Surface(
                 shape = RoundedCornerShape(26.dp),
                 color = Color.White.copy(alpha = 0.04f),
@@ -475,7 +393,7 @@ fun ZineScraperScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 4.dp),
+                        .padding(horizontal = 16.dp, vertical = 13.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
@@ -487,35 +405,37 @@ fun ZineScraperScreen(
 
                     Spacer(modifier = Modifier.width(10.dp))
 
-                    OutlinedTextField(
+                    BasicTextField(
                         value = urlInput,
                         onValueChange = {
                             urlInput = it
                             errorMessage = null
                         },
-                        placeholder = {
-                            Text(
-                                text = "Paste manga, anime or video URL...",
-                                fontSize = 13.sp,
-                                color = Color.White.copy(alpha = 0.32f)
-                            )
-                        },
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color.Transparent,
-                            unfocusedBorderColor = Color.Transparent,
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent
+                        textStyle = TextStyle(
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Normal
                         ),
-                        modifier = Modifier.weight(1f)
+                        cursorBrush = SolidColor(Color.White),
+                        modifier = Modifier.weight(1f),
+                        decorationBox = { innerTextField ->
+                            if (urlInput.isEmpty()) {
+                                Text(
+                                    text = "Paste manga, anime or video URL...",
+                                    fontSize = 13.sp,
+                                    color = Color.White.copy(alpha = 0.32f),
+                                    maxLines = 1
+                                )
+                            }
+                            innerTextField()
+                        }
                     )
 
                     if (urlInput.isNotBlank()) {
                         IconButton(
                             onClick = { urlInput = "" },
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(24.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Clear,
@@ -525,6 +445,8 @@ fun ZineScraperScreen(
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.width(6.dp))
 
                     Surface(
                         onClick = {
@@ -539,15 +461,14 @@ fun ZineScraperScreen(
                         },
                         shape = RoundedCornerShape(14.dp),
                         color = Color.White.copy(alpha = 0.08f),
-                        border = BorderStroke(1.dp, SubtleBorder),
-                        modifier = Modifier.padding(start = 4.dp)
+                        border = BorderStroke(1.dp, SubtleBorder)
                     ) {
                         Text(
                             text = "Paste",
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = AccentTitanium,
-                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp)
+                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp)
                         )
                     }
                 }
@@ -653,7 +574,7 @@ fun ZineScraperScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        val hasCustomConfig = selectedScopeKey != "single" || flagMetaOnly
+                        val hasCustomConfig = selectedScopeKey != "single" || flagMetaOnly || selectedTransferMethod != "hybrid"
                         if (hasCustomConfig) {
                             Surface(
                                 shape = CircleShape,
@@ -677,7 +598,7 @@ fun ZineScraperScreen(
                 }
             }
 
-            // Expandable Configuration Section (Scope & Metadata Flag)
+            // Expandable Configuration Section (All Flags Together + Delivery Mode)
             AnimatedVisibility(
                 visible = isConfigExpanded,
                 enter = fadeIn() + expandVertically(),
@@ -689,8 +610,9 @@ fun ZineScraperScreen(
                         .padding(top = 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // Group 1: All Flags Together in One Unified Pill Container
                     Text(
-                        text = "DOWNLOAD SCOPE & FLAGS",
+                        text = "CLI FLAGS & SCOPE",
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White.copy(alpha = 0.45f),
@@ -699,7 +621,113 @@ fun ZineScraperScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Scope & Quantity Pills
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color.White.copy(alpha = 0.035f),
+                        border = BorderStroke(1.dp, SubtleBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(6.dp)) {
+                            // Row 1: Scope Flags
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                val scopes = listOf(
+                                    "single" to "Single (--0)",
+                                    "next_5" to "Next 5 (--5)",
+                                    "next_10" to "Next 10 (--10)",
+                                    "all" to "All (-a)"
+                                )
+
+                                scopes.forEach { (key, label) ->
+                                    val isSelected = selectedScopeKey == key
+                                    Surface(
+                                        onClick = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            selectedScopeKey = key
+                                            when (key) {
+                                                "single" -> {
+                                                    selectedMode = "quick_grab"
+                                                    sequentialLimit = 0
+                                                }
+                                                "next_5" -> {
+                                                    selectedMode = "vacuum"
+                                                    sequentialLimit = 5
+                                                }
+                                                "next_10" -> {
+                                                    selectedMode = "vacuum"
+                                                    sequentialLimit = 10
+                                                }
+                                                "all" -> {
+                                                    selectedMode = "vacuum"
+                                                    sequentialLimit = 0
+                                                }
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (isSelected) Color.White.copy(alpha = 0.12f) else Color.Transparent,
+                                        border = BorderStroke(1.dp, if (isSelected) ActiveBorder else Color.Transparent),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.padding(vertical = 9.dp, horizontal = 2.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                fontSize = 11.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.50f),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // Row 2: Metadata Flag unified in the exact same style
+                            Surface(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    flagMetaOnly = !flagMetaOnly
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (flagMetaOnly) SoftEmerald.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.04f),
+                                border = BorderStroke(1.dp, if (flagMetaOnly) SoftEmerald.copy(alpha = 0.5f) else Color.Transparent),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (flagMetaOnly) "📑 Metadata Only (--meta) • ACTIVE" else "📑 Metadata Only (--meta)",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = if (flagMetaOnly) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (flagMetaOnly) SoftEmerald else Color.White.copy(alpha = 0.50f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Group 2: Transfer Method (Server Side Python vs LocalSend)
+                    Text(
+                        text = "DELIVERY METHOD",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White.copy(alpha = 0.45f),
+                        letterSpacing = 1.2.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     Surface(
                         shape = RoundedCornerShape(18.dp),
                         color = Color.White.copy(alpha = 0.035f),
@@ -710,106 +738,44 @@ fun ZineScraperScreen(
                             modifier = Modifier.padding(4.dp),
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            val scopes = listOf(
-                                "single" to "Single (--0)",
-                                "next_5" to "Next 5 (--5)",
-                                "next_10" to "Next 10 (--10)",
-                                "all" to "All (-a)"
+                            val deliveryModes = listOf(
+                                Triple("direct", "Python Stream", Icons.Rounded.CloudDownload),
+                                Triple("localsend", "LocalSend", Icons.Rounded.Share),
+                                Triple("hybrid", "Auto (Hybrid)", Icons.Rounded.AutoMode)
                             )
-
-                            scopes.forEach { (key, label) ->
-                                val isSelected = selectedScopeKey == key
+                            deliveryModes.forEach { (method, label, icon) ->
+                                val isSelected = selectedTransferMethod == method
                                 Surface(
                                     onClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        selectedScopeKey = key
-                                        when (key) {
-                                            "single" -> {
-                                                selectedMode = "quick_grab"
-                                                sequentialLimit = 0
-                                            }
-                                            "next_5" -> {
-                                                selectedMode = "vacuum"
-                                                sequentialLimit = 5
-                                            }
-                                            "next_10" -> {
-                                                selectedMode = "vacuum"
-                                                sequentialLimit = 10
-                                            }
-                                            "all" -> {
-                                                selectedMode = "vacuum"
-                                                sequentialLimit = 0
-                                            }
-                                        }
+                                        selectedTransferMethod = method
                                     },
                                     shape = RoundedCornerShape(14.dp),
                                     color = if (isSelected) Color.White.copy(alpha = 0.12f) else Color.Transparent,
                                     border = BorderStroke(1.dp, if (isSelected) ActiveBorder else Color.Transparent),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Box(
-                                        modifier = Modifier.padding(vertical = 10.dp, horizontal = 2.dp),
-                                        contentAlignment = Alignment.Center
+                                    Row(
+                                        modifier = Modifier.padding(vertical = 9.dp, horizontal = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
                                     ) {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = null,
+                                            tint = if (isSelected) Color.White else Color.White.copy(alpha = 0.45f),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
                                         Text(
                                             text = label,
-                                            fontSize = 11.5.sp,
+                                            fontSize = 11.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                             color = if (isSelected) Color.White else Color.White.copy(alpha = 0.50f),
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
                                     }
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Metadata Only Flag Pill
-                    Surface(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            flagMetaOnly = !flagMetaOnly
-                        },
-                        shape = RoundedCornerShape(14.dp),
-                        color = if (flagMetaOnly) SoftEmerald.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.035f),
-                        border = BorderStroke(1.dp, if (flagMetaOnly) SoftEmerald.copy(alpha = 0.6f) else SubtleBorder),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(text = "📑", fontSize = 13.sp)
-                                Text(
-                                    text = "Metadata Only (--meta)",
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (flagMetaOnly) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (flagMetaOnly) SoftEmerald else Color.White.copy(alpha = 0.70f)
-                                )
-                            }
-
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (flagMetaOnly) SoftEmerald else Color.White.copy(alpha = 0.1f),
-                                modifier = Modifier.size(width = 34.dp, height = 18.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = if (flagMetaOnly) Alignment.CenterEnd else Alignment.CenterStart
-                                ) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = if (flagMetaOnly) Color.Black else Color.White.copy(alpha = 0.4f),
-                                        modifier = Modifier.padding(2.dp).size(14.dp)
-                                    ) {}
                                 }
                             }
                         }
@@ -869,6 +835,7 @@ fun ZineScraperScreen(
 
                         result.onSuccess { task ->
                             activeTask = task
+                            tasksList = listOf(task) + tasksList.filter { it.taskId != task.taskId }
                             Toast.makeText(context, "Signal sent to Zine Server!", Toast.LENGTH_SHORT).show()
                         }.onFailure { err ->
                             errorMessage = "Failed to dispatch: ${err.message}"
@@ -929,132 +896,324 @@ fun ZineScraperScreen(
                 }
             }
 
-            // 7. Live Ingestion Status Pill (Minimal Zen blinking ball, no progress bar)
-            activeTask?.let { task ->
-                val isCompleted = (task.status == "completed" && !isDirectDownloading)
-                val isFailed = (task.status == "failed")
-                val isAlmostDone = (!isCompleted && !isFailed && (
-                    isDirectDownloading ||
-                    task.status == "transferring" ||
-                    task.progress >= 0.70f ||
-                    task.message.contains("almost", ignoreCase = true) ||
-                    task.message.contains("direct download", ignoreCase = true) ||
-                    task.message.contains("Preparing transfer", ignoreCase = true)
-                ))
+            // 7. Tasks & Transfers Section (Showing all tasks + Clear All button)
+            val displayTasks = remember(tasksList, activeTask) {
+                val combined = mutableListOf<ScrapeTaskInfo>()
+                activeTask?.let { combined.add(it) }
+                tasksList.forEach { t ->
+                    if (combined.none { it.taskId == t.taskId }) {
+                        combined.add(t)
+                    }
+                }
+                combined
+            }
 
-                Spacer(modifier = Modifier.height(24.dp))
+            if (displayTasks.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(28.dp))
 
-                Surface(
-                    shape = RoundedCornerShape(22.dp),
-                    color = GlassSurface,
-                    border = BorderStroke(1.dp, SubtleBorder),
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    Text(
+                        text = "TASKS & TRANSFERS (${displayTasks.size})",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White.copy(alpha = 0.45f),
+                        letterSpacing = 1.2.sp
+                    )
+
+                    Surface(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            coroutineScope.launch {
+                                ZineServerClient.clearAllTasks(serverIp, serverPort)
+                                activeTask = null
+                                tasksList = emptyList()
+                                Toast.makeText(context, "All tasks cleared", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.05f),
+                        border = BorderStroke(1.dp, SubtleBorder)
                     ) {
                         Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.weight(1f)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            // Blinking Ball (Still when complete, fast pulse when almost done, normal pulse when downloading)
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.size(20.dp)
+                            Icon(
+                                imageVector = Icons.Rounded.DeleteSweep,
+                                contentDescription = "Clear All Tasks",
+                                tint = Color.White.copy(alpha = 0.6f),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = "Clear All",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    displayTasks.forEach { task ->
+                        val isTaskCompleted = (task.status == "completed" && !(task.taskId == activeTask?.taskId && isDirectDownloading))
+                        val isTaskFailed = (task.status == "failed")
+                        val isTaskAlmostDone = (!isTaskCompleted && !isTaskFailed && (
+                            (task.taskId == activeTask?.taskId && isDirectDownloading) ||
+                            task.status == "transferring" ||
+                            task.progress >= 0.70f ||
+                            task.message.contains("almost", ignoreCase = true) ||
+                            task.message.contains("direct download", ignoreCase = true) ||
+                            task.message.contains("Preparing transfer", ignoreCase = true)
+                        ))
+
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = GlassSurface,
+                            border = BorderStroke(1.dp, SubtleBorder),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 18.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                if (!isCompleted && !isFailed) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = (if (isAlmostDone) SoftEmerald else SoftAmber).copy(
-                                            alpha = (if (isAlmostDone) fastPulseAlpha else pulseAlpha) * 0.35f
-                                        ),
-                                        modifier = Modifier
-                                            .size(20.dp)
-                                            .scale(if (isAlmostDone) fastPulseScale else pulseScale)
-                                    ) {}
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    // Blinking Ball Indicator
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.size(20.dp)
+                                    ) {
+                                        if (!isTaskCompleted && !isTaskFailed) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = (if (isTaskAlmostDone) SoftEmerald else SoftAmber).copy(
+                                                    alpha = (if (isTaskAlmostDone) fastPulseAlpha else pulseAlpha) * 0.35f
+                                                ),
+                                                modifier = Modifier
+                                                    .size(20.dp)
+                                                    .scale(if (isTaskAlmostDone) fastPulseScale else pulseScale)
+                                            ) {}
+                                        }
+
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = when {
+                                                isTaskCompleted -> SoftEmerald
+                                                isTaskFailed -> SoftCoral
+                                                isTaskAlmostDone -> SoftEmerald
+                                                else -> SoftAmber
+                                            },
+                                            modifier = Modifier
+                                                .size(10.dp)
+                                                .scale(
+                                                    when {
+                                                        isTaskCompleted || isTaskFailed -> 1f
+                                                        isTaskAlmostDone -> fastPulseScale
+                                                        else -> pulseScale
+                                                    }
+                                                )
+                                                .alpha(
+                                                    when {
+                                                        isTaskCompleted || isTaskFailed -> 1f
+                                                        isTaskAlmostDone -> fastPulseAlpha
+                                                        else -> pulseAlpha
+                                                    }
+                                                )
+                                        ) {}
+                                    }
+
+                                    Column {
+                                        Text(
+                                            text = when {
+                                                isTaskCompleted -> "Task Complete"
+                                                isTaskFailed -> "Download Failed"
+                                                isTaskAlmostDone -> "Almost downloaded..."
+                                                else -> "Downloading..."
+                                            },
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = when {
+                                                isTaskCompleted -> SoftEmerald
+                                                isTaskFailed -> SoftCoral
+                                                isTaskAlmostDone -> SoftEmerald
+                                                else -> Color.White.copy(alpha = 0.95f)
+                                            }
+                                        )
+                                        Text(
+                                            text = task.mediaTitle.ifBlank {
+                                                if (task.taskId == activeTask?.taskId && isDirectDownloading) "Direct ZIP pull..."
+                                                else task.message.ifBlank { "Task #${task.taskId.take(8)}" }
+                                            },
+                                            fontSize = 11.sp,
+                                            color = Color.White.copy(alpha = 0.50f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
 
-                                Surface(
-                                    shape = CircleShape,
-                                    color = when {
-                                        isCompleted -> SoftEmerald
-                                        isFailed -> SoftCoral
-                                        isAlmostDone -> SoftEmerald
-                                        else -> SoftAmber
-                                    },
-                                    modifier = Modifier
-                                        .size(10.dp)
-                                        .scale(
-                                            when {
-                                                isCompleted || isFailed -> 1f
-                                                isAlmostDone -> fastPulseScale
-                                                else -> pulseScale
+                                if (isTaskCompleted && downloadedLocalDir != null && onImportFolder != null && task.taskId == activeTask?.taskId) {
+                                    Text(
+                                        text = "Import",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SoftEmerald,
+                                        modifier = Modifier
+                                            .padding(start = 8.dp)
+                                            .clickable {
+                                                downloadedLocalDir?.let { onImportFolder(it.absolutePath) }
+                                                Toast.makeText(context, "Importing to library...", Toast.LENGTH_SHORT).show()
                                             }
-                                        )
-                                        .alpha(
-                                            when {
-                                                isCompleted || isFailed -> 1f
-                                                isAlmostDone -> fastPulseAlpha
-                                                else -> pulseAlpha
-                                            }
-                                        )
-                                ) {}
+                                    )
+                                }
                             }
-
-                            Column {
-                                Text(
-                                    text = when {
-                                        isCompleted -> "Task Complete"
-                                        isFailed -> "Download Failed"
-                                        isAlmostDone -> "Almost downloaded..."
-                                        else -> "Downloading..."
-                                    },
-                                    fontSize = 13.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = when {
-                                        isCompleted -> SoftEmerald
-                                        isFailed -> SoftCoral
-                                        isAlmostDone -> SoftEmerald
-                                        else -> Color.White.copy(alpha = 0.95f)
-                                    }
-                                )
-                                Text(
-                                    text = task.mediaTitle.ifBlank {
-                                        if (isDirectDownloading) "Direct ZIP pull..."
-                                        else task.message.ifBlank { "Task #${task.taskId.take(8)}" }
-                                    },
-                                    fontSize = 11.sp,
-                                    color = Color.White.copy(alpha = 0.50f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-
-                        if (isCompleted && downloadedLocalDir != null && onImportFolder != null) {
-                            Text(
-                                text = "Import",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SoftEmerald,
-                                modifier = Modifier
-                                    .padding(start = 8.dp)
-                                    .clickable {
-                                        downloadedLocalDir?.let { onImportFolder(it.absolutePath) }
-                                        Toast.makeText(context, "Importing to library...", Toast.LENGTH_SHORT).show()
-                                    }
-                            )
                         }
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(30.dp))
+        }
+
+        // Pinned Top Navigation Bar with Fading Blur Gradient directly underneath
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(DarkOnyxBackground.copy(alpha = 0.95f))
+                    .statusBarsPadding()
+                    .displayCutoutPadding()
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Back Button
+                Surface(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onNavigateBack()
+                    },
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = 0.05f),
+                    border = BorderStroke(1.dp, SubtleBorder),
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "Back",
+                            tint = AccentTitanium,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                // Title & Connection Light
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = when {
+                            isServerConnected -> SoftEmerald
+                            isSearchingServer -> SoftAmber.copy(alpha = pulseAlpha)
+                            else -> SoftCoral
+                        },
+                        modifier = Modifier
+                            .size(7.dp)
+                            .scale(if (isSearchingServer || activeTask?.status in listOf("scraping", "analyzing")) pulseScale else 1f)
+                    ) {}
+
+                    Text(
+                        text = if (isServerConnected) "ZINE BRIDGE" else "BRIDGE OFFLINE",
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isServerConnected) Color.White.copy(alpha = 0.90f) else SoftCoral,
+                        letterSpacing = 1.6.sp
+                    )
+                }
+
+                // Top Actions (Normal Server Icon & Vacuum Icon)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            showServerDialog = true
+                        },
+                        shape = CircleShape,
+                        color = Color.White.copy(alpha = 0.05f),
+                        border = BorderStroke(1.dp, SubtleBorder),
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (isServerConnected) Icons.Rounded.Dns else Icons.Rounded.Storage,
+                                contentDescription = "Server Network",
+                                tint = if (isServerConnected) SoftEmerald else SoftCoral,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+                    }
+
+                    Surface(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            showSetupGuideDialog = true
+                        },
+                        shape = CircleShape,
+                        color = Color.White.copy(alpha = 0.05f),
+                        border = BorderStroke(1.dp, SubtleBorder),
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.vacum),
+                                contentDescription = "Zine Scraper Tool",
+                                tint = AccentTitanium,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Graceful fading gradient directly below top bar so scrolling content fades smoothly
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                DarkOnyxBackground.copy(alpha = 0.95f),
+                                DarkOnyxBackground.copy(alpha = 0.40f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
         }
     }
 

@@ -120,27 +120,6 @@ fun SettingsScreen(
                             tint = Color.White
                         )
                     }
-
-                    // Tool Icon Button (Zine Scraper CLI Tool)
-                    Surface(
-                        modifier = Modifier
-                            .padding(top = 16.dp)
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .clickable { showZineScraperDialog = true },
-                        shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.08f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Rounded.Construction,
-                                contentDescription = "Zine Scraper CLI Tool",
-                                tint = Color.White.copy(alpha = 0.9f),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
                 }
             }
 
