@@ -4,8 +4,9 @@ import android.content.Context
 import android.os.Environment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -33,8 +34,13 @@ data class ScrapeTaskInfo(
 
 object ZineServerClient {
 
+    // Beacon is broadcast on 53319 (dedicated discovery channel, never collides with HTTP)
+    private const val BEACON_DISCOVERY_PORT = 53319
+
     /**
-     * Listens for the Zine Scraper Server's UDP beacon on LAN, or probes the local subnet if beacon is blocked.
+     * Listens for the Zine Scraper Server's UDP beacon on LAN (port 53319),
+     * or probes the local subnet concurrently if beacon is blocked.
+     * Cancels remaining probes as soon as the first live server is found.
      */
     suspend fun discoverServer(context: Context, timeoutMs: Int = 1500): ZineServerInfo? = withContext(Dispatchers.IO) {
         val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
@@ -47,7 +53,7 @@ object ZineServerClient {
         try {
             socket = DatagramSocket(null).apply {
                 reuseAddress = true
-                bind(InetSocketAddress(53318))
+                bind(InetSocketAddress(BEACON_DISCOVERY_PORT))
                 soTimeout = timeoutMs
                 broadcast = true
             }
@@ -69,21 +75,32 @@ object ZineServerClient {
             try { multicastLock?.release() } catch (e: Exception) {}
         }
 
-        // Fast concurrent subnet probe fallback
+        // Fast concurrent subnet probe: cancel all remaining as soon as first server is found
         val subnet = getLocalSubnetPrefix()
         if (subnet != null) {
-            val found = coroutineScope {
-                val deferreds = (1..254).map { hostNum ->
+            val result = coroutineScope {
+                val jobs = (1..254).map { hostNum ->
                     async {
                         val ip = "$subnet.$hostNum"
-                        if (pingServer(ip, 53318, timeoutMs = 350)) {
+                        if (isActive && pingServer(ip, 53318, timeoutMs = 350)) {
                             ZineServerInfo(ip, 53318)
                         } else null
                     }
                 }
-                deferreds.awaitAll().firstOrNull { it != null }
+                // Select-first: grab the very first non-null result and cancel everything else
+                var found: ZineServerInfo? = null
+                for (job in jobs) {
+                    val r = job.await()
+                    if (r != null && found == null) {
+                        found = r
+                        // Cancel all remaining in-progress probes
+                        jobs.forEach { it.cancel() }
+                        break
+                    }
+                }
+                found
             }
-            if (found != null) return@withContext found
+            if (result != null) return@withContext result
         }
 
         null
@@ -113,11 +130,13 @@ object ZineServerClient {
 
     /**
      * Pings a server at host:port to verify connectivity.
+     * Always disconnects the connection in a finally block to prevent socket leaks.
      */
     suspend fun pingServer(host: String, port: Int = 53318, timeoutMs: Int = 3000): Boolean = withContext(Dispatchers.IO) {
+        var conn: HttpURLConnection? = null
         try {
             val url = URL("http://$host:$port/api/ping")
-            val conn = (url.openConnection() as HttpURLConnection).apply {
+            conn = (url.openConnection() as HttpURLConnection).apply {
                 connectTimeout = timeoutMs
                 readTimeout = timeoutMs
                 requestMethod = "GET"
@@ -126,6 +145,8 @@ object ZineServerClient {
             conn.responseCode == 200
         } catch (e: Exception) {
             false
+        } finally {
+            conn?.disconnect()
         }
     }
 
@@ -136,9 +157,10 @@ object ZineServerClient {
         serverHost: String,
         serverPort: Int
     ): Result<List<ScrapeTaskInfo>> = withContext(Dispatchers.IO) {
+        var conn: HttpURLConnection? = null
         try {
             val endpoint = URL("http://$serverHost:$serverPort/api/tasks")
-            val conn = (endpoint.openConnection() as HttpURLConnection).apply {
+            conn = (endpoint.openConnection() as HttpURLConnection).apply {
                 connectTimeout = 5000
                 readTimeout = 8000
                 requestMethod = "GET"
@@ -159,23 +181,29 @@ object ZineServerClient {
             }
         } catch (e: Exception) {
             Result.failure(e)
+        } finally {
+            conn?.disconnect()
         }
     }
 
     /**
      * Clears all scrape tasks on the companion server.
+     * Sends Content-Length: 0 so HTTP/1.1 servers don't stall waiting for a body.
      */
     suspend fun clearAllTasks(
         serverHost: String,
         serverPort: Int
     ): Result<Boolean> = withContext(Dispatchers.IO) {
+        var conn: HttpURLConnection? = null
         try {
             val endpoint = URL("http://$serverHost:$serverPort/api/tasks/clear")
-            val conn = (endpoint.openConnection() as HttpURLConnection).apply {
+            conn = (endpoint.openConnection() as HttpURLConnection).apply {
                 connectTimeout = 4000
                 readTimeout = 4000
                 requestMethod = "POST"
                 setRequestProperty("Connection", "keep-alive")
+                setRequestProperty("Content-Length", "0")
+                // Explicitly do NOT set doOutput=true to avoid waiting for body
             }
             if (conn.responseCode in 200..299) {
                 Result.success(true)
@@ -184,6 +212,8 @@ object ZineServerClient {
             }
         } catch (e: Exception) {
             Result.failure(e)
+        } finally {
+            conn?.disconnect()
         }
     }
 
@@ -200,9 +230,10 @@ object ZineServerClient {
         flags: List<String> = emptyList(),
         limit: Int? = null
     ): Result<ScrapeTaskInfo> = withContext(Dispatchers.IO) {
+        var conn: HttpURLConnection? = null
         try {
             val endpoint = URL("http://$serverHost:$serverPort/api/scrape")
-            val conn = (endpoint.openConnection() as HttpURLConnection).apply {
+            conn = (endpoint.openConnection() as HttpURLConnection).apply {
                 connectTimeout = 6000
                 readTimeout = 15000
                 requestMethod = "POST"
@@ -246,6 +277,8 @@ object ZineServerClient {
             }
         } catch (e: Exception) {
             Result.failure(e)
+        } finally {
+            conn?.disconnect()
         }
     }
 
@@ -257,9 +290,10 @@ object ZineServerClient {
         serverPort: Int,
         taskId: String
     ): Result<ScrapeTaskInfo> = withContext(Dispatchers.IO) {
+        var conn: HttpURLConnection? = null
         try {
             val endpoint = URL("http://$serverHost:$serverPort/api/tasks/$taskId")
-            val conn = (endpoint.openConnection() as HttpURLConnection).apply {
+            conn = (endpoint.openConnection() as HttpURLConnection).apply {
                 connectTimeout = 5000
                 readTimeout = 8000
                 requestMethod = "GET"
@@ -273,12 +307,15 @@ object ZineServerClient {
             }
         } catch (e: Exception) {
             Result.failure(e)
+        } finally {
+            conn?.disconnect()
         }
     }
 
     /**
      * Direct high-speed download stream: fetches the media archive directly from server
      * using high-throughput 64KB buffers and extracts into Download/Zine Scraper/ directory.
+     * Uses contentLengthLong (not contentLength) to correctly support files larger than 2 GB.
      */
     suspend fun downloadMediaZip(
         context: Context,
@@ -288,9 +325,10 @@ object ZineServerClient {
         mode: String = "quick_grab",
         progressCb: ((Float) -> Unit)? = null
     ): Result<File> = withContext(Dispatchers.IO) {
+        var conn: HttpURLConnection? = null
         try {
             val endpoint = URL("http://$serverHost:$serverPort/api/download/$taskId")
-            val conn = (endpoint.openConnection() as HttpURLConnection).apply {
+            conn = (endpoint.openConnection() as HttpURLConnection).apply {
                 connectTimeout = 15000
                 readTimeout = 300000
                 requestMethod = "GET"
@@ -301,7 +339,8 @@ object ZineServerClient {
                 return@withContext Result.failure(IOException("Failed to download: HTTP ${conn.responseCode}"))
             }
 
-            val totalLen = conn.contentLength.toFloat()
+            // Use contentLengthLong to correctly handle files > 2 GB (Int overflows at ~2 GB)
+            val totalLen = conn.contentLengthLong.toFloat()
 
             // Resolve target directory on phone: Download/Zine Scraper/<Vacuum or Quick grab>/
             val subFolder = if (mode.equals("vacuum", ignoreCase = true)) "Vacuum" else "Quick grab"
@@ -314,7 +353,7 @@ object ZineServerClient {
                 File(context.getExternalFilesDir(null), "Zine Scraper/$subFolder").apply { mkdirs() }
             }
 
-            // High-throughput streaming (64KB buffer)
+            // High-throughput streaming extraction (64KB buffer)
             var downloadedBytes = 0L
             val zipIn = ZipInputStream(BufferedInputStream(conn.inputStream, 65536))
             var entry = zipIn.nextEntry
@@ -346,6 +385,8 @@ object ZineServerClient {
             Result.success(targetDir)
         } catch (e: Exception) {
             Result.failure(e)
+        } finally {
+            conn?.disconnect()
         }
     }
 
@@ -363,3 +404,4 @@ object ZineServerClient {
         )
     }
 }
+
