@@ -19,7 +19,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.DriveFileMove
-import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -33,7 +32,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,13 +49,12 @@ private val DarkOnyxBackground = Color(0xFF07080C)
 private val GlassSurface = Color(0xFF10131B)
 private val AccentTitanium = Color(0xFFE0E3EB)
 private val SubtleBorder = Color.White.copy(alpha = 0.08f)
-private val ActiveBorder = Color.White.copy(alpha = 0.20f)
+private val ActiveBorder = Color.White.copy(alpha = 0.22f)
 private val SoftEmerald = Color(0xFF6EE7B7)
 private val SoftAmber = Color(0xFFFCD34D)
 private val SoftCoral = Color(0xFFF87171)
 
 private const val ZINE_GITHUB_URL = "https://github.com/valse-de-anshu/zine-scraper.git"
-private const val ZINE_SETUP_COMMANDS = "git clone https://github.com/valse-de-anshu/zine-scraper.git\ncd zine-scraper\npip install -r requirements.txt\npython orchestrator.py --server"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,6 +81,9 @@ fun ZineScraperScreen(
     var urlInput by remember { mutableStateOf("") }
     var selectedMode by remember { mutableStateOf("quick_grab") } // "quick_grab" or "vacuum"
     var selectedTransferMethod by remember { mutableStateOf("hybrid") }
+
+    // Post-download processing choice: "import" (save to library), "open" (open immediately), "downloads" (raw storage only)
+    var postDownloadAction by remember { mutableStateOf("import") }
 
     var activeTask by remember { mutableStateOf<ScrapeTaskInfo?>(null) }
     var isSubmitting by remember { mutableStateOf(false) }
@@ -170,7 +170,19 @@ fun ZineScraperScreen(
                             isDirectDownloading = false
                             dlRes.onSuccess { dir ->
                                 downloadedLocalDir = dir
-                                Toast.makeText(context, "Saved to ${dir.name}", Toast.LENGTH_SHORT).show()
+                                when (postDownloadAction) {
+                                    "import" -> {
+                                        onImportFolder?.invoke(dir.absolutePath)
+                                        Toast.makeText(context, "Media saved and added to Library!", Toast.LENGTH_SHORT).show()
+                                    }
+                                    "open" -> {
+                                        onImportFolder?.invoke(dir.absolutePath)
+                                        Toast.makeText(context, "Ready! Opening media...", Toast.LENGTH_SHORT).show()
+                                    }
+                                    else -> {
+                                        Toast.makeText(context, "Saved into Download/Zine Scraper/", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
                             }.onFailure { err ->
                                 errorMessage = "Stream failed: ${err.message}"
                             }
@@ -269,8 +281,9 @@ fun ZineScraperScreen(
                     )
                 }
 
-                // Top Actions
+                // Top Actions (Normal Server Icon & Vacuum Icon)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Normal Server Icon
                     Surface(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -283,14 +296,15 @@ fun ZineScraperScreen(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                painter = painterResource(id = R.drawable.server),
-                                contentDescription = "Network",
+                                imageVector = if (isServerConnected) Icons.Rounded.Dns else Icons.Rounded.Storage,
+                                contentDescription = "Server Network",
                                 tint = if (isServerConnected) SoftEmerald else AccentTitanium,
                                 modifier = Modifier.size(19.dp)
                             )
                         }
                     }
 
+                    // Vacuum Icon for CLI Pop up
                     Surface(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -303,19 +317,19 @@ fun ZineScraperScreen(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Rounded.Construction,
-                                contentDescription = "CLI Guide",
+                                painter = painterResource(id = R.drawable.vacum),
+                                contentDescription = "Zine Scraper Tool",
                                 tint = AccentTitanium,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(36.dp))
+            Spacer(modifier = Modifier.height(34.dp))
 
-            // 2. Artistic Centerpiece: The Ingestion Artifact
+            // 2. Artistic Centerpiece: Server Artifact
             Surface(
                 modifier = Modifier.size(72.dp),
                 shape = CircleShape,
@@ -352,7 +366,7 @@ fun ZineScraperScreen(
                 lineHeight = 17.sp
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(30.dp))
 
             // 3. The Minimal Pill URL Input
             Surface(
@@ -442,7 +456,7 @@ fun ZineScraperScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
             // 4. Ultra-Minimal Capsule Scope Switcher
             Surface(
@@ -503,7 +517,7 @@ fun ZineScraperScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Layers,
+                                painter = painterResource(id = R.drawable.vacum),
                                 contentDescription = null,
                                 tint = if (isVacuum) Color.White else Color.White.copy(alpha = 0.45f),
                                 modifier = Modifier.size(15.dp)
@@ -520,9 +534,87 @@ fun ZineScraperScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-            // 5. High-End Titanium Transmit Button
+            // 5. Post-Download Processing (After Downloading Configuration)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "AFTER DOWNLOAD ACTION",
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.45f),
+                    letterSpacing = 1.2.sp
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Interactive Tag / Pill Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val actions = listOf(
+                        Triple("import", "Save to Library", Icons.AutoMirrored.Rounded.DriveFileMove),
+                        Triple("open", "Open / Play", Icons.Rounded.PlayArrow),
+                        Triple("downloads", "Downloads Only", Icons.Rounded.Folder)
+                    )
+
+                    actions.forEach { (actionKey, label, icon) ->
+                        val isSelected = postDownloadAction == actionKey
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                postDownloadAction = actionKey
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (isSelected) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.035f),
+                            border = BorderStroke(1.dp, if (isSelected) ActiveBorder else SubtleBorder),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    tint = if (isSelected) Color.White else Color.White.copy(alpha = 0.45f),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = label,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.60f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = when (postDownloadAction) {
+                        "import" -> "Auto-catalogs and stores files into your library via SAF"
+                        "open" -> "Directly launches reader or video player when ready"
+                        else -> "Leaves media in Download/Zine Scraper/ without importing"
+                    },
+                    fontSize = 10.5.sp,
+                    color = Color.White.copy(alpha = 0.40f),
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            Spacer(modifier = Modifier.height(26.dp))
+
+            // 6. Signal Transmission Button ("Send Signal" with Signal Tower Icon)
             Button(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -576,21 +668,21 @@ fun ZineScraperScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Beaming Signal...",
+                        text = "Transmitting Signal...",
                         color = DarkOnyxBackground,
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold
                     )
                 } else {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.Send,
+                        imageVector = Icons.Rounded.CellTower,
                         contentDescription = null,
                         tint = DarkOnyxBackground,
-                        modifier = Modifier.size(17.dp)
+                        modifier = Modifier.size(19.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Beam to Server",
+                        text = "Send Signal",
                         color = DarkOnyxBackground,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
@@ -598,7 +690,7 @@ fun ZineScraperScreen(
                 }
             }
 
-            // 6. Seamless Live Ingestion Pill (Only when task is active, clean & non-bloated)
+            // 7. Live Ingestion Status Pill (Only when task is active)
             activeTask?.let { task ->
                 Spacer(modifier = Modifier.height(26.dp))
 
@@ -666,7 +758,7 @@ fun ZineScraperScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (isDirectDownloading) "Direct ZIP pull..." else task.message.ifBlank { "Extracting..." },
+                                text = if (isDirectDownloading) "Direct ZIP pull..." else task.message.ifBlank { "Processing..." },
                                 fontSize = 11.sp,
                                 color = Color.White.copy(alpha = 0.5f),
                                 maxLines = 1,
@@ -698,7 +790,7 @@ fun ZineScraperScreen(
     // MODALS (Zero bloat on the main screen)
     // ==========================================
 
-    // 1. ORIGINAL Zine Scraper CLI Tool Dialog
+    // 1. ORIGINAL Zine Scraper CLI Tool Dialog (Updated with new vacuum icon and NO command box)
     if (showSetupGuideDialog) {
         Dialog(onDismissRequest = { showSetupGuideDialog = false }) {
             Surface(
@@ -715,6 +807,7 @@ fun ZineScraperScreen(
                         .padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // Vacuum Icon Header
                     Surface(
                         modifier = Modifier
                             .size(56.dp)
@@ -725,10 +818,10 @@ fun ZineScraperScreen(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Rounded.Construction,
+                                painter = painterResource(id = R.drawable.vacum),
                                 contentDescription = "Zine Scraper Tool",
-                                tint = Color.White.copy(alpha = 0.9f),
-                                modifier = Modifier.size(26.dp)
+                                tint = AccentTitanium,
+                                modifier = Modifier.size(28.dp)
                             )
                         }
                     }
@@ -769,27 +862,9 @@ fun ZineScraperScreen(
                         lineHeight = 17.5.sp
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = Color.Black.copy(alpha = 0.4f),
-                        border = BorderStroke(1.dp, SubtleBorder),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Text(
-                                text = ZINE_SETUP_COMMANDS,
-                                fontSize = 10.5.sp,
-                                fontFamily = FontFamily.Monospace,
-                                color = Color.White.copy(alpha = 0.85f),
-                                lineHeight = 15.sp
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
+                    // View Repository Button (Clean, NO command block)
                     Button(
                         onClick = {
                             val intent = Intent(
@@ -827,23 +902,11 @@ fun ZineScraperScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    TextButton(
-                        onClick = {
-                            val clip = android.content.ClipData.newPlainText("Zine Commands", ZINE_SETUP_COMMANDS)
-                            clipboard?.setPrimaryClip(clip)
-                            Toast.makeText(context, "Commands copied to clipboard", Toast.LENGTH_SHORT).show()
-                        }
-                    ) {
-                        Icon(Icons.Rounded.ContentCopy, contentDescription = null, tint = AccentTitanium, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Copy Setup Commands", fontSize = 12.sp, color = AccentTitanium)
-                    }
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     TextButton(
                         onClick = { showSetupGuideDialog = false },
-                        modifier = Modifier.height(34.dp)
+                        modifier = Modifier.height(36.dp)
                     ) {
                         Text(
                             text = "Close",
@@ -885,7 +948,7 @@ fun ZineScraperScreen(
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
-                                        imageVector = if (isServerConnected) Icons.Rounded.Dns else Icons.Rounded.WifiOff,
+                                        imageVector = if (isServerConnected) Icons.Rounded.Dns else Icons.Rounded.Storage,
                                         contentDescription = null,
                                         tint = if (isServerConnected) SoftEmerald else SoftCoral,
                                         modifier = Modifier.size(16.dp)
