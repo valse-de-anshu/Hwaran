@@ -24,6 +24,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
@@ -80,6 +81,7 @@ fun ZineScraperScreen(
 
     var urlInput by remember { mutableStateOf("") }
     var selectedMode by remember { mutableStateOf("quick_grab") } // "quick_grab" or "vacuum"
+    var sequentialLimit by remember { mutableIntStateOf(0) } // 0 = all chapters (-a), 5 = --5, 10 = --10, 20 = --20
     var selectedTransferMethod by remember { mutableStateOf("hybrid") }
 
     // Post-download processing choice: "import" (save to library), "open" (open immediately), "downloads" (raw storage only)
@@ -111,6 +113,25 @@ fun ZineScraperScreen(
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulse_scale"
+    )
+    // Faster pulsation for "almost downloaded" state
+    val fastPulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.20f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(300, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "fast_pulse_alpha"
+    )
+    val fastPulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.85f,
+        targetValue = 1.25f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(300, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "fast_pulse_scale"
     )
 
     BackHandler {
@@ -456,7 +477,8 @@ fun ZineScraperScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            val isQuickGrab = selectedMode == "quick_grab"
+            val isVacuum = selectedMode == "vacuum"
 
             // 4. Ultra-Minimal Capsule Scope Switcher
             Surface(
@@ -469,9 +491,6 @@ fun ZineScraperScreen(
                     modifier = Modifier.padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    val isQuickGrab = selectedMode == "quick_grab"
-                    val isVacuum = selectedMode == "vacuum"
-
                     Surface(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -529,6 +548,58 @@ fun ZineScraperScreen(
                                 fontWeight = if (isVacuum) FontWeight.Bold else FontWeight.Normal,
                                 color = if (isVacuum) Color.White else Color.White.copy(alpha = 0.55f)
                             )
+                        }
+                    }
+                }
+            }
+
+            // Sequential limit selector for Full Series mode (-<N> sequential limit flag)
+            AnimatedVisibility(
+                visible = isVacuum,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(
+                            0 to "All (-a)",
+                            5 to "Next 5 (--5)",
+                            10 to "Next 10 (--10)",
+                            20 to "Next 20 (--20)"
+                        ).forEach { (lim, title) ->
+                            val isLimActive = (sequentialLimit == lim)
+                            Surface(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    sequentialLimit = lim
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isLimActive) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.035f),
+                                border = BorderStroke(1.dp, if (isLimActive) ActiveBorder else SubtleBorder),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 7.dp, horizontal = 2.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = title,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = if (isLimActive) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isLimActive) Color.White else Color.White.copy(alpha = 0.55f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -633,12 +704,22 @@ fun ZineScraperScreen(
                         errorMessage = null
                         downloadedLocalDir = null
 
+                        val flags = if (selectedMode == "quick_grab") {
+                            listOf("--0")
+                        } else if (sequentialLimit > 0) {
+                            listOf("--$sequentialLimit")
+                        } else {
+                            listOf("-a")
+                        }
+
                         val result = ZineServerClient.submitScrape(
                             serverHost = serverIp,
                             serverPort = serverPort,
                             mediaUrl = urlInput.trim(),
                             mode = selectedMode,
-                            transferMethod = selectedTransferMethod
+                            transferMethod = selectedTransferMethod,
+                            flags = flags,
+                            limit = if (sequentialLimit > 0) sequentialLimit else null
                         )
                         isSubmitting = false
 
@@ -690,93 +771,126 @@ fun ZineScraperScreen(
                 }
             }
 
-            // 7. Live Ingestion Status Pill (Only when task is active)
+            // 7. Live Ingestion Status Pill (Minimal Zen blinking ball, no progress bar)
             activeTask?.let { task ->
-                Spacer(modifier = Modifier.height(26.dp))
+                val isCompleted = (task.status == "completed" && !isDirectDownloading)
+                val isFailed = (task.status == "failed")
+                val isAlmostDone = (!isCompleted && !isFailed && (
+                    isDirectDownloading ||
+                    task.status == "transferring" ||
+                    task.progress >= 0.70f ||
+                    task.message.contains("almost", ignoreCase = true) ||
+                    task.message.contains("direct download", ignoreCase = true) ||
+                    task.message.contains("Preparing transfer", ignoreCase = true)
+                ))
+
+                Spacer(modifier = Modifier.height(24.dp))
 
                 Surface(
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(22.dp),
                     color = GlassSurface,
                     border = BorderStroke(1.dp, SubtleBorder),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            // Blinking Ball (Still when complete, fast pulse when almost done, normal pulse when downloading)
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.size(20.dp)
                             ) {
+                                if (!isCompleted && !isFailed) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = (if (isAlmostDone) SoftEmerald else SoftAmber).copy(
+                                            alpha = (if (isAlmostDone) fastPulseAlpha else pulseAlpha) * 0.35f
+                                        ),
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .scale(if (isAlmostDone) fastPulseScale else pulseScale)
+                                    ) {}
+                                }
+
                                 Surface(
                                     shape = CircleShape,
-                                    color = when (task.status) {
-                                        "completed" -> SoftEmerald
-                                        "failed" -> SoftCoral
-                                        else -> SoftAmber.copy(alpha = pulseAlpha)
+                                    color = when {
+                                        isCompleted -> SoftEmerald
+                                        isFailed -> SoftCoral
+                                        isAlmostDone -> SoftEmerald
+                                        else -> SoftAmber
                                     },
-                                    modifier = Modifier.size(7.dp)
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .scale(
+                                            when {
+                                                isCompleted || isFailed -> 1f
+                                                isAlmostDone -> fastPulseScale
+                                                else -> pulseScale
+                                            }
+                                        )
+                                        .alpha(
+                                            when {
+                                                isCompleted || isFailed -> 1f
+                                                isAlmostDone -> fastPulseAlpha
+                                                else -> pulseAlpha
+                                            }
+                                        )
                                 ) {}
+                            }
 
+                            Column {
                                 Text(
-                                    text = task.mediaTitle.ifBlank { "Task #${task.taskId.take(8)}" },
-                                    fontSize = 13.sp,
+                                    text = when {
+                                        isCompleted -> "Task Complete"
+                                        isFailed -> "Download Failed"
+                                        isAlmostDone -> "Almost downloaded..."
+                                        else -> "Downloading..."
+                                    },
+                                    fontSize = 13.5.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White,
+                                    color = when {
+                                        isCompleted -> SoftEmerald
+                                        isFailed -> SoftCoral
+                                        isAlmostDone -> SoftEmerald
+                                        else -> Color.White.copy(alpha = 0.95f)
+                                    }
+                                )
+                                Text(
+                                    text = task.mediaTitle.ifBlank {
+                                        if (isDirectDownloading) "Direct ZIP pull..."
+                                        else task.message.ifBlank { "Task #${task.taskId.take(8)}" }
+                                    },
+                                    fontSize = 11.sp,
+                                    color = Color.White.copy(alpha = 0.50f),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-
-                            Text(
-                                text = "${((if (isDirectDownloading) directDownloadProgress else task.progress) * 100).toInt()}%",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = AccentTitanium
-                            )
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        LinearProgressIndicator(
-                            progress = { (if (isDirectDownloading) directDownloadProgress else task.progress).coerceIn(0f, 1f) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(3.dp)
-                                .clip(RoundedCornerShape(2.dp)),
-                            color = AccentTitanium,
-                            trackColor = Color.White.copy(alpha = 0.08f)
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        if (isCompleted && downloadedLocalDir != null && onImportFolder != null) {
                             Text(
-                                text = if (isDirectDownloading) "Direct ZIP pull..." else task.message.ifBlank { "Processing..." },
-                                fontSize = 11.sp,
-                                color = Color.White.copy(alpha = 0.5f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-
-                            if (task.status == "completed" && downloadedLocalDir != null && onImportFolder != null) {
-                                Text(
-                                    text = "Import Library",
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SoftEmerald,
-                                    modifier = Modifier.clickable {
+                                text = "Import",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SoftEmerald,
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .clickable {
                                         downloadedLocalDir?.let { onImportFolder(it.absolutePath) }
                                         Toast.makeText(context, "Importing to library...", Toast.LENGTH_SHORT).show()
                                     }
-                                )
-                            }
+                            )
                         }
                     }
                 }

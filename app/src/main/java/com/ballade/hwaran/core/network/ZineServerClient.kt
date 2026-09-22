@@ -7,6 +7,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.*
 import java.net.*
@@ -136,7 +137,9 @@ object ZineServerClient {
         mediaUrl: String,
         mode: String = "quick_grab", // "quick_grab" or "vacuum"
         clientIp: String = "",
-        transferMethod: String = "hybrid" // "hybrid", "localsend", "direct"
+        transferMethod: String = "hybrid", // "hybrid", "localsend", "direct"
+        flags: List<String> = emptyList(),
+        limit: Int? = null
     ): Result<ScrapeTaskInfo> = withContext(Dispatchers.IO) {
         try {
             val endpoint = URL("http://$serverHost:$serverPort/api/scrape")
@@ -148,10 +151,18 @@ object ZineServerClient {
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
             }
 
-            android.util.Log.i("HwaranZine", "Transmitting scrape signal: $mediaUrl ($mode) to $serverHost:$serverPort")
+            android.util.Log.i("HwaranZine", "Transmitting scrape signal: $mediaUrl ($mode, flags: $flags, limit: $limit) to $serverHost:$serverPort")
             val payload = JSONObject().apply {
                 put("url", mediaUrl)
                 put("mode", mode)
+                if (flags.isNotEmpty()) {
+                    val arr = JSONArray()
+                    flags.forEach { arr.put(it) }
+                    put("flags", arr)
+                }
+                if (limit != null && limit > 0) {
+                    put("limit", limit)
+                }
                 if (clientIp.isNotBlank()) put("target_ip", clientIp)
                 put("transfer", transferMethod)
                 put("device_name", android.os.Build.MODEL)
@@ -205,8 +216,8 @@ object ZineServerClient {
     }
 
     /**
-     * Direct download stream: fetches the zipped media archive from server and unzips it
-     * into the phone's Download/Zine Scraper/ directory.
+     * Direct high-speed download stream: fetches the media archive directly from server
+     * using high-throughput 64KB buffers and extracts into Download/Zine Scraper/ directory.
      */
     suspend fun downloadMediaZip(
         context: Context,
@@ -220,7 +231,7 @@ object ZineServerClient {
             val endpoint = URL("http://$serverHost:$serverPort/api/download/$taskId")
             val conn = (endpoint.openConnection() as HttpURLConnection).apply {
                 connectTimeout = 10000
-                readTimeout = 60000
+                readTimeout = 120000
                 requestMethod = "GET"
             }
 
@@ -241,11 +252,11 @@ object ZineServerClient {
                 File(context.getExternalFilesDir(null), "Zine Scraper/$subFolder").apply { mkdirs() }
             }
 
-            // Stream and extract ZIP directly
+            // High-throughput streaming (64KB buffer)
             var downloadedBytes = 0L
-            val zipIn = ZipInputStream(BufferedInputStream(conn.inputStream))
+            val zipIn = ZipInputStream(BufferedInputStream(conn.inputStream, 65536))
             var entry = zipIn.nextEntry
-            val buffer = ByteArray(8192)
+            val buffer = ByteArray(65536)
 
             while (entry != null) {
                 val outFile = File(targetDir, entry.name)
@@ -253,15 +264,16 @@ object ZineServerClient {
                     outFile.mkdirs()
                 } else {
                     outFile.parentFile?.mkdirs()
-                    FileOutputStream(outFile).use { fos ->
+                    BufferedOutputStream(FileOutputStream(outFile), 65536).use { bos ->
                         var len: Int
                         while (zipIn.read(buffer).also { len = it } > 0) {
-                            fos.write(buffer, 0, len)
+                            bos.write(buffer, 0, len)
                             downloadedBytes += len
                             if (totalLen > 0) {
                                 progressCb?.invoke(downloadedBytes / totalLen)
                             }
                         }
+                        bos.flush()
                     }
                 }
                 zipIn.closeEntry()
