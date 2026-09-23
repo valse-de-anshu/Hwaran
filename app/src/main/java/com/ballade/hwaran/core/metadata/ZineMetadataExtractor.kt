@@ -164,18 +164,42 @@ object ZineMetadataExtractor {
         }
 
         // 2. Look in root folder
+        var rootParsed: ParsedZineMetadata? = null
         val rootJsonFile = findJsonFileInDir(folder)
         if (rootJsonFile != null) {
             try {
                 val content = rootJsonFile.readText()
-                val parsed = parseJson(content)
-                if (parsed != null) return parsed
+                rootParsed = parseJson(content)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
 
-        return null
+        if (rootParsed != null && rootParsed.videoItems.isNotEmpty()) {
+            return rootParsed
+        }
+
+        // 3. Look in immediate child subfolders (e.g. video/, episodes/, etc.)
+        val children = folder.listFiles() ?: emptyArray()
+        for (child in children) {
+            if (child.isDirectory && !isInternalOrAuxiliary(child.name)) {
+                val subParsed = extractFromFolder(child)
+                if (subParsed != null && subParsed.videoItems.isNotEmpty()) {
+                    return if (rootParsed != null) {
+                        rootParsed.copy(
+                            videoItems = subParsed.videoItems,
+                            views = if (rootParsed.views.isNullOrBlank()) subParsed.views else rootParsed.views,
+                            likes = if (rootParsed.likes.isNullOrBlank()) subParsed.likes else rootParsed.likes,
+                            comments = if (rootParsed.comments.isNullOrBlank()) subParsed.comments else rootParsed.comments
+                        )
+                    } else {
+                        subParsed
+                    }
+                }
+            }
+        }
+
+        return rootParsed
     }
 
     fun findJsonFileInDir(dir: File): File? {
@@ -283,16 +307,39 @@ object ZineMetadataExtractor {
         }
 
         // 2. Look in root folder
+        var rootParsed: ParsedZineMetadata? = null
         val rootJsonDoc = findJsonDocInDir(folderDoc)
         if (rootJsonDoc != null) {
             val content = readDocText(context, rootJsonDoc)
             if (!content.isNullOrBlank()) {
-                val parsed = parseJson(content)
-                if (parsed != null) return parsed
+                rootParsed = parseJson(content)
             }
         }
 
-        return null
+        if (rootParsed != null && rootParsed.videoItems.isNotEmpty()) {
+            return rootParsed
+        }
+
+        // 3. Look in immediate child subfolders (e.g. video/, episodes/, etc.)
+        for (child in children) {
+            if (child.isDirectory && !isInternalOrAuxiliary(child.name)) {
+                val subParsed = extractFromDocumentFolder(context, child)
+                if (subParsed != null && subParsed.videoItems.isNotEmpty()) {
+                    return if (rootParsed != null) {
+                        rootParsed.copy(
+                            videoItems = subParsed.videoItems,
+                            views = if (rootParsed.views.isNullOrBlank()) subParsed.views else rootParsed.views,
+                            likes = if (rootParsed.likes.isNullOrBlank()) subParsed.likes else rootParsed.likes,
+                            comments = if (rootParsed.comments.isNullOrBlank()) subParsed.comments else rootParsed.comments
+                        )
+                    } else {
+                        subParsed
+                    }
+                }
+            }
+        }
+
+        return rootParsed
     }
 
     fun findJsonDocInDir(dirDoc: DocumentFile): DocumentFile? {

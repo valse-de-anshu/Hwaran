@@ -214,7 +214,16 @@ object MediaMetadataManager {
         if (parsedZine != null) {
             val entryMeta = parsedZine.toEntryMetadata(baseFallback)
             val mergedTags = (entryMeta.tags + defaultTags).distinct()
-            return@withContext entryMeta.copy(tags = mergedTags)
+            val result = entryMeta.copy(tags = mergedTags)
+            // Refresh internal cache with full metadata including videoItems so future reads are always complete
+            if (mangaId > 0) {
+                try {
+                    val cacheDir = File(context.filesDir, "metadata")
+                    if (!cacheDir.exists()) cacheDir.mkdirs()
+                    File(cacheDir, "$mangaId.json").writeText(mergeMetadataJson(null, result))
+                } catch (_: Exception) {}
+            }
+            return@withContext result
         }
 
         baseFallback
@@ -253,6 +262,23 @@ object MediaMetadataManager {
         if (metadata.views.isNotBlank() || obj.has("views")) obj.put("views", metadata.views)
         if (metadata.likes.isNotBlank() || obj.has("likes")) obj.put("likes", metadata.likes)
         if (metadata.comments.isNotBlank() || obj.has("comments")) obj.put("comments", metadata.comments)
+
+        // Preserve video items — needed so the cache can serve views/likes per video
+        if (metadata.videoItems.isNotEmpty() || obj.has("videos")) {
+            val videosArray = JSONArray()
+            for (item in metadata.videoItems) {
+                val itemObj = JSONObject()
+                if (item.id.isNotBlank()) itemObj.put("id", item.id)
+                itemObj.put("title", item.title)
+                if (item.viewCount > 0) itemObj.put("views", item.viewCount)
+                if (item.likeCount > 0) itemObj.put("likes", item.likeCount)
+                if (item.duration > 0) itemObj.put("duration", item.duration)
+                if (item.uploadDate.isNotBlank()) itemObj.put("upload_date", item.uploadDate)
+                if (item.url.isNotBlank()) itemObj.put("url", item.url)
+                videosArray.put(itemObj)
+            }
+            if (videosArray.length() > 0) obj.put("videos", videosArray)
+        }
 
         return obj.toString(2)
     }
