@@ -49,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ballade.hwaran.core.metadata.VideoItemMatcher
 import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.decode.VideoFrameDecoder
@@ -142,16 +143,6 @@ fun SeriesRelatedView(
             .build()
     }
 
-    fun normalizeTitle(raw: String): String {
-        return raw.lowercase()
-            .replace(Regex("^\\s*\\d+\\s*[.\\-_)]\\s*"), "")
-            .replace(Regex("[^\\p{L}0-9]"), "")
-    }
-
-    val videoStatsMap = remember(entryMetadata.videoItems) {
-        entryMetadata.videoItems.associateBy { normalizeTitle(it.title) }
-    }
-
     val hasViewsData = remember(entryMetadata.videoItems) {
         entryMetadata.videoItems.any { it.viewCount > 0L }
     }
@@ -162,7 +153,7 @@ fun SeriesRelatedView(
         entryMetadata.videoItems.any { it.topRatedRank >= 0 }
     }
 
-    val sortedVideos = remember(videos, selectedPill, videoStatsMap) {
+    val sortedVideos = remember(videos, selectedPill, entryMetadata.videoItems) {
         when (selectedPill) {
             VideoFilterPill.SHORTEST -> videos.sortedBy { it.duration }
             VideoFilterPill.LONGEST -> videos.sortedByDescending { it.duration }
@@ -171,16 +162,18 @@ fun SeriesRelatedView(
             VideoFilterPill.MOST_VIEWS -> {
                 if (hasViewsData) {
                     videos.sortedWith(
-                        compareByDescending<ChapterEntity> { videoStatsMap[normalizeTitle(it.title)]?.viewCount ?: 0L }
-                            .thenBy { it.position }
+                        compareByDescending<ChapterEntity> {
+                            VideoItemMatcher.findMatch(it.title, it.position, manga.title, entryMetadata.videoItems)?.viewCount ?: 0L
+                        }.thenBy { it.position }
                     )
                 } else videos
             }
             VideoFilterPill.MOST_LIKED -> {
                 if (hasLikesData) {
                     videos.sortedWith(
-                        compareByDescending<ChapterEntity> { videoStatsMap[normalizeTitle(it.title)]?.likeCount ?: 0L }
-                            .thenBy { it.position }
+                        compareByDescending<ChapterEntity> {
+                            VideoItemMatcher.findMatch(it.title, it.position, manga.title, entryMetadata.videoItems)?.likeCount ?: 0L
+                        }.thenBy { it.position }
                     )
                 } else videos
             }
@@ -188,7 +181,7 @@ fun SeriesRelatedView(
                 if (hasRatedData) {
                     videos.sortedWith(
                         compareBy<ChapterEntity> {
-                            val rank = videoStatsMap[normalizeTitle(it.title)]?.topRatedRank
+                            val rank = VideoItemMatcher.findMatch(it.title, it.position, manga.title, entryMetadata.videoItems)?.topRatedRank
                             if (rank != null && rank >= 0) rank else Int.MAX_VALUE
                         }.thenBy { it.position }
                     )
@@ -1004,7 +997,7 @@ fun SeriesRelatedView(
                                                 maxLines = 2,
                                                 overflow = TextOverflow.Ellipsis
                                             )
-                                            val stat = videoStatsMap[normalizeTitle(video.title)]
+                                            val stat = VideoItemMatcher.findMatch(video.title, video.position, manga.title, entryMetadata.videoItems)
                                             val viewsStr = if (stat != null && stat.viewCount > 0L) {
                                                 when {
                                                     stat.viewCount >= 1_000_000 -> String.format("%.1fM views", stat.viewCount / 1_000_000.0)
@@ -1013,9 +1006,18 @@ fun SeriesRelatedView(
                                                 }
                                             } else null
 
+                                            val likesStr = if (stat != null && stat.likeCount > 0L) {
+                                                when {
+                                                    stat.likeCount >= 1_000_000 -> String.format("%.1fM likes", stat.likeCount / 1_000_000.0)
+                                                    stat.likeCount >= 1_000 -> String.format("%.1fK likes", stat.likeCount / 1_000.0)
+                                                    else -> "${stat.likeCount} likes"
+                                                }
+                                            } else null
+
                                             val subtitleText = listOfNotNull(
                                                 durationStr?.let { "Duration • $it" },
-                                                viewsStr
+                                                viewsStr,
+                                                likesStr
                                             ).joinToString(" • ")
 
                                             if (subtitleText.isNotBlank()) {

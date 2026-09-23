@@ -32,8 +32,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -775,16 +780,56 @@ fun SeriesDescriptionView(
                                 shape = RoundedCornerShape(12.dp)
                             )
                         } else {
-                            val descriptionText = manga.description.ifBlank { "No synopsis added yet." }
+                            val descriptionText = entryMetadata.description.ifBlank {
+                                manga.description.ifBlank { "No synopsis added yet." }
+                            }
                             val isLong = descriptionText.length > 160
 
-                            Text(
-                                text = descriptionText,
-                                color = Color.White.copy(alpha = 0.85f),
-                                fontSize = 13.sp,
-                                lineHeight = 19.sp,
+                            val urlRegex = Regex("""(https?://\S+|www\.\S+)""")
+                            val annotated = buildAnnotatedString {
+                                var lastEnd = 0
+                                for (match in urlRegex.findAll(descriptionText)) {
+                                    if (match.range.first > lastEnd) {
+                                        append(descriptionText.substring(lastEnd, match.range.first))
+                                    }
+                                    val url = match.value
+                                    val fullUrl = if (url.startsWith("www.")) "https://$url" else url
+                                    pushStringAnnotation(tag = "URL", annotation = fullUrl)
+                                    withStyle(style = SpanStyle(
+                                        color = Color(0xFF64B5F6),
+                                        textDecoration = TextDecoration.Underline
+                                    )) {
+                                        append(url)
+                                    }
+                                    pop()
+                                    lastEnd = match.range.last + 1
+                                }
+                                if (lastEnd < descriptionText.length) {
+                                    append(descriptionText.substring(lastEnd))
+                                }
+                            }
+
+                            ClickableText(
+                                text = annotated,
+                                style = androidx.compose.ui.text.TextStyle(
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 13.sp,
+                                    lineHeight = 19.sp
+                                ),
                                 maxLines = if (!isSynopsisExpanded && isLong) 4 else Int.MAX_VALUE,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                onClick = { offset ->
+                                    annotated.getStringAnnotations(tag = "URL", start = offset, end = offset)
+                                        .firstOrNull()?.let { annotation ->
+                                            try {
+                                                val intent = android.content.Intent(
+                                                    android.content.Intent.ACTION_VIEW,
+                                                    android.net.Uri.parse(annotation.item)
+                                                )
+                                                context.startActivity(intent)
+                                            } catch (_: Exception) {}
+                                        }
+                                }
                             )
 
                             if (isLong) {
