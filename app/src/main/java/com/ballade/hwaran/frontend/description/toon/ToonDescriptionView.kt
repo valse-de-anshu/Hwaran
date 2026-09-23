@@ -35,8 +35,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -753,16 +758,59 @@ fun ToonDescriptionView(
                                 shape = RoundedCornerShape(12.dp)
                             )
                         } else {
-                            val descriptionText = manga.description.ifBlank { "No description added yet." }
+                            val descriptionText = entryMetadata.description.ifBlank {
+                                manga.description.ifBlank { "No description added yet." }
+                            }
                             val isLong = descriptionText.length > 160
 
-                            Text(
-                                text = descriptionText,
-                                color = Color.White.copy(alpha = 0.85f),
-                                fontSize = 13.sp,
-                                lineHeight = 19.sp,
+                            // Build AnnotatedString with clickable URL spans
+                            val urlRegex = Regex("""(https?://\S+|www\.\S+)""")
+                            val annotated = buildAnnotatedString {
+                                var lastEnd = 0
+                                for (match in urlRegex.findAll(descriptionText)) {
+                                    // Append text before the URL
+                                    if (match.range.first > lastEnd) {
+                                        append(descriptionText.substring(lastEnd, match.range.first))
+                                    }
+                                    // Append the URL with styling and annotation
+                                    val url = match.value
+                                    val fullUrl = if (url.startsWith("www.")) "https://$url" else url
+                                    pushStringAnnotation(tag = "URL", annotation = fullUrl)
+                                    withStyle(style = SpanStyle(
+                                        color = Color(0xFF64B5F6),
+                                        textDecoration = TextDecoration.Underline
+                                    )) {
+                                        append(url)
+                                    }
+                                    pop()
+                                    lastEnd = match.range.last + 1
+                                }
+                                if (lastEnd < descriptionText.length) {
+                                    append(descriptionText.substring(lastEnd))
+                                }
+                            }
+
+                            ClickableText(
+                                text = annotated,
+                                style = androidx.compose.ui.text.TextStyle(
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 13.sp,
+                                    lineHeight = 19.sp
+                                ),
                                 maxLines = if (!isSynopsisExpanded && isLong) 4 else Int.MAX_VALUE,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                onClick = { offset ->
+                                    annotated.getStringAnnotations(tag = "URL", start = offset, end = offset)
+                                        .firstOrNull()?.let { annotation ->
+                                            try {
+                                                val intent = android.content.Intent(
+                                                    android.content.Intent.ACTION_VIEW,
+                                                    android.net.Uri.parse(annotation.item)
+                                                )
+                                                context.startActivity(intent)
+                                            } catch (_: Exception) {}
+                                        }
+                                }
                             )
 
                             if (isLong) {
@@ -943,6 +991,96 @@ fun ToonDescriptionView(
                                 tint = Color(0xFF64B5F6).copy(alpha = 0.7f),
                                 modifier = Modifier.size(16.dp)
                             )
+                        }
+                    }
+                }
+            }
+
+            // ── Online Statistics Row (Views / Likes / Comments) ──
+            val statsViews = entryMetadata.views
+            val statsLikes = entryMetadata.likes
+            val statsComments = entryMetadata.comments
+            if (statsViews.isNotBlank() || statsLikes.isNotBlank() || statsComments.isNotBlank()) {
+                item {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        color = CardBg,
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (statsViews.isNotBlank()) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Visibility,
+                                        contentDescription = "Views",
+                                        tint = Color(0xFF90CAF9),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = statsViews,
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "Views",
+                                        color = TextMuted,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+                            if (statsLikes.isNotBlank()) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.ThumbUp,
+                                        contentDescription = "Likes",
+                                        tint = Color(0xFFEF5350),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = statsLikes,
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "Likes",
+                                        color = TextMuted,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+                            if (statsComments.isNotBlank()) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.ChatBubbleOutline,
+                                        contentDescription = "Comments",
+                                        tint = Color(0xFF81C784),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = statsComments,
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "Comments",
+                                        color = TextMuted,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
                         }
                     }
                 }

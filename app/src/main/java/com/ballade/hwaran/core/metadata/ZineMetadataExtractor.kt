@@ -511,7 +511,7 @@ object ZineMetadataExtractor {
                 }
             }
 
-            var likes = optFirstStringOrNumber(obj, "likes", "like_count", "likeCount", "favorites", "favourites", "total_likes")
+            var likes = optFirstStringOrNumber(obj, "likes", "like", "like_count", "likeCount", "rated", "favorites", "favourites", "total_likes")
             if (likes.isNullOrBlank() && videoItems.isNotEmpty()) {
                 val totalL = videoItems.sumOf { it.likeCount }
                 if (totalL > 0L) {
@@ -568,7 +568,7 @@ object ZineMetadataExtractor {
                     id = optFirstString(itemObj, "id", "video_id", "videoId") ?: "",
                     title = rawTitle,
                     viewCount = optFirstLong(itemObj, "view_count", "viewCount", "views"),
-                    likeCount = optFirstLong(itemObj, "like_count", "likeCount", "likes"),
+                    likeCount = optFirstLong(itemObj, "like_count", "likeCount", "likes", "like", "rated"),
                     duration = optFirstLong(itemObj, "duration", "duration_seconds", "length"),
                     uploadDate = optFirstString(itemObj, "upload_date", "uploadDate", "date") ?: "",
                     url = optFirstUrl(itemObj, "url", "link") ?: ""
