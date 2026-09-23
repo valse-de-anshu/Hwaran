@@ -303,17 +303,12 @@ fun AppNavGraph(
                             libraryViewModel.importFolder(
                                 uri = uri,
                                 isFile = file.isFile,
-                                mediaModeOverride = 0,
+                                mediaModeOverride = null,
                                 storageModeOverride = 0,
                                 onImported = { importedId ->
                                     if (openWhenDone) {
                                         coroutineScope.launch {
-                                            val firstChapterId = libraryViewModel.getFirstChapterId(importedId)
-                                            if (firstChapterId != null) {
-                                                navController.navigateSafely(Screen.Reader.createRoute(firstChapterId))
-                                            } else {
-                                                navController.navigateSafely(Screen.Description.createRoute(importedId))
-                                            }
+                                            navController.navigateSafely(Screen.Description.createRoute(importedId))
                                         }
                                     }
                                 }

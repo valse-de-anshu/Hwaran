@@ -76,11 +76,16 @@ object ToonLocalSingleImport {
 
         val rootFiles = sourceDoc.listFiles()
 
-        // 2. Discover Media Hierarchy (Rule 2 & Invariant Rule 7)
+        // 2. Find dedicated cover image first (Rule 5: Strictly artwork, never media item)
+        val coverDoc = ZineMetadataExtractor.findCoverInDocumentFolder(sourceDoc, parsedZine?.coverFileName)
+
+        // 3. Discover Media Hierarchy (Rule 2 & Invariant Rule 7)
         // Material -> Volume (optional) -> Chapter -> Page
         val subDirs = rootFiles.filter { it.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }
         val looseImages = rootFiles.filter {
-            !it.isDirectory && isSupportedImage(it) && !ZineMetadataExtractor.isDedicatedCoverName(it.name)
+            !it.isDirectory && isSupportedImage(it) &&
+            !ZineMetadataExtractor.isDedicatedCoverName(it.name) &&
+            (coverDoc == null || it.name != coverDoc.name)
         }
 
         val discoveredChapters = mutableListOf<DiscoveredChapter>()
@@ -88,13 +93,20 @@ object ToonLocalSingleImport {
         for (subDir in subDirs) {
             val subChildren = subDir.listFiles()
             val childSubDirs = subChildren.filter { it.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }
-            val directImages = subChildren.filter { !it.isDirectory && isSupportedImage(it) && !ZineMetadataExtractor.isDedicatedCoverName(it.name) }
+            val directImages = subChildren.filter { 
+                !it.isDirectory && isSupportedImage(it) && 
+                !ZineMetadataExtractor.isDedicatedCoverName(it.name) &&
+                (coverDoc == null || it.name != coverDoc.name)
+            }
 
             if (childSubDirs.isNotEmpty()) {
                 // SubDir is a Volume grouping multiple chapters
                 val volName = subDir.name ?: "Volume"
                 for (chapDoc in childSubDirs) {
-                    val chapImages = chapDoc.listFiles().filter { !it.isDirectory && isSupportedImage(it) }
+                    val chapImages = chapDoc.listFiles().filter { 
+                        !it.isDirectory && isSupportedImage(it) &&
+                        (coverDoc == null || it.name != coverDoc.name)
+                    }
                     if (chapImages.isNotEmpty()) {
                         val chapName = chapDoc.name ?: "Chapter"
                         val combinedTitle = if (chapName.contains(volName, ignoreCase = true)) chapName else "$volName - $chapName"
@@ -140,9 +152,6 @@ object ToonLocalSingleImport {
                 match.value.padStart(10, '0')
             }
         })
-
-        // 3. Find dedicated cover image (Rule 5: Strictly artwork, never media item)
-        val coverDoc = ZineMetadataExtractor.findCoverInDocumentFolder(sourceDoc, parsedZine?.coverFileName)
 
         // 4. Copying Files to Vault
         val totalPagesCount = discoveredChapters.sumOf { it.pages.size }

@@ -61,12 +61,10 @@ object ToonExternalSingleImport {
             }
         }
 
-        if (coverPath.isEmpty()) {
-            val coverDoc = ZineMetadataExtractor.findCoverInDocumentFolder(sourceDoc, parsedZine?.coverFileName)
-            if (coverDoc != null) {
-                coverPath = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, coverDoc.uri, "toon", finalTitle)
-                    ?: coverDoc.uri.toString()
-            }
+        val coverDoc = ZineMetadataExtractor.findCoverInDocumentFolder(sourceDoc, parsedZine?.coverFileName)
+        if (coverPath.isEmpty() && coverDoc != null) {
+            coverPath = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, coverDoc.uri, "toon", finalTitle)
+                ?: coverDoc.uri.toString()
         }
 
         val mangaToInsert = MangaEntity(
@@ -98,7 +96,9 @@ object ToonExternalSingleImport {
         val rootFiles = sourceDoc.listFiles()
         val subDirs = rootFiles.filter { it.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }
         val looseImages = rootFiles.filter {
-            !it.isDirectory && isSupportedImage(it) && !ZineMetadataExtractor.isDedicatedCoverName(it.name)
+            !it.isDirectory && isSupportedImage(it) &&
+            !ZineMetadataExtractor.isDedicatedCoverName(it.name) &&
+            (coverDoc == null || it.name != coverDoc.name)
         }
 
         val discoveredChapters = mutableListOf<DiscoveredExternalChapter>()
@@ -106,12 +106,19 @@ object ToonExternalSingleImport {
         for (subDir in subDirs) {
             val subChildren = subDir.listFiles()
             val childSubDirs = subChildren.filter { it.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(it.name) }
-            val directImages = subChildren.filter { !it.isDirectory && isSupportedImage(it) && !ZineMetadataExtractor.isDedicatedCoverName(it.name) }
+            val directImages = subChildren.filter { 
+                !it.isDirectory && isSupportedImage(it) && 
+                !ZineMetadataExtractor.isDedicatedCoverName(it.name) &&
+                (coverDoc == null || it.name != coverDoc.name)
+            }
 
             if (childSubDirs.isNotEmpty()) {
                 val volName = subDir.name ?: "Volume"
                 for (chapDoc in childSubDirs) {
-                    val chapImages = chapDoc.listFiles().filter { !it.isDirectory && isSupportedImage(it) }
+                    val chapImages = chapDoc.listFiles().filter { 
+                        !it.isDirectory && isSupportedImage(it) &&
+                        (coverDoc == null || it.name != coverDoc.name)
+                    }
                     if (chapImages.isNotEmpty()) {
                         val chapName = chapDoc.name ?: "Chapter"
                         val combinedTitle = if (chapName.contains(volName, ignoreCase = true)) chapName else "$volName - $chapName"

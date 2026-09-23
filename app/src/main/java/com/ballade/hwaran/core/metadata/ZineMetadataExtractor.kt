@@ -100,10 +100,16 @@ object ZineMetadataExtractor {
         "cover.jpg", "cover.jpeg", "cover.png", "cover.webp",
         "folder.jpg", "folder.jpeg", "folder.png", "folder.webp",
         "poster.jpg", "poster.jpeg", "poster.png", "poster.webp",
-        "thumb.jpg", "thumb.jpeg", "thumb.png", "thumb.webp"
+        "thumb.jpg", "thumb.jpeg", "thumb.png", "thumb.webp",
+        "thumbnail.jpg", "thumbnail.jpeg", "thumbnail.png", "thumbnail.webp",
+        "front.jpg", "front.jpeg", "front.png", "front.webp",
+        "artwork.jpg", "artwork.jpeg", "artwork.png", "artwork.webp",
+        "banner.jpg", "banner.jpeg", "banner.png", "banner.webp",
+        "preview.jpg", "preview.jpeg", "preview.png", "preview.webp",
+        "default.jpg", "default.jpeg", "default.png", "default.webp"
     )
 
-    private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "bmp", "gif")
+    val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "bmp", "gif")
 
     /**
      * Checks whether a file or directory is internal metadata (.zine, *.json, .nomedia, *.lrc, hidden)
@@ -123,17 +129,25 @@ object ZineMetadataExtractor {
 
     /**
      * Checks if a filename is a dedicated cover image (Rule 5).
+     * Must ALWAYS have a supported image extension. Non-image files (video, audio, etc.) can NEVER be covers.
      */
     fun isDedicatedCoverName(name: String?): Boolean {
         if (name == null) return false
         val lower = name.lowercase().trim()
+        val ext = lower.substringAfterLast(".", "")
+        if (ext !in IMAGE_EXTENSIONS) return false
         if (lower in DEDICATED_COVER_NAMES) return true
         val baseName = lower.substringBeforeLast(".")
-        val ext = lower.substringAfterLast(".", "")
-        return ext in IMAGE_EXTENSIONS && (
+        return (
             baseName == "cover" || baseName == "folder" ||
             baseName == "poster" || baseName == "thumb" ||
-            baseName.startsWith("cover_") || baseName.startsWith("poster_")
+            baseName == "thumbnail" || baseName == "front" ||
+            baseName == "artwork" || baseName == "banner" ||
+            baseName == "preview" ||
+            baseName.startsWith("cover_") || baseName.startsWith("cover-") ||
+            baseName.startsWith("poster_") || baseName.startsWith("poster-") ||
+            baseName.startsWith("thumb_") || baseName.startsWith("thumb-") ||
+            baseName.startsWith("front_") || baseName.startsWith("front-")
         )
     }
 
@@ -248,14 +262,14 @@ object ZineMetadataExtractor {
 
         val zineDir = folder.listFiles()?.firstOrNull { it.isDirectory && it.name.equals(".zine", ignoreCase = true) }
 
-        // 1. Specified cover name from metadata
+        // 1. Specified cover name from metadata (strictly images only)
         if (!specifiedCoverName.isNullOrBlank()) {
             val directFile = File(folder, specifiedCoverName)
-            if (directFile.exists() && directFile.isFile) return directFile
+            if (directFile.exists() && directFile.isFile && directFile.extension.lowercase() in IMAGE_EXTENSIONS) return directFile
 
             if (zineDir != null) {
                 val zineCover = File(zineDir, specifiedCoverName)
-                if (zineCover.exists() && zineCover.isFile) return zineCover
+                if (zineCover.exists() && zineCover.isFile && zineCover.extension.lowercase() in IMAGE_EXTENSIONS) return zineCover
             }
         }
 
@@ -277,6 +291,10 @@ object ZineMetadataExtractor {
         val rootFiles = folder.listFiles() ?: emptyArray()
         val dedicated = rootFiles.firstOrNull { it.isFile && isDedicatedCoverName(it.name) }
         if (dedicated != null) return dedicated
+
+        // 4. Fallback: Any valid image in the root directory
+        val rootImage = rootFiles.firstOrNull { it.isFile && it.extension.lowercase() in IMAGE_EXTENSIONS && !isInternalOrAuxiliary(it.name) }
+        if (rootImage != null) return rootImage
 
         return null
     }
@@ -399,13 +417,19 @@ object ZineMetadataExtractor {
         val children = folderDoc.listFiles()
         val zineDoc = children.firstOrNull { it.isDirectory && it.name.equals(".zine", ignoreCase = true) }
 
-        // 1. Specified cover name from metadata
+        // 1. Specified cover name from metadata (strictly images only)
         if (!specifiedCoverName.isNullOrBlank()) {
-            val direct = children.firstOrNull { !it.isDirectory && it.name.equals(specifiedCoverName, ignoreCase = true) }
+            val direct = children.firstOrNull { 
+                !it.isDirectory && it.name.equals(specifiedCoverName, ignoreCase = true) &&
+                IMAGE_EXTENSIONS.contains(it.name?.substringAfterLast('.', "")?.lowercase())
+            }
             if (direct != null) return direct
 
             if (zineDoc != null) {
-                val zineDirect = zineDoc.listFiles().firstOrNull { !it.isDirectory && it.name.equals(specifiedCoverName, ignoreCase = true) }
+                val zineDirect = zineDoc.listFiles().firstOrNull { 
+                    !it.isDirectory && it.name.equals(specifiedCoverName, ignoreCase = true) &&
+                    IMAGE_EXTENSIONS.contains(it.name?.substringAfterLast('.', "")?.lowercase())
+                }
                 if (zineDirect != null) return zineDirect
             }
         }
@@ -426,6 +450,14 @@ object ZineMetadataExtractor {
             !doc.isDirectory && isDedicatedCoverName(doc.name)
         }
         if (dedicated != null) return dedicated
+
+        // 4. Fallback: Any valid image in the root directory
+        val rootImage = children.firstOrNull { doc ->
+            !doc.isDirectory &&
+            IMAGE_EXTENSIONS.contains(doc.name?.substringAfterLast('.', "")?.lowercase()) &&
+            !isInternalOrAuxiliary(doc.name)
+        }
+        if (rootImage != null) return rootImage
 
         return null
     }

@@ -550,22 +550,92 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             try {
                 val globalSettings = com.ballade.hwaran.core.datastore.GlobalSettings(getApplication())
                 val isLocalMode = (storageModeOverride ?: globalSettings.storageModeFlow.first()) == 0
-                val mediaMode = mediaModeOverride ?: globalSettings.mediaModeFlow.first()
+
+                val sourceDoc = withContext(Dispatchers.IO) {
+                    if (isFile) {
+                        DocumentFile.fromSingleUri(getApplication(), uri)
+                    } else if (uri.scheme == "file") {
+                        uri.path?.let { DocumentFile.fromFile(java.io.File(it)) }
+                    } else {
+                        DocumentFile.fromTreeUri(getApplication(), uri)
+                    }
+                }
+
+                // Auto-detect mediaMode and boxPurpose if not explicitly provided
+                var detectedMediaMode = mediaModeOverride
+                var detectedBoxPurpose = boxPurposeOverride
+
+                if (detectedMediaMode == null && sourceDoc != null) {
+                    val parsedZine = withContext(Dispatchers.IO) {
+                        com.ballade.hwaran.core.metadata.ZineMetadataExtractor.extractFromDocumentFolder(getApplication(), sourceDoc)
+                    }
+                    val type = (parsedZine?.type ?: "").lowercase()
+                    when {
+                        type in listOf("channel", "series", "video", "anime", "movie") -> {
+                            detectedMediaMode = 2
+                            if (detectedBoxPurpose == null) detectedBoxPurpose = if (type == "channel") "channel" else "series"
+                        }
+                        type in listOf("music", "song", "audio", "album", "artist") -> {
+                            detectedMediaMode = 3
+                            if (detectedBoxPurpose == null) detectedBoxPurpose = "music"
+                        }
+                        type in listOf("book", "novel", "light novel", "pdf", "epub") -> {
+                            detectedMediaMode = 1
+                            if (detectedBoxPurpose == null) detectedBoxPurpose = if (type == "novel" || type == "light novel") "novel" else "book"
+                        }
+                        type in listOf("manga", "manhua", "manhwa", "comic", "webtoon") -> {
+                            detectedMediaMode = 0
+                            if (detectedBoxPurpose == null) detectedBoxPurpose = if (type == "manhua" || type == "manhwa") "manhua" else "manga"
+                        }
+                    }
+
+                    if (detectedMediaMode == null) {
+                        withContext(Dispatchers.IO) {
+                            val hasVideo = com.ballade.hwaran.data.importer.video.VideoImportUtils.findVideoFiles(sourceDoc).isNotEmpty()
+                            val hasAudio = com.ballade.hwaran.data.importer.music.MusicImportUtils.findAudioFiles(sourceDoc).isNotEmpty()
+                            val hasBook = if (isFile) {
+                                val n = sourceDoc.name?.lowercase() ?: ""
+                                n.endsWith(".pdf") || n.endsWith(".epub") || com.ballade.hwaran.backend.novel.NovelParser.isBookFile(n)
+                            } else {
+                                (sourceDoc.listFiles() ?: emptyArray()).any { f ->
+                                    val fn = f.name?.lowercase() ?: ""
+                                    !f.isDirectory && (fn.endsWith(".pdf") || fn.endsWith(".epub") || com.ballade.hwaran.backend.novel.NovelParser.isBookFile(fn))
+                                }
+                            }
+
+                            when {
+                                hasVideo -> {
+                                    detectedMediaMode = 2
+                                    if (detectedBoxPurpose == null) detectedBoxPurpose = "series"
+                                }
+                                hasAudio -> {
+                                    detectedMediaMode = 3
+                                    if (detectedBoxPurpose == null) detectedBoxPurpose = "music"
+                                }
+                                hasBook -> {
+                                    detectedMediaMode = 1
+                                    if (detectedBoxPurpose == null) detectedBoxPurpose = "book"
+                                }
+                            }
+                        }
+                    }
+                }
+
+                val mediaMode = detectedMediaMode ?: globalSettings.mediaModeFlow.first()
                 val videoLayoutMode = globalSettings.videoLayoutModeFlow.first()
-                val boxPurpose = boxPurposeOverride ?: if (videoLayoutMode == 1) "channel" else "series"
+                val boxPurpose = detectedBoxPurpose ?: boxPurposeOverride ?: if (videoLayoutMode == 1) "channel" else "series"
 
                 val expectedPath = withContext(Dispatchers.IO) {
                     if (isLocalMode) {
-                        val folderDoc = if (isFile) {
-                            DocumentFile.fromSingleUri(getApplication(), uri)
-                        } else if (uri.scheme == "file") {
-                            uri.path?.let { DocumentFile.fromFile(java.io.File(it)) }
-                        } else {
-                            DocumentFile.fromTreeUri(getApplication(), uri)
-                        }
-                        val folderName = folderDoc?.name ?: "Unknown"
+                        val folderName = sourceDoc?.name ?: "Unknown"
                         val finalFolderName = if (isFile) folderName.substringBeforeLast(".") else folderName
-                        val vaultBase = java.io.File(getApplication<Application>().filesDir, "manga_vault")
+                        val vaultSubdir = when (mediaMode) {
+                            2 -> "video_vault"
+                            1 -> "book_vault"
+                            3 -> "music_vault"
+                            else -> "manga_vault"
+                        }
+                        val vaultBase = java.io.File(getApplication<Application>().filesDir, vaultSubdir)
                         java.io.File(vaultBase, finalFolderName).absolutePath
                     } else {
                         uri.toString()

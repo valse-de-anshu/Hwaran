@@ -495,18 +495,23 @@ class LibraryRepository(private val context: Context, private val database: AppD
             if (coverPath.isEmpty()) {
                 if (isLocalMode) {
                     if (!isFile) {
-                        val coverFile = importResult!!.copiedLooseFiles.find { 
-                            it.name.lowercase().contains("cover") || 
-                            imageExtensions.any { ext -> it.name.lowercase().endsWith(ext) }
+                        val images = importResult!!.copiedLooseFiles.filter { file ->
+                            imageExtensions.any { ext -> file.name.lowercase().endsWith(ext) } &&
+                            !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(file.name)
                         }
+                        val coverFile = images.find { com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(it.name) }
+                            ?: images.firstOrNull()
                         if (coverFile != null) coverPath = coverFile.absolutePath
                     }
                 } else {
                     if (!isFile) {
-                        val coverFile = getRootDocFiles().find { !it.isDirectory && 
-                            (it.name?.lowercase()?.contains("cover") == true || 
-                             imageExtensions.any { ext -> it.name?.lowercase()?.endsWith(ext) == true }) 
+                        val images = getRootDocFiles().filter { doc ->
+                            !doc.isDirectory &&
+                            imageExtensions.any { ext -> doc.name?.lowercase()?.endsWith(ext) == true } &&
+                            !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isInternalOrAuxiliary(doc.name)
                         }
+                        val coverFile = images.find { com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isDedicatedCoverName(it.name) }
+                            ?: images.firstOrNull()
                         if (coverFile != null) coverPath = coverFile.uri.toString()
                     }
                 }
