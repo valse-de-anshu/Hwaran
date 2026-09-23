@@ -147,6 +147,15 @@ object MediaMetadataManager {
             val dir = File(parentUri)
             if (dir.exists() && dir.isDirectory) {
                 parsedZine = ZineMetadataExtractor.extractFromFolder(dir)
+                // Traverse immediate child subdirs if not found in root (e.g. parentUri = channel/, metadata in channel/video/.zine/)
+                if (parsedZine == null) {
+                    for (child in dir.listFiles() ?: emptyArray()) {
+                        if (child.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(child.name)) {
+                            parsedZine = ZineMetadataExtractor.extractFromFolder(child)
+                            if (parsedZine != null) break
+                        }
+                    }
+                }
             }
         }
 
@@ -156,6 +165,15 @@ object MediaMetadataManager {
                 val docDir = DocumentFile.fromTreeUri(context, Uri.parse(parentUri))
                 if (docDir != null && docDir.isDirectory) {
                     parsedZine = ZineMetadataExtractor.extractFromDocumentFolder(context, docDir)
+                    // Traverse immediate child subdirs if not found in root
+                    if (parsedZine == null) {
+                        for (child in docDir.listFiles()) {
+                            if (child.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(child.name)) {
+                                parsedZine = ZineMetadataExtractor.extractFromDocumentFolder(context, child)
+                                if (parsedZine != null) break
+                            }
+                        }
+                    }
                 }
             } catch (_: Exception) {}
         }
