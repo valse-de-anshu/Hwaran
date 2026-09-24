@@ -31,7 +31,9 @@ data class ScrapeTaskInfo(
     val message: String,
     val fileCount: Int,
     val error: String,
-    val mediaTitle: String = ""
+    val mediaTitle: String = "",
+    val keepOnPc: Boolean = false,
+    val isStopping: Boolean = false
 )
 
 object ZineServerClient {
@@ -117,12 +119,36 @@ object ZineServerClient {
         null
     }
 
+    private fun getSortedInterfaces(): List<NetworkInterface> {
+        val list = mutableListOf<NetworkInterface>()
+        try {
+            val enumeration = NetworkInterface.getNetworkInterfaces() ?: return emptyList()
+            while (enumeration.hasMoreElements()) {
+                val iface = enumeration.nextElement()
+                if (!iface.isLoopback && iface.isUp) {
+                    list.add(iface)
+                }
+            }
+        } catch (e: Exception) {}
+
+        return list.sortedByDescending { iface ->
+            val name = iface.name.lowercase()
+            when {
+                name.startsWith("wlan") -> 100
+                name.startsWith("eth") -> 90
+                name.startsWith("rndis") -> 80
+                name.startsWith("ap") -> 70
+                name.startsWith("tun") -> -10
+                name.startsWith("rmnet") -> -20
+                name.startsWith("ccmni") -> -30
+                else -> 0
+            }
+        }
+    }
+
     fun getLocalDeviceIp(): String {
         try {
-            val interfaces = NetworkInterface.getNetworkInterfaces()
-            while (interfaces.hasMoreElements()) {
-                val iface = interfaces.nextElement()
-                if (iface.isLoopback || !iface.isUp) continue
+            for (iface in getSortedInterfaces()) {
                 val addrs = iface.inetAddresses
                 while (addrs.hasMoreElements()) {
                     val addr = addrs.nextElement()
@@ -138,10 +164,7 @@ object ZineServerClient {
 
     private fun getLocalSubnetPrefix(): String? {
         try {
-            val interfaces = NetworkInterface.getNetworkInterfaces()
-            while (interfaces.hasMoreElements()) {
-                val iface = interfaces.nextElement()
-                if (iface.isLoopback || !iface.isUp) continue
+            for (iface in getSortedInterfaces()) {
                 val addresses = iface.inetAddresses
                 while (addresses.hasMoreElements()) {
                     val addr = addresses.nextElement()
@@ -258,11 +281,12 @@ object ZineServerClient {
         serverHost: String,
         serverPort: Int,
         mediaUrl: String,
-        mode: String = "quick_grab",
+        mode: String = "auto",
         clientIp: String = "",
         transferMethod: String = "direct",
         flags: List<String> = emptyList(),
-        limit: Int? = null
+        limit: Int? = null,
+        keepOnPc: Boolean = false
     ): Result<ScrapeTaskInfo> = withContext(Dispatchers.IO) {
         var conn: HttpURLConnection? = null
         try {
@@ -276,10 +300,11 @@ object ZineServerClient {
                 setRequestProperty("Connection", "keep-alive")
             }
 
-            Log.i(TAG, "Transmitting scrape signal: $mediaUrl ($mode, flags: $flags, limit: $limit) to $serverHost:$serverPort")
+            Log.i(TAG, "Transmitting scrape signal: $mediaUrl ($mode, flags: $flags, limit: $limit, keepOnPc: $keepOnPc) to $serverHost:$serverPort")
             val payload = JSONObject().apply {
                 put("url", mediaUrl)
                 put("mode", mode)
+                put("keep_on_pc", keepOnPc)
                 if (flags.isNotEmpty()) {
                     val arr = JSONArray()
                     flags.forEach { arr.put(it) }
@@ -309,7 +334,17 @@ object ZineServerClient {
             } else {
                 val errText = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
                 Log.e(TAG, "Server error HTTP ${conn.responseCode}: $errText")
-                Result.failure(IOException("Server error HTTP ${conn.responseCode}: $errText"))
+                var errorMsg = ""
+                try {
+                    val errJson = JSONObject(errText)
+                    if (errJson.has("error")) {
+                        errorMsg = errJson.getString("error")
+                    }
+                } catch (e: Exception) {}
+                if (errorMsg.isBlank()) {
+                    errorMsg = if (errText.isNotBlank()) errText else "Server error HTTP ${conn.responseCode}"
+                }
+                Result.failure(IOException(errorMsg))
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed submitting scrape to $serverHost:$serverPort -> ${e.message}", e)
@@ -358,6 +393,7 @@ object ZineServerClient {
         serverPort: Int,
         taskId: String,
         mode: String = "quick_grab",
+        mediaTitle: String? = null,
         progressCb: ((Float) -> Unit)? = null
     ): Result<File> = withContext(Dispatchers.IO) {
         var conn: HttpURLConnection? = null
@@ -401,7 +437,7 @@ object ZineServerClient {
             val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
             val zineRoot = File(downloadsDir, "Zine Scraper/$subFolder").apply { mkdirs() }
 
-            val targetDir = if (zineRoot.exists() && zineRoot.canWrite()) {
+            val targetBaseDir = if (zineRoot.exists() && zineRoot.canWrite()) {
                 zineRoot
             } else {
                 File(context.getExternalFilesDir(null), "Zine Scraper/$subFolder").apply { mkdirs() }
@@ -411,9 +447,21 @@ object ZineServerClient {
             val zipFile = java.util.zip.ZipFile(tempFile)
             val entries = zipFile.entries()
             var detectedSeriesDir: File? = null
+
+            val safeMediaName = mediaTitle?.trim()?.replace(Regex("[^a-zA-Z0-9_. -]"), "_")?.takeIf { it.isNotBlank() && !it.equals("zine_scraper", ignoreCase = true) }
+
             while (entries.hasMoreElements()) {
                 val entry = entries.nextElement()
-                val outFile = File(targetDir, entry.name)
+                val entryPath = entry.name.replace("\\", "/")
+                val parts = entryPath.split("/").filter { it.isNotBlank() }
+
+                val relativePath = if (parts.size == 1 && safeMediaName != null) {
+                    "$safeMediaName/$entryPath"
+                } else {
+                    entryPath
+                }
+
+                val outFile = File(targetBaseDir, relativePath)
                 if (entry.isDirectory) {
                     outFile.mkdirs()
                 } else {
@@ -424,10 +472,11 @@ object ZineServerClient {
                         }
                     }
                 }
-                val parts = entry.name.split("/")
-                if (parts.size > 1 && parts[0].isNotBlank()) {
-                    val candidate = File(targetDir, parts[0])
-                    if (detectedSeriesDir == null || detectedSeriesDir.name.startsWith("Chapter", ignoreCase = true) || detectedSeriesDir.name.startsWith("Episode", ignoreCase = true)) {
+
+                val outParts = relativePath.split("/").filter { it.isNotBlank() }
+                if (outParts.isNotEmpty()) {
+                    val candidate = File(targetBaseDir, outParts[0])
+                    if (detectedSeriesDir == null || candidate.name == safeMediaName) {
                         detectedSeriesDir = candidate
                     }
                 }
@@ -435,7 +484,10 @@ object ZineServerClient {
             zipFile.close()
             progressCb?.invoke(1.0f)
 
-            Result.success(detectedSeriesDir ?: targetDir)
+            // Trigger immediate server-side cleanup of temporary transit files
+            deleteTask(serverHost, serverPort, taskId)
+
+            Result.success(detectedSeriesDir ?: targetBaseDir)
         } catch (e: Exception) {
             Log.e(TAG, "Download/extraction failed: ${e.message}", e)
             conn?.disconnect()
@@ -445,17 +497,113 @@ object ZineServerClient {
         }
     }
 
+    /**
+     * Sends DELETE /api/tasks/{taskId} to signal completion and trigger immediate
+     * cleanup of temporary transit files on the companion server.
+     */
+    suspend fun deleteTask(
+        serverHost: String,
+        serverPort: Int,
+        taskId: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        var conn: HttpURLConnection? = null
+        try {
+            val endpoint = URL("http://$serverHost:$serverPort/api/tasks/$taskId")
+            conn = (endpoint.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 3000
+                readTimeout = 5000
+                requestMethod = "DELETE"
+                setRequestProperty("Connection", "close")
+            }
+            Result.success(conn.responseCode in 200..299)
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
     private fun parseTaskJson(json: JSONObject): ScrapeTaskInfo {
         return ScrapeTaskInfo(
             taskId = json.optString("task_id", ""),
             url = json.optString("url", ""),
-            mode = json.optString("mode", "quick_grab"),
+            mode = json.optString("mode", "auto"),
             status = json.optString("status", "queued"),
             progress = json.optDouble("progress", 0.0).toFloat(),
             message = json.optString("message", ""),
             fileCount = json.optInt("file_count", 0),
             error = json.optString("error", ""),
-            mediaTitle = json.optString("media_title", json.optString("title", ""))
+            mediaTitle = json.optString("media_title", json.optString("title", "")),
+            keepOnPc = json.optBoolean("keep_on_pc", false),
+            isStopping = json.optBoolean("is_stopping", false) || json.optString("message", "").contains("stopping", ignoreCase = true)
         )
+    }
+
+    /**
+     * Sends POST /api/tasks/{taskId}/stop with action="truncate" to signal
+     * the server and scraper engine to stop early (Ctrl+T / Revolt truncate)
+     * after finishing the current downloading media file.
+     */
+    suspend fun stopTask(
+        serverHost: String,
+        serverPort: Int,
+        taskId: String,
+        action: String = "truncate"
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        var conn: HttpURLConnection? = null
+        try {
+            val endpoint = URL("http://$serverHost:$serverPort/api/tasks/$taskId/stop")
+            conn = (endpoint.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 3000
+                readTimeout = 5000
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Connection", "close")
+                doOutput = true
+            }
+            val payload = JSONObject().apply {
+                put("action", action)
+            }
+            conn.outputStream.bufferedWriter().use { it.write(payload.toString()) }
+            Result.success(conn.responseCode in 200..299)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to dispatch stop/revolt signal: ${e.message}", e)
+            Result.failure(e)
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    /**
+     * Sends POST /api/tasks/{taskId}/cancel to immediately terminate/kill
+     * the active scraper task and all child processes right away.
+     */
+    suspend fun cancelTask(
+        serverHost: String,
+        serverPort: Int,
+        taskId: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        var conn: HttpURLConnection? = null
+        try {
+            val endpoint = URL("http://$serverHost:$serverPort/api/tasks/$taskId/cancel")
+            conn = (endpoint.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 3000
+                readTimeout = 5000
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Connection", "close")
+                doOutput = true
+            }
+            val payload = JSONObject().apply {
+                put("action", "cancel")
+            }
+            conn.outputStream.bufferedWriter().use { it.write(payload.toString()) }
+            Result.success(conn.responseCode in 200..299)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to dispatch cancel signal: ${e.message}", e)
+            Result.failure(e)
+        } finally {
+            conn?.disconnect()
+        }
     }
 }

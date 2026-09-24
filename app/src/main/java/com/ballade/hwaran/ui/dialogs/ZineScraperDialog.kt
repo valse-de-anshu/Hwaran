@@ -33,6 +33,15 @@ import com.ballade.hwaran.core.network.ZineServerClient
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+// Minimal Titanium Palette
+private val DialogDarkOnyx = Color(0xFF08090C)
+private val DialogGlassSurface = Color(0xFF101218)
+private val DialogTitanium = Color(0xFFF1F3F9)
+private val DialogSubtleBorder = Color(0xFF27272A)
+private val DialogEmerald = Color(0xFF34D399)
+private val DialogCoral = Color(0xFFF87171)
+private val DialogAmber = Color(0xFFFBBF24)
+
 @Composable
 fun ZineScraperDialog(
     onDismiss: () -> Unit,
@@ -51,10 +60,13 @@ fun ZineScraperDialog(
     var showManualIp by remember { mutableStateOf(false) }
 
     var urlInput by remember { mutableStateOf("") }
-    var selectedMode by remember { mutableStateOf("quick_grab") } // "quick_grab" or "vacuum"
+    var selectedScopeKey by remember { mutableStateOf("auto") } // "auto", "single" (--0), "vacuum" (--a), "next_5" (--5)
+    var flagMetaOnly by remember { mutableStateOf(false) } // --meta
 
     var activeTask by remember { mutableStateOf<ScrapeTaskInfo?>(null) }
     var isSubmitting by remember { mutableStateOf(false) }
+    var isCancelingRequested by remember { mutableStateOf(false) }
+    var isStoppingRequested by remember { mutableStateOf(false) }
     var localDownloadResultPath by remember { mutableStateOf<String?>(null) }
 
     // Auto-discover server or test saved IP on open
@@ -86,7 +98,7 @@ fun ZineScraperDialog(
     // Task polling loop
     LaunchedEffect(activeTask?.taskId, activeTask?.status) {
         val task = activeTask ?: return@LaunchedEffect
-        if (task.status in listOf("completed", "failed")) return@LaunchedEffect
+        if (task.status in listOf("completed", "failed", "canceled")) return@LaunchedEffect
 
         while (true) {
             delay(1200)
@@ -101,7 +113,8 @@ fun ZineScraperDialog(
                             serverHost = serverIp,
                             serverPort = serverPort,
                             taskId = updated.taskId,
-                            mode = selectedMode
+                            mode = updated.mode,
+                            mediaTitle = updated.mediaTitle
                         )
                         dlRes.onSuccess { dir ->
                             localDownloadResultPath = dir.absolutePath
@@ -110,15 +123,15 @@ fun ZineScraperDialog(
                     }
                 }
             }
-            if (activeTask?.status in listOf("completed", "failed")) break
+            if (activeTask?.status in listOf("completed", "failed", "canceled")) break
         }
     }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color(0xFF141721),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+            color = DialogGlassSurface,
+            border = BorderStroke(1.dp, DialogSubtleBorder),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 4.dp)
@@ -142,21 +155,21 @@ fun ZineScraperDialog(
                         Surface(
                             modifier = Modifier.size(38.dp),
                             shape = CircleShape,
-                            color = Color.White.copy(alpha = 0.08f),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                            color = Color.White.copy(alpha = 0.06f),
+                            border = BorderStroke(1.dp, DialogSubtleBorder)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Rounded.DriveFileMove,
                                     contentDescription = null,
-                                    tint = Color(0xFFD4D8E0),
-                                    modifier = Modifier.size(20.dp)
+                                    tint = DialogTitanium,
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
                         }
                         Column {
-                            Text("Zine Scraper Hub", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            Text("Remote Media Ingestion", fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f))
+                            Text("Zine Scraper Hub", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = DialogTitanium)
+                            Text("Remote Media Ingestion", fontSize = 11.sp, color = DialogTitanium.copy(alpha = 0.55f))
                         }
                     }
 
@@ -164,7 +177,7 @@ fun ZineScraperDialog(
                         onClick = onDismiss,
                         modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(Icons.Rounded.Close, contentDescription = "Close", tint = Color.White.copy(alpha = 0.6f))
+                        Icon(Icons.Rounded.Close, contentDescription = "Close", tint = DialogTitanium.copy(alpha = 0.6f))
                     }
                 }
 
@@ -173,8 +186,8 @@ fun ZineScraperDialog(
                 // Server Status Card
                 Surface(
                     shape = RoundedCornerShape(14.dp),
-                    color = Color.White.copy(alpha = 0.04f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+                    color = Color.White.copy(alpha = 0.03f),
+                    border = BorderStroke(1.dp, DialogSubtleBorder),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
@@ -190,20 +203,20 @@ fun ZineScraperDialog(
                                 Surface(
                                     modifier = Modifier.size(8.dp),
                                     shape = CircleShape,
-                                    color = if (isServerConnected) Color(0xFF6EE7B7) else if (isSearchingServer) Color(0xFFFCD34D) else Color(0xFFF87171)
+                                    color = if (isServerConnected) DialogEmerald else if (isSearchingServer) DialogAmber else DialogCoral
                                 ) {}
                                 Text(
                                     text = if (isServerConnected) "Server: $serverIp:$serverPort" else if (isSearchingServer) "Scanning LAN for Zine..." else "Server Offline",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = Color.White.copy(alpha = 0.85f)
+                                    color = DialogTitanium.copy(alpha = 0.85f)
                                 )
                             }
 
                             Text(
                                 text = if (showManualIp) "Done" else "Configure",
                                 fontSize = 11.5.sp,
-                                color = Color(0xFFD4D8E0),
+                                color = DialogTitanium,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.clickable { showManualIp = !showManualIp }
                             )
@@ -221,10 +234,10 @@ fun ZineScraperDialog(
                                     label = { Text("Server IP", fontSize = 11.sp) },
                                     singleLine = true,
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White,
-                                        focusedBorderColor = Color(0xFFD4D8E0),
-                                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                                        focusedTextColor = DialogTitanium,
+                                        unfocusedTextColor = DialogTitanium,
+                                        focusedBorderColor = DialogTitanium,
+                                        unfocusedBorderColor = DialogSubtleBorder
                                     ),
                                     modifier = Modifier.weight(1f)
                                 )
@@ -243,11 +256,11 @@ fun ZineScraperDialog(
                                             }
                                         }
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF222631)),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.08f)),
+                                    border = BorderStroke(1.dp, DialogSubtleBorder),
                                     shape = RoundedCornerShape(10.dp)
                                 ) {
-                                    Text("Test", fontSize = 12.sp, color = Color.White)
+                                    Text("Test", fontSize = 12.sp, color = DialogTitanium)
                                 }
                             }
                         }
@@ -257,12 +270,12 @@ fun ZineScraperDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // URL Input Field with Paste Button
-                Text("MEDIA URL", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.5f))
+                Text("MEDIA URL", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = DialogTitanium.copy(alpha = 0.45f), letterSpacing = 1.1.sp)
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(
                     value = urlInput,
                     onValueChange = { urlInput = it },
-                    placeholder = { Text("Paste Manga, Anime, Novel or Video link...", fontSize = 12.sp, color = Color.White.copy(alpha = 0.4f)) },
+                    placeholder = { Text("Paste Manga, Anime, Novel or Video link...", fontSize = 12.sp, color = DialogTitanium.copy(alpha = 0.35f)) },
                     singleLine = true,
                     trailingIcon = {
                         IconButton(
@@ -272,14 +285,14 @@ fun ZineScraperDialog(
                                 if (text.isNotBlank()) urlInput = text.trim()
                             }
                         ) {
-                            Icon(Icons.Rounded.ContentPaste, contentDescription = "Paste", tint = Color(0xFFD4D8E0), modifier = Modifier.size(18.dp))
+                            Icon(Icons.Rounded.ContentPaste, contentDescription = "Paste", tint = DialogTitanium, modifier = Modifier.size(18.dp))
                         }
                     },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color(0xFFD4D8E0),
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                        focusedTextColor = DialogTitanium,
+                        unfocusedTextColor = DialogTitanium,
+                        focusedBorderColor = DialogTitanium,
+                        unfocusedBorderColor = DialogSubtleBorder
                     ),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -287,37 +300,136 @@ fun ZineScraperDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Ingestion Mode Selector (Quick Grab vs Vacuum)
-                Text("SCRAPE SCOPE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.5f))
+                // Ingestion Mode Selector (Auto vs Single vs Vacuum vs Next 5)
+                Text("SCRAPE SCOPE", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = DialogTitanium.copy(alpha = 0.45f), letterSpacing = 1.1.sp)
                 Spacer(modifier = Modifier.height(6.dp))
+
+                val scopes = listOf(
+                    Triple("auto", "Auto (Smart Link)", "AUTO"),
+                    Triple("single", "Single Item", "--0"),
+                    Triple("vacuum", "Vacuum All", "--a"),
+                    Triple("next_5", "Next 5", "--5")
+                )
+
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    val modes = listOf(
-                        "quick_grab" to "Quick Grab (Single/Clip)",
-                        "vacuum" to "Vacuum (Full Series/Run)"
-                    )
-                    modes.forEach { (modeKey, label) ->
-                        val isSelected = selectedMode == modeKey
+                    scopes.take(2).forEach { (scopeKey, label, badge) ->
+                        val isSelected = selectedScopeKey == scopeKey
                         Surface(
-                            onClick = { selectedMode = modeKey },
+                            onClick = { selectedScopeKey = scopeKey },
                             shape = RoundedCornerShape(10.dp),
-                            color = if (isSelected) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.05f),
-                            border = BorderStroke(1.dp, if (isSelected) Color(0xFFD4D8E0) else Color.White.copy(alpha = 0.12f)),
+                            color = if (isSelected) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.04f),
+                            border = BorderStroke(1.dp, if (isSelected) DialogTitanium else DialogSubtleBorder),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Box(
-                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 8.dp),
-                                contentAlignment = Alignment.Center
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 9.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     text = label,
                                     fontSize = 11.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.75f),
-                                    textAlign = TextAlign.Center
+                                    color = if (isSelected) DialogTitanium else DialogTitanium.copy(alpha = 0.65f)
                                 )
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = if (isSelected) DialogTitanium.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.06f)
+                                ) {
+                                    Text(
+                                        text = badge,
+                                        fontSize = 9.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) DialogTitanium else DialogTitanium.copy(alpha = 0.45f),
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    scopes.drop(2).forEach { (scopeKey, label, badge) ->
+                        val isSelected = selectedScopeKey == scopeKey
+                        Surface(
+                            onClick = { selectedScopeKey = scopeKey },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.04f),
+                            border = BorderStroke(1.dp, if (isSelected) DialogTitanium else DialogSubtleBorder),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 9.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) DialogTitanium else DialogTitanium.copy(alpha = 0.65f)
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = if (isSelected) DialogTitanium.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.06f)
+                                ) {
+                                    Text(
+                                        text = badge,
+                                        fontSize = 9.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) DialogTitanium else DialogTitanium.copy(alpha = 0.45f),
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Metadata Only Toggle
+                Surface(
+                    onClick = { flagMetaOnly = !flagMetaOnly },
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (flagMetaOnly) DialogEmerald.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.04f),
+                    border = BorderStroke(1.dp, if (flagMetaOnly) DialogEmerald.copy(alpha = 0.40f) else DialogSubtleBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Metadata Only (--meta)",
+                            fontSize = 11.sp,
+                            fontWeight = if (flagMetaOnly) FontWeight.Bold else FontWeight.Medium,
+                            color = if (flagMetaOnly) DialogEmerald else DialogTitanium.copy(alpha = 0.65f)
+                        )
+                        Surface(
+                            shape = CircleShape,
+                            color = if (flagMetaOnly) DialogEmerald else Color.White.copy(alpha = 0.10f),
+                            modifier = Modifier.size(16.dp)
+                        ) {
+                            if (flagMetaOnly) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = null,
+                                        tint = DialogDarkOnyx,
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -327,10 +439,13 @@ fun ZineScraperDialog(
 
                 // Active Scrape Task Progress Card
                 activeTask?.let { task ->
+                    val isTaskActive = task.status in listOf("scraping", "analyzing", "queued")
+                    val isTaskStopping = isStoppingRequested || task.isStopping || task.message.contains("stopping", ignoreCase = true)
+
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = Color.White.copy(alpha = 0.06f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                        color = Color.White.copy(alpha = 0.05f),
+                        border = BorderStroke(1.dp, DialogSubtleBorder),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
@@ -343,13 +458,18 @@ fun ZineScraperDialog(
                                     text = task.status.uppercase(),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (task.status == "completed") Color(0xFF6EE7B7) else if (task.status == "failed") Color(0xFFF87171) else Color(0xFFD4D8E0)
+                                    color = when (task.status) {
+                                        "completed" -> DialogEmerald
+                                        "failed" -> DialogCoral
+                                        "canceled" -> DialogCoral
+                                        else -> DialogTitanium
+                                    }
                                 )
                                 Text(
                                     text = "${(task.progress * 100).toInt()}%",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = DialogTitanium
                                 )
                             }
                             Spacer(modifier = Modifier.height(6.dp))
@@ -357,19 +477,78 @@ fun ZineScraperDialog(
                                 progress = { task.progress },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(5.dp)
-                                    .clip(RoundedCornerShape(3.dp)),
-                                color = Color(0xFFD4D8E0),
-                                trackColor = Color.White.copy(alpha = 0.12f)
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp)),
+                                color = DialogTitanium,
+                                trackColor = Color.White.copy(alpha = 0.10f)
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = task.message.ifBlank { "Processing..." },
                                 fontSize = 11.5.sp,
-                                color = Color.White.copy(alpha = 0.8f),
+                                color = DialogTitanium.copy(alpha = 0.7f),
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
+
+                            // Action buttons inside task card when running
+                            if (isTaskActive) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    // Cancel Button
+                                    Button(
+                                        onClick = {
+                                            if (!isCancelingRequested) {
+                                                isCancelingRequested = true
+                                                coroutineScope.launch {
+                                                    val res = ZineServerClient.cancelTask(serverIp, serverPort, task.taskId)
+                                                    res.onSuccess {
+                                                        isCancelingRequested = false
+                                                        activeTask = activeTask?.copy(status = "canceled", message = "Task canceled immediately")
+                                                        Toast.makeText(context, "Task cancelled immediately!", Toast.LENGTH_SHORT).show()
+                                                    }.onFailure { err ->
+                                                        isCancelingRequested = false
+                                                        Toast.makeText(context, "Cancel failed: ${err.message}", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = DialogCoral.copy(alpha = 0.15f)),
+                                        border = BorderStroke(1.dp, DialogCoral.copy(alpha = 0.40f)),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.weight(1f).height(40.dp)
+                                    ) {
+                                        Text(if (isCancelingRequested) "Canceling..." else "Cancel", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = DialogCoral)
+                                    }
+
+                                    // Stop (Ctrl+T) Button
+                                    Button(
+                                        onClick = {
+                                            if (!isTaskStopping) {
+                                                isStoppingRequested = true
+                                                coroutineScope.launch {
+                                                    val res = ZineServerClient.stopTask(serverIp, serverPort, task.taskId, "truncate")
+                                                    res.onSuccess {
+                                                        Toast.makeText(context, "Stopping after current (Ctrl+T)...", Toast.LENGTH_SHORT).show()
+                                                    }.onFailure { err ->
+                                                        isStoppingRequested = false
+                                                        Toast.makeText(context, "Failed to stop: ${err.message}", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (isTaskStopping) DialogAmber.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.08f)),
+                                        border = BorderStroke(1.dp, if (isTaskStopping) DialogAmber.copy(alpha = 0.40f) else DialogSubtleBorder),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.weight(1.2f).height(40.dp)
+                                    ) {
+                                        Text(if (isTaskStopping) "Finishing..." else "Stop (Ctrl+T)", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = if (isTaskStopping) DialogAmber else DialogTitanium)
+                                    }
+                                }
+                            }
 
                             if (localDownloadResultPath != null && onImportFolder != null) {
                                 Spacer(modifier = Modifier.height(10.dp))
@@ -378,11 +557,11 @@ fun ZineScraperDialog(
                                         onImportFolder(localDownloadResultPath!!)
                                         onDismiss()
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD4D8E0)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = DialogTitanium),
                                     shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth().height(42.dp)
                                 ) {
-                                    Text("Import into Hwaran Library", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF141721))
+                                    Text("Import into Hwaran Library", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = DialogDarkOnyx)
                                 }
                             }
                         }
@@ -390,59 +569,93 @@ fun ZineScraperDialog(
                     Spacer(modifier = Modifier.height(14.dp))
                 }
 
-                // Submit Action Button
-                Button(
-                    onClick = {
-                        if (!isServerConnected && serverIp.isBlank()) {
-                            Toast.makeText(context, "Please connect to Zine Server first", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
-                        if (urlInput.isBlank()) {
-                            Toast.makeText(context, "Please enter a valid URL", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
+                val isScrapingActive = activeTask != null && (activeTask?.status in listOf("scraping", "analyzing", "queued"))
 
-                        coroutineScope.launch {
-                            isSubmitting = true
-                            val result = ZineServerClient.submitScrape(
-                                serverHost = serverIp,
-                                serverPort = serverPort,
-                                mediaUrl = urlInput,
-                                mode = selectedMode,
-                                transferMethod = "hybrid"
-                            )
-                            isSubmitting = false
-                            result.onSuccess { task ->
-                                activeTask = task
-                                Toast.makeText(context, "Scrape task started on PC!", Toast.LENGTH_SHORT).show()
-                            }.onFailure { err ->
-                                Toast.makeText(context, "Error: ${err.message}", Toast.LENGTH_LONG).show()
+                if (!isScrapingActive) {
+                    // Submit Action Button
+                    Button(
+                        onClick = {
+                            if (!isServerConnected && serverIp.isBlank()) {
+                                Toast.makeText(context, "Please connect to Zine Server first", Toast.LENGTH_SHORT).show()
+                                return@Button
                             }
+                            if (urlInput.isBlank()) {
+                                Toast.makeText(context, "Please enter a valid URL", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+
+                            coroutineScope.launch {
+                                isSubmitting = true
+                                val flags = mutableListOf<String>()
+                                var modeVal = "auto"
+                                var limitVal: Int? = null
+
+                                when (selectedScopeKey) {
+                                    "auto" -> {
+                                        modeVal = "auto"
+                                    }
+                                    "single" -> {
+                                        flags.add("--0")
+                                        modeVal = "quick_grab"
+                                    }
+                                    "vacuum" -> {
+                                        flags.add("--a")
+                                        modeVal = "vacuum"
+                                    }
+                                    "next_5" -> {
+                                        flags.add("--5")
+                                        limitVal = 5
+                                        modeVal = "vacuum"
+                                    }
+                                }
+                                if (flagMetaOnly) {
+                                    flags.add("--meta")
+                                }
+
+                                val result = ZineServerClient.submitScrape(
+                                    serverHost = serverIp,
+                                    serverPort = serverPort,
+                                    mediaUrl = urlInput.trim(),
+                                    mode = modeVal,
+                                    flags = flags,
+                                    limit = limitVal,
+                                    transferMethod = "direct",
+                                    clientIp = ZineServerClient.getLocalDeviceIp(),
+                                    keepOnPc = true
+                                )
+                                isSubmitting = false
+                                result.onSuccess { task ->
+                                    activeTask = task
+                                    Toast.makeText(context, "Scrape task started on PC!", Toast.LENGTH_SHORT).show()
+                                }.onFailure { err ->
+                                    Toast.makeText(context, "Error: ${err.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        enabled = !isSubmitting && urlInput.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = DialogTitanium,
+                            disabledContainerColor = Color.White.copy(alpha = 0.08f)
+                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        if (isSubmitting) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = DialogDarkOnyx, strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Submitting...", color = DialogDarkOnyx, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        } else {
+                            Icon(Icons.Rounded.CloudDownload, contentDescription = null, tint = DialogDarkOnyx, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Scrape & Transfer",
+                                color = DialogDarkOnyx,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
-                    },
-                    enabled = !isSubmitting && urlInput.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFD4D8E0),
-                        disabledContainerColor = Color.White.copy(alpha = 0.1f)
-                    ),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                ) {
-                    if (isSubmitting) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.Black, strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Submitting...", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    } else {
-                        Icon(Icons.Rounded.CloudDownload, contentDescription = null, tint = Color(0xFF141721), modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Scrape & Transfer to Phone",
-                            color = Color(0xFF141721),
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.Bold
-                        )
                     }
                 }
             }

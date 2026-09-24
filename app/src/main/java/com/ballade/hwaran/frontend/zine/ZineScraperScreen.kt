@@ -52,14 +52,19 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 
-private val DarkOnyxBackground = Color(0xFF07080C)
-private val GlassSurface = Color(0xFF10131B)
-private val AccentTitanium = Color(0xFFE0E3EB)
-private val SubtleBorder = Color.White.copy(alpha = 0.08f)
+private val DarkOnyxBackground = Color(0xFF08090C)
+private val GlassSurface = Color(0xFF101218)
+private val AccentTitanium = Color(0xFFF1F3F9)
+private val SubtleBorder = Color.White.copy(alpha = 0.07f)
 private val ActiveBorder = Color.White.copy(alpha = 0.22f)
-private val SoftEmerald = Color(0xFF6EE7B7)
-private val SoftAmber = Color(0xFFFCD34D)
+private val StatusActive = Color(0xFFA1A1AA)
+private val StatusSuccess = Color(0xFF34D399)
+private val StatusDanger = Color(0xFFF87171)
+private val StatusAmber = Color(0xFFFBBF24)
+
+private val SoftEmerald = Color(0xFF34D399)
 private val SoftCoral = Color(0xFFF87171)
+private val SoftAmber = Color(0xFFFBBF24)
 
 private const val ZINE_GITHUB_URL = "https://github.com/valse-de-anshu/zine-scraper.git"
 
@@ -167,15 +172,11 @@ fun ZineScraperScreen(
     var showSetupGuideDialog by remember { mutableStateOf(false) }
 
     var urlInput by remember { mutableStateOf("") }
-    var selectedScopeKey by remember { mutableStateOf("single") } // "single" (--0), "next_5" (--5), "next_10" (--10), "all" (-a)
-    var selectedMode by remember { mutableStateOf("quick_grab") } // "quick_grab" or "vacuum"
-    var sequentialLimit by remember { mutableIntStateOf(0) }
+    var selectedScopeKey by remember { mutableStateOf("auto") } // "auto" (Smart Link), "single" (--0), "all" (--a), "next_5" (--5), "next_10" (--10), "custom" (--N)
+    var selectedMode by remember { mutableStateOf("auto") } // "auto", "quick_grab" or "vacuum"
+    var sequentialLimit by remember { mutableIntStateOf(3) }
     var flagMetaOnly by remember { mutableStateOf(false) } // --meta
     var isConfigExpanded by remember { mutableStateOf(false) }
-
-    // Post-download processing choice: "import" (save to library), "open" (open immediately), "downloads" (raw storage only)
-    var postDownloadAction by remember { mutableStateOf("import") }
-
     var activeTask by remember { mutableStateOf<ScrapeTaskInfo?>(null) }
     var tasksList by remember { mutableStateOf<List<ScrapeTaskInfo>>(emptyList()) }
     var isSubmitting by remember { mutableStateOf(false) }
@@ -183,6 +184,8 @@ fun ZineScraperScreen(
     var directDownloadProgress by remember { mutableFloatStateOf(0f) }
     var downloadedLocalDir by remember { mutableStateOf<File?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isStoppingRequested by remember { mutableStateOf(false) }
+    var isCancelingRequested by remember { mutableStateOf(false) }
 
     // Animated breathing indicator for connection & active extraction
     val infiniteTransition = rememberInfiniteTransition(label = "pulse_aura")
@@ -322,7 +325,7 @@ fun ZineScraperScreen(
                     listOf(updated) + tasksList
                 }
 
-                // Automatically stream and extract media into Hwaran library when scrape completes
+                // Automatically stream and extract media into Zine Scraper folder when scrape completes
                 if (updated.status == "completed") {
                     if (downloadedLocalDir == null && !isDirectDownloading) {
                         coroutineScope.launch {
@@ -332,25 +335,14 @@ fun ZineScraperScreen(
                                 serverHost = serverIp,
                                 serverPort = serverPort,
                                 taskId = updated.taskId,
-                                mode = selectedMode,
+                                mode = updated.mode,
+                                mediaTitle = updated.mediaTitle,
                                 progressCb = { directDownloadProgress = it }
                             )
                             isDirectDownloading = false
                             dlRes.onSuccess { dir ->
                                 downloadedLocalDir = dir
-                                when (postDownloadAction) {
-                                    "import" -> {
-                                        onImportFolder?.invoke(dir.absolutePath, false)
-                                        Toast.makeText(context, "Media saved and added to Library!", Toast.LENGTH_SHORT).show()
-                                    }
-                                    "open" -> {
-                                        onImportFolder?.invoke(dir.absolutePath, true)
-                                        Toast.makeText(context, "Ready! Opening media...", Toast.LENGTH_SHORT).show()
-                                    }
-                                    else -> {
-                                        Toast.makeText(context, "Saved into Download/Zine Scraper/", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
+                                Toast.makeText(context, "Saved to ${dir.name} in Download/Zine Scraper/", Toast.LENGTH_SHORT).show()
                             }.onFailure { err ->
                                 errorMessage = "Download failed: ${err.message}"
                             }
@@ -542,87 +534,9 @@ fun ZineScraperScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // 4. Post-Download Processing (After Download Action)
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "AFTER DOWNLOAD ACTION",
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.45f),
-                    letterSpacing = 1.2.sp
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Interactive Tag / Pill Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val actions = listOf(
-                        Triple("import", "Save to Library", Icons.AutoMirrored.Rounded.DriveFileMove),
-                        Triple("open", "Open / Play", Icons.Rounded.PlayArrow),
-                        Triple("downloads", "Downloads Only", Icons.Rounded.Folder)
-                    )
-
-                    actions.forEach { (actionKey, label, icon) ->
-                        val isSelected = postDownloadAction == actionKey
-                        Surface(
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                postDownloadAction = actionKey
-                            },
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (isSelected) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.035f),
-                            border = BorderStroke(1.dp, if (isSelected) ActiveBorder else SubtleBorder),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = null,
-                                    tint = if (isSelected) Color.White else Color.White.copy(alpha = 0.45f),
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = label,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.60f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = when (postDownloadAction) {
-                        "import" -> "Auto-catalogs and stores files into your library via SAF"
-                        "open" -> "Directly launches reader or video player when ready"
-                        else -> "Leaves media in Download/Zine Scraper/ without importing"
-                    },
-                    fontSize = 10.5.sp,
-                    color = Color.White.copy(alpha = 0.40f),
-                    textAlign = TextAlign.Center
-                )
-            }
-
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 5. Expandable "v" Chevron Button for Advanced Options
+            // 4. Expandable "v" Chevron Button for Advanced Options
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
@@ -724,13 +638,13 @@ fun ZineScraperScreen(
                                 }
                             }
 
-                            if (selectedScopeKey != "single" || flagMetaOnly) {
+                            if (selectedScopeKey != "auto" || flagMetaOnly || sequentialLimit != 3) {
                                 Surface(
                                     onClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        selectedScopeKey = "single"
-                                        selectedMode = "quick_grab"
-                                        sequentialLimit = 0
+                                        selectedScopeKey = "auto"
+                                        selectedMode = "auto"
+                                        sequentialLimit = 3
                                         flagMetaOnly = false
                                     },
                                     shape = RoundedCornerShape(8.dp),
@@ -759,14 +673,17 @@ fun ZineScraperScreen(
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        // 2x2 Scope Grid: Solid, clear cards with no cramped text
+                        // 6-Option Scope Grid: 3 rows of 2 matching Zine Scraper CLI
                         val scopes = listOf(
+                            Triple("auto", "Smart Link", "AUTO"),
                             Triple("single", "Single Item", "--0"),
+                            Triple("all", "Vacuum All", "--a"),
                             Triple("next_5", "Next 5", "--5"),
                             Triple("next_10", "Next 10", "--10"),
-                            Triple("all", "All Media", "--a")
+                            Triple("custom", "Custom Limit", "--N")
                         )
 
+                        // Row 1: Auto & Single
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -778,7 +695,58 @@ fun ZineScraperScreen(
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         selectedScopeKey = key
                                         when (key) {
-                                            "single" -> { selectedMode = "quick_grab"; sequentialLimit = 0 }
+                                            "auto" -> { selectedMode = "auto" }
+                                            "single" -> { selectedMode = "quick_grab" }
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (isSelected) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.035f),
+                                    border = BorderStroke(1.dp, if (isSelected) ActiveBorder else SubtleBorder),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.70f)
+                                        )
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = if (isSelected) AccentTitanium.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.05f)
+                                        ) {
+                                            Text(
+                                                text = flag,
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (isSelected) AccentTitanium else Color.White.copy(alpha = 0.45f),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Row 2: Vacuum All & Next 5
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            scopes.subList(2, 4).forEach { (key, label, flag) ->
+                                val isSelected = selectedScopeKey == key
+                                Surface(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        selectedScopeKey = key
+                                        when (key) {
+                                            "all" -> { selectedMode = "vacuum" }
                                             "next_5" -> { selectedMode = "vacuum"; sequentialLimit = 5 }
                                         }
                                     },
@@ -817,11 +785,12 @@ fun ZineScraperScreen(
 
                         Spacer(modifier = Modifier.height(8.dp))
 
+                        // Row 3: Next 10 & Custom Limit
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            scopes.drop(2).forEach { (key, label, flag) ->
+                            scopes.subList(4, 6).forEach { (key, label, flag) ->
                                 val isSelected = selectedScopeKey == key
                                 Surface(
                                     onClick = {
@@ -829,7 +798,7 @@ fun ZineScraperScreen(
                                         selectedScopeKey = key
                                         when (key) {
                                             "next_10" -> { selectedMode = "vacuum"; sequentialLimit = 10 }
-                                            "all" -> { selectedMode = "vacuum"; sequentialLimit = 0 }
+                                            "custom" -> { selectedMode = "vacuum"; if (sequentialLimit <= 0) sequentialLimit = 3 }
                                         }
                                     },
                                     shape = RoundedCornerShape(12.dp),
@@ -853,12 +822,78 @@ fun ZineScraperScreen(
                                             color = if (isSelected) AccentTitanium.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.05f)
                                         ) {
                                             Text(
-                                                text = flag,
+                                                text = if (key == "custom" && sequentialLimit > 0) "--$sequentialLimit" else flag,
                                                 fontSize = 10.5.sp,
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = if (isSelected) AccentTitanium else Color.White.copy(alpha = 0.45f),
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                             )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Custom Limit Quick Presets & Stepper
+                        if (selectedScopeKey == "custom") {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color.White.copy(alpha = 0.04f),
+                                border = BorderStroke(1.dp, ActiveBorder.copy(alpha = 0.45f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "SEQUENTIAL ITEM LIMIT",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White.copy(alpha = 0.50f),
+                                            letterSpacing = 1.sp
+                                        )
+                                        Text(
+                                            text = "--$sequentialLimit items",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace,
+                                            color = AccentTitanium
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        listOf(1, 2, 3, 5, 10, 20).forEach { preset ->
+                                            val isCur = sequentialLimit == preset
+                                            Surface(
+                                                onClick = {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                    sequentialLimit = preset
+                                                },
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = if (isCur) AccentTitanium.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.05f),
+                                                border = BorderStroke(1.dp, if (isCur) AccentTitanium else Color.White.copy(alpha = 0.10f)),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Box(
+                                                    contentAlignment = Alignment.Center,
+                                                    modifier = Modifier.padding(vertical = 6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "$preset",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = if (isCur) FontWeight.Bold else FontWeight.Medium,
+                                                        color = if (isCur) AccentTitanium else Color.White.copy(alpha = 0.70f)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -937,6 +972,8 @@ fun ZineScraperScreen(
                             }
                         }
 
+
+
                         Spacer(modifier = Modifier.height(12.dp))
 
                         // Terminal Command Preview Line
@@ -960,10 +997,12 @@ fun ZineScraperScreen(
                                 val flagPreview = buildString {
                                     append("zine ")
                                     when (selectedScopeKey) {
+                                        "auto" -> { /* Smart Link routing: no forced flags */ }
                                         "single" -> append("--0 ")
+                                        "all" -> append("--a ")
                                         "next_5" -> append("--5 ")
                                         "next_10" -> append("--10 ")
-                                        "all" -> append("--a ")
+                                        "custom" -> append("--${if (sequentialLimit > 0) sequentialLimit else 3} ")
                                     }
                                     if (flagMetaOnly) append("--meta ")
                                     append(if (urlInput.isNotBlank()) urlInput.take(28) + if (urlInput.length > 28) "..." else "" else "<url>")
@@ -984,116 +1023,269 @@ fun ZineScraperScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 6. Signal Transmission Button ("Send Signal" with Signal Tower Icon)
-            Button(
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    focusManager.clearFocus()
-                    // Automatically collapse "v" section when sending signal
-                    isConfigExpanded = false
+            val isScrapingActive = activeTask != null && (activeTask?.status in listOf("scraping", "analyzing", "queued"))
+            val isTaskStopping = isStoppingRequested || activeTask?.isStopping == true || (activeTask?.message?.contains("stopping", ignoreCase = true) == true) || (activeTask?.message?.contains("stop signal", ignoreCase = true) == true)
 
-                    if (!isServerConnected) {
-                        Toast.makeText(context, "Companion server offline. Run 'zine --server' on your PC", Toast.LENGTH_SHORT).show()
-                        showServerDialog = true
-                        return@Button
-                    }
-                    if (urlInput.isBlank()) {
-                        Toast.makeText(context, "Please enter a valid media link", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
-                    coroutineScope.launch {
-                        isSubmitting = true
-                        errorMessage = null
-                        downloadedLocalDir = null
-
-                        val flags = mutableListOf<String>()
-                        when (selectedScopeKey) {
-                            "single" -> flags.add("--0")
-                            "next_5" -> flags.add("--5")
-                            "next_10" -> flags.add("--10")
-                            "all" -> flags.add("--a")
+            // 6. Action Buttons Section (Dual Cancel/Stop during active scrape, or Send Signal when idle)
+            if (isScrapingActive) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Immediate Cancel Button
+                    Button(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            val taskToCancel = activeTask ?: return@Button
+                            if (isCancelingRequested) return@Button
+                            isCancelingRequested = true
+                            coroutineScope.launch {
+                                val res = ZineServerClient.cancelTask(serverIp, serverPort, taskToCancel.taskId)
+                                res.onSuccess {
+                                    isCancelingRequested = false
+                                    activeTask = activeTask?.copy(status = "canceled", message = "Task canceled immediately by user")
+                                    Toast.makeText(context, "Task cancelled immediately!", Toast.LENGTH_SHORT).show()
+                                }.onFailure { err ->
+                                    isCancelingRequested = false
+                                    Toast.makeText(context, "Cancel failed: ${err.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        enabled = !isCancelingRequested,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SoftCoral.copy(alpha = 0.16f),
+                            disabledContainerColor = SoftCoral.copy(alpha = 0.08f)
+                        ),
+                        border = BorderStroke(1.dp, SoftCoral.copy(alpha = 0.45f)),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(52.dp)
+                    ) {
+                        if (isCancelingRequested) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = SoftCoral,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Canceling...",
+                                color = SoftCoral,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Cancel Immediately",
+                                tint = SoftCoral,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Cancel Now",
+                                color = SoftCoral,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
-                        if (flagMetaOnly) flags.add("--meta")
+                    }
 
-                        val limitVal = when (selectedScopeKey) {
-                            "next_5" -> 5
-                            "next_10" -> 10
-                            else -> null
+                    // Stop After Current (Ctrl+T) Button
+                    Button(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            val taskToStop = activeTask ?: return@Button
+                            if (isTaskStopping) return@Button
+                            isStoppingRequested = true
+                            coroutineScope.launch {
+                                val res = ZineServerClient.stopTask(serverIp, serverPort, taskToStop.taskId, "truncate")
+                                res.onSuccess {
+                                    Toast.makeText(context, "Revolt: Finishing current media and stopping (Ctrl+T)!", Toast.LENGTH_SHORT).show()
+                                }.onFailure { err ->
+                                    isStoppingRequested = false
+                                    Toast.makeText(context, "Failed to send stop signal: ${err.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        enabled = !isTaskStopping,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isTaskStopping) SoftAmber.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.08f),
+                            disabledContainerColor = SoftAmber.copy(alpha = 0.10f)
+                        ),
+                        border = BorderStroke(1.dp, if (isTaskStopping) SoftAmber.copy(alpha = 0.50f) else SubtleBorder),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .height(52.dp)
+                    ) {
+                        if (isTaskStopping) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = SoftAmber,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Finishing...",
+                                color = SoftAmber,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Rounded.HourglassTop,
+                                contentDescription = "Stop After Current",
+                                tint = AccentTitanium,
+                                modifier = Modifier.size(17.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Stop (Ctrl+T)",
+                                color = AccentTitanium,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+            } else {
+                // Idle / Submit Button (Clean Titanium White / Minimal Obsidian)
+                Button(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        focusManager.clearFocus()
+
+                        // Automatically collapse "v" section when sending signal
+                        isConfigExpanded = false
+
+                        if (!isServerConnected) {
+                            Toast.makeText(context, "Companion server offline. Run 'zine --server' on your PC", Toast.LENGTH_SHORT).show()
+                            showServerDialog = true
+                            return@Button
+                        }
+                        if (urlInput.isBlank()) {
+                            Toast.makeText(context, "Please enter a valid media link", Toast.LENGTH_SHORT).show()
+                            return@Button
                         }
 
-                        val result = ZineServerClient.submitScrape(
-                            serverHost = serverIp,
-                            serverPort = serverPort,
-                            mediaUrl = urlInput.trim(),
-                            mode = if (selectedScopeKey == "single") "quick_grab" else "vacuum",
-                            transferMethod = "direct",
-                            clientIp = getLocalDeviceIp(),
-                            flags = flags,
-                            limit = limitVal
+                        coroutineScope.launch {
+                            isSubmitting = true
+                            errorMessage = null
+                            downloadedLocalDir = null
+
+                            val flags = mutableListOf<String>()
+                            var modeVal = "auto"
+                            var limitVal: Int? = null
+
+                            when (selectedScopeKey) {
+                                "auto" -> {
+                                    modeVal = "auto"
+                                }
+                                "single" -> {
+                                    flags.add("--0")
+                                    modeVal = "quick_grab"
+                                }
+                                "all" -> {
+                                    flags.add("--a")
+                                    modeVal = "vacuum"
+                                }
+                                "next_5" -> {
+                                    flags.add("--5")
+                                    limitVal = 5
+                                    modeVal = "vacuum"
+                                }
+                                "next_10" -> {
+                                    flags.add("--10")
+                                    limitVal = 10
+                                    modeVal = "vacuum"
+                                }
+                                "custom" -> {
+                                    val lim = if (sequentialLimit > 0) sequentialLimit else 3
+                                    flags.add("--$lim")
+                                    limitVal = lim
+                                    modeVal = "vacuum"
+                                }
+                            }
+                            if (flagMetaOnly) flags.add("--meta")
+
+                            val result = ZineServerClient.submitScrape(
+                                serverHost = serverIp,
+                                serverPort = serverPort,
+                                mediaUrl = urlInput.trim(),
+                                mode = modeVal,
+                                transferMethod = "direct",
+                                clientIp = getLocalDeviceIp(),
+                                flags = flags,
+                                limit = limitVal,
+                                keepOnPc = true
+                            )
+                            isSubmitting = false
+
+                            result.onSuccess { task ->
+                                activeTask = task
+                                tasksList = listOf(task) + tasksList.filter { it.taskId != task.taskId }
+                                Toast.makeText(context, "Signal sent to Zine Server!", Toast.LENGTH_SHORT).show()
+                            }.onFailure { err ->
+                                errorMessage = err.message ?: "Failed to dispatch scrape signal"
+                                Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    },
+                    enabled = !isSubmitting && (urlInput.isNotBlank() || !isServerConnected),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isServerConnected) AccentTitanium else Color.White.copy(alpha = 0.12f),
+                        disabledContainerColor = Color.White.copy(alpha = 0.06f)
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                ) {
+                    if (isSubmitting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = DarkOnyxBackground,
+                            strokeWidth = 2.dp
                         )
-                        isSubmitting = false
-
-                        result.onSuccess { task ->
-                            activeTask = task
-                            tasksList = listOf(task) + tasksList.filter { it.taskId != task.taskId }
-                            Toast.makeText(context, "Signal sent to Zine Server!", Toast.LENGTH_SHORT).show()
-                        }.onFailure { err ->
-                            errorMessage = "Failed to dispatch: ${err.message}"
-                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Transmitting Signal...",
+                            color = DarkOnyxBackground,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    } else if (!isServerConnected) {
+                        Icon(
+                            imageVector = Icons.Rounded.Storage,
+                            contentDescription = null,
+                            tint = AccentTitanium,
+                            modifier = Modifier.size(19.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Server Offline (Tap to Configure)",
+                            color = AccentTitanium,
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.CellTower,
+                            contentDescription = null,
+                            tint = DarkOnyxBackground,
+                            modifier = Modifier.size(19.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Send Signal",
+                            color = DarkOnyxBackground,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-                },
-                enabled = !isSubmitting && (urlInput.isNotBlank() || !isServerConnected),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isServerConnected) AccentTitanium else SoftCoral.copy(alpha = 0.88f),
-                    disabledContainerColor = Color.White.copy(alpha = 0.08f)
-                ),
-                shape = RoundedCornerShape(26.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-            ) {
-                if (isSubmitting) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        color = DarkOnyxBackground,
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Transmitting Signal...",
-                        color = DarkOnyxBackground,
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                } else if (!isServerConnected) {
-                    Icon(
-                        imageVector = Icons.Rounded.Storage,
-                        contentDescription = null,
-                        tint = DarkOnyxBackground,
-                        modifier = Modifier.size(19.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Server Offline (Tap to Configure)",
-                        color = DarkOnyxBackground,
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Rounded.CellTower,
-                        contentDescription = null,
-                        tint = DarkOnyxBackground,
-                        modifier = Modifier.size(19.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Send Signal",
-                        color = DarkOnyxBackground,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
                 }
             }
 
@@ -1197,10 +1389,12 @@ fun ZineScraperScreen(
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     // Pulsing Ball Indicator
+                                    val isThisTaskStopping = task.isStopping || (task.taskId == activeTask?.taskId && isStoppingRequested) || task.message.contains("stopping", ignoreCase = true)
                                     LuminousPulsingBall(
                                         color = when {
                                             isTaskCompleted -> SoftEmerald
                                             isTaskFailed -> SoftCoral
+                                            isThisTaskStopping -> SoftAmber
                                             isTaskAlmostDone -> SoftEmerald
                                             else -> SoftAmber
                                         },
@@ -1213,6 +1407,7 @@ fun ZineScraperScreen(
                                             text = when {
                                                 isTaskCompleted -> "Task Complete"
                                                 isTaskFailed -> "Download Failed"
+                                                isThisTaskStopping -> "Wrapping Up (Ctrl+T)..."
                                                 isTaskAlmostDone -> "Almost downloaded..."
                                                 else -> "Downloading..."
                                             },
@@ -1221,6 +1416,7 @@ fun ZineScraperScreen(
                                             color = when {
                                                 isTaskCompleted -> SoftEmerald
                                                 isTaskFailed -> SoftCoral
+                                                isThisTaskStopping -> SoftAmber
                                                 isTaskAlmostDone -> SoftEmerald
                                                 else -> Color.White.copy(alpha = 0.95f)
                                             }
@@ -1243,63 +1439,157 @@ fun ZineScraperScreen(
                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        if (postDownloadAction == "open" || postDownloadAction == "downloads") {
-                                            Surface(
-                                                onClick = {
-                                                    downloadedLocalDir?.let { onImportFolder(it.absolutePath, true) }
-                                                },
-                                                shape = RoundedCornerShape(10.dp),
-                                                color = SoftEmerald.copy(alpha = 0.15f),
-                                                border = BorderStroke(1.dp, SoftEmerald.copy(alpha = 0.40f))
+                                        Surface(
+                                            onClick = {
+                                                downloadedLocalDir?.let { onImportFolder(it.absolutePath, true) }
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = SoftEmerald.copy(alpha = 0.15f),
+                                            border = BorderStroke(1.dp, SoftEmerald.copy(alpha = 0.40f))
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                                             ) {
-                                                Row(
-                                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Rounded.PlayArrow,
-                                                        contentDescription = "Open",
-                                                        tint = SoftEmerald,
-                                                        modifier = Modifier.size(13.dp)
-                                                    )
-                                                    Text(
-                                                        text = "Open",
-                                                        fontSize = 11.5.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = SoftEmerald
-                                                    )
-                                                }
+                                                Icon(
+                                                    imageVector = Icons.Rounded.PlayArrow,
+                                                    contentDescription = "Open",
+                                                    tint = SoftEmerald,
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                                Text(
+                                                    text = "Open",
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = SoftEmerald
+                                                )
                                             }
                                         }
-                                        if (postDownloadAction == "import" || postDownloadAction == "downloads") {
-                                            Surface(
-                                                onClick = {
-                                                    downloadedLocalDir?.let { onImportFolder(it.absolutePath, false) }
-                                                    Toast.makeText(context, "Importing to library...", Toast.LENGTH_SHORT).show()
-                                                },
-                                                shape = RoundedCornerShape(10.dp),
-                                                color = Color.White.copy(alpha = 0.08f),
-                                                border = BorderStroke(1.dp, SubtleBorder)
+                                        Surface(
+                                            onClick = {
+                                                downloadedLocalDir?.let { onImportFolder(it.absolutePath, false) }
+                                                Toast.makeText(context, "Importing to library...", Toast.LENGTH_SHORT).show()
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = Color.White.copy(alpha = 0.08f),
+                                            border = BorderStroke(1.dp, SubtleBorder)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                                             ) {
-                                                Row(
-                                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.AutoMirrored.Rounded.DriveFileMove,
-                                                        contentDescription = "Import",
-                                                        tint = AccentTitanium,
-                                                        modifier = Modifier.size(13.dp)
-                                                    )
-                                                    Text(
-                                                        text = "Import",
-                                                        fontSize = 11.5.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = AccentTitanium
-                                                    )
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Rounded.DriveFileMove,
+                                                    contentDescription = "Import",
+                                                    tint = AccentTitanium,
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                                Text(
+                                                    text = "Import",
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = AccentTitanium
+                                                )
+                                            }
+                                        }
+                                    }
+                                } else if (task.status in listOf("scraping", "analyzing", "queued")) {
+                                    val thisStopping = (task.taskId == activeTask?.taskId && isStoppingRequested) || task.isStopping || task.message.contains("stopping", ignoreCase = true)
+                                    val thisCanceling = (task.taskId == activeTask?.taskId && isCancelingRequested)
+
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Immediate Cancel button (small)
+                                        Surface(
+                                            onClick = {
+                                                if (!thisCanceling) {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    if (task.taskId == activeTask?.taskId) {
+                                                        isCancelingRequested = true
+                                                    }
+                                                    coroutineScope.launch {
+                                                        val res = ZineServerClient.cancelTask(serverIp, serverPort, task.taskId)
+                                                        res.onSuccess {
+                                                            if (task.taskId == activeTask?.taskId) {
+                                                                isCancelingRequested = false
+                                                                activeTask = activeTask?.copy(status = "canceled", message = "Task canceled immediately")
+                                                            }
+                                                            Toast.makeText(context, "Task cancelled immediately!", Toast.LENGTH_SHORT).show()
+                                                        }.onFailure { err ->
+                                                            if (task.taskId == activeTask?.taskId) isCancelingRequested = false
+                                                            Toast.makeText(context, "Cancel failed: ${err.message}", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    }
                                                 }
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = SoftCoral.copy(alpha = 0.15f),
+                                            border = BorderStroke(1.dp, SoftCoral.copy(alpha = 0.40f))
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Close,
+                                                    contentDescription = "Cancel Task",
+                                                    tint = SoftCoral,
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                                Text(
+                                                    text = "Cancel",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = SoftCoral
+                                                )
+                                            }
+                                        }
+
+                                        // Stop (Ctrl+T) button (small)
+                                        Surface(
+                                            onClick = {
+                                                if (!thisStopping) {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    if (task.taskId == activeTask?.taskId) {
+                                                        isStoppingRequested = true
+                                                    }
+                                                    coroutineScope.launch {
+                                                        val res = ZineServerClient.stopTask(serverIp, serverPort, task.taskId, "truncate")
+                                                        res.onSuccess {
+                                                            Toast.makeText(context, "Stopping after current media (Ctrl+T)...", Toast.LENGTH_SHORT).show()
+                                                        }.onFailure { err ->
+                                                            if (task.taskId == activeTask?.taskId) isStoppingRequested = false
+                                                            Toast.makeText(context, "Failed to stop: ${err.message}", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = if (thisStopping) SoftAmber.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.08f),
+                                            border = BorderStroke(1.dp, if (thisStopping) SoftAmber.copy(alpha = 0.40f) else SubtleBorder)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (thisStopping) Icons.Rounded.Pause else Icons.Rounded.HourglassTop,
+                                                    contentDescription = "Stop",
+                                                    tint = if (thisStopping) SoftAmber else AccentTitanium,
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                                Text(
+                                                    text = if (thisStopping) "Stopping..." else "Ctrl+T",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = if (thisStopping) SoftAmber else AccentTitanium
+                                                )
                                             }
                                         }
                                     }
