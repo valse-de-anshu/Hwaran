@@ -26,6 +26,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
 
 @Composable
 fun NavigationPill(
@@ -42,8 +43,9 @@ fun NavigationPill(
         modifier = modifier
             .width(pillWidth)
             .height(pillHeight)
-            .background(Color(0xFF111318), RoundedCornerShape(28.dp))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(28.dp))
+            .clip(RoundedCornerShape(28.dp))
+            .background(PremiumPillDefaults.background(glowColor))
+            .border(PremiumPillDefaults.border(glowColor), RoundedCornerShape(28.dp))
             .padding(4.dp),
         contentAlignment = Alignment.CenterStart
     ) {
@@ -55,15 +57,15 @@ fun NavigationPill(
         
         val tabWidth = (pillWidth - 8.dp) / 2
         
-        // Active indicator: Elevated obsidian dark glass with soft moonlight border
+        // Active indicator: Elevated obsidian dark glass with specular rim and subtle accent sheen
         Box(
             modifier = Modifier
                 .width(tabWidth)
                 .fillMaxHeight()
                 .offset(x = tabWidth * offsetProgress)
                 .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF222631))
-                .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(24.dp))
+                .background(PremiumPillDefaults.selectedBackground(glowColor))
+                .border(PremiumPillDefaults.selectedBorder(glowColor), RoundedCornerShape(24.dp))
         )
         
         Row(modifier = Modifier.fillMaxSize()) {

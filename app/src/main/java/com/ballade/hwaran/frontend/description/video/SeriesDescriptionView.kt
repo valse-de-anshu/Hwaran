@@ -23,6 +23,8 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenu
 import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenuItem
+import com.ballade.hwaran.ui.dialogs.PremiumFilterPill
+import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -226,22 +228,14 @@ fun SeriesDescriptionView(
                             ) {
                                 availableOptions.forEach { typeOption ->
                                     val isSel = effectiveType.equals(typeOption, ignoreCase = true)
-                                    Surface(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable { onSetMaterialTag(typeOption) },
-                                        color = if (isSel) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                                        border = BorderStroke(1.dp, if (isSel) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)),
-                                        shape = RoundedCornerShape(8.dp)
-                                    ) {
-                                        Text(
-                                            text = typeOption,
-                                            color = if (isSel) Color(0xFFE6E8EC) else TextMuted,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                        )
-                                    }
+                                    PremiumFilterPill(
+                                        text = typeOption,
+                                        isSelected = isSel,
+                                        shape = RoundedCornerShape(8.dp),
+                                        fontSize = 11.sp,
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                        onClick = { onSetMaterialTag(typeOption) }
+                                    )
                                 }
                             }
                         } else {
@@ -251,11 +245,13 @@ fun SeriesDescriptionView(
                             ) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFF222631),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
+                                    color = Color.Transparent,
+                                    border = PremiumPillDefaults.border(alphaMultiplier = 0.6f)
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                        modifier = Modifier
+                                            .background(PremiumPillDefaults.background())
+                                            .padding(horizontal = 10.dp, vertical = 4.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(5.dp)
                                     ) {
@@ -263,11 +259,11 @@ fun SeriesDescriptionView(
                                             modifier = Modifier
                                                 .size(6.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFFE6E8EC))
+                                                .background(Color.White)
                                         )
                                         Text(
                                             text = effectiveType.uppercase(),
-                                            color = Color(0xFFE6E8EC),
+                                            color = Color.White,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
                                             letterSpacing = 0.8.sp
@@ -507,26 +503,28 @@ fun SeriesDescriptionView(
                         if (isEditMode) {
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = if (isTagSearchVisible) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                                border = BorderStroke(1.dp, if (isTagSearchVisible) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)),
+                                color = Color.Transparent,
+                                border = if (isTagSearchVisible) PremiumPillDefaults.selectedBorder() else PremiumPillDefaults.unselectedBorder(),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable { onToggleTagSearchVisible() }
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    modifier = Modifier
+                                        .background(if (isTagSearchVisible) PremiumPillDefaults.selectedBackground() else PremiumPillDefaults.unselectedBackground())
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Icon(
                                         imageVector = if (isTagSearchVisible) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.Add,
                                         contentDescription = null,
-                                        tint = if (isTagSearchVisible) Color(0xFFE6E8EC) else Color.White,
+                                        tint = if (isTagSearchVisible) Color.White else Color.White.copy(alpha = 0.7f),
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Text(
                                         text = if (isTagSearchVisible) "Close Tag Search" else "Add Tags",
-                                        color = if (isTagSearchVisible) Color(0xFFE6E8EC) else Color.White,
+                                        color = if (isTagSearchVisible) Color.White else Color.White.copy(alpha = 0.7f),
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -690,24 +688,26 @@ fun SeriesDescriptionView(
                                                     onAddTag(item.tag)
                                                 },
                                             shape = RoundedCornerShape(8.dp),
-                                            color = if (isAssigned) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                                            border = BorderStroke(1.dp, if (isAssigned) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.10f))
+                                            color = Color.Transparent,
+                                            border = if (isAssigned) PremiumPillDefaults.selectedBorder() else PremiumPillDefaults.unselectedBorder()
                                         ) {
                                             Row(
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                modifier = Modifier
+                                                    .background(if (isAssigned) PremiumPillDefaults.selectedBackground() else PremiumPillDefaults.unselectedBackground())
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                                             ) {
                                                 Text(
                                                     text = item.tag,
-                                                    color = if (isAssigned) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.6f),
+                                                    color = if (isAssigned) Color.White else Color.White.copy(alpha = 0.6f),
                                                     fontSize = 11.sp,
                                                     fontWeight = if (isAssigned) FontWeight.SemiBold else FontWeight.Normal
                                                 )
                                                 if (isAssigned) {
-                                                    Icon(Icons.Rounded.Check, contentDescription = null, tint = Color(0xFFE6E8EC), modifier = Modifier.size(12.dp))
+                                                    Icon(Icons.Rounded.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
                                                 } else {
-                                                    Icon(Icons.Rounded.Add, contentDescription = null, tint = Color(0xFFE6E8EC), modifier = Modifier.size(12.dp))
+                                                    Icon(Icons.Rounded.Add, contentDescription = null, tint = Color.White.copy(alpha = 0.4f), modifier = Modifier.size(12.dp))
                                                 }
                                             }
                                         }
@@ -874,42 +874,48 @@ fun SeriesDescriptionView(
                         val targetEpisode = chapters.firstOrNull { it.title == manga.lastReadTitle }
                             ?: chapters.firstOrNull()
 
-                        Button(
-                            onClick = {
-                                if (targetEpisode != null) {
-                                    onNavigateToMedia(targetEpisode.id, 2)
-                                } else {
-                                    onPickEpisodes()
-                                }
-                            },
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color.Transparent,
+                            border = PremiumPillDefaults.border(),
+                            shadowElevation = 8.dp,
                             modifier = Modifier
                                 .weight(1.2f)
-                                .height(48.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF222631),
-                                contentColor = Color(0xFFE6E8EC)
-                            ),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
+                                .height(48.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable {
+                                    if (targetEpisode != null) {
+                                        onNavigateToMedia(targetEpisode.id, 2)
+                                    } else {
+                                        onPickEpisodes()
+                                    }
+                                }
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(PremiumPillDefaults.background()),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.PlayArrow,
-                                    contentDescription = null,
-                                    tint = Color(0xFFE6E8EC),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    text = if (targetEpisode != null) {
-                                        if (manga.lastReadTitle != null) "Resume" else "Watch"
-                                    } else "Add Episodes",
-                                    color = Color(0xFFE6E8EC),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.PlayArrow,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        text = if (targetEpisode != null) {
+                                            if (manga.lastReadTitle != null) "Resume" else "Watch"
+                                        } else "Add Episodes",
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
 
@@ -921,10 +927,10 @@ fun SeriesDescriptionView(
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = Color.White.copy(alpha = 0.04f),
-                                contentColor = Color(0xFFE6E8EC)
+                                containerColor = Color.White.copy(alpha = 0.05f),
+                                contentColor = Color.White
                             ),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -933,12 +939,12 @@ fun SeriesDescriptionView(
                                 Icon(
                                     imageVector = Icons.Rounded.VideoLibrary,
                                     contentDescription = null,
-                                    tint = Color(0xFFE6E8EC),
+                                    tint = Color.White.copy(alpha = 0.85f),
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Text(
                                     text = if (chapters.isNotEmpty()) "Videos (${chapters.size})" else "Videos",
-                                    color = Color(0xFFE6E8EC),
+                                    color = Color.White,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -954,9 +960,9 @@ fun SeriesDescriptionView(
                             shape = RoundedCornerShape(14.dp),
                             contentPadding = PaddingValues(0.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (isFavorite) Color(0xFF222631) else Color.Transparent
+                                containerColor = if (isFavorite) Color(0xFFFFD54F).copy(alpha = 0.18f) else Color.Transparent
                             ),
-                            border = BorderStroke(1.dp, if (isFavorite) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.10f))
+                            border = BorderStroke(1.dp, if (isFavorite) Color(0xFFFFD54F).copy(alpha = 0.60f) else Color.White.copy(alpha = 0.10f))
                         ) {
                             Icon(
                                 imageVector = if (isFavorite) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
@@ -1321,15 +1327,17 @@ fun SeriesDescriptionView(
                         // Save Changes Pill
                         Surface(
                             shape = CircleShape,
-                            color = Color(0xFF222631),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)),
-                            shadowElevation = 6.dp,
+                            color = Color.Transparent,
+                            border = PremiumPillDefaults.border(),
+                            shadowElevation = 12.dp,
                             modifier = Modifier
                                 .clip(CircleShape)
                                 .clickable { onSaveManga() }
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
+                                modifier = Modifier
+                                    .background(PremiumPillDefaults.background())
+                                    .padding(horizontal = 22.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {

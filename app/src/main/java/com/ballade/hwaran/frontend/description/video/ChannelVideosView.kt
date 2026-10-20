@@ -33,6 +33,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
 import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -337,17 +338,22 @@ fun ChannelVideosView(
                                 .clip(CircleShape)
                                 .clickable { showFilters = !showFilters },
                             shape = CircleShape,
-                            color = if (isFilterActive) Color(0xFF222631) else Color.White.copy(alpha = 0.08f),
-                            border = BorderStroke(
-                                1.dp,
-                                if (isFilterActive) Color.White.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.12f)
-                            )
+                            color = Color.Transparent,
+                            border = if (isFilterActive) PremiumPillDefaults.selectedBorder() else PremiumPillDefaults.unselectedBorder()
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .then(
+                                        if (isFilterActive) Modifier.background(PremiumPillDefaults.selectedBackground())
+                                        else Modifier.background(PremiumPillDefaults.unselectedBackground())
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Icon(
                                     imageVector = Icons.Rounded.FilterList,
                                     contentDescription = "Filter",
-                                    tint = if (isFilterActive) Color(0xFFE6E8EC) else Color.White,
+                                    tint = if (isFilterActive) Color.White else Color.White.copy(alpha = 0.75f),
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -390,16 +396,21 @@ fun ChannelVideosView(
                             modifier = Modifier
                                 .size(42.dp)
                                 .clip(CircleShape)
-                            .clickable { showAddDialog = true },
+                                .clickable { showAddDialog = true },
                             shape = CircleShape,
-                            color = Color(0xFF222631),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
+                            color = Color.Transparent,
+                            border = PremiumPillDefaults.border()
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(PremiumPillDefaults.background()),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Add,
                                     contentDescription = "Add Videos",
-                                    tint = Color(0xFFE6E8EC),
+                                    tint = Color.White,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -476,28 +487,30 @@ fun ChannelVideosView(
                                             selectedPill = if (isSelected) null else pill
                                         }
                                     },
-                                color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.06f),
-                                border = BorderStroke(
-                                    1.dp,
-                                    when {
-                                        isSelected -> Color.White.copy(alpha = 0.22f)
-                                        pill.requiresJsonData && !isDataAvailable -> Color.White.copy(alpha = 0.06f)
-                                        else -> Color.White.copy(alpha = 0.10f)
-                                    }
-                                ),
+                                color = Color.Transparent,
+                                border = if (isSelected) PremiumPillDefaults.selectedBorder()
+                                else if (pill.requiresJsonData && !isDataAvailable) BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
+                                else PremiumPillDefaults.unselectedBorder(),
                                 shape = RoundedCornerShape(20.dp)
                             ) {
-                                Text(
-                                    text = pill.label,
-                                    color = when {
-                                        isSelected -> Color(0xFFE6E8EC)
-                                        pill.requiresJsonData && !isDataAvailable -> Color.White.copy(alpha = 0.35f)
-                                        else -> Color.White.copy(alpha = 0.75f)
-                                    },
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
-                                )
+                                Box(
+                                    modifier = Modifier.then(
+                                        if (isSelected) Modifier.background(PremiumPillDefaults.selectedBackground())
+                                        else Modifier.background(PremiumPillDefaults.unselectedBackground())
+                                    )
+                                ) {
+                                    Text(
+                                        text = pill.label,
+                                        color = when {
+                                            isSelected -> Color.White
+                                            pill.requiresJsonData && !isDataAvailable -> Color.White.copy(alpha = 0.35f)
+                                            else -> Color.White.copy(alpha = 0.75f)
+                                        },
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                                    )
+                                }
                             }
                         }
                     }

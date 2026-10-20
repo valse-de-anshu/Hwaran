@@ -46,6 +46,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeMute
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1220,30 +1221,39 @@ fun VideoPlayerScreen(
                             }
                         }
                         
-                        Box(
+                        Surface(
                             modifier = Modifier
-                                .size(56.dp)
+                                .size(60.dp)
                                 .clip(CircleShape)
-                                .background(Color.Black.copy(alpha=0.4f))
                                 .clickable {
                                     if (isPlaying) exoPlayer.pause() else exoPlayer.play()
                                     lastInteractionTime = System.currentTimeMillis()
                                 },
-                            contentAlignment = Alignment.Center
+                            shape = CircleShape,
+                            color = Color.Transparent,
+                            border = PremiumPillDefaults.border(),
+                            shadowElevation = 8.dp
                         ) {
-                            if (isBuffering) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(28.dp),
-                                    color = Color.White,
-                                    strokeWidth = 2.5.dp
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                    contentDescription = "Play/Pause",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(28.dp)
-                                )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(PremiumPillDefaults.background()),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isBuffering) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(28.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.5.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                        contentDescription = "Play/Pause",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                }
                             }
                         }
 
@@ -1404,28 +1414,36 @@ fun VideoPlayerScreen(
                 exit = fadeOut(),
                 modifier = Modifier.align(Alignment.Center)
             ) {
-                Box(
+                Surface(
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.6f))
                         .clickable {
                             isLocked = false
                             showUnlockButton = false
                             showUi = true
                             lastInteractionTime = System.currentTimeMillis()
-                        }
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
+                        },
+                    shape = CircleShape,
+                    color = Color.Transparent,
+                    border = PremiumPillDefaults.border(),
+                    shadowElevation = 10.dp
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Filled.LockOpen,
-                            contentDescription = "Unlock",
-                            tint = Color.White,
-                            modifier = Modifier.size(40.dp)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Unlock", color = Color.White, fontSize = 14.sp)
+                    Box(
+                        modifier = Modifier
+                            .background(PremiumPillDefaults.background())
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Filled.LockOpen,
+                                contentDescription = "Unlock",
+                                tint = Color.White,
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Unlock", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -1442,28 +1460,32 @@ fun VideoPlayerScreen(
                 val sign = if (isForward) "+" else "-"
                 val chevron = if (isForward) "\u00BB" else "\u00AB"
 
-                Box(
-                    modifier = Modifier
-                        .background(
-                            color = Color.Black.copy(alpha = 0.65f),
-                            shape = RoundedCornerShape(50)
-                        )
-                        .padding(horizontal = 28.dp, vertical = 16.dp),
-                    contentAlignment = Alignment.Center
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = Color.Transparent,
+                    border = PremiumPillDefaults.border(),
+                    shadowElevation = 8.dp
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = chevron,
-                            color = Color.White,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "$sign${absSeconds}s",
-                            color = Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                    Box(
+                        modifier = Modifier
+                            .background(PremiumPillDefaults.background())
+                            .padding(horizontal = 28.dp, vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = chevron,
+                                color = Color.White,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "$sign${absSeconds}s",
+                                color = Color.White,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             }
@@ -1485,11 +1507,14 @@ fun VideoPlayerScreen(
 
                 Surface(
                     shape = RoundedCornerShape(20.dp),
-                    color = Color.Black.copy(alpha = 0.75f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                    color = Color.Transparent,
+                    border = PremiumPillDefaults.border(),
+                    shadowElevation = 8.dp
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+                        modifier = Modifier
+                            .background(PremiumPillDefaults.background())
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -1513,10 +1538,15 @@ fun VideoPlayerScreen(
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
+                    color = Color.Transparent,
+                    border = PremiumPillDefaults.border(alphaMultiplier = 0.8f)
                 ) {
-                    Box(modifier = Modifier.padding(20.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier
+                            .background(PremiumPillDefaults.background())
+                            .padding(20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text(
                             text = "« 10s",
                             color = Color.White,
@@ -1537,10 +1567,15 @@ fun VideoPlayerScreen(
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
+                    color = Color.Transparent,
+                    border = PremiumPillDefaults.border(alphaMultiplier = 0.8f)
                 ) {
-                    Box(modifier = Modifier.padding(20.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier
+                            .background(PremiumPillDefaults.background())
+                            .padding(20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text(
                             text = "10s »",
                             color = Color.White,
@@ -1562,15 +1597,18 @@ fun VideoPlayerScreen(
             ) {
                 Surface(
                     shape = RoundedCornerShape(20.dp),
-                    color = Color.Black.copy(alpha = 0.75f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                    color = Color.Transparent,
+                    border = PremiumPillDefaults.border(),
+                    shadowElevation = 8.dp
                 ) {
                     Text(
                         text = aspectRatioOverlayText ?: "",
                         color = Color.White,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        modifier = Modifier
+                            .background(PremiumPillDefaults.background())
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
             }
@@ -1584,21 +1622,25 @@ fun VideoPlayerScreen(
                     .align(Alignment.TopCenter)
                     .padding(top = if (isPortrait) 160.dp else 32.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .background(
-                            color = Color.Black.copy(alpha = 0.65f),
-                            shape = RoundedCornerShape(50)
-                        )
-                        .padding(horizontal = 24.dp, vertical = 10.dp),
-                    contentAlignment = Alignment.Center
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = Color.Transparent,
+                    border = PremiumPillDefaults.border(),
+                    shadowElevation = 8.dp
                 ) {
-                    Text(
-                        text = "2x Speed  »",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Box(
+                        modifier = Modifier
+                            .background(PremiumPillDefaults.background())
+                            .padding(horizontal = 24.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "2x Speed  »",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 

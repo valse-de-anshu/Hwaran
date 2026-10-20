@@ -33,6 +33,8 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import com.ballade.hwaran.ui.dialogs.PremiumFilterPill
+import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -787,26 +789,26 @@ fun HomeSearchView(
 
             // Advanced Filter Toggle Button with Badge
             Box(contentAlignment = Alignment.TopEnd) {
+                val isFilterActive = showAdvancedPanel || activeFilterCount > 0
                 IconButton(
                     onClick = { showAdvancedPanel = !showAdvancedPanel },
                     modifier = Modifier
                         .size(42.dp)
-                        .background(
-                            if (showAdvancedPanel || activeFilterCount > 0) Color(0xFF222631)
-                            else Color.White.copy(alpha = 0.05f),
-                            CircleShape
+                        .clip(CircleShape)
+                        .then(
+                            if (isFilterActive) Modifier.background(PremiumPillDefaults.selectedBackground())
+                            else Modifier.background(PremiumPillDefaults.unselectedBackground())
                         )
                         .border(
-                            1.dp,
-                            if (showAdvancedPanel || activeFilterCount > 0) Color.White.copy(alpha = 0.22f)
-                            else Color.White.copy(alpha = 0.08f),
+                            if (isFilterActive) PremiumPillDefaults.selectedBorder()
+                            else PremiumPillDefaults.unselectedBorder(),
                             CircleShape
                         )
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Tune,
                         contentDescription = "Advanced Filters",
-                        tint = if (showAdvancedPanel || activeFilterCount > 0) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.7f)
+                        tint = if (isFilterActive) Color.White else Color.White.copy(alpha = 0.7f)
                     )
                 }
 
@@ -816,13 +818,18 @@ fun HomeSearchView(
                             .offset(x = 2.dp, y = (-2).dp)
                             .size(18.dp),
                         shape = CircleShape,
-                        color = Color(0xFF222631),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
+                        color = Color.Transparent,
+                        border = PremiumPillDefaults.border(MaterialTheme.colorScheme.primary)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(PremiumPillDefaults.background(MaterialTheme.colorScheme.primary)),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Text(
                                 text = "$activeFilterCount",
-                                color = Color(0xFFE6E8EC),
+                                color = Color.White,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -861,22 +868,14 @@ fun HomeSearchView(
         ) {
             items(mediaTypes) { media ->
                 val isSelected = selectedMedia == media
-                Surface(
+                PremiumFilterPill(
+                    text = media,
+                    isSelected = isSelected,
                     shape = RoundedCornerShape(14.dp),
-                    color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.07f)),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable { selectedMedia = media }
-                ) {
-                    Text(
-                        text = media,
-                        color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
-                        fontSize = 12.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                    )
-                }
+                    fontSize = 12.sp,
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                    onClick = { selectedMedia = media }
+                )
             }
         }
 
@@ -941,8 +940,8 @@ fun HomeSearchView(
                 val isSelected = selectedTags.contains(tag)
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.07f)),
+                    color = Color.Transparent,
+                    border = if (isSelected) PremiumPillDefaults.selectedBorder() else PremiumPillDefaults.unselectedBorder(),
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
                         .clickable {
@@ -950,18 +949,23 @@ fun HomeSearchView(
                         }
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        modifier = Modifier
+                            .then(
+                                if (isSelected) Modifier.background(PremiumPillDefaults.selectedBackground())
+                                else Modifier.background(PremiumPillDefaults.unselectedBackground())
+                            )
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         if (isSelected) {
-                            Icon(Icons.Rounded.Check, contentDescription = null, tint = Color(0xFF8EB69B), modifier = Modifier.size(12.dp))
+                            Icon(Icons.Rounded.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
                         } else {
-                            Text("#", color = Color.White.copy(alpha = 0.35f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text("#", color = Color.White.copy(alpha = 0.40f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
                         Text(
                             text = tag,
-                            color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.55f),
+                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
                             fontSize = 11.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                         )
@@ -1058,26 +1062,14 @@ fun HomeSearchView(
                     ) {
                         items(SearchScope.getAvailableScopes(selectedMedia)) { scope ->
                             val isSelected = selectedScope == scope
-                            Surface(
+                            PremiumFilterPill(
+                                text = scope.getLabel(selectedMedia),
+                                isSelected = isSelected,
                                 shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                                border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable { selectedScope = scope }
-                            ) {
-                                Box(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = scope.getLabel(selectedMedia),
-                                        color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                    )
-                                }
-                            }
+                                fontSize = 11.sp,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp),
+                                onClick = { selectedScope = scope }
+                            )
                         }
                     }
 
@@ -1107,26 +1099,14 @@ fun HomeSearchView(
                                     ProgressFilter.IN_PROGRESS -> if (selectedMedia in listOf("Series", "Channel")) "Watching" else "Reading"
                                     ProgressFilter.COMPLETED -> "Finished"
                                 }
-                                Surface(
+                                PremiumFilterPill(
+                                    text = progLabel,
+                                    isSelected = isSelected,
                                     shape = RoundedCornerShape(12.dp),
-                                    color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable { selectedProgress = prog }
-                                ) {
-                                    Box(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = progLabel,
-                                            color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
-                                            fontSize = 11.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                        )
-                                    }
-                                }
+                                    fontSize = 11.sp,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp),
+                                    onClick = { selectedProgress = prog }
+                                )
                             }
                         }
                     }
@@ -1153,26 +1133,14 @@ fun HomeSearchView(
                                     ChapterCountFilter.MEDIUM -> if (selectedMedia == "Series") "10 - 50 episodes" else "10 - 50 chapters"
                                     ChapterCountFilter.LONG -> if (selectedMedia == "Series") "> 50 episodes" else "> 50 chapters"
                                 }
-                                Surface(
+                                PremiumFilterPill(
+                                    text = cLabel,
+                                    isSelected = isSelected,
                                     shape = RoundedCornerShape(12.dp),
-                                    color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable { selectedChapterCount = cFilter }
-                                ) {
-                                    Box(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = cLabel,
-                                            color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
-                                            fontSize = 11.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                        )
-                                    }
-                                }
+                                    fontSize = 11.sp,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp),
+                                    onClick = { selectedChapterCount = cFilter }
+                                )
                             }
                         }
                     }
@@ -1215,8 +1183,8 @@ fun HomeSearchView(
                                 val isSelected = selectedWorkspace.equals(ws, ignoreCase = true)
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
+                                    color = Color.Transparent,
+                                    border = if (isSelected) PremiumPillDefaults.selectedBorder() else PremiumPillDefaults.unselectedBorder(),
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(10.dp))
                                         .clickable {
@@ -1224,19 +1192,24 @@ fun HomeSearchView(
                                         }
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                        modifier = Modifier
+                                            .then(
+                                                if (isSelected) Modifier.background(PremiumPillDefaults.selectedBackground())
+                                                else Modifier.background(PremiumPillDefaults.unselectedBackground())
+                                            )
+                                            .padding(horizontal = 10.dp, vertical = 5.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Rounded.Folder,
                                             contentDescription = null,
-                                            tint = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
+                                            tint = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f),
                                             modifier = Modifier.size(12.dp)
                                         )
                                         Text(
                                             text = ws,
-                                            color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.55f),
+                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
                                             fontSize = 11.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                         )
@@ -1278,8 +1251,8 @@ fun HomeSearchView(
                                 val isSelected = selectedArtist.equals(artist, ignoreCase = true)
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
+                                    color = Color.Transparent,
+                                    border = if (isSelected) PremiumPillDefaults.selectedBorder() else PremiumPillDefaults.unselectedBorder(),
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(10.dp))
                                         .clickable {
@@ -1287,14 +1260,19 @@ fun HomeSearchView(
                                         }
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                        modifier = Modifier
+                                            .then(
+                                                if (isSelected) Modifier.background(PremiumPillDefaults.selectedBackground())
+                                                else Modifier.background(PremiumPillDefaults.unselectedBackground())
+                                            )
+                                            .padding(horizontal = 10.dp, vertical = 5.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Icon(Icons.Rounded.Person, contentDescription = null, tint = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f), modifier = Modifier.size(12.dp))
+                                        Icon(Icons.Rounded.Person, contentDescription = null, tint = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f), modifier = Modifier.size(12.dp))
                                         Text(
                                             text = artist,
-                                            color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.55f),
+                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
                                             fontSize = 11.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                         )
@@ -1336,8 +1314,8 @@ fun HomeSearchView(
                                 val isSelected = selectedAlbum.equals(album, ignoreCase = true)
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
+                                    color = Color.Transparent,
+                                    border = if (isSelected) PremiumPillDefaults.selectedBorder() else PremiumPillDefaults.unselectedBorder(),
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(10.dp))
                                         .clickable {
@@ -1345,14 +1323,19 @@ fun HomeSearchView(
                                         }
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                        modifier = Modifier
+                                            .then(
+                                                if (isSelected) Modifier.background(PremiumPillDefaults.selectedBackground())
+                                                else Modifier.background(PremiumPillDefaults.unselectedBackground())
+                                            )
+                                            .padding(horizontal = 10.dp, vertical = 5.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Icon(Icons.Rounded.Album, contentDescription = null, tint = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f), modifier = Modifier.size(12.dp))
+                                        Icon(Icons.Rounded.Album, contentDescription = null, tint = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f), modifier = Modifier.size(12.dp))
                                         Text(
                                             text = album,
-                                            color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.55f),
+                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
                                             fontSize = 11.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                         )
@@ -1382,26 +1365,14 @@ fun HomeSearchView(
                         ) {
                             items(DurationFilter.values()) { dur ->
                                 val isSelected = selectedDuration == dur
-                                Surface(
+                                PremiumFilterPill(
+                                    text = dur.getLabel(selectedMedia),
+                                    isSelected = isSelected,
                                     shape = RoundedCornerShape(12.dp),
-                                    color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable { selectedDuration = dur }
-                                ) {
-                                    Box(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = dur.getLabel(selectedMedia),
-                                            color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
-                                            fontSize = 11.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                        )
-                                    }
-                                }
+                                    fontSize = 11.sp,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp),
+                                    onClick = { selectedDuration = dur }
+                                )
                             }
                         }
                     }
@@ -1411,26 +1382,31 @@ fun HomeSearchView(
                         Spacer(modifier = Modifier.height(12.dp))
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = if (onlyFavorites) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                            border = BorderStroke(1.dp, if (onlyFavorites) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.07f)),
+                            color = Color.Transparent,
+                            border = if (onlyFavorites) PremiumPillDefaults.selectedBorder(Color(0xFFFFD54F)) else PremiumPillDefaults.unselectedBorder(),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
                                 .clickable { onlyFavorites = !onlyFavorites }
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                modifier = Modifier
+                                    .then(
+                                        if (onlyFavorites) Modifier.background(PremiumPillDefaults.selectedBackground(Color(0xFFFFD54F)))
+                                        else Modifier.background(PremiumPillDefaults.unselectedBackground())
+                                    )
+                                    .padding(horizontal = 12.dp, vertical = 7.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Icon(
                                     imageVector = if (onlyFavorites) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
                                     contentDescription = null,
-                                    tint = if (onlyFavorites) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.45f),
+                                    tint = if (onlyFavorites) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.5f),
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
                                     text = "⭐ Only Favorites",
-                                    color = if (onlyFavorites) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
+                                    color = if (onlyFavorites) Color.White else Color.White.copy(alpha = 0.65f),
                                     fontSize = 11.sp,
                                     fontWeight = if (onlyFavorites) FontWeight.Bold else FontWeight.Medium
                                 )
@@ -1486,17 +1462,19 @@ fun HomeSearchView(
                             selectedTags.forEach { tag ->
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFF222631),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
+                                    color = Color.Transparent,
+                                    border = PremiumPillDefaults.selectedBorder()
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(start = 8.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                                        modifier = Modifier
+                                            .background(PremiumPillDefaults.selectedBackground())
+                                            .padding(start = 8.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         Text(
                                             text = tag,
-                                            color = Color(0xFFE6E8EC),
+                                            color = Color.White,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.SemiBold
                                         )
@@ -1570,22 +1548,14 @@ fun HomeSearchView(
                     ) {
                         items(SearchSort.getAvailableSorts(selectedMedia)) { sort ->
                             val isSelected = selectedSort == sort
-                            Surface(
+                            PremiumFilterPill(
+                                text = sort.label,
+                                isSelected = isSelected,
                                 shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                                border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable { selectedSort = sort }
-                            ) {
-                                Text(
-                                    text = sort.label,
-                                    color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.45f),
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                )
-                            }
+                                fontSize = 11.sp,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp),
+                                onClick = { selectedSort = sort }
+                            )
                         }
                     }
                 }
@@ -1646,7 +1616,7 @@ fun HomeSearchView(
                         textAlign = TextAlign.Center
                     )
                     if (activeFilterCount > 0 || searchQuery.isNotBlank()) {
-                        Button(
+                        Surface(
                             onClick = {
                                 selectedMedia = "All"
                                 selectedScope = SearchScope.ALL
@@ -1662,14 +1632,18 @@ fun HomeSearchView(
                                 tagFilterQuery = ""
                                 searchQuery = ""
                             },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF222631),
-                                contentColor = Color(0xFFE6E8EC)
-                            ),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color.Transparent,
+                            border = PremiumPillDefaults.border()
                         ) {
-                            Text("Reset Search & Filters", color = Color(0xFFE6E8EC), fontWeight = FontWeight.Bold)
+                            Box(
+                                modifier = Modifier
+                                    .background(PremiumPillDefaults.background())
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("Reset Search & Filters", color = Color(0xFFE6E8EC), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
                         }
                     }
                 }
@@ -1891,13 +1865,19 @@ private fun SearchSongItemCard(
                     modifier = Modifier
                         .align(Alignment.Center)
                         .size(38.dp)
+                        .clip(CircleShape)
                         .clickable(onClick = onPlay),
                     shape = CircleShape,
-                    color = Color(0xFF222631),
-                    border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.22f)),
+                    color = Color.Transparent,
+                    border = PremiumPillDefaults.border(),
                     shadowElevation = 6.dp
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(PremiumPillDefaults.background()),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Icon(
                             imageVector = Icons.Rounded.PlayArrow,
                             contentDescription = "Play ${chapter.title}",

@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
 
 @Composable
 fun JellyToggle(
@@ -46,8 +47,8 @@ fun JellyToggle(
             .width(toggleWidth)
             .height(toggleHeight)
             .clip(RoundedCornerShape(22.dp))
-            .background(Color(0xFF13151D))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(22.dp))
+            .background(PremiumPillDefaults.background(MaterialTheme.colorScheme.primary))
+            .border(PremiumPillDefaults.border(MaterialTheme.colorScheme.primary, 0.4f), RoundedCornerShape(22.dp))
             .padding(3.dp),
         contentAlignment = Alignment.CenterStart
     ) {
@@ -68,8 +69,8 @@ fun JellyToggle(
                     .fillMaxHeight()
                     .offset(x = actualPillWidth * offsetProgress)
                     .clip(RoundedCornerShape(19.dp))
-                    .background(Color(0xFF222631))
-                    .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(19.dp))
+                    .background(PremiumPillDefaults.selectedBackground(MaterialTheme.colorScheme.primary))
+                    .border(PremiumPillDefaults.selectedBorder(MaterialTheme.colorScheme.primary), RoundedCornerShape(19.dp))
             )
         }
 
@@ -147,8 +148,8 @@ fun JellyToggle3(
             .fillMaxWidth()
             .height(toggleHeight)
             .clip(RoundedCornerShape(22.dp))
-            .background(Color(0xFF13151D))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(22.dp))
+            .background(PremiumPillDefaults.background(MaterialTheme.colorScheme.primary))
+            .border(PremiumPillDefaults.border(MaterialTheme.colorScheme.primary, 0.4f), RoundedCornerShape(22.dp))
             .padding(3.dp),
         contentAlignment = Alignment.CenterStart
     ) {
@@ -170,8 +171,8 @@ fun JellyToggle3(
                     .fillMaxHeight()
                     .offset(x = actualPillWidth * offsetProgress)
                     .clip(RoundedCornerShape(19.dp))
-                    .background(Color(0xFF222631))
-                    .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(19.dp))
+                    .background(PremiumPillDefaults.selectedBackground(MaterialTheme.colorScheme.primary))
+                    .border(PremiumPillDefaults.selectedBorder(MaterialTheme.colorScheme.primary), RoundedCornerShape(19.dp))
             )
 
             Row(modifier = Modifier.fillMaxSize()) {

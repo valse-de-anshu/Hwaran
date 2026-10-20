@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import com.ballade.hwaran.ui.dialogs.PremiumFilterPill
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -256,46 +257,19 @@ fun LibraryView(
             ) {
                 items(tags, key = { it }) { tag ->
                     val isSelected = selectedTag == tag
-                    val bgColor by animateColorAsState(
-                        targetValue = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                        animationSpec = tween(200),
-                        label = "tagBgColor"
+                    PremiumFilterPill(
+                        text = tag,
+                        isSelected = isSelected,
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            if (tag == "Music") {
+                                onOpenMusic()
+                            } else {
+                                selectedTag = tag
+                                onTagChange?.invoke(tag)
+                            }
+                        }
                     )
-                    val textColor by animateColorAsState(
-                        targetValue = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.60f),
-                        animationSpec = tween(200),
-                        label = "tagTextColor"
-                    )
-                    val borderColor by animateColorAsState(
-                        targetValue = if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f),
-                        animationSpec = tween(200),
-                        label = "tagBorderColor"
-                    )
-
-                    Surface(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                if (tag == "Music") {
-                                    onOpenMusic()
-                                } else {
-                                    selectedTag = tag
-                                    onTagChange?.invoke(tag)
-                                }
-                            },
-                        shape = RoundedCornerShape(20.dp),
-                        color = bgColor,
-                        border = BorderStroke(1.dp, borderColor)
-                    ) {
-                        Text(
-                            text = tag,
-                            color = textColor,
-                            fontSize = 13.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
-                        )
-                    }
                 }
             }
         }

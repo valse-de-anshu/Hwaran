@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenu
 import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenuItem
+import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -399,17 +400,22 @@ fun SeriesRelatedView(
                                     .clip(CircleShape)
                                     .clickable { showFilters = !showFilters },
                                 shape = CircleShape,
-                                color = if (isFilterActive) Color(0xFF222631) else Color.White.copy(alpha = 0.08f),
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (isFilterActive) Color.White.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.12f)
-                                )
+                                color = Color.Transparent,
+                                border = if (isFilterActive) PremiumPillDefaults.selectedBorder() else PremiumPillDefaults.unselectedBorder()
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .then(
+                                            if (isFilterActive) Modifier.background(PremiumPillDefaults.selectedBackground())
+                                            else Modifier.background(PremiumPillDefaults.unselectedBackground())
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Icon(
                                         imageVector = Icons.Rounded.FilterList,
                                         contentDescription = "Filter",
-                                        tint = if (isFilterActive) Color(0xFFE6E8EC) else Color.White,
+                                        tint = if (isFilterActive) Color.White else Color.White.copy(alpha = 0.75f),
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -455,14 +461,19 @@ fun SeriesRelatedView(
                                     .clip(CircleShape)
                                     .clickable { showAddDialog = true },
                                 shape = CircleShape,
-                                color = Color(0xFF222631),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
+                                color = Color.Transparent,
+                                border = PremiumPillDefaults.border()
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(PremiumPillDefaults.background()),
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Icon(
                                         imageVector = Icons.Rounded.Add,
                                         contentDescription = "Add Videos",
-                                        tint = Color(0xFFE6E8EC),
+                                        tint = Color.White,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -478,17 +489,19 @@ fun SeriesRelatedView(
                                 onRefreshAvailableMedia()
                                 showLinkSheet = true
                             },
-                        color = Color(0xFF222631),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)),
+                        color = Color.Transparent,
+                        border = PremiumPillDefaults.border(),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            modifier = Modifier
+                                .background(PremiumPillDefaults.background())
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(Icons.Rounded.Add, contentDescription = null, tint = Color(0xFFE6E8EC), modifier = Modifier.size(16.dp))
-                            Text("Link Media", color = Color(0xFFE6E8EC), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Rounded.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Text("Link Media", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -572,17 +585,24 @@ fun SeriesRelatedView(
                                             }
                                         } else null
                                     ),
-                                color = if (isSel) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                                border = BorderStroke(1.dp, if (isSel) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)),
+                                color = Color.Transparent,
+                                border = if (isSel) PremiumPillDefaults.selectedBorder() else PremiumPillDefaults.unselectedBorder(),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
-                                Text(
-                                    text = tabLabel,
-                                    color = if (isSel) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.6f),
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
-                                )
+                                Box(
+                                    modifier = Modifier.then(
+                                        if (isSel) Modifier.background(PremiumPillDefaults.selectedBackground())
+                                        else Modifier.background(PremiumPillDefaults.unselectedBackground())
+                                    )
+                                ) {
+                                    Text(
+                                        text = tabLabel,
+                                        color = if (isSel) Color.White else Color.White.copy(alpha = 0.6f),
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                                    )
+                                }
                             }
 
                             if (isCustomTab) {
@@ -711,28 +731,30 @@ fun SeriesRelatedView(
                                             selectedPill = if (isSelected) null else pill
                                         }
                                     },
-                                color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.06f),
-                                border = BorderStroke(
-                                    1.dp,
-                                    when {
-                                        isSelected -> Color.White.copy(alpha = 0.22f)
-                                        pill.requiresJsonData && !isDataAvailable -> Color.White.copy(alpha = 0.06f)
-                                        else -> Color.White.copy(alpha = 0.10f)
-                                    }
-                                ),
+                                color = Color.Transparent,
+                                border = if (isSelected) PremiumPillDefaults.selectedBorder()
+                                else if (pill.requiresJsonData && !isDataAvailable) BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
+                                else PremiumPillDefaults.unselectedBorder(),
                                 shape = RoundedCornerShape(20.dp)
                             ) {
-                                Text(
-                                    text = pill.label,
-                                    color = when {
-                                        isSelected -> Color(0xFFE6E8EC)
-                                        pill.requiresJsonData && !isDataAvailable -> Color.White.copy(alpha = 0.35f)
-                                        else -> Color.White.copy(alpha = 0.75f)
-                                    },
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
-                                )
+                                Box(
+                                    modifier = Modifier.then(
+                                        if (isSelected) Modifier.background(PremiumPillDefaults.selectedBackground())
+                                        else Modifier.background(PremiumPillDefaults.unselectedBackground())
+                                    )
+                                ) {
+                                    Text(
+                                        text = pill.label,
+                                        color = when {
+                                            isSelected -> Color.White
+                                            pill.requiresJsonData && !isDataAvailable -> Color.White.copy(alpha = 0.35f)
+                                            else -> Color.White.copy(alpha = 0.75f)
+                                        },
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -787,21 +809,23 @@ fun SeriesRelatedView(
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Button(
-                                    onClick = { showAddDialog = true },
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { showAddDialog = true },
                                     shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF222631),
-                                        contentColor = Color(0xFFE6E8EC)
-                                    ),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
+                                    color = Color.Transparent,
+                                    border = PremiumPillDefaults.border()
                                 ) {
                                     Row(
+                                        modifier = Modifier
+                                            .background(PremiumPillDefaults.background())
+                                            .padding(horizontal = 16.dp, vertical = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Text("Add Videos", fontWeight = FontWeight.Bold)
+                                        Icon(Icons.Rounded.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                        Text("Add Videos", color = Color.White, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -1220,24 +1244,24 @@ fun SeriesRelatedView(
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Button(
+                                Surface(
                                     onClick = {
                                         onRefreshAvailableMedia()
                                         showLinkSheet = true
                                     },
                                     shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF222631),
-                                        contentColor = Color(0xFFE6E8EC)
-                                    ),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
+                                    color = Color.Transparent,
+                                    border = PremiumPillDefaults.border()
                                 ) {
                                     Row(
+                                        modifier = Modifier
+                                            .background(PremiumPillDefaults.background())
+                                            .padding(horizontal = 16.dp, vertical = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Text("Link from Library", fontWeight = FontWeight.Bold)
+                                        Icon(Icons.Rounded.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                        Text("Link from Library", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                     }
                                 }
                             }
@@ -1312,23 +1336,25 @@ fun SeriesRelatedView(
                                         // Relation Tag Pill
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
-                                            color = Color(0xFF222631),
-                                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f))
+                                            color = Color.Transparent,
+                                            border = PremiumPillDefaults.border(alphaMultiplier = 0.5f)
                                         ) {
                                             Row(
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                modifier = Modifier
+                                                    .background(PremiumPillDefaults.background())
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                                             ) {
                                                 Icon(
                                                     imageVector = relationType.icon,
                                                     contentDescription = null,
-                                                    tint = Color(0xFFE6E8EC),
+                                                    tint = Color.White,
                                                     modifier = Modifier.size(12.dp)
                                                 )
                                                 Text(
                                                     text = relationType.displayName.uppercase(),
-                                                    color = Color(0xFFE6E8EC),
+                                                    color = Color.White,
                                                     fontSize = 9.5.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     letterSpacing = 0.6.sp

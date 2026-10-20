@@ -51,6 +51,7 @@ import com.ballade.hwaran.ui.components.JellyBall
 import com.ballade.hwaran.ui.components.JellyToggle
 import com.ballade.hwaran.ui.components.JellyToggle3
 import com.ballade.hwaran.ui.dialogs.PremiumGlassPanel
+import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
 import com.ballade.hwaran.ui.dialogs.PremiumSlider
 import com.ballade.hwaran.ui.dialogs.SidebarIcon
 import com.ballade.hwaran.ui.dialogs.ZineScraperDialog
@@ -899,35 +900,36 @@ fun EnvironmentContent(vm: SettingsViewModel, onNavigateToCanvas: () -> Unit = {
                 Spacer(modifier = Modifier.height(20.dp))
 
                 // Enter Canvas Action Button
-                Button(
+                Surface(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         onNavigateToCanvas()
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF222631),
-                        contentColor = Color(0xFFE6E8EC)
-                    ),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
                     shape = RoundedCornerShape(14.dp),
+                    color = Color.Transparent,
+                    border = PremiumPillDefaults.selectedBorder(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(46.dp)
                 ) {
                     Row(
+                        modifier = Modifier
+                            .background(PremiumPillDefaults.selectedBackground())
+                            .fillMaxSize(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.Center
                     ) {
                         Text(
                             text = "Enter Canvas",
-                            color = Color(0xFFE6E8EC),
+                            color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
                             contentDescription = null,
-                            tint = Color(0xFFE6E8EC),
+                            tint = Color.White,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -1330,27 +1332,32 @@ fun AboutContent(scrollState: ScrollState, vm: SettingsViewModel, onNavigateBack
         Spacer(modifier = Modifier.height(16.dp))
 
         // Open Source Repository Button
-        Button(
+        Surface(
             onClick = {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/valse-de-anshu/Hwaran.git"))
                 context.startActivity(intent)
             },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF222631),
-                contentColor = Color(0xFFE6E8EC)
-            ),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
             shape = RoundedCornerShape(16.dp),
+            color = Color.Transparent,
+            border = PremiumPillDefaults.border(),
             modifier = Modifier.fillMaxWidth().height(52.dp)
         ) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_github),
-                contentDescription = null,
-                tint = Color(0xFFE6E8EC),
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Hwaran Open Source", fontWeight = FontWeight.Bold, color = Color(0xFFE6E8EC))
+            Row(
+                modifier = Modifier
+                    .background(PremiumPillDefaults.background())
+                    .fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_github),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Hwaran Open Source", fontWeight = FontWeight.Bold, color = Color.White)
+            }
         }
 
         Spacer(modifier = Modifier.height(28.dp))
@@ -1375,52 +1382,62 @@ fun AboutContent(scrollState: ScrollState, vm: SettingsViewModel, onNavigateBack
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        Button(
+        Surface(
             onClick = {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/+p0nu4Zsk4ZQ3M2Rl"))
                 context.startActivity(intent)
             },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF222631),
-                contentColor = Color(0xFFE6E8EC)
-            ),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
             shape = RoundedCornerShape(16.dp),
+            color = Color.Transparent,
+            border = PremiumPillDefaults.border(),
             modifier = Modifier.fillMaxWidth().height(52.dp)
         ) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_telegram),
-                contentDescription = null,
-                tint = Color(0xFF2CA5E0),
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Join our Telegram Community", fontWeight = FontWeight.Bold, color = Color(0xFFE6E8EC))
+            Row(
+                modifier = Modifier
+                    .background(PremiumPillDefaults.background())
+                    .fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_telegram),
+                    contentDescription = null,
+                    tint = Color(0xFF2CA5E0),
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Join our Telegram Community", fontWeight = FontWeight.Bold, color = Color.White)
+            }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        Button(
+        Surface(
             onClick = {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://discord.gg/E79KNqqp4"))
                 context.startActivity(intent)
             },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF222631),
-                contentColor = Color(0xFFE6E8EC)
-            ),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
             shape = RoundedCornerShape(16.dp),
+            color = Color.Transparent,
+            border = PremiumPillDefaults.border(),
             modifier = Modifier.fillMaxWidth().height(52.dp)
         ) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_discord),
-                contentDescription = null,
-                tint = Color(0xFF5865F2),
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Join our Discord Community", fontWeight = FontWeight.Bold, color = Color(0xFFE6E8EC))
+            Row(
+                modifier = Modifier
+                    .background(PremiumPillDefaults.background())
+                    .fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_discord),
+                    contentDescription = null,
+                    tint = Color(0xFF5865F2),
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Join our Discord Community", fontWeight = FontWeight.Bold, color = Color.White)
+            }
         }
     }
 }

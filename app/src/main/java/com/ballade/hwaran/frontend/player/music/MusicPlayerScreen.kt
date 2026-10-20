@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenu
 import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenuItem
+import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -1202,15 +1203,12 @@ fun QueueDialog(
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    if (isPlaying) {
-                                        Color(0xFF222631)
-                                    } else {
-                                        Color.Transparent
-                                    }
+                                .then(
+                                    if (isPlaying) Modifier.background(PremiumPillDefaults.selectedBackground())
+                                    else Modifier.background(Color.Transparent)
                                 )
                                 .then(
-                                    if (isPlaying) Modifier.border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(12.dp))
+                                    if (isPlaying) Modifier.border(PremiumPillDefaults.selectedBorder(), RoundedCornerShape(12.dp))
                                     else Modifier
                                 )
                                 .clickable {

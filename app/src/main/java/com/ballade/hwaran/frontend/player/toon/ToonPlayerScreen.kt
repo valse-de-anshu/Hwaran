@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
 import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
@@ -171,23 +172,6 @@ fun ToonPlayerScreen(
         }
         onDispose {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
-    }
-
-    // Screen Brightness Effect
-    DisposableEffect(brightnessOverride) {
-        val window = activity?.window
-        val lp = window?.attributes
-        val originalBrightness = lp?.screenBrightness ?: -1f
-        if (brightnessOverride != null && lp != null) {
-            lp.screenBrightness = brightnessOverride!!
-            window.attributes = lp
-        }
-        onDispose {
-            if (lp != null) {
-                lp.screenBrightness = originalBrightness
-                window.attributes = lp
-            }
         }
     }
 
@@ -379,8 +363,19 @@ fun ToonPlayerScreen(
                     }
                 }
             } else {
-                // ── Active Reader Content ──
-                if (readerMode == 0) {
+                // ── Active Reader Content with Panel-Level Dimming (Safe from system brightness hijacking) ──
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawWithContent {
+                            drawContent()
+                            if (brightnessOverride != null && brightnessOverride!! < 1.0f) {
+                                val dimAlpha = (1.0f - brightnessOverride!!).coerceIn(0f, 0.88f)
+                                drawRect(Color.Black.copy(alpha = dimAlpha))
+                            }
+                        }
+                ) {
+                    if (readerMode == 0) {
                     // ═════════════════════════════════════════════════════════════════════════
                     // MODE 0: SINGLE LONG STRIP (Continuous Webtoon Scroll)
                     // ═════════════════════════════════════════════════════════════════════════
@@ -550,8 +545,7 @@ fun ToonPlayerScreen(
                         }
                     }
                 }
-
-
+            }
 
                 // ═════════════════════════════════════════════════════════════════════════
                 // OVERLAY CONTROLS (Hidden during chapter picker to eliminate interference)
@@ -579,32 +573,47 @@ fun ToonPlayerScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Back Button (Safely below cutout)
-                            IconButton(
-                                onClick = onNavigateBack,
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.Transparent,
+                                border = PremiumPillDefaults.border(PrimaryPurple),
+                                shadowElevation = 12.dp,
                                 modifier = Modifier
                                     .size(44.dp)
-                                    .background(OverlayBg, CircleShape)
-                                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), CircleShape)
                                     .clip(CircleShape)
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onNavigateBack()
+                                    }
                             ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(22.dp)
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(PremiumPillDefaults.background(PrimaryPurple)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
                             }
 
                             // Top Right: Live Page Counter Pill
                             Surface(
                                 shape = RoundedCornerShape(24.dp),
-                                color = OverlayBg,
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                                color = Color.Transparent,
+                                border = PremiumPillDefaults.border(PrimaryPurple),
+                                shadowElevation = 12.dp,
                                 modifier = Modifier.height(40.dp)
                             ) {
                                 Box(
                                     contentAlignment = Alignment.Center,
-                                    modifier = Modifier.padding(horizontal = 14.dp)
+                                    modifier = Modifier
+                                        .background(PremiumPillDefaults.background(PrimaryPurple))
+                                        .padding(horizontal = 14.dp)
                                 ) {
                                     Text(
                                         text = "p. ${activePageIndex + 1}/${images.size}",
@@ -616,7 +625,7 @@ fun ToonPlayerScreen(
                             }
                         }
 
-                        // ── REVIVED CLASSIC BOTTOM NAVIGATION PILL & TOP BUTTON (Clean White, No Purple Blooming) ──
+                        // ── REVIVED CLASSIC BOTTOM NAVIGATION PILL & TOP BUTTON ──
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -625,75 +634,89 @@ fun ToonPlayerScreen(
                                 .padding(bottom = 36.dp)
                         ) {
                             // Center Classic Navigation Pill
-                            Row(
-                                modifier = Modifier
-                                    .align(Alignment.Center)
-                                    .background(OverlayBg, RoundedCornerShape(50))
-                                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), RoundedCornerShape(50))
-                                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Color.Transparent,
+                                border = PremiumPillDefaults.border(PrimaryPurple),
+                                shadowElevation = 16.dp,
+                                modifier = Modifier.align(Alignment.Center)
                             ) {
-                                IconButton(
-                                    onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        prevChapterId?.let { onNavigateToChapter(it) }
-                                    },
-                                    enabled = prevChapterId != null,
-                                    modifier = Modifier.size(44.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                                        contentDescription = "Prev Chapter",
-                                        tint = if (prevChapterId != null) Color.White else Color.White.copy(alpha = 0.25f),
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-
-                                Box(
+                                Row(
                                     modifier = Modifier
-                                        .background(Color.White.copy(alpha = 0.10f), RoundedCornerShape(24.dp))
-                                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), RoundedCornerShape(24.dp))
-                                        .clip(RoundedCornerShape(24.dp))
-                                        .clickable {
-                                            activeSettingTab = null
-                                            showChapterList = true
-                                        }
-                                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                                        .background(PremiumPillDefaults.background(PrimaryPurple))
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = chapter?.title ?: "Select Chapter",
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1
-                                    )
-                                }
+                                    IconButton(
+                                        onClick = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            prevChapterId?.let { onNavigateToChapter(it) }
+                                        },
+                                        enabled = prevChapterId != null,
+                                        modifier = Modifier.size(44.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                            contentDescription = "Prev Chapter",
+                                            tint = if (prevChapterId != null) Color.White else Color.White.copy(alpha = 0.25f),
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                    }
 
-                                IconButton(
-                                    onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        nextChapterId?.let { onNavigateToChapter(it) }
-                                    },
-                                    enabled = nextChapterId != null,
-                                    modifier = Modifier.size(44.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                        contentDescription = "Next Chapter",
-                                        tint = if (nextChapterId != null) Color.White else Color.White.copy(alpha = 0.25f),
-                                        modifier = Modifier.size(28.dp)
-                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(24.dp),
+                                        color = Color.Transparent,
+                                        border = PremiumPillDefaults.selectedBorder(PrimaryPurple),
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(24.dp))
+                                            .clickable {
+                                                activeSettingTab = null
+                                                showChapterList = true
+                                            }
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .background(PremiumPillDefaults.selectedBackground(PrimaryPurple))
+                                                .padding(horizontal = 20.dp, vertical = 10.dp)
+                                        ) {
+                                            Text(
+                                                text = chapter?.title ?: "Select Chapter",
+                                                color = Color.White,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+
+                                    IconButton(
+                                        onClick = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            nextChapterId?.let { onNavigateToChapter(it) }
+                                        },
+                                        enabled = nextChapterId != null,
+                                        modifier = Modifier.size(44.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                            contentDescription = "Next Chapter",
+                                            tint = if (nextChapterId != null) Color.White else Color.White.copy(alpha = 0.25f),
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                    }
                                 }
                             }
 
                             // Classic Separate Circular "^" Scroll to Top Button
-                            Box(
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.Transparent,
+                                border = PremiumPillDefaults.border(PrimaryPurple),
+                                shadowElevation = 12.dp,
                                 modifier = Modifier
                                     .align(Alignment.CenterEnd)
                                     .padding(end = 16.dp)
                                     .size(44.dp)
-                                    .background(OverlayBg, CircleShape)
-                                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), CircleShape)
                                     .clip(CircleShape)
                                     .clickable {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -711,15 +734,21 @@ fun ToonPlayerScreen(
                                                 pagerState.scrollToPage(0)
                                             }
                                         }
-                                    },
-                                contentAlignment = Alignment.Center
+                                    }
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.KeyboardArrowUp,
-                                    contentDescription = "Scroll to Top",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(24.dp)
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(PremiumPillDefaults.background(PrimaryPurple)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowUp,
+                                        contentDescription = "Scroll to Top",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
                             }
                         }
 

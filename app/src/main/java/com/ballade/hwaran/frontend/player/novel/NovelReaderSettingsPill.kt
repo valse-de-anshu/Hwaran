@@ -1,11 +1,12 @@
 package com.ballade.hwaran.frontend.player.novel
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -23,8 +24,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -40,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.ballade.hwaran.backend.novel.NovelChapter
 import com.ballade.hwaran.core.database.entity.PdfMarkerEntity
 import com.ballade.hwaran.ui.components.ReaderMusicPlayerCard
+import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
 import com.ballade.hwaran.ui.viewmodels.MusicViewModel
 import java.io.File
 import kotlin.math.roundToInt
@@ -218,8 +222,8 @@ fun NovelReaderSettingsPill(
             } else if (activeTab == NovelSettingTab.CHECKPOINTS) {
                 Surface(
                     shape = RoundedCornerShape(22.dp),
-                    color = Color(0xFF14131E).copy(alpha = 0.96f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                    color = Color.Transparent,
+                    border = PremiumPillDefaults.border(glowColor),
                     shadowElevation = 16.dp,
                     modifier = Modifier
                         .widthIn(min = 280.dp, max = 320.dp)
@@ -229,7 +233,9 @@ fun NovelReaderSettingsPill(
                         ) { /* Consume click */ }
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier
+                            .background(PremiumPillDefaults.background(glowColor))
+                            .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Row(
@@ -354,9 +360,9 @@ fun NovelReaderSettingsPill(
             } else if (activeTab != null) {
                 Surface(
                     shape = RoundedCornerShape(22.dp),
-                    color = Color(0xFF14131E).copy(alpha = 0.96f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)),
-                    shadowElevation = 14.dp,
+                    color = Color.Transparent,
+                    border = PremiumPillDefaults.border(glowColor),
+                    shadowElevation = 16.dp,
                     modifier = Modifier
                         .widthIn(min = 280.dp, max = 340.dp)
                         .clickable(
@@ -366,6 +372,7 @@ fun NovelReaderSettingsPill(
                 ) {
                     Column(
                         modifier = Modifier
+                            .background(PremiumPillDefaults.background(glowColor))
                             .padding(18.dp)
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -694,11 +701,8 @@ fun NovelReaderSettingsPill(
                                         val isSelected = currentTheme == theme
                                         Surface(
                                             shape = RoundedCornerShape(12.dp),
-                                            color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                                            border = BorderStroke(
-                                                1.dp,
-                                                if (isSelected) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.08f)
-                                            ),
+                                            color = Color.Transparent,
+                                            border = if (isSelected) PremiumPillDefaults.selectedBorder(glowColor) else PremiumPillDefaults.unselectedBorder(),
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .clip(RoundedCornerShape(12.dp))
@@ -710,6 +714,10 @@ fun NovelReaderSettingsPill(
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
+                                                    .then(
+                                                        if (isSelected) Modifier.background(PremiumPillDefaults.selectedBackground(glowColor))
+                                                        else Modifier.background(PremiumPillDefaults.unselectedBackground())
+                                                    )
                                                     .padding(horizontal = 14.dp, vertical = 10.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -841,8 +849,8 @@ fun NovelReaderSettingsPill(
 
                                             Surface(
                                                 shape = RoundedCornerShape(8.dp),
-                                                color = if (brightnessOverride == null) Color.White.copy(alpha = 0.08f) else Color(0xFF222631),
-                                                border = BorderStroke(1.dp, if (brightnessOverride == null) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.20f)),
+                                                color = Color.Transparent,
+                                                border = if (brightnessOverride == null) PremiumPillDefaults.unselectedBorder() else PremiumPillDefaults.selectedBorder(glowColor),
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(8.dp))
                                                     .clickable {
@@ -850,13 +858,20 @@ fun NovelReaderSettingsPill(
                                                         onBrightnessOverrideChange(if (brightnessOverride == null) 0.6f else null)
                                                     }
                                             ) {
-                                                Text(
-                                                    text = if (brightnessOverride == null) "Auto" else "${(brightnessOverride * 100).roundToInt()}%",
-                                                    color = if (brightnessOverride == null) Color.White.copy(alpha = 0.55f) else Color(0xFFE6E8EC),
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                                )
+                                                Box(
+                                                    modifier = Modifier.then(
+                                                        if (brightnessOverride != null) Modifier.background(PremiumPillDefaults.selectedBackground(glowColor))
+                                                        else Modifier.background(PremiumPillDefaults.unselectedBackground())
+                                                    )
+                                                ) {
+                                                    Text(
+                                                        text = if (brightnessOverride == null) "Auto" else "${(brightnessOverride * 100).roundToInt()}%",
+                                                        color = if (brightnessOverride == null) Color.White.copy(alpha = 0.55f) else Color.White,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                                    )
+                                                }
                                             }
                                         }
 
@@ -883,15 +898,17 @@ fun NovelReaderSettingsPill(
         // ── Floating Vertical Pill (Fixed on the far right) ──
         Surface(
             shape = RoundedCornerShape(32.dp),
-            color = Color(0xFF14131E).copy(alpha = 0.92f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)),
-            shadowElevation = 12.dp,
+            color = Color.Transparent,
+            border = PremiumPillDefaults.border(glowColor),
+            shadowElevation = 14.dp,
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .padding(end = 14.dp)
         ) {
             Column(
-                modifier = Modifier.padding(vertical = 8.dp, horizontal = 5.dp),
+                modifier = Modifier
+                    .background(PremiumPillDefaults.background(glowColor))
+                    .padding(vertical = 8.dp, horizontal = 5.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -1002,20 +1019,41 @@ private fun VerticalPillIcon(
     glowColor: Color,
     onClick: () -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "icon_scale"
+    )
+
     Surface(
         shape = CircleShape,
-        color = if (isSelected) Color(0xFF222631) else Color.Transparent,
-        border = if (isSelected) BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)) else null,
+        color = Color.Transparent,
+        border = if (isSelected) PremiumPillDefaults.selectedBorder(glowColor) else null,
         modifier = Modifier
             .size(38.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .clip(CircleShape)
-            .clickable(onClick = onClick)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (isSelected) Modifier.background(PremiumPillDefaults.selectedBackground(glowColor))
+                    else Modifier
+                ),
+            contentAlignment = Alignment.Center
+        ) {
             Icon(
                 imageVector = icon,
                 contentDescription = contentDescription,
-                tint = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.65f),
+                tint = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -1030,25 +1068,42 @@ private fun CompactPresetPill(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "preset_scale"
+    )
+
     Surface(
         modifier = modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick),
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-        border = BorderStroke(
-            1.dp,
-            if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)
-        )
+        color = Color.Transparent,
+        border = if (isSelected) PremiumPillDefaults.selectedBorder(glowColor) else PremiumPillDefaults.unselectedBorder()
     ) {
-        Text(
-            text = label,
-            color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.55f),
-            fontSize = 11.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp)
-        )
+        Box(
+            modifier = Modifier.then(
+                if (isSelected) Modifier.background(PremiumPillDefaults.selectedBackground(glowColor))
+                else Modifier.background(PremiumPillDefaults.unselectedBackground())
+            )
+        ) {
+            Text(
+                text = label,
+                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
+                fontSize = 11.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp)
+            )
+        }
     }
 }
 
@@ -1086,33 +1141,48 @@ private fun CompactLayoutModeChip(
     glowColor: Color,
     onClick: () -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "chip_scale"
+    )
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-        border = BorderStroke(
-            1.dp,
-            if (isSelected) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.08f)
-        )
+        color = Color.Transparent,
+        border = if (isSelected) PremiumPillDefaults.selectedBorder(glowColor) else PremiumPillDefaults.unselectedBorder()
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier
+                .then(
+                    if (isSelected) Modifier.background(PremiumPillDefaults.selectedBackground(glowColor))
+                    else Modifier.background(PremiumPillDefaults.unselectedBackground())
+                )
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.55f),
+                tint = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
                 modifier = Modifier.size(20.dp)
             )
             Column {
                 Text(
                     text = title,
-                    color = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.80f),
+                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.80f),
                     fontSize = 13.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                 )

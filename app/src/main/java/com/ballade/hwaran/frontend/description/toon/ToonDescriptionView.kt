@@ -26,6 +26,8 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenu
 import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenuItem
+import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
+import com.ballade.hwaran.ui.dialogs.PremiumFilterPill
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -239,22 +241,15 @@ fun ToonDescriptionView(
                             ) {
                                 availableOptions.forEach { typeOption ->
                                     val isSel = effectiveType.equals(typeOption, ignoreCase = true)
-                                    Surface(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable { onSetMaterialTag(typeOption) },
-                                        color = if (isSel) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                                        border = BorderStroke(1.dp, if (isSel) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f)),
-                                        shape = RoundedCornerShape(8.dp)
-                                    ) {
-                                        Text(
-                                            text = typeOption,
-                                            color = if (isSel) Color(0xFFE6E8EC) else TextMuted,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                        )
-                                    }
+                                    PremiumFilterPill(
+                                        text = typeOption,
+                                        isSelected = isSel,
+                                        shape = RoundedCornerShape(8.dp),
+                                        fontSize = 11.sp,
+                                        accentColor = PrimaryPurple,
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                        onClick = { onSetMaterialTag(typeOption) }
+                                    )
                                 }
                             }
                         } else {
@@ -264,11 +259,13 @@ fun ToonDescriptionView(
                             ) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFF222631),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
+                                    color = Color.Transparent,
+                                    border = PremiumPillDefaults.border(PrimaryPurple, 0.6f)
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                        modifier = Modifier
+                                            .background(PremiumPillDefaults.background(PrimaryPurple))
+                                            .padding(horizontal = 10.dp, vertical = 4.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(5.dp)
                                     ) {
@@ -276,11 +273,11 @@ fun ToonDescriptionView(
                                             modifier = Modifier
                                                 .size(6.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFFE6E8EC))
+                                                .background(PrimaryPurple)
                                         )
                                         Text(
                                             text = effectiveType.uppercase(),
-                                            color = Color(0xFFE6E8EC),
+                                            color = Color.White,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
                                             letterSpacing = 0.8.sp
@@ -852,40 +849,46 @@ fun ToonDescriptionView(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Primary "Read" Button -> Opens chapter 1 / resume chapter
-                        Button(
-                            onClick = {
-                                val targetChapter = chapters.firstOrNull { it.title == manga.lastReadTitle }
-                                    ?: chapters.firstOrNull()
-                                if (targetChapter != null) {
-                                    onNavigateToMedia(targetChapter.id, manga.contentType)
-                                }
-                            },
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color.Transparent,
+                            border = PremiumPillDefaults.border(PrimaryPurple),
+                            shadowElevation = 8.dp,
                             modifier = Modifier
                                 .weight(1.2f)
-                                .height(48.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF222631),
-                                contentColor = Color(0xFFE6E8EC)
-                            ),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
+                                .height(48.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable {
+                                    val targetChapter = chapters.firstOrNull { it.title == manga.lastReadTitle }
+                                        ?: chapters.firstOrNull()
+                                    if (targetChapter != null) {
+                                        onNavigateToMedia(targetChapter.id, manga.contentType)
+                                    }
+                                }
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(PremiumPillDefaults.background(PrimaryPurple)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.MenuBook,
-                                    contentDescription = null,
-                                    tint = Color(0xFFE6E8EC),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Text(
-                                    text = if (manga.lastReadTitle != null) "Resume" else "Read",
-                                    color = Color(0xFFE6E8EC),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Rounded.MenuBook,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = if (manga.lastReadTitle != null) "Resume" else "Read",
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
 
@@ -897,10 +900,10 @@ fun ToonDescriptionView(
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = Color.White.copy(alpha = 0.04f),
-                                contentColor = Color(0xFFE6E8EC)
+                                containerColor = Color.White.copy(alpha = 0.05f),
+                                contentColor = Color.White
                             ),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -909,12 +912,12 @@ fun ToonDescriptionView(
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Rounded.MenuBook,
                                     contentDescription = null,
-                                    tint = Color(0xFFE6E8EC),
+                                    tint = Color.White.copy(alpha = 0.85f),
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Text(
                                     text = "Chapters (${chapters.size})",
-                                    color = Color(0xFFE6E8EC),
+                                    color = Color.White,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -930,9 +933,9 @@ fun ToonDescriptionView(
                             shape = RoundedCornerShape(14.dp),
                             contentPadding = PaddingValues(0.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (isFavorite) Color(0xFF222631) else Color.Transparent
+                                containerColor = if (isFavorite) Color(0xFFFFD54F).copy(alpha = 0.18f) else Color.Transparent
                             ),
-                            border = BorderStroke(1.dp, if (isFavorite) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.10f))
+                            border = BorderStroke(1.dp, if (isFavorite) Color(0xFFFFD54F).copy(alpha = 0.60f) else Color.White.copy(alpha = 0.10f))
                         ) {
                             Icon(
                                 imageVector = if (isFavorite) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
@@ -1291,15 +1294,17 @@ fun ToonDescriptionView(
                     // Obsidian Dark Glass Save Changes Pill
                     Surface(
                         shape = CircleShape,
-                        color = Color(0xFF222631),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)),
-                        shadowElevation = 6.dp,
+                        color = Color.Transparent,
+                        border = PremiumPillDefaults.border(PrimaryPurple),
+                        shadowElevation = 12.dp,
                         modifier = Modifier
                             .clip(CircleShape)
                             .clickable { onSaveManga() }
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
+                            modifier = Modifier
+                                .background(PremiumPillDefaults.background(PrimaryPurple))
+                                .padding(horizontal = 22.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {

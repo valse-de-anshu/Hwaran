@@ -31,6 +31,176 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.TextUnit
+
+object PremiumPillDefaults {
+    @Composable
+    fun border(
+        accent: Color = MaterialTheme.colorScheme.primary,
+        alphaMultiplier: Float = 1f
+    ): androidx.compose.foundation.BorderStroke {
+        return androidx.compose.foundation.BorderStroke(
+            1.2.dp,
+            Brush.verticalGradient(
+                listOf(
+                    accent.copy(alpha = (0.75f * alphaMultiplier).coerceIn(0f, 1f)),
+                    accent.copy(alpha = (0.30f * alphaMultiplier).coerceIn(0f, 1f)),
+                    Color.White.copy(alpha = (0.12f * alphaMultiplier).coerceIn(0f, 1f))
+                )
+            )
+        )
+    }
+
+    @Composable
+    fun background(accent: Color = MaterialTheme.colorScheme.primary): Brush {
+        return Brush.verticalGradient(
+            listOf(
+                accent.copy(alpha = 0.20f),
+                Color(0xF4141320),
+                Color(0xF40F0E16)
+            )
+        )
+    }
+
+    @Composable
+    fun selectedBackground(accent: Color = MaterialTheme.colorScheme.primary): Brush {
+        return Brush.verticalGradient(
+            listOf(
+                accent.copy(alpha = 0.35f),
+                accent.copy(alpha = 0.16f),
+                Color(0xF2161524)
+            )
+        )
+    }
+
+    @Composable
+    fun selectedBorder(accent: Color = MaterialTheme.colorScheme.primary): androidx.compose.foundation.BorderStroke {
+        return androidx.compose.foundation.BorderStroke(
+            1.2.dp,
+            Brush.verticalGradient(
+                listOf(
+                    accent.copy(alpha = 0.85f),
+                    accent.copy(alpha = 0.40f)
+                )
+            )
+        )
+    }
+
+    fun unselectedBackground(): Brush {
+        return Brush.verticalGradient(
+            listOf(
+                Color.White.copy(alpha = 0.08f),
+                Color.White.copy(alpha = 0.03f)
+            )
+        )
+    }
+
+    fun unselectedBorder(): androidx.compose.foundation.BorderStroke {
+        return androidx.compose.foundation.BorderStroke(
+            1.dp,
+            Color.White.copy(alpha = 0.10f)
+        )
+    }
+}
+
+@Composable
+fun PremiumPillContainer(
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(32.dp),
+    accentColor: Color = MaterialTheme.colorScheme.primary,
+    elevation: Dp = 14.dp,
+    content: @Composable () -> Unit
+) {
+    Surface(
+        shape = shape,
+        color = Color.Transparent,
+        border = PremiumPillDefaults.border(accentColor),
+        shadowElevation = elevation,
+        modifier = modifier
+    ) {
+        Box(
+            modifier = Modifier.background(PremiumPillDefaults.background(accentColor))
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+fun PremiumFilterPill(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    accentColor: Color = MaterialTheme.colorScheme.primary,
+    shape: Shape = RoundedCornerShape(20.dp),
+    fontSize: TextUnit = 13.sp,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "pill_scale"
+    )
+
+    val border = if (isSelected) {
+        PremiumPillDefaults.selectedBorder(accentColor)
+    } else {
+        PremiumPillDefaults.unselectedBorder()
+    }
+
+    val backgroundModifier = if (isSelected) {
+        Modifier.background(PremiumPillDefaults.selectedBackground(accentColor))
+    } else {
+        Modifier.background(PremiumPillDefaults.unselectedBackground())
+    }
+
+    Surface(
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(shape)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
+        shape = shape,
+        color = Color.Transparent,
+        border = border
+    ) {
+        Row(
+            modifier = Modifier
+                .then(backgroundModifier)
+                .padding(contentPadding),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Text(
+                text = text,
+                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
+                fontSize = fontSize,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+            )
+        }
+    }
+}
 
 @Composable
 fun PremiumGlassPanel(

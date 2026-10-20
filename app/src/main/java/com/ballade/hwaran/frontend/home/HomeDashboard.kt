@@ -38,6 +38,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import com.ballade.hwaran.ui.dialogs.PremiumFilterPill
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1286,22 +1287,13 @@ private fun RecentlyAddedSheet(
             ) {
                 items(filters) { filter ->
                     val isSel = selectedFilter == filter
-                    Surface(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { selectedFilter = filter },
-                        color = if (isSel) Color(0xFF222631) else Color.White.copy(alpha = 0.04f),
-                        border = BorderStroke(1.dp, if (isSel) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = filter,
-                            color = if (isSel) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.60f),
-                            fontSize = 12.sp,
-                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                        )
-                    }
+                    PremiumFilterPill(
+                        text = filter,
+                        isSelected = isSel,
+                        fontSize = 12.sp,
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                        onClick = { selectedFilter = filter }
+                    )
                 }
             }
 

@@ -85,6 +85,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ballade.hwaran.core.database.AppDatabase
+import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
 import com.ballade.hwaran.ui.components.ReaderMusicPlayerCard
 import com.ballade.hwaran.ui.viewmodels.MusicViewModel
 import kotlinx.coroutines.Dispatchers
@@ -839,10 +840,16 @@ fun BookPlayerScreen(
                                         .clip(CircleShape)
                                         .clickable { handleBack() },
                                     shape = CircleShape,
-                                    color = Color(0xFF14131E).copy(alpha = 0.90f),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                                    color = Color.Transparent,
+                                    border = PremiumPillDefaults.border(),
+                                    shadowElevation = 10.dp
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(PremiumPillDefaults.background()),
+                                        contentAlignment = Alignment.Center
+                                    ) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                             contentDescription = "Back",
@@ -855,19 +862,22 @@ fun BookPlayerScreen(
                                 // Centered Book Title Capsule
                                 Surface(
                                     modifier = Modifier.align(Alignment.Center),
-                                    shape = RoundedCornerShape(20.dp),
-                                    color = Color(0xFF14131E).copy(alpha = 0.90f),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                                    shape = RoundedCornerShape(24.dp),
+                                    color = Color.Transparent,
+                                    border = PremiumPillDefaults.border(),
+                                    shadowElevation = 10.dp
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                        modifier = Modifier
+                                            .background(PremiumPillDefaults.background())
+                                            .padding(horizontal = 16.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Rounded.MenuBook,
                                             contentDescription = null,
-                                            tint = Color.White.copy(alpha = 0.7f),
+                                            tint = Color.White.copy(alpha = 0.85f),
                                             modifier = Modifier.size(15.dp)
                                         )
                                         Text(
@@ -1882,8 +1892,8 @@ fun BookPlayerScreen(
                             // ── Bottom Settings Pill (Positioned safely above Android navigation bar) ──
                             Surface(
                                 shape = RoundedCornerShape(32.dp),
-                                color = Color(0xFF14131E).copy(alpha = 0.94f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                color = Color.Transparent,
+                                border = PremiumPillDefaults.border(),
                                 shadowElevation = 14.dp,
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
@@ -1891,7 +1901,9 @@ fun BookPlayerScreen(
                                     .padding(bottom = 24.dp)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    modifier = Modifier
+                                        .background(PremiumPillDefaults.background())
+                                        .padding(horizontal = 14.dp, vertical = 7.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {

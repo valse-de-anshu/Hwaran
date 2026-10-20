@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.DriveFileMove
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1805,7 +1806,7 @@ fun ZineScraperScreen(
                     Spacer(modifier = Modifier.height(20.dp))
 
                     // View Repository Button (Clean, NO command block)
-                    Button(
+                    Surface(
                         onClick = {
                             val intent = Intent(
                                 Intent.ACTION_VIEW,
@@ -1817,29 +1818,34 @@ fun ZineScraperScreen(
                                 Toast.makeText(context, "Cannot open browser", Toast.LENGTH_SHORT).show()
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF222631),
-                            contentColor = Color(0xFFE6E8EC)
-                        ),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
                         shape = RoundedCornerShape(14.dp),
+                        color = Color.Transparent,
+                        border = PremiumPillDefaults.border(),
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(46.dp)
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_github),
-                            contentDescription = null,
-                            tint = Color(0xFFE6E8EC),
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "View CLI Scraper Repository",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = Color(0xFFE6E8EC)
-                        )
+                        Row(
+                            modifier = Modifier
+                                .background(PremiumPillDefaults.background())
+                                .fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_github),
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "View CLI Scraper Repository",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))

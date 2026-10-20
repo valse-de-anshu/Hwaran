@@ -31,6 +31,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -295,22 +297,6 @@ fun NovelPlayerScreen(
         }
     }
 
-    // ── Brightness ─────────────────────────────────────────────────────────────
-    DisposableEffect(brightnessOverride) {
-        val w = activity?.window
-        val lp = w?.attributes
-        if (brightnessOverride != null && lp != null) {
-            lp.screenBrightness = brightnessOverride!!
-            w.attributes = lp
-        }
-        onDispose {
-            if (lp != null) {
-                lp.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-                w?.attributes = lp
-            }
-        }
-    }
-
     // ── Keep Screen On ─────────────────────────────────────────────────────────
     DisposableEffect(keepScreenOn) {
         if (keepScreenOn) {
@@ -571,8 +557,20 @@ fun NovelPlayerScreen(
                 }
             }
 
-            // ── Vertical Scroll Mode ────────────────────────────────────────────────
-            if (readMode == NovelReadMode.VERTICAL_SCROLL) {
+            // ── Active Reader Content with Panel-Level Dimming ──
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .drawWithContent {
+                        drawContent()
+                        if (brightnessOverride != null && brightnessOverride!! < 1.0f) {
+                            val dimAlpha = (1.0f - brightnessOverride!!).coerceIn(0f, 0.88f)
+                            drawRect(Color.Black.copy(alpha = dimAlpha))
+                        }
+                    }
+            ) {
+                // ── Vertical Scroll Mode ────────────────────────────────────────────────
+                if (readMode == NovelReadMode.VERTICAL_SCROLL) {
                 LaunchedEffect(novelBook, mangaEntity) {
                     if (!initialPositionRestored && novelBook != null && mangaEntity != null) {
                         val targetChapter = (mangaEntity?.lastReadPage ?: 0).coerceIn(0, (chapters.size - 1).coerceAtLeast(0))
@@ -838,20 +836,22 @@ fun NovelPlayerScreen(
                 }
             }
 
+            } // Close reader content Box
+
             // ═════════════════════════════════════════════════════════════════════
             // SLEEK TOP-RIGHT PROGRESS & CHECKPOINT STICKY TAB
             // ═════════════════════════════════════════════════════════════════════
             if (!showTocSheet) {
                 Surface(
-                    shape = RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp),
-                    color = Color(0xFF14131E).copy(alpha = 0.90f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                    shadowElevation = 6.dp,
+                    shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp),
+                    color = Color.Transparent,
+                    border = PremiumPillDefaults.border(currentTheme.accent),
+                    shadowElevation = 10.dp,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .statusBarsPadding()
                         .padding(end = 14.dp)
-                        .clip(RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp))
+                        .clip(RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp))
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             isControlsVisible = true
@@ -859,14 +859,16 @@ fun NovelPlayerScreen(
                         }
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                        modifier = Modifier
+                            .background(PremiumPillDefaults.background(currentTheme.accent))
+                            .padding(horizontal = 11.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Bookmark,
                             contentDescription = "Checkpoints",
-                            tint = if (markers.isNotEmpty()) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.6f),
+                            tint = if (markers.isNotEmpty()) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.7f),
                             modifier = Modifier.size(13.dp)
                         )
                         Text(
@@ -948,16 +950,25 @@ fun NovelPlayerScreen(
                                 .align(Alignment.CenterStart)
                                 .size(42.dp)
                                 .clip(CircleShape)
-                                .clickable { onNavigateBack() },
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onNavigateBack()
+                                },
                             shape = CircleShape,
-                            color = currentTheme.surface.copy(alpha = 0.90f),
-                            border = BorderStroke(1.dp, currentTheme.border.copy(alpha = 0.5f))
+                            color = Color.Transparent,
+                            border = PremiumPillDefaults.border(currentTheme.accent),
+                            shadowElevation = 10.dp
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(PremiumPillDefaults.background(currentTheme.accent)),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                     contentDescription = "Back",
-                                    tint = currentTheme.text,
+                                    tint = Color.White,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -966,24 +977,27 @@ fun NovelPlayerScreen(
                         // Document Title Capsule (Middle Top Centered)
                         Surface(
                             modifier = Modifier.align(Alignment.Center),
-                            shape = RoundedCornerShape(20.dp),
-                            color = currentTheme.surface.copy(alpha = 0.90f),
-                            border = BorderStroke(1.dp, currentTheme.border.copy(alpha = 0.5f))
+                            shape = RoundedCornerShape(24.dp),
+                            color = Color.Transparent,
+                            border = PremiumPillDefaults.border(currentTheme.accent),
+                            shadowElevation = 10.dp
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                modifier = Modifier
+                                    .background(PremiumPillDefaults.background(currentTheme.accent))
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Rounded.MenuBook,
                                     contentDescription = null,
-                                    tint = currentTheme.secondaryText,
+                                    tint = currentTheme.accent.copy(alpha = 0.9f),
                                     modifier = Modifier.size(15.dp)
                                 )
                                 Text(
                                     text = novelBook?.title ?: mangaEntity?.title ?: "Novel Reader",
-                                    color = currentTheme.text,
+                                    color = Color.White,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
@@ -1002,7 +1016,7 @@ fun NovelPlayerScreen(
                                 modifier = Modifier
                                     .align(Alignment.CenterEnd)
                                     .padding(end = 12.dp)
-                                    .clip(RoundedCornerShape(16.dp))
+                                    .clip(RoundedCornerShape(20.dp))
                                     .clickable {
                                         val target = lastReadChapter.coerceIn(0, (chapters.size - 1).coerceAtLeast(0))
                                         lastScrolledChapter = target
@@ -1012,12 +1026,15 @@ fun NovelPlayerScreen(
                                         }
                                         saveProgress(target, savedPos)
                                     },
-                                shape = RoundedCornerShape(16.dp),
-                                color = Color(0xFFFFD54F).copy(alpha = 0.18f),
-                                border = BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.40f))
+                                shape = RoundedCornerShape(20.dp),
+                                color = Color.Transparent,
+                                border = PremiumPillDefaults.border(Color(0xFFFFD54F)),
+                                shadowElevation = 10.dp
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    modifier = Modifier
+                                        .background(PremiumPillDefaults.background(Color(0xFFFFD54F)))
+                                        .padding(horizontal = 12.dp, vertical = 7.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
@@ -1137,13 +1154,15 @@ fun NovelPlayerScreen(
                 .padding(top = 16.dp)
         ) {
             Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = Color(0xFF1E1E28).copy(alpha = 0.95f),
-                border = BorderStroke(1.dp, currentTheme.accent.copy(alpha = 0.50f)),
-                shadowElevation = 10.dp
+                shape = RoundedCornerShape(22.dp),
+                color = Color.Transparent,
+                border = PremiumPillDefaults.border(currentTheme.accent),
+                shadowElevation = 14.dp
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    modifier = Modifier
+                        .background(PremiumPillDefaults.background(currentTheme.accent))
+                        .padding(horizontal = 18.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
