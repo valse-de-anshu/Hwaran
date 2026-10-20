@@ -114,6 +114,68 @@ class MainActivity : ComponentActivity() {
                     ActivityResultContracts.RequestPermission()
                 ) { isGranted -> }
 
+                // Storage permission check for Android 11+ (API 30+)
+                var showStoragePermissionDialog by remember {
+                    mutableStateOf(
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            !android.os.Environment.isExternalStorageManager()
+                        } else {
+                            false
+                        }
+                    )
+                }
+
+                val activityLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+                DisposableEffect(activityLifecycleOwner) {
+                    val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                        if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                if (android.os.Environment.isExternalStorageManager()) {
+                                    showStoragePermissionDialog = false
+                                }
+                            }
+                        }
+                    }
+                    activityLifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose {
+                        activityLifecycleOwner.lifecycle.removeObserver(observer)
+                    }
+                }
+
+                if (showStoragePermissionDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showStoragePermissionDialog = false },
+                        title = { Text("Storage Access Required") },
+                        text = {
+                            Text("Hwaran requires 'All files access' to scan and discover your local media from Zine folders across the phone. Without this permission, Android blocks scanning.")
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    showStoragePermissionDialog = false
+                                    try {
+                                        val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                                            data = android.net.Uri.parse("package:${packageName}")
+                                        }
+                                        startActivity(intent)
+                                    } catch (_: Exception) {
+                                        try {
+                                            startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                                        } catch (_: Exception) {}
+                                    }
+                                }
+                            ) {
+                                Text("Grant Permission")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showStoragePermissionDialog = false }) {
+                                Text("Later")
+                            }
+                        }
+                    )
+                }
+
                 LaunchedEffect(Unit) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         permissionState.launch(Manifest.permission.POST_NOTIFICATIONS)

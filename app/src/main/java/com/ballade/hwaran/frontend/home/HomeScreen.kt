@@ -119,6 +119,7 @@ fun HomeScreen(
     val importProgress by libraryViewModel.importProgress.collectAsState()
     val isMegaImporting by libraryViewModel.isMegaImporting.collectAsState()
     val megaImportProgress by libraryViewModel.megaImportProgress.collectAsState()
+    val isSyncing by libraryViewModel.isSyncing.collectAsState()
 
     fun openMusicWindow() {
         if (activeDockTab != 4) {
@@ -489,7 +490,9 @@ fun HomeScreen(
                             libraryPassword = libraryPassword,
                             glowColor = Color(glowColor),
                             onOpenMusic = { openMusicWindow() },
-                            onItemLongClick = { manga -> quickActionsManga = manga }
+                            onItemLongClick = { manga -> quickActionsManga = manga },
+                            isSyncing = isSyncing,
+                            onRefresh = { libraryViewModel.syncLibrary(showToast = true, force = true) }
                         )
                     }
                     2 -> {

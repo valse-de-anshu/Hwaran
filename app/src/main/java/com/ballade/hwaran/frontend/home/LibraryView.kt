@@ -18,6 +18,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -46,6 +48,7 @@ import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.core.util.CoverArtResolver
 import com.ballade.hwaran.core.util.LocalVaultMigrator
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryView(
     allManga: List<MangaEntity>,
@@ -57,6 +60,8 @@ fun LibraryView(
     glowColor: Color = Color(0xFFE2E8F0),
     onOpenMusic: () -> Unit = {},
     onItemLongClick: (MangaEntity) -> Unit = {},
+    isSyncing: Boolean = false,
+    onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
@@ -147,7 +152,9 @@ fun LibraryView(
         derivedStateOf { tagListState.canScrollForward }
     }
 
-    Box(
+    PullToRefreshBox(
+        isRefreshing = isSyncing,
+        onRefresh = onRefresh,
         modifier = modifier
             .fillMaxSize()
             .statusBarsPadding()
@@ -158,6 +165,7 @@ fun LibraryView(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
                     .padding(top = 110.dp, bottom = bottomDockClearance),
                 contentAlignment = Alignment.Center
             ) {

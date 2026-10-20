@@ -315,6 +315,11 @@ object LibrarySyncEngine {
 
             Log.d(TAG, "Starting Library Deep Sync...")
 
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R && !android.os.Environment.isExternalStorageManager()) {
+                Log.w(TAG, "Cannot perform Library Deep Sync: MANAGE_EXTERNAL_STORAGE permission is not granted.")
+                return@withContext SyncSummary(0, 0)
+            }
+
             val existingMedia = database.libraryDao().getAllMangaList()
             val existingUris = HashSet<String>()
             val seenCanonicalPaths = HashSet<String>()
