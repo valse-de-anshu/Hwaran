@@ -60,33 +60,34 @@ object LibrarySyncEngine {
     fun isZineFolderName(name: String): Boolean {
         val lower = name.lowercase().trim()
         if (lower == "zine" || lower.startsWith("zine ") || lower.startsWith("zine_") || lower.startsWith("zine-")) return true
-        if (lower.contains("zine scraper") || lower.contains("zine_scraper") || lower.contains("zine scrapper") || lower.contains("zine_scrapper") || lower.contains("zinescraper") || lower.contains("zinescrapper")) return true
-        if (lower.contains("zine")) return true
-        if (lower.startsWith("test my app") || lower.startsWith("test_my_app")) return true
+        if (lower == "zine scraper" || lower == "zine scrapper" ||
+            lower == "zine_scraper" || lower == "zine_scrapper" ||
+            lower == "zinescraper" || lower == "zinescrapper" ||
+            lower == "zine-scraper" || lower == "zine-scrapper" ||
+            lower.startsWith("zine scraper ") || lower.startsWith("zine scrapper ") ||
+            lower.startsWith("zine_scraper_") || lower.startsWith("zine_scrapper_") ||
+            lower.startsWith("zinescraper_") || lower.startsWith("zinescrapper_") ||
+            lower.startsWith("zine-scraper-") || lower.startsWith("zine-scrapper-")) return true
         return false
     }
 
     /**
-     * Determines whether a directory is specifically a Zine root folder or contains Zine content.
+     * Determines whether a directory is specifically a Zine root folder.
      */
     fun isZineDirectory(dir: File): Boolean {
-        val nameLower = dir.name.lowercase().trim()
-        if (isZineFolderName(nameLower)) return true
-        if (File(dir, ".zine").exists() || File(dir, ".zine_metadata").exists()) return true
-        return false
+        return isZineFolderName(dir.name)
     }
 
     /**
      * Checks if a file or directory is inside a Zine root folder or hierarchy.
      * Traverses upward from the given file/dir to verify that at least one ancestor
-     * (or the directory itself) is a Zine folder or contains .zine metadata.
+     * (or the directory itself) is a Zine folder.
      */
     fun isInsideZineDirectory(file: File): Boolean {
         var curr: File? = file
         while (curr != null) {
             val name = curr.name.lowercase().trim()
             if (isZineFolderName(name)) return true
-            if (File(curr, ".zine").exists() || File(curr, ".zine_metadata").exists()) return true
             val parent = curr.parentFile
             if (parent == null || curr.absolutePath == "/" || curr.absolutePath == "/storage/emulated/0" || curr.absolutePath == "/storage") {
                 break
@@ -94,6 +95,15 @@ object LibrarySyncEngine {
             curr = parent
         }
         return false
+    }
+
+    fun isPathInsideZineDirectory(pathOrUri: String): Boolean {
+        val clean = if (pathOrUri.startsWith("file://")) {
+            Uri.parse(pathOrUri).path ?: Uri.decode(pathOrUri.removePrefix("file://"))
+        } else {
+            pathOrUri
+        }
+        return isInsideZineDirectory(File(clean))
     }
 
     /**
@@ -182,8 +192,7 @@ object LibrarySyncEngine {
     fun isOrganizationalFolder(dir: File): Boolean {
         val lower = dir.name.lowercase().trim()
         if (lower in organizationalFolderNames) return true
-        if (lower.contains("zine scraper") || lower.contains("zine scrapper") || lower.contains("zine_scraper") || lower.contains("zine_scrapper")) return true
-        if (lower.startsWith("test my app") || lower.startsWith("test_my_app") || lower.startsWith("new folder")) return true
+        if (isZineFolderName(lower)) return true
         if (ZineMetadataExtractor.isRootStorageDir(dir)) return true
 
         val subdirs = dir.listFiles { f -> f.isDirectory && !f.name.startsWith(".") } ?: emptyArray()
@@ -328,9 +337,11 @@ object LibrarySyncEngine {
             for (manga in existingMedia) {
                 val directFile = manga.parentUri?.let { StorageResolver.resolveToFile(context, Uri.parse(it)) }
                 val isContainer = directFile != null && isOrganizationalFolder(directFile)
-                val isNonZineAutoImport = directFile != null &&
-                        (manga.parentUri.startsWith("file://") || manga.parentUri.startsWith("/")) &&
-                        !isInsideZineDirectory(directFile)
+                val isFileAutoImport = manga.parentUri?.let { it.startsWith("file://") || it.startsWith("/") } == true
+                val isNonZineAutoImport = isFileAutoImport && (
+                    if (directFile != null) !isInsideZineDirectory(directFile)
+                    else manga.parentUri?.let { !isPathInsideZineDirectory(it) } ?: false
+                )
 
                 val canonicalKey = try { directFile?.canonicalPath?.lowercase() } catch (_: Exception) { null }
                 val isDuplicate = canonicalKey != null && canonicalKey in seenCanonicalPaths && manga.parentMangaId == null

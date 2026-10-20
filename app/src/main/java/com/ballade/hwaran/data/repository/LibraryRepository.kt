@@ -826,31 +826,114 @@ class LibraryRepository(private val context: Context, private val database: AppD
     }
 
     suspend fun getChapterImages(chapterPath: String): List<String> = withContext(Dispatchers.IO) {
+        val supportedExtensions = setOf("jpg", "jpeg", "png", "webp", "bmp", "gif", "avif")
+        val naturalSortKey: (String) -> String = { name ->
+            name.replace(Regex("\\d+")) { match ->
+                match.value.padStart(10, '0')
+            }.lowercase()
+        }
+
+        // 1. Direct filesystem resolution (handles raw path, file:// URIs, and resolvable SAF tree URIs)
+        val directFile: File? = when {
+            chapterPath.startsWith("file://") -> {
+                val parsed = Uri.parse(chapterPath)
+                val p = parsed.path
+                if (p != null && File(p).exists()) {
+                    File(p)
+                } else {
+                    val decoded = Uri.decode(chapterPath.removePrefix("file://"))
+                    File(decoded).takeIf { it.exists() }
+                }
+            }
+            chapterPath.startsWith("/") -> {
+                File(chapterPath).takeIf { it.exists() }
+            }
+            chapterPath.startsWith("content://") -> {
+                com.ballade.hwaran.core.util.StorageResolver.resolveToFile(context, Uri.parse(chapterPath))
+            }
+            else -> {
+                val parsed = Uri.parse(chapterPath)
+                com.ballade.hwaran.core.util.StorageResolver.resolveToFile(context, parsed)
+                    ?: parsed.path?.let { File(it) }?.takeIf { it.exists() }
+            }
+        }
+
+        if (directFile != null && directFile.isDirectory) {
+            val directImages = directFile.listFiles()
+                ?.filter { !it.isDirectory && !it.name.startsWith(".") && supportedExtensions.contains(it.extension.lowercase()) }
+                ?.sortedWith(compareBy { naturalSortKey(it.name) })
+                ?.map { it.absolutePath }
+                ?: emptyList()
+
+            if (directImages.isNotEmpty()) {
+                return@withContext directImages
+            }
+
+            // Fallback: check if chapter images are nested in a single subfolder (e.g. images/)
+            val subdirs = directFile.listFiles()?.filter { it.isDirectory && !it.name.startsWith(".") } ?: emptyList()
+            if (subdirs.size == 1) {
+                val nestedImages = subdirs[0].listFiles()
+                    ?.filter { !it.isDirectory && !it.name.startsWith(".") && supportedExtensions.contains(it.extension.lowercase()) }
+                    ?.sortedWith(compareBy { naturalSortKey(it.name) })
+                    ?.map { it.absolutePath }
+                    ?: emptyList()
+                if (nestedImages.isNotEmpty()) {
+                    return@withContext nestedImages
+                }
+            }
+        }
+
+        // 2. Fallback: SAF DocumentFile resolution
         if (chapterPath.startsWith("content://")) {
+            val uri = Uri.parse(chapterPath)
+            try {
+                val doc = com.ballade.hwaran.core.util.StorageResolver.resolveDocument(context, uri, isFile = false)
+                if (doc != null && doc.isDirectory) {
+                    val docImages = doc.listFiles()
+                        .filter {
+                            !it.isDirectory && !(it.name ?: "").startsWith(".") &&
+                                supportedExtensions.contains((it.name ?: "").substringAfterLast(".", "").lowercase())
+                        }
+                        .sortedWith(compareBy { naturalSortKey(it.name ?: "") })
+                        .map { it.uri.toString() }
+
+                    if (docImages.isNotEmpty()) {
+                        return@withContext docImages
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            // 3. Fallback: Query DocumentsContract child documents
             val result = mutableListOf<String>()
             try {
-                val uri = Uri.parse(chapterPath)
-                val docId = android.provider.DocumentsContract.getDocumentId(uri)
+                val docId = if (android.provider.DocumentsContract.isTreeUri(uri)) {
+                    android.provider.DocumentsContract.getTreeDocumentId(uri)
+                } else {
+                    android.provider.DocumentsContract.getDocumentId(uri)
+                }
                 val childrenUri = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(uri, docId)
-                
+
                 val projection = arrayOf(
                     android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
                     android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
                     android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE
                 )
-                
+
                 context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
                     val idIndex = cursor.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID)
                     val nameIndex = cursor.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME)
                     val mimeIndex = cursor.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE)
-                    
+
                     while (cursor.moveToNext()) {
                         val name = if (nameIndex != -1) cursor.getString(nameIndex) else null
                         val mime = if (mimeIndex != -1) cursor.getString(mimeIndex) else null
                         val childDocId = if (idIndex != -1) cursor.getString(idIndex) else null
-                        
+
                         if (childDocId != null && mime != android.provider.DocumentsContract.Document.MIME_TYPE_DIR) {
-                            if (name?.endsWith(".jpg", true) == true || name?.endsWith(".png", true) == true || name?.endsWith(".webp", true) == true) {
+                            val ext = (name ?: "").substringAfterLast(".", "").lowercase()
+                            if (supportedExtensions.contains(ext)) {
                                 val childUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(uri, childDocId)
                                 result.add(childUri.toString())
                             }
@@ -860,15 +943,9 @@ class LibraryRepository(private val context: Context, private val database: AppD
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-            return@withContext result.sortedBy { it.substringAfterLast("%2F").substringBeforeLast(".") } // Sort by numeric part if possible, otherwise string sort
-        } else {
-            val chapterDir = File(chapterPath)
-            if (!chapterDir.exists() || !chapterDir.isDirectory) return@withContext emptyList()
-            chapterDir.listFiles()
-                ?.filter { !it.isDirectory && (it.name.endsWith(".jpg", true) || it.name.endsWith(".png", true) || it.name.endsWith(".webp", true)) }
-                ?.sortedBy { it.name }
-                ?.map { it.absolutePath }
-                ?: emptyList()
+            return@withContext result.sortedWith(compareBy { naturalSortKey(it.substringAfterLast("%2F").substringBeforeLast(".")) })
         }
+
+        return@withContext emptyList()
     }
 }

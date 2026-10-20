@@ -84,6 +84,18 @@ fun ReaderScreen(
     ToonPlayerScreen(chapterId, externalUri, readerViewModel, musicViewModel, onNavigateBack, onNavigateToChapter)
 }
 
+private fun resolveToonImageData(filePath: String): Any {
+    return if (filePath.startsWith("content://")) {
+        Uri.parse(filePath)
+    } else if (filePath.startsWith("file://")) {
+        val parsed = Uri.parse(filePath)
+        val path = parsed.path
+        if (path != null && java.io.File(path).exists()) java.io.File(path) else parsed
+    } else {
+        java.io.File(filePath)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ToonPlayerScreen(
@@ -242,7 +254,7 @@ fun ToonPlayerScreen(
             val imageLoader = context.imageLoader
             for (i in current..end) {
                 val filePath = images[i]
-                val data = if (filePath.startsWith("content://")) Uri.parse(filePath) else java.io.File(filePath)
+                val data = resolveToonImageData(filePath)
                 val request = ImageRequest.Builder(context)
                     .data(data)
                     .crossfade(false)
@@ -416,9 +428,7 @@ fun ToonPlayerScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             items(images, key = { it }) { filePath ->
-                                val data = remember(filePath) {
-                                    if (filePath.startsWith("content://")) Uri.parse(filePath) else java.io.File(filePath)
-                                }
+                                val data = remember(filePath) { resolveToonImageData(filePath) }
 
                                 // Margin crop container: clips white gutters when targetItemWidth > containerWidth
                                 Box(
@@ -514,9 +524,7 @@ fun ToonPlayerScreen(
                         ) { pageIndex ->
                             val filePath = images.getOrNull(pageIndex)
                             if (filePath != null) {
-                                val data = remember(filePath) {
-                                    if (filePath.startsWith("content://")) Uri.parse(filePath) else java.io.File(filePath)
-                                }
+                                val data = remember(filePath) { resolveToonImageData(filePath) }
 
                                 BoxWithConstraints(
                                     modifier = Modifier

@@ -54,13 +54,19 @@ class LibrarySyncEngineZineRestrictionTest {
         val dir2 = File("/storage/emulated/0/Zine")
         val dir3 = File("/storage/emulated/0/Download/zine_scraper")
         val dir4 = File("/storage/emulated/0/Download/Zine Scraper")
-        val dir5 = File("/storage/emulated/0/Download/test my app")
+        val dir5 = File("/storage/emulated/0/Download/zine scrapper")
+        val dir6 = File("/storage/emulated/0/Download/zine_scrapper")
+        val dir7 = File("/storage/emulated/0/Download/ZineScraper")
+        val dir8 = File("/storage/emulated/0/Download/ZineScrapper")
 
         assertTrue(LibrarySyncEngine.isZineDirectory(dir1))
         assertTrue(LibrarySyncEngine.isZineDirectory(dir2))
         assertTrue(LibrarySyncEngine.isZineDirectory(dir3))
         assertTrue(LibrarySyncEngine.isZineDirectory(dir4))
         assertTrue(LibrarySyncEngine.isZineDirectory(dir5))
+        assertTrue(LibrarySyncEngine.isZineDirectory(dir6))
+        assertTrue(LibrarySyncEngine.isZineDirectory(dir7))
+        assertTrue(LibrarySyncEngine.isZineDirectory(dir8))
 
         val nonZine1 = File("/storage/emulated/0/Download")
         val nonZine2 = File("/storage/emulated/0/Download/NCERT")
@@ -68,6 +74,10 @@ class LibrarySyncEngineZineRestrictionTest {
         val nonZine4 = File("/storage/emulated/0/Music")
         val nonZine5 = File("/storage/emulated/0/Movies")
         val nonZine6 = File("/storage/emulated/0/Download/MEGA Downloads")
+        val nonZine7 = File("/storage/emulated/0/Download/test my app")
+        val nonZine8 = File("/storage/emulated/0/Download/Videos")
+        val nonZine9 = File("/storage/emulated/0/Download/Season 2")
+        val nonZine10 = File("/storage/emulated/0/magazine")
 
         assertFalse(LibrarySyncEngine.isZineDirectory(nonZine1))
         assertFalse(LibrarySyncEngine.isZineDirectory(nonZine2))
@@ -75,6 +85,10 @@ class LibrarySyncEngineZineRestrictionTest {
         assertFalse(LibrarySyncEngine.isZineDirectory(nonZine4))
         assertFalse(LibrarySyncEngine.isZineDirectory(nonZine5))
         assertFalse(LibrarySyncEngine.isZineDirectory(nonZine6))
+        assertFalse(LibrarySyncEngine.isZineDirectory(nonZine7))
+        assertFalse(LibrarySyncEngine.isZineDirectory(nonZine8))
+        assertFalse(LibrarySyncEngine.isZineDirectory(nonZine9))
+        assertFalse(LibrarySyncEngine.isZineDirectory(nonZine10))
     }
 
     @Test
@@ -103,6 +117,18 @@ class LibrarySyncEngineZineRestrictionTest {
         assertFalse("Chemistry PDF must not be inside Zine directory", LibrarySyncEngine.isInsideZineDirectory(chemistryPdf))
         assertFalse("Loose song in Download must not be inside Zine directory", LibrarySyncEngine.isInsideZineDirectory(looseSong))
         assertFalse("Documents must not be inside Zine directory", LibrarySyncEngine.isInsideZineDirectory(docFile))
+
+        // Files in Download/Videos, Download/Season 2, Download/test my app
+        val videosDir = File(extStorage, "Download/Videos").apply { mkdirs() }
+        val season2Dir = File(extStorage, "Download/Season 2").apply { mkdirs() }
+        val testAppDir = File(extStorage, "Download/test my app").apply { mkdirs() }
+        val videoFile = File(videosDir, "clip.mp4").apply { createNewFile() }
+        val season2File = File(season2Dir, "ep1.mkv").apply { createNewFile() }
+        val testAppFile = File(testAppDir, "song.mp3").apply { createNewFile() }
+
+        assertFalse("Videos must not be inside Zine directory", LibrarySyncEngine.isInsideZineDirectory(videoFile))
+        assertFalse("Season 2 must not be inside Zine directory", LibrarySyncEngine.isInsideZineDirectory(season2File))
+        assertFalse("test my app must not be inside Zine directory", LibrarySyncEngine.isInsideZineDirectory(testAppFile))
     }
 
     @Test
