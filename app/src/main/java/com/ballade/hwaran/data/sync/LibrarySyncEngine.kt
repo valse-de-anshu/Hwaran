@@ -58,6 +58,103 @@ object LibrarySyncEngine {
     )
 
     /**
+     * Determines whether a directory is specifically a Zine root folder or contains Zine content.
+     */
+    fun isZineDirectory(dir: File): Boolean {
+        val nameLower = dir.name.lowercase().trim()
+        if (nameLower.contains("zine")) return true
+        if (File(dir, ".zine").exists() || File(dir, ".zine_metadata").exists()) return true
+        if (nameLower.startsWith("test my app") || nameLower.startsWith("test_my_app")) return true
+        return false
+    }
+
+    /**
+     * Checks if a file or directory is inside a Zine root folder or hierarchy.
+     * Traverses upward from the given file/dir to verify that at least one ancestor
+     * (or the directory itself) is a Zine folder or contains .zine metadata.
+     */
+    fun isInsideZineDirectory(file: File): Boolean {
+        var curr: File? = file
+        while (curr != null) {
+            val name = curr.name.lowercase().trim()
+            if (name.contains("zine")) return true
+            if (File(curr, ".zine").exists() || File(curr, ".zine_metadata").exists()) return true
+            if (name.startsWith("test my app") || name.startsWith("test_my_app")) return true
+            val parent = curr.parentFile
+            if (parent == null || curr.absolutePath == "/" || curr.absolutePath == "/storage/emulated/0" || curr.absolutePath == "/storage") {
+                break
+            }
+            curr = parent
+        }
+        return false
+    }
+
+    /**
+     * Discovers all candidate Zine roots across internal storage and Download folder.
+     * Strictly restricted to Zine folders. Never includes generic root storage
+     * directories like Download, Documents, Movies, or Music.
+     */
+    fun findZineRoots(extStorage: File): List<File> {
+        val roots = LinkedHashSet<File>()
+
+        // 1. Explicit well-known locations
+        val wellKnownPaths = listOf(
+            "Download/Zine",
+            "Download/zine",
+            "Download/Zine Scraper",
+            "Download/zine_scraper",
+            "Download/zine scrapper",
+            "Download/ZineScraper",
+            "Download/Zine-Scraper",
+            "Zine",
+            "zine",
+            "Zine Scraper",
+            "zine_scraper",
+            "zine scrapper",
+            "ZineScraper",
+            "Zine-Scraper"
+        )
+        for (rel in wellKnownPaths) {
+            val dir = File(extStorage, rel)
+            if (dir.exists() && dir.isDirectory && dir.canRead()) {
+                roots.add(dir.canonicalFile)
+            }
+        }
+
+        val nonZineSystemFolders = setOf(
+            "android", "download", "downloads", "dcim", "pictures",
+            "movies", "music", "documents", "recordings", "ringtones",
+            "notifications", "alarms", "podcasts", "lost.dir"
+        )
+
+        // 2. Discover any directory in Download/ that is a Zine folder
+        val downloadDir = File(extStorage, "Download")
+        if (downloadDir.exists() && downloadDir.isDirectory && downloadDir.canRead()) {
+            downloadDir.listFiles()?.forEach { dir ->
+                if (dir.isDirectory && !dir.name.startsWith(".")) {
+                    if (isZineDirectory(dir)) {
+                        roots.add(dir.canonicalFile)
+                    }
+                }
+            }
+        }
+
+        // 3. Discover any directory in extStorage root that is a Zine folder
+        extStorage.listFiles()?.forEach { dir ->
+            if (dir.isDirectory && !dir.name.startsWith(".")) {
+                val nameLower = dir.name.lowercase().trim()
+                if (nameLower !in nonZineSystemFolders) {
+                    if (isZineDirectory(dir)) {
+                        roots.add(dir.canonicalFile)
+                    }
+                }
+            }
+        }
+
+        return roots.toList()
+    }
+
+    /**
      * Identifies whether a directory is an organizational grouping folder
      * (e.g. "novel", "music", "channel", "Zine", "Download", "test my app")
      * rather than an actual media leaf unit. Organizational folders must be
@@ -201,15 +298,19 @@ object LibrarySyncEngine {
             val existingMedia = database.libraryDao().getAllMangaList()
             val existingUris = HashSet<String>()
 
-            // 1. Clean up erroneous container entries so child media items can be imported
+            // 1. Clean up erroneous container entries and non-Zine auto-discovered items
             for (manga in existingMedia) {
                 val directFile = manga.parentUri?.let { StorageResolver.resolveToFile(context, Uri.parse(it)) }
                 val isContainer = directFile != null && isOrganizationalFolder(directFile)
-                if (isContainer) {
+                val isNonZineAutoImport = directFile != null &&
+                        (manga.parentUri.startsWith("file://") || manga.parentUri.startsWith("/")) &&
+                        !isInsideZineDirectory(directFile)
+
+                if (isContainer || isNonZineAutoImport) {
                     try {
                         database.mediaDao().deleteManga(manga)
                         database.trackDao().deleteChaptersByMangaId(manga.id)
-                        Log.d(TAG, "Removed invalid organizational container: ${manga.title} (${manga.parentUri})")
+                        Log.d(TAG, "Removed invalid entry: ${manga.title} (${manga.parentUri}, container=$isContainer, nonZine=$isNonZineAutoImport)")
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
@@ -220,25 +321,11 @@ object LibrarySyncEngine {
                 directFile?.absolutePath?.let { existingUris.add(it) }
             }
 
-            // 2. Discover new media units across candidate storage roots
-            onProgress?.invoke("Scanning deep folders for new media…")
-            val candidateRoots = mutableListOf<File>()
+            // 2. Discover new media units strictly within Zine storage roots
+            onProgress?.invoke("Scanning Zine folders for new media…")
             val extStorage = Environment.getExternalStorageDirectory()
-
-            listOf(
-                File(extStorage, "Download/Zine"),
-                File(extStorage, "Download/Zine Scraper"),
-                File(extStorage, "Download/zine_scraper"),
-                File(extStorage, "Zine"),
-                File(extStorage, "Download"),
-                File(extStorage, "Movies"),
-                File(extStorage, "Music"),
-                File(extStorage, "Documents")
-            ).forEach { dir ->
-                if (dir.exists() && dir.isDirectory && dir.canRead()) {
-                    candidateRoots.add(dir)
-                }
-            }
+            val candidateRoots = findZineRoots(extStorage)
+            Log.d(TAG, "Candidate Zine roots: ${candidateRoots.map { it.absolutePath }}")
 
             val discoveredItems = mutableListOf<DiscoveredMediaUnit>()
             val visitedDirs = HashSet<String>()
