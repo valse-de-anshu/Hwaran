@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.*
+import com.ballade.hwaran.ui.components.DeleteConfirmationDialog
 import com.ballade.hwaran.ui.theme.AVAILABLE_APP_THEMES
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -435,6 +436,108 @@ fun ConfigContent(vm: SettingsViewModel) {
                 modifier = Modifier.size(16.dp)
             )
         }
+    }
+
+    var showDeleteAllDialog by remember { mutableStateOf(false) }
+    var isDeletingAll by remember { mutableStateOf(false) }
+
+    Spacer(modifier = Modifier.height(10.dp))
+
+    // ── Remove All Media Tile ──
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xFFE57373).copy(alpha = 0.06f),
+        border = BorderStroke(1.dp, Color(0xFFE57373).copy(alpha = 0.22f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !isDeletingAll && !isPruning) {
+                showDeleteAllDialog = true
+            }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFE57373).copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isDeletingAll) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = Color(0xFFE57373)
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.DeleteForever,
+                        contentDescription = "Remove All Media",
+                        tint = Color(0xFFE57373),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Remove All Media",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    if (isDeletingAll) "Removing all media from library..."
+                    else "Clear all media from the app library or delete files from storage",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                contentDescription = "Remove",
+                tint = Color(0xFFE57373).copy(alpha = 0.5f),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+
+    if (showDeleteAllDialog) {
+        DeleteConfirmationDialog(
+            title = "Remove All Media",
+            itemName = "Entire Library",
+            message = "Choose how you would like to remove all media from the app:",
+            onDismiss = { showDeleteAllDialog = false },
+            onRemoveFromApp = {
+                showDeleteAllDialog = false
+                isDeletingAll = true
+                scope.launch {
+                    val count = com.ballade.hwaran.core.util.LocalVaultMigrator.removeAllMedia(context, database, deleteFromDisk = false)
+                    isDeletingAll = false
+                    android.widget.Toast.makeText(
+                        context,
+                        "Removed $count media items from app library",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
+            },
+            onDeleteFromDisk = {
+                showDeleteAllDialog = false
+                isDeletingAll = true
+                scope.launch {
+                    val count = com.ballade.hwaran.core.util.LocalVaultMigrator.removeAllMedia(context, database, deleteFromDisk = true)
+                    isDeletingAll = false
+                    android.widget.Toast.makeText(
+                        context,
+                        "Deleted $count media items and files from storage",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        )
     }
 
     Spacer(modifier = Modifier.height(16.dp))

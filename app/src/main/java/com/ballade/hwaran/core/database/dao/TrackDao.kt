@@ -42,4 +42,7 @@ interface TrackDao {
 
     @Query("SELECT * FROM chapter")
     suspend fun getAllChaptersList(): List<ChapterEntity>
+
+    @Query("DELETE FROM chapter")
+    suspend fun deleteAllChapters()
 }

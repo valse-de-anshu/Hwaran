@@ -432,6 +432,105 @@ object LocalVaultMigrator {
         pruned
     }
 
+    fun isProtectedStorageRoot(pathOrFile: String): Boolean {
+        val cleanPath = pathOrFile.removePrefix("file://").trimEnd('/')
+        val file = File(cleanPath)
+        val canonical = try { file.canonicalPath.trimEnd('/') } catch (_: Exception) { cleanPath }
+        val protectedRoots = mutableListOf(
+            "/storage/emulated/0",
+            "/storage/emulated/0/Download",
+            "/storage/emulated/0/Downloads",
+            "/storage/emulated/0/Documents",
+            "/storage/emulated/0/Movies",
+            "/storage/emulated/0/Music",
+            "/storage/emulated/0/Pictures",
+            "/storage/emulated/0/DCIM"
+        )
+        try {
+            Environment.getExternalStorageDirectory()?.canonicalPath?.trimEnd('/')?.let { protectedRoots.add(it) }
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)?.canonicalPath?.trimEnd('/')?.let { protectedRoots.add(it) }
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)?.canonicalPath?.trimEnd('/')?.let { protectedRoots.add(it) }
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)?.canonicalPath?.trimEnd('/')?.let { protectedRoots.add(it) }
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)?.canonicalPath?.trimEnd('/')?.let { protectedRoots.add(it) }
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)?.canonicalPath?.trimEnd('/')?.let { protectedRoots.add(it) }
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)?.canonicalPath?.trimEnd('/')?.let { protectedRoots.add(it) }
+        } catch (_: Exception) {}
+
+        return protectedRoots.any { canonical.equals(it, ignoreCase = true) }
+    }
+
+    suspend fun removeAllMedia(
+        context: Context,
+        database: AppDatabase,
+        deleteFromDisk: Boolean
+    ): Int = withContext(Dispatchers.IO) {
+        val allManga = database.mediaDao().getAllMangaEverywhere()
+        val allChapters = database.trackDao().getAllChaptersList()
+        val totalCount = allManga.size
+
+        if (deleteFromDisk) {
+            // Delete root media folders/files from storage (excluding protected root folders)
+            for (manga in allManga) {
+                if (manga.parentMangaId != null) continue // Skip child boxes, handled via parent
+                val parentUriStr = manga.parentUri
+                if (parentUriStr.isBlank()) continue
+                if (parentUriStr.startsWith("custom_playlist_")) continue
+
+                if (parentUriStr.startsWith("content://")) {
+                    val uri = try { Uri.parse(parentUriStr) } catch (_: Exception) { null }
+                    if (uri != null) {
+                        tryDeleteSafUri(context, uri)
+                    }
+                } else {
+                    val cleanPath = parentUriStr.removePrefix("file://")
+                    val file = File(cleanPath)
+                    if (file.exists() && !isProtectedStorageRoot(cleanPath)) {
+                        try {
+                            if (file.isDirectory) file.deleteRecursively() else file.delete()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            }
+
+            // Also check chapters with independent paths
+            for (ch in allChapters) {
+                val folderUri = ch.folderUri
+                if (folderUri.isBlank() || folderUri.startsWith("content://")) continue
+                val cleanPath = folderUri.removePrefix("file://")
+                val file = File(cleanPath)
+                if (file.exists() && !isProtectedStorageRoot(cleanPath)) {
+                    try {
+                        if (file.isDirectory) file.deleteRecursively() else file.delete()
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+
+        // Delete all cached covers in internal storage
+        try {
+            val coversDir = File(context.filesDir, "covers")
+            if (coversDir.exists() && coversDir.isDirectory) {
+                coversDir.listFiles()?.forEach { it.delete() }
+            }
+        } catch (_: Exception) {}
+
+        // Clear all entries from database
+        database.annotationDao().deleteAllMarkers()
+        database.trackDao().deleteAllChapters()
+        database.mediaDao().deleteAllManga()
+
+        // Log event
+        HistoryTracker.logEvent(
+            "DELETE_ALL",
+            "All Media ($totalCount items)",
+            if (deleteFromDisk) "Disk & Database" else "Database Only"
+        )
+
+        totalCount
+    }
+
     private fun copyUriToFile(
         context: Context,
         contentResolver: ContentResolver,

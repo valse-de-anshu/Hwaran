@@ -72,4 +72,7 @@ interface MediaDao {
 
     @Query("SELECT * FROM manga")
     suspend fun getAllMangaEverywhere(): List<MangaEntity>
+
+    @Query("DELETE FROM manga")
+    suspend fun deleteAllManga()
 }
