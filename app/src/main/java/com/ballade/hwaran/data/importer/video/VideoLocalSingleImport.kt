@@ -25,7 +25,7 @@ object VideoLocalSingleImport {
         onProgress: (Int) -> Unit
     ): Long? = withContext(Dispatchers.IO) {
 
-        val sourceDoc = DocumentFile.fromTreeUri(context, uri) ?: return@withContext null
+        val sourceDoc = com.ballade.hwaran.core.util.StorageResolver.resolveDocument(context, uri, isFile = false) ?: return@withContext null
 
         // Validate: must contain at least one video file
         val (isValid, _) = VideoImportUtils.isVideoFolderValid(sourceDoc)

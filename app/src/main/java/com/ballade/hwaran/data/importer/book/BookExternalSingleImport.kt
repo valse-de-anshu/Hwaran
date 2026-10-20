@@ -300,7 +300,19 @@ object BookExternalSingleImport {
         isCancelled: () -> Boolean,
         onProgress: (Int) -> Unit
     ): Long? = withContext(Dispatchers.IO) {
-        val sourceDoc = DocumentFile.fromTreeUri(context, uri) ?: return@withContext null
+        val sourceDoc = com.ballade.hwaran.core.util.StorageResolver.resolveDocument(context, uri, isFile = false) ?: return@withContext null
+        if (sourceDoc.isFile) {
+            return@withContext executeSinglePdf(
+                context = context,
+                repository = repository,
+                pdfDoc = sourceDoc,
+                workspace = workspace,
+                isNsfw = isNsfw,
+                boxPurpose = boxPurpose ?: "book",
+                importMode = importMode,
+                isCancelled = isCancelled
+            )
+        }
         val files = sourceDoc.listFiles()
 
         // 1. Standalone book files (.pdf, .epub, .kf8.images, .kindle.images, .mobi, .txt, etc.)

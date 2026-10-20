@@ -25,7 +25,7 @@ object VideoExternalSingleImport {
         onProgress: (Int) -> Unit
     ): Long? = withContext(Dispatchers.IO) {
 
-        val sourceDoc = DocumentFile.fromTreeUri(context, uri) ?: return@withContext null
+        val sourceDoc = com.ballade.hwaran.core.util.StorageResolver.resolveDocument(context, uri, isFile = false) ?: return@withContext null
 
         // Validate: must contain at least one video file
         val (isValid, _) = VideoImportUtils.isVideoFolderValid(sourceDoc)
@@ -35,11 +35,11 @@ object VideoExternalSingleImport {
         val uriStr = uri.toString()
         val existingManga = repository.getRootMangaByUri(uriStr)
 
-        val folderName = sourceDoc.name ?: "Unknown"
+        val folderName = if (sourceDoc.isFile) sourceDoc.name?.substringBeforeLast(".") ?: "Video" else sourceDoc.name ?: "Unknown"
 
         // 1. Extract metadata from .zine/*.json or root *.json, checking subfolders if needed
-        var parsedZine = ZineMetadataExtractor.extractFromDocumentFolder(context, sourceDoc)
-        if (parsedZine == null) {
+        var parsedZine = if (!sourceDoc.isFile) ZineMetadataExtractor.extractFromDocumentFolder(context, sourceDoc) else null
+        if (parsedZine == null && !sourceDoc.isFile) {
             val children = sourceDoc.listFiles()
             for (child in children) {
                 if (child.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(child.name)) {
@@ -55,7 +55,7 @@ object VideoExternalSingleImport {
 
         // 2. Cover resolution (root first, then immediate subfolders)
         var coverPath = existingManga?.coverPath ?: ""
-        val coverDoc = VideoImportUtils.findCover(sourceDoc, parsedZine?.coverFileName)
+        val coverDoc = if (!sourceDoc.isFile) VideoImportUtils.findCover(sourceDoc, parsedZine?.coverFileName) else null
         if (coverDoc != null) {
             coverPath = CoverCacheManager.cacheCoverFromUri(context, coverDoc.uri, "video", finalTitle)
                 ?: coverDoc.uri.toString()

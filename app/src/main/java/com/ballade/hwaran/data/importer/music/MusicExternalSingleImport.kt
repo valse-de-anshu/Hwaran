@@ -36,9 +36,13 @@ object MusicExternalSingleImport {
             val audioFiles = MusicImportUtils.findAudioFiles(folderDoc)
             val lyricsFiles = MusicImportUtils.findLyricsFiles(folderDoc)
 
-            if (existingTracks.isEmpty() && audioFiles.isNotEmpty()) {
+            val existingUris = existingTracks.mapNotNull { it.folderUri }.toSet()
+            val newAudioFiles = audioFiles.filter { it.uri.toString() !in existingUris }
+
+            if (newAudioFiles.isNotEmpty()) {
+                val basePosition = existingTracks.size
                 val tracksToInsert = mutableListOf<ChapterEntity>()
-                audioFiles.forEachIndexed { index, audioDoc ->
+                newAudioFiles.forEachIndexed { index, audioDoc ->
                     if (isCancelled()) return@withContext existingAlbum.id
                     val trackUri = audioDoc.uri.toString()
                     val fileName = audioDoc.name ?: "Unknown Track"
@@ -51,7 +55,7 @@ object MusicExternalSingleImport {
                         mangaId = existingAlbum.id,
                         title = meta.title,
                         folderUri = trackUri,
-                        position = index,
+                        position = basePosition + index,
                         duration = meta.duration,
                         thumbnailUri = meta.coverPath ?: "",
                         artist = meta.artist,

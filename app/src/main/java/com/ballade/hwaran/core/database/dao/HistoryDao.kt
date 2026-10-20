@@ -15,6 +15,9 @@ interface HistoryDao {
     @Query("SELECT * FROM history_event ORDER BY timestamp DESC")
     fun getAllHistoryEventsFlow(): Flow<List<HistoryEventEntity>>
 
+    @Query("SELECT * FROM history_event ORDER BY timestamp DESC LIMIT :limit")
+    fun getRecentHistoryEventsFlow(limit: Int = 100): Flow<List<HistoryEventEntity>>
+
     @Query("SELECT * FROM history_event ORDER BY timestamp DESC")
     suspend fun getAllHistoryEvents(): List<HistoryEventEntity>
 

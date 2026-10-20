@@ -61,6 +61,9 @@ object MusicImportUtils {
     }
 
     fun findAudioFiles(folder: File): List<File> {
+        if (folder.isFile) {
+            return if (isValidAudioFile(folder)) listOf(folder) else emptyList()
+        }
         val files = folder.listFiles() ?: emptyArray()
         return files.filter { isValidAudioFile(it) }.sortedBy { it.name.lowercase() }
     }
@@ -74,6 +77,9 @@ object MusicImportUtils {
     }
 
     fun findAudioFiles(folder: DocumentFile): List<DocumentFile> {
+        if (folder.isFile) {
+            return if (isValidAudioFile(folder)) listOf(folder) else emptyList()
+        }
         val files = folder.listFiles() ?: emptyArray()
         return files.filter { isValidAudioFile(it) }.sortedBy { it.name?.lowercase() ?: "" }
     }

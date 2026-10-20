@@ -2158,30 +2158,9 @@ private fun SmoothFadingLazyRow(
     horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(8.dp),
     content: LazyListScope.() -> Unit
 ) {
-    val state = rememberLazyListState()
     LazyRow(
-        state = state,
         horizontalArrangement = horizontalArrangement,
-        modifier = modifier
-            .fillMaxWidth()
-            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-            .drawWithContent {
-                drawContent()
-                val fadeWidth = 14.dp.toPx()
-                if (fadeWidth > 0f && size.width > fadeWidth * 2) {
-                    val leftFade = if (state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0) (fadeWidth / size.width) else 0f
-                    val rightFade = if (state.canScrollForward) ((size.width - fadeWidth) / size.width) else 1f
-                    drawRect(
-                        brush = Brush.horizontalGradient(
-                            0f to (if (state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0) Color.Transparent else Color.Black),
-                            leftFade to Color.Black,
-                            rightFade to Color.Black,
-                            1f to (if (state.canScrollForward) Color.Transparent else Color.Black)
-                        ),
-                        blendMode = BlendMode.DstIn
-                    )
-                }
-            },
+        modifier = modifier.fillMaxWidth(),
         content = content
     )
 }

@@ -62,6 +62,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
+private val embeddedCoverCache = java.util.concurrent.ConcurrentHashMap<String, Any>()
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeDashboard(
@@ -113,10 +115,10 @@ fun HomeDashboard(
         for (item in allManga) {
             if (item.isNsfw) continue
             if (item.parentMangaId != null) continue
-            if (item.contentType != 3) all++
+            all++
             if (item.isFavorite || item.genre?.contains("favorite", ignoreCase = true) == true) fav++
             when {
-                item.contentType == 3 -> music++
+                item.contentType == 3 || item.boxPurpose == "music" -> music++
                 item.contentType == 4 || item.boxPurpose == "novel" -> novel++
                 item.contentType == 1 || item.boxPurpose == "book" -> book++
                 item.contentType == 2 || item.boxPurpose == "series" || item.boxPurpose == "channel" -> {
@@ -220,13 +222,19 @@ fun HomeDashboard(
 
                         var resolvedThumb: Any? = target?.thumbnailUri?.takeIf { it.isNotBlank() }
                         if (resolvedThumb == null && target != null && !target.folderUri.isNullOrBlank()) {
-                            try {
-                                val parsedUri = Uri.parse(target.folderUri)
-                                val extracted = MusicImportUtils.extractEmbeddedCover(context, parsedUri, manga.title)
-                                if (extracted != null) {
-                                    resolvedThumb = extracted
-                                }
-                            } catch (_: Exception) {}
+                            val cached = embeddedCoverCache[target.folderUri]
+                            if (cached != null) {
+                                resolvedThumb = cached
+                            } else {
+                                try {
+                                    val parsedUri = Uri.parse(target.folderUri)
+                                    val extracted = MusicImportUtils.extractEmbeddedCover(context, parsedUri, manga.title)
+                                    if (extracted != null) {
+                                        embeddedCoverCache[target.folderUri] = extracted
+                                        resolvedThumb = extracted
+                                    }
+                                } catch (_: Exception) {}
+                            }
                         }
 
                         val cover = resolvedThumb ?: CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri, chapters, context)
@@ -432,7 +440,7 @@ fun HomeDashboard(
 
     // Recently added covers
     val recentlyAdded = remember(allManga) {
-        allManga.filter { !it.isNsfw }.sortedByDescending { it.id }
+        allManga.filter { !it.isNsfw && it.parentMangaId == null }.sortedByDescending { it.id }
     }
 
     var showRecentlyAddedSheet by remember { mutableStateOf(false) }
@@ -603,26 +611,7 @@ private fun BannerCarouselSection(
                     dampingRatio = Spring.DampingRatioNoBouncy
                 )
             ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                .drawWithContent {
-                    drawContent()
-                    val fadeWidth = 16.dp.toPx()
-                    if (fadeWidth > 0f && size.width > fadeWidth * 2) {
-                        val showLeftFade = pagerState.canScrollBackward
-                        val showRightFade = pagerState.canScrollForward
-                        drawRect(
-                            brush = Brush.horizontalGradient(
-                                0f to (if (showLeftFade) Color.Transparent else Color.Black),
-                                (fadeWidth / size.width) to Color.Black,
-                                ((size.width - fadeWidth) / size.width) to Color.Black,
-                                1f to (if (showRightFade) Color.Transparent else Color.Black)
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
-                    }
-                }
+            modifier = Modifier.fillMaxWidth()
         ) { virtualPage ->
             val page = virtualPage % actualCount
             val context = LocalContext.current
@@ -1483,31 +1472,10 @@ private fun SmoothFadingLazyRow(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     content: LazyListScope.() -> Unit
 ) {
-    val state = rememberLazyListState()
     LazyRow(
-        state = state,
         horizontalArrangement = horizontalArrangement,
         contentPadding = contentPadding,
-        modifier = modifier
-            .fillMaxWidth()
-            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-            .drawWithContent {
-                drawContent()
-                val fadeWidth = 16.dp.toPx()
-                if (fadeWidth > 0f && size.width > fadeWidth * 2) {
-                    val leftFade = if (state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0) (fadeWidth / size.width) else 0f
-                    val rightFade = if (state.canScrollForward) ((size.width - fadeWidth) / size.width) else 1f
-                    drawRect(
-                        brush = Brush.horizontalGradient(
-                            0f to (if (state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0) Color.Transparent else Color.Black),
-                            leftFade to Color.Black,
-                            rightFade to Color.Black,
-                            1f to (if (state.canScrollForward) Color.Transparent else Color.Black)
-                        ),
-                        blendMode = BlendMode.DstIn
-                    )
-                }
-            },
+        modifier = modifier.fillMaxWidth(),
         content = content
     )
 }

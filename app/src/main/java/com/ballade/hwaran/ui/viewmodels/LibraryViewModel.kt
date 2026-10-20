@@ -93,6 +93,37 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             initialValue = emptyList()
         )
 
+    private val _isSyncing = MutableStateFlow(false)
+    val isSyncing: StateFlow<Boolean> = _isSyncing
+
+    fun syncLibrary(showToast: Boolean = false) {
+        if (_isSyncing.value) return
+        viewModelScope.launch(Dispatchers.IO) {
+            _isSyncing.value = true
+            try {
+                val summary = com.ballade.hwaran.data.sync.LibrarySyncEngine.syncAll(getApplication(), database)
+                if (showToast) {
+                    withContext(Dispatchers.Main) {
+                        val msg = when {
+                            summary.discoveredCount > 0 && summary.updatedCount > 0 ->
+                                "Sync complete: ${summary.discoveredCount} new added, ${summary.updatedCount} updated"
+                            summary.discoveredCount > 0 ->
+                                "Sync complete: ${summary.discoveredCount} new media added"
+                            summary.updatedCount > 0 ->
+                                "Sync complete: ${summary.updatedCount} items updated"
+                            else -> "Library is up to date"
+                        }
+                        android.widget.Toast.makeText(getApplication(), msg, android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isSyncing.value = false
+            }
+        }
+    }
+
     fun getScreenNamesForMode(mediaMode: Int): kotlinx.coroutines.flow.Flow<List<String>> {
         return database.libraryDao().getDistinctWorkspacesForContentType(mediaMode)
     }
@@ -175,6 +206,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 e.printStackTrace()
             }
         }
+
+        // Auto-sync library on startup to discover and update media
+        syncLibrary(showToast = false)
     }
 
     private val _isImporting = MutableStateFlow(false)
@@ -552,13 +586,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 val isLocalMode = (storageModeOverride ?: globalSettings.storageModeFlow.first()) == 0
 
                 val sourceDoc = withContext(Dispatchers.IO) {
-                    if (isFile) {
-                        DocumentFile.fromSingleUri(getApplication(), uri)
-                    } else if (uri.scheme == "file") {
-                        uri.path?.let { DocumentFile.fromFile(java.io.File(it)) }
-                    } else {
-                        DocumentFile.fromTreeUri(getApplication(), uri)
-                    }
+                    com.ballade.hwaran.core.util.StorageResolver.resolveDocument(getApplication(), uri, isFile = isFile)
                 }
 
                 // Auto-detect mediaMode and boxPurpose if not explicitly provided
@@ -579,9 +607,13 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                             detectedMediaMode = 3
                             if (detectedBoxPurpose == null) detectedBoxPurpose = "music"
                         }
-                        type in listOf("book", "novel", "light novel", "pdf", "epub") -> {
+                        type in listOf("novel", "light novel") -> {
+                            detectedMediaMode = 4
+                            if (detectedBoxPurpose == null) detectedBoxPurpose = "novel"
+                        }
+                        type in listOf("book", "pdf", "epub") -> {
                             detectedMediaMode = 1
-                            if (detectedBoxPurpose == null) detectedBoxPurpose = if (type == "novel" || type == "light novel") "novel" else "book"
+                            if (detectedBoxPurpose == null) detectedBoxPurpose = "book"
                         }
                         type in listOf("manga", "manhua", "manhwa", "comic", "webtoon") -> {
                             detectedMediaMode = 0
@@ -644,9 +676,19 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
                 val existing = database.libraryDao().getRootMangaByUri(expectedPath)
                 if (existing != null) {
+                    val updatedItems = com.ballade.hwaran.data.sync.LibrarySyncEngine.syncSingleMedia(
+                        context = getApplication(),
+                        manga = existing,
+                        database = database
+                    )
+                    val msg = if (updatedItems > 0) {
+                        "Synced: ${existing.title} ($updatedItems new items)"
+                    } else {
+                        "Already up to date: ${existing.title}"
+                    }
                     android.widget.Toast.makeText(
                         getApplication(),
-                        "${existing.title} is already imported",
+                        msg,
                         android.widget.Toast.LENGTH_SHORT
                     ).show()
                     onImported(existing.id)
@@ -768,9 +810,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                             onProgress = { progress -> _importProgress.value = progress }
                         )
                     }
-                } else if (mediaMode == 3 && !isFile) {
+                } else if (mediaMode == 3) {
                     val musicRepository = com.ballade.hwaran.data.importer.music.MusicImportRepository(database.libraryDao())
-                    val folderDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(getApplication(), uri)
+                    val folderDoc = com.ballade.hwaran.core.util.StorageResolver.resolveDocument(getApplication(), uri, isFile = isFile)
                     if (folderDoc != null) {
                         importedId = com.ballade.hwaran.data.importer.music.MusicExternalSingleImport.execute(
                             context = getApplication(),
@@ -781,6 +823,18 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                             onProgress = { progress -> _importProgress.value = progress }
                         )
                     }
+                } else if (mediaMode == 4 || boxPurpose == "novel") {
+                    val bookRepository = com.ballade.hwaran.data.importer.book.BookImportRepository(database.libraryDao())
+                    importedId = com.ballade.hwaran.data.importer.book.NovelExternalSingleImport.execute(
+                        context = getApplication(),
+                        repository = bookRepository,
+                        uri = uri,
+                        workspace = workspace,
+                        isNsfw = isNsfwOverride ?: _isNsfwFilter.value,
+                        boxPurpose = "novel",
+                        isCancelled = { _isCancelRequested.value },
+                        onProgress = { progress -> _importProgress.value = progress }
+                    )
                 } else {
                     importedId = repository.scanImportedFolder(
                         rootUri = uri,

@@ -127,6 +127,23 @@ object ZineMetadataExtractor {
         return false
     }
 
+    fun isRootStorageDir(file: File?): Boolean {
+        if (file == null) return true
+        val path = file.absolutePath
+        val extPath = try {
+            android.os.Environment.getExternalStorageDirectory().absolutePath
+        } catch (_: Exception) { "/storage/emulated/0" }
+        return path == "/" || path == "/storage" || path == "/storage/emulated" ||
+               path == "/storage/emulated/0" || path == "$extPath/Download" ||
+               path == "$extPath/Downloads" || path == extPath
+    }
+
+    fun isRootStorageDirName(name: String?): Boolean {
+        if (name == null) return true
+        val lower = name.lowercase().trim()
+        return lower in listOf("download", "downloads", "0", "emulated", "storage", "")
+    }
+
     /**
      * Checks if a filename is a dedicated cover image (Rule 5).
      * Must ALWAYS have a supported image extension. Non-image files (video, audio, etc.) can NEVER be covers.
@@ -296,6 +313,14 @@ object ZineMetadataExtractor {
         val rootImage = rootFiles.firstOrNull { it.isFile && it.extension.lowercase() in IMAGE_EXTENSIONS && !isInternalOrAuxiliary(it.name) }
         if (rootImage != null) return rootImage
 
+        // 5. Look in parent directory for dedicated cover name (e.g. Channel/cover.jpg when videos are in Channel/video/)
+        val parent = folder.parentFile
+        if (parent != null && parent.exists() && parent.isDirectory && !isRootStorageDir(parent)) {
+            val parentFiles = parent.listFiles() ?: emptyArray()
+            val parentDedicated = parentFiles.firstOrNull { it.isFile && isDedicatedCoverName(it.name) }
+            if (parentDedicated != null) return parentDedicated
+        }
+
         return null
     }
 
@@ -458,6 +483,14 @@ object ZineMetadataExtractor {
             !isInternalOrAuxiliary(doc.name)
         }
         if (rootImage != null) return rootImage
+
+        // 5. Look in parent directory for dedicated cover name (e.g. Channel/cover.jpg when videos are in Channel/video/)
+        val parent = folderDoc.parentFile
+        if (parent != null && parent.exists() && parent.isDirectory && !isRootStorageDirName(parent.name)) {
+            val parentChildren = parent.listFiles()
+            val parentDedicated = parentChildren.firstOrNull { !it.isDirectory && isDedicatedCoverName(it.name) }
+            if (parentDedicated != null) return parentDedicated
+        }
 
         return null
     }

@@ -165,7 +165,7 @@ fun HomeScreen(
     val haptic = LocalHapticFeedback.current
     
     val database = remember(context) { AppDatabase.getDatabase(context) }
-    val historyEvents by database.historyDao().getAllHistoryEventsFlow().collectAsState(initial = emptyList())
+    val historyEvents by database.historyDao().getRecentHistoryEventsFlow(100).collectAsState(initial = emptyList())
 
     val coroutineScope = rememberCoroutineScope()
     var quickActionsManga by remember { mutableStateOf<MangaEntity?>(null) }

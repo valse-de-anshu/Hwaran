@@ -30,11 +30,7 @@ object ToonExternalSingleImport {
         onProgress: (Int) -> Unit
     ): Long? = withContext(Dispatchers.IO) {
 
-        val sourceDoc = if (uri.scheme == "file") {
-            uri.path?.let { DocumentFile.fromFile(File(it)) }
-        } else {
-            DocumentFile.fromTreeUri(context, uri)
-        } ?: return@withContext null
+        val sourceDoc = com.ballade.hwaran.core.util.StorageResolver.resolveDocument(context, uri, isFile = false) ?: return@withContext null
         val (isValid, _) = ToonImportUtils.isToonFolderValid(sourceDoc)
         if (!isValid) return@withContext null
         if (isCancelled()) return@withContext null
@@ -61,7 +57,20 @@ object ToonExternalSingleImport {
             }
         }
 
-        val coverDoc = ZineMetadataExtractor.findCoverInDocumentFolder(sourceDoc, parsedZine?.coverFileName)
+        val directFile = com.ballade.hwaran.core.util.StorageResolver.resolveToFile(context, uri)
+        var coverDoc = if (directFile != null && directFile.isDirectory) {
+            val coverFile = ZineMetadataExtractor.findCoverInFolder(directFile, parsedZine?.coverFileName)
+            coverFile?.let { DocumentFile.fromFile(it) }
+        } else {
+            ZineMetadataExtractor.findCoverInDocumentFolder(sourceDoc, parsedZine?.coverFileName)
+        }
+
+        val parentDir = directFile?.parentFile
+        if (coverDoc == null && parentDir != null && !ZineMetadataExtractor.isRootStorageDir(parentDir)) {
+            val parentCover = ZineMetadataExtractor.findCoverInFolder(parentDir)
+            coverDoc = parentCover?.let { DocumentFile.fromFile(it) }
+        }
+
         if (coverPath.isEmpty() && coverDoc != null) {
             coverPath = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, coverDoc.uri, "toon", finalTitle)
                 ?: coverDoc.uri.toString()
@@ -167,6 +176,17 @@ object ToonExternalSingleImport {
         }
 
         repository.insertChapters(chapterEntities)
+
+        // Fallback: If no dedicated cover found, use first image of first chapter
+        if (coverPath.isEmpty() && discoveredChapters.isNotEmpty()) {
+            val firstChapterDoc = discoveredChapters.first().folderDoc
+            val firstImageDoc = firstChapterDoc.listFiles().firstOrNull { isSupportedImage(it) }
+            if (firstImageDoc != null) {
+                coverPath = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(context, firstImageDoc.uri, "toon", finalTitle)
+                    ?: firstImageDoc.uri.toString()
+                repository.insertManga(mangaToInsert.copy(id = mangaId, coverPath = coverPath))
+            }
+        }
 
         // 5. Cache Full Metadata
         if (parsedZine != null) {

@@ -26,6 +26,10 @@ object VideoImportUtils {
      * (up to maxDepth, default 3). Internal (.zine) and auxiliary folders are excluded.
      */
     fun findVideoFiles(folderDoc: DocumentFile, maxDepth: Int = 3): List<DocumentFile> {
+        if (folderDoc.isFile) {
+            val name = folderDoc.name?.lowercase() ?: ""
+            return if (videoExtensions.any { ext -> name.endsWith(".$ext") }) listOf(folderDoc) else emptyList()
+        }
         val result = mutableListOf<DocumentFile>()
         fun search(current: DocumentFile, depth: Int) {
             if (depth > maxDepth) return
@@ -37,9 +41,11 @@ object VideoImportUtils {
             }.sortedWith(compareBy { naturalSortKey(it.name ?: "") })
             result.addAll(videos)
 
-            // 2. Subfolders
+            // 2. Subfolders (excluding other media categories like music, novel, book, manga)
+            val nonVideoCategoryNames = setOf("music", "novel", "book", "books", "manhua", "manga", "webtoon", "comic", "novels")
             val subfolders = files.filter { dir ->
-                dir.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(dir.name)
+                dir.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(dir.name) &&
+                dir.name?.lowercase() !in nonVideoCategoryNames
             }.sortedWith(compareBy { naturalSortKey(it.name ?: "") })
 
             for (sub in subfolders) {
@@ -79,6 +85,10 @@ object VideoImportUtils {
      * Recursively collect all supported video files from a local File directory.
      */
     fun findVideoFilesInDir(folder: File, maxDepth: Int = 3): List<File> {
+        if (folder.isFile) {
+            val ext = folder.extension.lowercase()
+            return if (videoExtensions.any { it == ext }) listOf(folder) else emptyList()
+        }
         val result = mutableListOf<File>()
         fun search(current: File, depth: Int) {
             if (depth > maxDepth || !current.exists() || !current.isDirectory) return
@@ -89,8 +99,10 @@ object VideoImportUtils {
             }.sortedWith(compareBy { naturalSortKey(it.name) })
             result.addAll(videos)
 
+            val nonVideoCategoryNames = setOf("music", "novel", "book", "books", "manhua", "manga", "webtoon", "comic", "novels")
             val subfolders = files.filter { dir ->
-                dir.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(dir.name)
+                dir.isDirectory && !ZineMetadataExtractor.isInternalOrAuxiliary(dir.name) &&
+                dir.name.lowercase() !in nonVideoCategoryNames
             }.sortedWith(compareBy { naturalSortKey(it.name) })
 
             for (sub in subfolders) {

@@ -304,7 +304,7 @@ fun AppNavGraph(
                                 uri = uri,
                                 isFile = file.isFile,
                                 mediaModeOverride = null,
-                                storageModeOverride = 0,
+                                storageModeOverride = 1,
                                 onImported = { importedId ->
                                     if (openWhenDone) {
                                         coroutineScope.launch {
