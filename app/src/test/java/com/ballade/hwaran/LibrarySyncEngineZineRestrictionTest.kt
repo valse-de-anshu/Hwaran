@@ -104,4 +104,23 @@ class LibrarySyncEngineZineRestrictionTest {
         assertFalse("Loose song in Download must not be inside Zine directory", LibrarySyncEngine.isInsideZineDirectory(looseSong))
         assertFalse("Documents must not be inside Zine directory", LibrarySyncEngine.isInsideZineDirectory(docFile))
     }
+
+    @Test
+    fun testDeepNestedZineScrapperDiscovery() {
+        val extStorage = tempFolder.newFolder("deep_storage")
+
+        // Deeply nested zine scrapper folder (depth 4)
+        val deepZineScrapper = File(extStorage, "FolderA/FolderB/FolderC/zine scrapper").apply { mkdirs() }
+        val deepMedia = File(deepZineScrapper, "manga/Omniscient").apply { mkdirs() }
+
+        // Deeply nested Zine Scraper folder
+        val nestedZineScraper = File(extStorage, "Download/CustomDownloads/Zine Scraper").apply { mkdirs() }
+
+        val roots = LibrarySyncEngine.findZineRoots(extStorage)
+        val canonicalRoots = roots.map { it.canonicalPath }
+
+        assertTrue("Deep nested zine scrapper must be discovered", canonicalRoots.contains(deepZineScrapper.canonicalPath))
+        assertTrue("Nested Zine Scraper must be discovered", canonicalRoots.contains(nestedZineScraper.canonicalPath))
+        assertTrue("Media inside deep zine scrapper is recognized", LibrarySyncEngine.isInsideZineDirectory(deepMedia))
+    }
 }

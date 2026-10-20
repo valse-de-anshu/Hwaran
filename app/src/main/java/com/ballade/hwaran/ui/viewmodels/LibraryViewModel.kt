@@ -95,9 +95,14 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing
+    private var lastSyncTimestamp = 0L
 
-    fun syncLibrary(showToast: Boolean = false) {
-        if (_isSyncing.value) return
+    fun syncLibrary(showToast: Boolean = false, force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && _isSyncing.value) return
+        if (!force && now - lastSyncTimestamp < 8000L) return
+        lastSyncTimestamp = now
+
         viewModelScope.launch(Dispatchers.IO) {
             _isSyncing.value = true
             try {
@@ -209,6 +214,14 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
         // Auto-sync library on startup to discover and update media
         syncLibrary(showToast = false)
+
+        // Autonomous background poll: continually checks Zine folders every 30 seconds
+        viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                kotlinx.coroutines.delay(30_000L)
+                syncLibrary(showToast = false)
+            }
+        }
     }
 
     private val _isImporting = MutableStateFlow(false)

@@ -163,6 +163,19 @@ fun HomeScreen(
     
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                libraryViewModel.syncLibrary(showToast = false)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
     
     val database = remember(context) { AppDatabase.getDatabase(context) }
     val historyEvents by database.historyDao().getRecentHistoryEventsFlow(100).collectAsState(initial = emptyList())

@@ -51,20 +51,28 @@ object LibrarySyncEngine {
     private val bookExtensions = setOf("pdf", "epub", "mobi", "azw3")
 
     private val organizationalFolderNames = setOf(
-        "download", "downloads", "zine", "zine scraper", "zine_scraper",
-        "vacuum", "quick grab", "youtube", "music", "channel", "channels",
+        "download", "downloads", "zine", "zine scraper", "zine_scraper", "zine scrapper", "zine_scrapper", "zinescraper", "zinescrapper",
+        "vacuum", "quick grab", "quick_grab", "youtube", "music", "channel", "channels",
         "series", "book", "books", "manhua", "manga", "novel", "novels",
         "video", "videos", "document", "documents", "files", "media"
     )
+
+    fun isZineFolderName(name: String): Boolean {
+        val lower = name.lowercase().trim()
+        if (lower == "zine" || lower.startsWith("zine ") || lower.startsWith("zine_") || lower.startsWith("zine-")) return true
+        if (lower.contains("zine scraper") || lower.contains("zine_scraper") || lower.contains("zine scrapper") || lower.contains("zine_scrapper") || lower.contains("zinescraper") || lower.contains("zinescrapper")) return true
+        if (lower.contains("zine")) return true
+        if (lower.startsWith("test my app") || lower.startsWith("test_my_app")) return true
+        return false
+    }
 
     /**
      * Determines whether a directory is specifically a Zine root folder or contains Zine content.
      */
     fun isZineDirectory(dir: File): Boolean {
         val nameLower = dir.name.lowercase().trim()
-        if (nameLower.contains("zine")) return true
+        if (isZineFolderName(nameLower)) return true
         if (File(dir, ".zine").exists() || File(dir, ".zine_metadata").exists()) return true
-        if (nameLower.startsWith("test my app") || nameLower.startsWith("test_my_app")) return true
         return false
     }
 
@@ -77,9 +85,8 @@ object LibrarySyncEngine {
         var curr: File? = file
         while (curr != null) {
             val name = curr.name.lowercase().trim()
-            if (name.contains("zine")) return true
+            if (isZineFolderName(name)) return true
             if (File(curr, ".zine").exists() || File(curr, ".zine_metadata").exists()) return true
-            if (name.startsWith("test my app") || name.startsWith("test_my_app")) return true
             val parent = curr.parentFile
             if (parent == null || curr.absolutePath == "/" || curr.absolutePath == "/storage/emulated/0" || curr.absolutePath == "/storage") {
                 break
@@ -91,67 +98,79 @@ object LibrarySyncEngine {
 
     /**
      * Discovers all candidate Zine roots across internal storage and Download folder.
-     * Strictly restricted to Zine folders. Never includes generic root storage
-     * directories like Download, Documents, Movies, or Music.
+     * Searches deeply for ANY folder named zine or zine scrapper across the phone,
+     * even if nested in subfolders. Never includes generic root storage directories like
+     * Download, Documents, Movies, or Music.
      */
     fun findZineRoots(extStorage: File): List<File> {
-        val roots = LinkedHashSet<File>()
+        val roots = LinkedHashMap<String, File>()
+
+        fun addRoot(dir: File) {
+            try {
+                val canonical = dir.canonicalFile
+                val key = canonical.canonicalPath.lowercase()
+                if (!roots.containsKey(key)) {
+                    roots[key] = canonical
+                }
+            } catch (_: Exception) {
+                val key = dir.absolutePath.lowercase()
+                if (!roots.containsKey(key)) {
+                    roots[key] = dir
+                }
+            }
+        }
 
         // 1. Explicit well-known locations
         val wellKnownPaths = listOf(
-            "Download/Zine",
-            "Download/zine",
-            "Download/Zine Scraper",
-            "Download/zine_scraper",
-            "Download/zine scrapper",
-            "Download/ZineScraper",
-            "Download/Zine-Scraper",
             "Zine",
-            "zine",
             "Zine Scraper",
             "zine_scraper",
             "zine scrapper",
-            "ZineScraper",
-            "Zine-Scraper"
+            "zine_scrapper",
+            "Download/Zine",
+            "Download/Zine Scraper",
+            "Download/zine_scraper",
+            "Download/zine scrapper",
+            "Download/zine_scrapper"
         )
         for (rel in wellKnownPaths) {
             val dir = File(extStorage, rel)
             if (dir.exists() && dir.isDirectory && dir.canRead()) {
-                roots.add(dir.canonicalFile)
+                addRoot(dir)
             }
         }
 
-        val nonZineSystemFolders = setOf(
-            "android", "download", "downloads", "dcim", "pictures",
-            "movies", "music", "documents", "recordings", "ringtones",
-            "notifications", "alarms", "podcasts", "lost.dir"
+        val excludedDirNames = setOf(
+            "android", "lost.dir", ".trash", "cache", ".thumbnails"
         )
 
-        // 2. Discover any directory in Download/ that is a Zine folder
-        val downloadDir = File(extStorage, "Download")
-        if (downloadDir.exists() && downloadDir.isDirectory && downloadDir.canRead()) {
-            downloadDir.listFiles()?.forEach { dir ->
-                if (dir.isDirectory && !dir.name.startsWith(".")) {
-                    if (isZineDirectory(dir)) {
-                        roots.add(dir.canonicalFile)
-                    }
-                }
+        // 2. Search deeply across the entire storage for ANY folder named zine or zine scrapper (even in subfolders)
+        fun searchDir(dir: File, depth: Int) {
+            if (depth > 6 || !dir.exists() || !dir.isDirectory || !dir.canRead()) return
+
+            val name = dir.name
+            val nameLower = name.lowercase().trim()
+            if (name.startsWith(".") || nameLower in excludedDirNames) {
+                return
+            }
+
+            // If THIS folder is a Zine folder
+            if (dir != extStorage && isZineDirectory(dir)) {
+                addRoot(dir)
+                // Once a Zine root is identified, scanDeepMedia will deeply inspect all its internal folders.
+                return
+            }
+
+            // Recurse into subdirectories
+            val subdirs = dir.listFiles { f -> f.isDirectory && !f.name.startsWith(".") && f.name.lowercase().trim() !in excludedDirNames } ?: return
+            for (sub in subdirs) {
+                searchDir(sub, depth + 1)
             }
         }
 
-        // 3. Discover any directory in extStorage root that is a Zine folder
-        extStorage.listFiles()?.forEach { dir ->
-            if (dir.isDirectory && !dir.name.startsWith(".")) {
-                val nameLower = dir.name.lowercase().trim()
-                if (nameLower !in nonZineSystemFolders) {
-                    if (isZineDirectory(dir)) {
-                        roots.add(dir.canonicalFile)
-                    }
-                }
-            }
-        }
+        searchDir(extStorage, 0)
 
-        return roots.toList()
+        return roots.values.toList()
     }
 
     /**
@@ -163,6 +182,7 @@ object LibrarySyncEngine {
     fun isOrganizationalFolder(dir: File): Boolean {
         val lower = dir.name.lowercase().trim()
         if (lower in organizationalFolderNames) return true
+        if (lower.contains("zine scraper") || lower.contains("zine scrapper") || lower.contains("zine_scraper") || lower.contains("zine_scrapper")) return true
         if (lower.startsWith("test my app") || lower.startsWith("test_my_app") || lower.startsWith("new folder")) return true
         if (ZineMetadataExtractor.isRootStorageDir(dir)) return true
 
@@ -297,8 +317,9 @@ object LibrarySyncEngine {
 
             val existingMedia = database.libraryDao().getAllMangaList()
             val existingUris = HashSet<String>()
+            val seenCanonicalPaths = HashSet<String>()
 
-            // 1. Clean up erroneous container entries and non-Zine auto-discovered items
+            // 1. Clean up erroneous container entries, non-Zine auto-discoveries, and duplicates
             for (manga in existingMedia) {
                 val directFile = manga.parentUri?.let { StorageResolver.resolveToFile(context, Uri.parse(it)) }
                 val isContainer = directFile != null && isOrganizationalFolder(directFile)
@@ -306,19 +327,26 @@ object LibrarySyncEngine {
                         (manga.parentUri.startsWith("file://") || manga.parentUri.startsWith("/")) &&
                         !isInsideZineDirectory(directFile)
 
-                if (isContainer || isNonZineAutoImport) {
+                val canonicalKey = try { directFile?.canonicalPath?.lowercase() } catch (_: Exception) { null }
+                val isDuplicate = canonicalKey != null && canonicalKey in seenCanonicalPaths && manga.parentMangaId == null
+
+                if (isContainer || isNonZineAutoImport || isDuplicate) {
                     try {
                         database.mediaDao().deleteManga(manga)
                         database.trackDao().deleteChaptersByMangaId(manga.id)
-                        Log.d(TAG, "Removed invalid entry: ${manga.title} (${manga.parentUri}, container=$isContainer, nonZine=$isNonZineAutoImport)")
+                        Log.d(TAG, "Removed invalid entry: ${manga.title} (${manga.parentUri}, container=$isContainer, nonZine=$isNonZineAutoImport, dup=$isDuplicate)")
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
                     continue
                 }
 
-                manga.parentUri?.let { existingUris.add(it) }
-                directFile?.absolutePath?.let { existingUris.add(it) }
+                if (canonicalKey != null) {
+                    seenCanonicalPaths.add(canonicalKey)
+                }
+                manga.parentUri?.let { existingUris.add(it.lowercase()) }
+                directFile?.canonicalPath?.lowercase()?.let { existingUris.add(it) }
+                directFile?.absolutePath?.lowercase()?.let { existingUris.add(it) }
             }
 
             // 2. Discover new media units strictly within Zine storage roots
@@ -343,21 +371,28 @@ object LibrarySyncEngine {
 
             // 3. Register newly discovered items
             for (item in discoveredItems) {
-                val folderPath = item.folder.absolutePath
-                val folderUriStr = Uri.fromFile(item.folder).toString()
-                val targetUriStr = if (item.singleFile != null) Uri.fromFile(item.singleFile).toString() else folderUriStr
-                val targetPath = item.singleFile?.absolutePath ?: folderPath
+                val canonicalFolder = try { item.folder.canonicalFile } catch (_: Exception) { item.folder }
+                val canonicalTarget = try { (item.singleFile ?: item.folder).canonicalFile } catch (_: Exception) { item.singleFile ?: item.folder }
+                val folderPath = canonicalFolder.absolutePath
+                val folderUriStr = Uri.fromFile(canonicalFolder).toString()
+                val targetUriStr = Uri.fromFile(canonicalTarget).toString()
+                val targetPath = canonicalTarget.absolutePath
 
-                if (targetPath in existingUris || targetUriStr in existingUris) {
+                val targetPathLower = targetPath.lowercase()
+                val targetUriStrLower = targetUriStr.lowercase()
+
+                if (targetPathLower in existingUris || targetUriStrLower in existingUris) {
                     continue
                 }
 
                 // Check if already in DB
                 val inDb = database.libraryDao().getRootMangaByUri(targetUriStr) != null ||
-                        database.libraryDao().getRootMangaByUri(targetPath) != null
+                        database.libraryDao().getRootMangaByUri(targetPath) != null ||
+                        database.libraryDao().getRootMangaByUri(targetUriStrLower) != null ||
+                        database.libraryDao().getRootMangaByUri(targetPathLower) != null
                 if (inDb) {
-                    existingUris.add(targetPath)
-                    existingUris.add(targetUriStr)
+                    existingUris.add(targetPathLower)
+                    existingUris.add(targetUriStrLower)
                     continue
                 }
 
@@ -449,6 +484,8 @@ object LibrarySyncEngine {
 
                     if (importedId != null) {
                         discoveredCount++
+                        existingUris.add(targetPathLower)
+                        existingUris.add(targetUriStrLower)
                         existingUris.add(targetPath)
                         existingUris.add(targetUriStr)
                         Log.d(TAG, "Successfully imported $displayName as id $importedId")
