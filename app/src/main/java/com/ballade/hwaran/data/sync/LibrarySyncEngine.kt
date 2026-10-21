@@ -72,26 +72,22 @@ object LibrarySyncEngine {
     }
 
     /**
-     * Determines whether a directory is specifically a Zine root folder,
-     * either by name or by presence of a .zine metadata subfolder.
+     * Determines whether a directory is specifically a Zine root folder strictly by name.
      */
     fun isZineDirectory(dir: File): Boolean {
-        if (isZineFolderName(dir.name)) return true
-        if (File(dir, ".zine").exists() || File(dir, ".zine_metadata").exists()) return true
-        return false
+        return isZineFolderName(dir.name)
     }
 
     /**
      * Checks if a file or directory is inside a Zine root folder or hierarchy.
      * Traverses upward from the given file/dir to verify that at least one ancestor
-     * (or the directory itself) is a Zine folder or contains .zine metadata.
+     * (or the directory itself) is specifically a Zine or Zine Scrapper folder.
      */
     fun isInsideZineDirectory(file: File): Boolean {
         var curr: File? = file
         while (curr != null) {
             val name = curr.name.lowercase().trim()
             if (isZineFolderName(name)) return true
-            if (File(curr, ".zine").exists() || File(curr, ".zine_metadata").exists()) return true
             val parent = curr.parentFile
             if (parent == null || curr.absolutePath == "/" || curr.absolutePath == "/storage/emulated/0" || curr.absolutePath == "/storage") {
                 break
@@ -337,24 +333,31 @@ object LibrarySyncEngine {
             val existingUris = HashSet<String>()
             val seenCanonicalPaths = HashSet<String>()
 
-            // 1. Clean up erroneous container entries and duplicates.
-            // NOTE: We intentionally do NOT remove media that lives outside a Zine folder —
-            // users may have imported content from arbitrary paths via the file picker or
-            // manual import, and deleting those would be data loss.
+            // 1. Clean up erroneous container entries, non-Zine auto-discoveries, and duplicates
             for (manga in existingMedia) {
                 val directFile = manga.parentUri?.let { StorageResolver.resolveToFile(context, Uri.parse(it)) }
-                // Only remove entries that are organisational containers (e.g. the whole
-                // "Download" folder imported as a single item), not actual media.
                 val isContainer = directFile != null && isOrganizationalFolder(directFile)
+
+                // Only prune items auto-imported from external storage (file:// or /storage/ paths outside internal app vault)
+                // that do NOT reside inside a folder named Zine or Zine Scrapper.
+                val isExternalAutoImport = manga.parentUri?.let {
+                    (it.startsWith("file://") || it.startsWith("/storage/")) &&
+                    !it.contains(context.filesDir.absolutePath)
+                } == true
+
+                val isNonZineAutoImport = isExternalAutoImport && (
+                    if (directFile != null) !isInsideZineDirectory(directFile)
+                    else manga.parentUri?.let { !isPathInsideZineDirectory(it) } ?: false
+                )
 
                 val canonicalKey = try { directFile?.canonicalPath?.lowercase() } catch (_: Exception) { null }
                 val isDuplicate = canonicalKey != null && canonicalKey in seenCanonicalPaths && manga.parentMangaId == null
 
-                if (isContainer || isDuplicate) {
+                if (isContainer || isNonZineAutoImport || isDuplicate) {
                     try {
                         database.mediaDao().deleteManga(manga)
                         database.trackDao().deleteChaptersByMangaId(manga.id)
-                        Log.d(TAG, "Removed invalid entry: ${manga.title} (${manga.parentUri}, container=$isContainer, dup=$isDuplicate)")
+                        Log.d(TAG, "Removed invalid entry: ${manga.title} (${manga.parentUri}, container=$isContainer, nonZine=$isNonZineAutoImport, dup=$isDuplicate)")
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
@@ -391,6 +394,11 @@ object LibrarySyncEngine {
 
             // 3. Register newly discovered items
             for (item in discoveredItems) {
+                // Strictly require that the item is inside a folder named Zine or Zine Scrapper
+                if (!isInsideZineDirectory(item.folder)) {
+                    continue
+                }
+
                 val canonicalFolder = try { item.folder.canonicalFile } catch (_: Exception) { item.folder }
                 val canonicalTarget = try { (item.singleFile ?: item.folder).canonicalFile } catch (_: Exception) { item.singleFile ?: item.folder }
                 val folderPath = canonicalFolder.absolutePath
