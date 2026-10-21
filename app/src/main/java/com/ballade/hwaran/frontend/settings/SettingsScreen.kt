@@ -13,6 +13,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -73,6 +75,7 @@ fun SettingsScreen(
     onNavigateToLockSelection: () -> Unit = {},
     onNavigateToCanvas: () -> Unit = {}
 ) {
+    val haptic = LocalHapticFeedback.current
     var activeSection by remember { mutableStateOf<PremiumSection?>(PremiumSection.CONFIG) }
 
     val configuration = LocalConfiguration.current
@@ -97,14 +100,22 @@ fun SettingsScreen(
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize()) {
 
-            // Top Header Bar (Back button on left, Tool icon button on right)
+            // Top Header Bar
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
-                    .background(Brush.verticalGradient(colors = listOf(Color.Black.copy(alpha = 0.9f), Color.Transparent)))
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0xF80B0A10),
+                                Color(0xD00B0A10),
+                                Color.Transparent
+                            )
+                        )
+                    )
                     .statusBarsPadding()
-                    .padding(top = 40.dp, bottom = 32.dp, start = 8.dp, end = 16.dp)
+                    .padding(horizontal = 20.dp, vertical = 14.dp)
                     .zIndex(10f)
             ) {
                 Row(
@@ -112,15 +123,123 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier.padding(top = 16.dp)
+                    // Back button in frosted titanium circular capsule
+                    val backInteraction = remember { MutableInteractionSource() }
+                    val backPressed by backInteraction.collectIsPressedAsState()
+                    val backScale by animateFloatAsState(
+                        targetValue = if (backPressed) 0.88f else 1f,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                        label = "back_scale"
+                    )
+
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFF14131C),
+                        border = BorderStroke(
+                            1.dp,
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.22f),
+                                    Color.White.copy(alpha = 0.06f)
+                                )
+                            )
+                        ),
+                        shadowElevation = 8.dp,
+                        modifier = Modifier
+                            .size(42.dp)
+                            .graphicsLayer {
+                                scaleX = backScale
+                                scaleY = backScale
+                            }
+                            .clickable(
+                                interactionSource = backInteraction,
+                                indication = null,
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onNavigateBack()
+                                }
+                            )
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color(0xFFF1F5F9),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    // Centered / Leading Title Badge
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "SETTINGS",
+                            color = Color(0xFFF8FAFC),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 2.sp
                         )
+                        Text(
+                            text = when (activeSection) {
+                                PremiumSection.CONFIG -> "Storage & Vault"
+                                PremiumSection.APPEARANCE -> "Themes & Aesthetic"
+                                PremiumSection.ENVIRONMENT -> "Canvas & Display"
+                                PremiumSection.ADD_BUTTON -> "Mascot & Dock Button"
+                                PremiumSection.SECURITY -> "Vault & Privacy"
+                                PremiumSection.ABOUT -> "System & Info"
+                                null -> "Control Hub"
+                            },
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+
+                    // Right action: Zine Scraper tool quick access
+                    val toolInteraction = remember { MutableInteractionSource() }
+                    val toolPressed by toolInteraction.collectIsPressedAsState()
+                    val toolScale by animateFloatAsState(
+                        targetValue = if (toolPressed) 0.88f else 1f,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                        label = "tool_scale"
+                    )
+
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFF14131C),
+                        border = BorderStroke(
+                            1.dp,
+                            Brush.verticalGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                                    Color.White.copy(alpha = 0.08f)
+                                )
+                            )
+                        ),
+                        shadowElevation = 8.dp,
+                        modifier = Modifier
+                            .size(42.dp)
+                            .graphicsLayer {
+                                scaleX = toolScale
+                                scaleY = toolScale
+                            }
+                            .clickable(
+                                interactionSource = toolInteraction,
+                                indication = null,
+                                onClick = { showZineScraperDialog = true }
+                            )
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Rounded.CloudDownload,
+                                contentDescription = "Zine Scraper",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -130,7 +249,7 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(bottom = padding.calculateBottomPadding())
-                    .padding(top = if (isLandscape) 64.dp else 160.dp, bottom = if (isLandscape) 16.dp else 32.dp),
+                    .padding(top = if (isLandscape) 56.dp else 92.dp, bottom = if (isLandscape) 16.dp else 32.dp),
                 verticalAlignment = Alignment.Top
             ) {
 
@@ -153,21 +272,27 @@ fun SettingsScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             SidebarIcon(symbol = "´ཀ`", isSelected = activeSection == PremiumSection.CONFIG) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 activeSection = if (activeSection == PremiumSection.CONFIG) null else PremiumSection.CONFIG
                             }
                             SidebarIcon(symbol = "ִֶָ࣪☾", isSelected = activeSection == PremiumSection.APPEARANCE) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 activeSection = if (activeSection == PremiumSection.APPEARANCE) null else PremiumSection.APPEARANCE
                             }
                             SidebarIcon(symbol = "𓏲ּ𝄢", isSelected = activeSection == PremiumSection.ENVIRONMENT) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 activeSection = if (activeSection == PremiumSection.ENVIRONMENT) null else PremiumSection.ENVIRONMENT
                             }
                             SidebarIcon(symbol = "ᯓ⚽︎", isSelected = activeSection == PremiumSection.ADD_BUTTON) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 activeSection = if (activeSection == PremiumSection.ADD_BUTTON) null else PremiumSection.ADD_BUTTON
                             }
                             SidebarIcon(symbol = "ꗃꄗ", isSelected = activeSection == PremiumSection.SECURITY) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 activeSection = if (activeSection == PremiumSection.SECURITY) null else PremiumSection.SECURITY
                             }
                             SidebarIcon(symbol = "ᝰ.", isSelected = activeSection == PremiumSection.ABOUT) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 activeSection = if (activeSection == PremiumSection.ABOUT) null else PremiumSection.ABOUT
                             }
                         }
@@ -1450,14 +1575,40 @@ fun AboutContent(scrollState: ScrollState, vm: SettingsViewModel, onNavigateBack
 fun SectionHeader(title: String, subtitle: String) {
     Column {
         Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .height(18.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                )
+                            )
+                        )
+                )
+                Text(
+                    title.uppercase(),
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.2.sp
+                )
+            }
+            Spacer(modifier = Modifier.height(3.dp))
             Text(
-                title,
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 1.sp
+                subtitle,
+                color = Color.White.copy(alpha = 0.55f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 16.sp
             )
-            Text(subtitle, color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
         }
         Spacer(modifier = Modifier.height(16.dp))
     }
