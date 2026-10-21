@@ -86,6 +86,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ballade.hwaran.core.database.AppDatabase
 import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
+import com.ballade.hwaran.ui.dialogs.PremiumPillContainer
 import com.ballade.hwaran.ui.components.ReaderMusicPlayerCard
 import com.ballade.hwaran.ui.viewmodels.MusicViewModel
 import kotlinx.coroutines.Dispatchers
@@ -840,7 +841,7 @@ fun BookPlayerScreen(
                                         .clip(CircleShape)
                                         .clickable { handleBack() },
                                     shape = CircleShape,
-                                    color = Color.Transparent,
+                                    color = Color(0xFF111118),
                                     border = PremiumPillDefaults.border(),
                                     shadowElevation = 10.dp
                                 ) {
@@ -863,7 +864,7 @@ fun BookPlayerScreen(
                                 Surface(
                                     modifier = Modifier.align(Alignment.Center),
                                     shape = RoundedCornerShape(24.dp),
-                                    color = Color.Transparent,
+                                    color = Color(0xFF111118),
                                     border = PremiumPillDefaults.border(),
                                     shadowElevation = 10.dp
                                 ) {
@@ -942,11 +943,9 @@ fun BookPlayerScreen(
                             ) {
                                 when (activeBottomPanel) {
                                     PdfBottomPanel.EYE_CARE -> {
-                                        Surface(
-                                            shape = RoundedCornerShape(22.dp),
-                                            color = Color(0xFF14131E).copy(alpha = 0.96f),
-                                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                                            shadowElevation = 16.dp,
+                                        PremiumPillContainer(
+                                            shape = RoundedCornerShape(24.dp),
+                                            elevation = 16.dp,
                                             modifier = Modifier
                                                 .widthIn(min = 280.dp, max = 320.dp)
                                                 .clickable(
@@ -1020,11 +1019,9 @@ fun BookPlayerScreen(
                                     }
                                     PdfBottomPanel.CHECKPOINTS -> {
                                         val webMarkers = markers.filter { it.mangaId == mangaId }
-                                        Surface(
-                                            shape = RoundedCornerShape(22.dp),
-                                            color = Color(0xFF14131E).copy(alpha = 0.96f),
-                                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                                            shadowElevation = 16.dp,
+                                        PremiumPillContainer(
+                                            shape = RoundedCornerShape(24.dp),
+                                            elevation = 16.dp,
                                             modifier = Modifier
                                                 .widthIn(min = 280.dp, max = 320.dp)
                                                 .clickable(
@@ -1169,11 +1166,9 @@ fun BookPlayerScreen(
                             }
 
                             // 3. Right Side Pill (Eye Care, Checkpoints & Music)
-                            Surface(
+                            PremiumPillContainer(
                                 shape = RoundedCornerShape(32.dp),
-                                color = Color(0xFF14131E).copy(alpha = 0.94f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                                shadowElevation = 14.dp,
+                                elevation = 14.dp,
                                 modifier = Modifier
                                     .align(Alignment.CenterEnd)
                                     .padding(end = 14.dp)
@@ -1536,16 +1531,18 @@ fun BookPlayerScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 // Frosted Back Button
-                                Surface(
+                                PremiumPillContainer(
                                     modifier = Modifier
                                         .size(42.dp)
                                         .clip(CircleShape)
                                         .clickable { handleBack() },
                                     shape = CircleShape,
-                                    color = Color(0xFF14131E).copy(alpha = 0.88f),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                                    elevation = 10.dp
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                             contentDescription = "Back",
@@ -1556,20 +1553,19 @@ fun BookPlayerScreen(
                                 }
 
                                 // Document Title Capsule
-                                Surface(
-                                    shape = RoundedCornerShape(20.dp),
-                                    color = Color(0xFF14131E).copy(alpha = 0.88f),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                                PremiumPillContainer(
+                                    shape = RoundedCornerShape(24.dp),
+                                    elevation = 10.dp
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Rounded.MenuBook,
                                             contentDescription = null,
-                                            tint = Color.White.copy(alpha = 0.7f),
+                                            tint = Color.White.copy(alpha = 0.85f),
                                             modifier = Modifier.size(15.dp)
                                         )
                                         Text(
@@ -1585,17 +1581,16 @@ fun BookPlayerScreen(
                                 }
 
                                 // Quick Page Counter badge
-                                Surface(
-                                    shape = RoundedCornerShape(20.dp),
-                                    color = Color(0xFF14131E).copy(alpha = 0.88f),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                                PremiumPillContainer(
+                                    shape = RoundedCornerShape(24.dp),
+                                    elevation = 10.dp
                                 ) {
                                     Text(
                                         text = "${currentPage + 1} / $pageCount",
-                                        color = Color.White.copy(alpha = 0.9f),
+                                        color = Color.White.copy(alpha = 0.95f),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
                                     )
                                 }
                             }
@@ -1660,12 +1655,10 @@ fun BookPlayerScreen(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     // Dot Handle - Sleek frosted handle attached to left screen edge
-                                    Surface(
+                                    PremiumPillContainer(
                                         shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
-                                        color = Color(0xFF14131E).copy(alpha = 0.94f),
-                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
-                                        modifier = Modifier.width(28.dp).height(48.dp),
-                                        shadowElevation = 8.dp
+                                        elevation = 8.dp,
+                                        modifier = Modifier.width(28.dp).height(48.dp)
                                     ) {
                                         Column(
                                             modifier = Modifier.fillMaxSize(),
@@ -1683,16 +1676,14 @@ fun BookPlayerScreen(
                                     }
 
                                     // Page Counter Pill (to the right of the left handle)
-                                    Surface(
+                                    PremiumPillContainer(
                                         shape = RoundedCornerShape(50),
-                                        color = Color(0xFF14131E).copy(alpha = 0.94f),
-                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
-                                        shadowElevation = 8.dp
+                                        elevation = 8.dp
                                     ) {
                                         Text(
                                             text = "${currentPage + 1} / $pageCount",
                                             color = Color.White,
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 12.sp
                                         )
@@ -1712,11 +1703,9 @@ fun BookPlayerScreen(
                             ) {
                                 when (activeBottomPanel) {
                                     PdfBottomPanel.HIGHLIGHTER -> {
-                                        Surface(
-                                            shape = RoundedCornerShape(22.dp),
-                                            color = Color(0xFF14131E).copy(alpha = 0.96f),
-                                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                                            shadowElevation = 16.dp,
+                                        PremiumPillContainer(
+                                            shape = RoundedCornerShape(24.dp),
+                                            elevation = 16.dp,
                                             modifier = Modifier
                                                 .widthIn(min = 280.dp, max = 340.dp)
                                                 .clickable(
@@ -1797,11 +1786,9 @@ fun BookPlayerScreen(
                                     }
 
                                     PdfBottomPanel.EYE_CARE -> {
-                                        Surface(
-                                            shape = RoundedCornerShape(22.dp),
-                                            color = Color(0xFF14131E).copy(alpha = 0.96f),
-                                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                                            shadowElevation = 16.dp,
+                                        PremiumPillContainer(
+                                            shape = RoundedCornerShape(24.dp),
+                                            elevation = 16.dp,
                                             modifier = Modifier
                                                 .widthIn(min = 280.dp, max = 340.dp)
                                                 .clickable(
@@ -1892,7 +1879,7 @@ fun BookPlayerScreen(
                             // ── Bottom Settings Pill (Positioned safely above Android navigation bar) ──
                             Surface(
                                 shape = RoundedCornerShape(32.dp),
-                                color = Color.Transparent,
+                                color = Color(0xFF111118),
                                 border = PremiumPillDefaults.border(),
                                 shadowElevation = 14.dp,
                                 modifier = Modifier
@@ -2109,7 +2096,7 @@ fun BookPlayerScreen(
                     showNotesDialog = false
                     noteInputText = ""
                 },
-                containerColor = Color(0xFF14131E),
+                containerColor = Color(0xFF111318),
                 shape = RoundedCornerShape(24.dp),
                 titleContentColor = Color.White,
                 textContentColor = Color.White.copy(alpha = 0.85f),
@@ -2260,7 +2247,7 @@ fun BookPlayerScreen(
             val currentNote = noteForDetailDialog!!
             AlertDialog(
                 onDismissRequest = { noteForDetailDialog = null },
-                containerColor = Color(0xFF14131E),
+                containerColor = Color(0xFF111318),
                 shape = RoundedCornerShape(24.dp),
                 titleContentColor = Color.White,
                 textContentColor = Color.White.copy(alpha = 0.85f),

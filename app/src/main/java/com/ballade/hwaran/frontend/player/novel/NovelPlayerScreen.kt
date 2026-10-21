@@ -844,7 +844,7 @@ fun NovelPlayerScreen(
             if (!showTocSheet) {
                 Surface(
                     shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp),
-                    color = Color.Transparent,
+                    color = Color(0xFF111118),
                     border = PremiumPillDefaults.border(currentTheme.accent),
                     shadowElevation = 10.dp,
                     modifier = Modifier
@@ -955,7 +955,7 @@ fun NovelPlayerScreen(
                                     onNavigateBack()
                                 },
                             shape = CircleShape,
-                            color = Color.Transparent,
+                            color = Color(0xFF111118),
                             border = PremiumPillDefaults.border(currentTheme.accent),
                             shadowElevation = 10.dp
                         ) {
@@ -978,7 +978,7 @@ fun NovelPlayerScreen(
                         Surface(
                             modifier = Modifier.align(Alignment.Center),
                             shape = RoundedCornerShape(24.dp),
-                            color = Color.Transparent,
+                            color = Color(0xFF111118),
                             border = PremiumPillDefaults.border(currentTheme.accent),
                             shadowElevation = 10.dp
                         ) {
@@ -1027,7 +1027,7 @@ fun NovelPlayerScreen(
                                         saveProgress(target, savedPos)
                                     },
                                 shape = RoundedCornerShape(20.dp),
-                                color = Color.Transparent,
+                                color = Color(0xFF111118),
                                 border = PremiumPillDefaults.border(Color(0xFFFFD54F)),
                                 shadowElevation = 10.dp
                             ) {
@@ -1155,7 +1155,7 @@ fun NovelPlayerScreen(
         ) {
             Surface(
                 shape = RoundedCornerShape(22.dp),
-                color = Color.Transparent,
+                color = Color(0xFF111118),
                 border = PremiumPillDefaults.border(currentTheme.accent),
                 shadowElevation = 14.dp
             ) {

@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.ballade.hwaran.ui.viewmodels.MusicViewModel
+import com.ballade.hwaran.ui.dialogs.PremiumPillContainer
 
 @Composable
 fun ReaderMusicPlayerCard(
@@ -59,11 +60,9 @@ fun ReaderMusicPlayerCard(
 
     val coverPath = currentTrack?.thumbnailUri?.takeIf { it.isNotBlank() }
 
-    Surface(
-        shape = RoundedCornerShape(22.dp),
-        color = Color(0xFF14131E).copy(alpha = 0.95f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-        shadowElevation = 16.dp,
+    PremiumPillContainer(
+        shape = RoundedCornerShape(24.dp),
+        elevation = 16.dp,
         modifier = modifier
             .widthIn(min = 280.dp, max = 320.dp)
             .clickable(
@@ -230,7 +229,7 @@ fun ReaderMusicPlayerCard(
                         Icon(
                             imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                             contentDescription = if (isPlaying) "Pause" else "Play",
-                            tint = Color(0xFF14131E),
+                            tint = Color(0xFF111318),
                             modifier = Modifier.size(22.dp)
                         )
                     }

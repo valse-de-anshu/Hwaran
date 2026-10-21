@@ -222,7 +222,7 @@ fun NovelReaderSettingsPill(
             } else if (activeTab == NovelSettingTab.CHECKPOINTS) {
                 Surface(
                     shape = RoundedCornerShape(22.dp),
-                    color = Color.Transparent,
+                    color = Color(0xFF111118),
                     border = PremiumPillDefaults.border(glowColor),
                     shadowElevation = 16.dp,
                     modifier = Modifier
@@ -360,7 +360,7 @@ fun NovelReaderSettingsPill(
             } else if (activeTab != null) {
                 Surface(
                     shape = RoundedCornerShape(22.dp),
-                    color = Color.Transparent,
+                    color = Color(0xFF111118),
                     border = PremiumPillDefaults.border(glowColor),
                     shadowElevation = 16.dp,
                     modifier = Modifier
@@ -898,7 +898,7 @@ fun NovelReaderSettingsPill(
         // ── Floating Vertical Pill (Fixed on the far right) ──
         Surface(
             shape = RoundedCornerShape(32.dp),
-            color = Color.Transparent,
+            color = Color(0xFF111118),
             border = PremiumPillDefaults.border(glowColor),
             shadowElevation = 14.dp,
             modifier = Modifier

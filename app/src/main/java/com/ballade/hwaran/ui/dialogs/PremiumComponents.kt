@@ -115,7 +115,7 @@ fun PremiumPillContainer(
 ) {
     Surface(
         shape = shape,
-        color = Color.Transparent,
+        color = Color(0xFF111118),
         border = PremiumPillDefaults.border(accentColor),
         shadowElevation = elevation,
         modifier = modifier

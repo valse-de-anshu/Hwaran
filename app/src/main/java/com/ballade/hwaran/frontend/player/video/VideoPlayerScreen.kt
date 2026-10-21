@@ -47,6 +47,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
+import com.ballade.hwaran.ui.dialogs.PremiumPillContainer
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -118,7 +119,7 @@ private fun SleekFadeDialog(
                 ) { onDismissRequest() },
             contentAlignment = Alignment.Center
         ) {
-            Surface(
+            PremiumPillContainer(
                 modifier = Modifier
                     .widthIn(max = 340.dp)
                     .padding(horizontal = 24.dp)
@@ -128,9 +129,7 @@ private fun SleekFadeDialog(
                         enabled = false
                     ) {},
                 shape = RoundedCornerShape(24.dp),
-                color = Color(0xF012141F),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-                shadowElevation = 24.dp
+                elevation = 24.dp
             ) {
                 Column(
                     modifier = Modifier.padding(top = 18.dp, bottom = 18.dp, start = 20.dp, end = 20.dp),
@@ -173,7 +172,7 @@ private fun SleekFadeDialog(
                                 .align(Alignment.TopCenter)
                                 .background(
                                     Brush.verticalGradient(
-                                        colors = listOf(Color(0xF012141F), Color.Transparent)
+                                        colors = listOf(Color(0xF2131220), Color.Transparent)
                                     )
                                 )
                         )
@@ -186,7 +185,7 @@ private fun SleekFadeDialog(
                                 .align(Alignment.BottomCenter)
                                 .background(
                                     Brush.verticalGradient(
-                                        colors = listOf(Color.Transparent, Color(0xF012141F))
+                                        colors = listOf(Color.Transparent, Color(0xF2131220))
                                     )
                                 )
                         )
@@ -685,6 +684,10 @@ fun VideoPlayerScreen(
                     onNextEpisode.value()
                 }
             }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                isBuffering = false
+                error.printStackTrace()
+            }
             override fun onTracksChanged(tracks: Tracks) {
                 currentTracks = tracks
                 val textGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }
@@ -842,7 +845,9 @@ fun VideoPlayerScreen(
 
         // Scan for local sidecar subtitles (.srt, .vtt, .ass) + user added subtitles
         val sidecarSubtitles = withContext(Dispatchers.IO) { 
-            findSidecarSubtitles(context, uri, chapterTitle, chapterFolderUri, mangaParentUri) 
+            kotlinx.coroutines.withTimeoutOrNull(2000L) {
+                findSidecarSubtitles(context, uri, chapterTitle, chapterFolderUri, mangaParentUri)
+            } ?: emptyList()
         }
         val allSubs = sidecarSubtitles + customSubtitles
         val mediaItem = MediaItem.Builder()

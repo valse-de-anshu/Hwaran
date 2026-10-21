@@ -28,6 +28,7 @@ import androidx.compose.material3.*
 import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenu
 import com.ballade.hwaran.ui.dialogs.HwaranDropdownMenuItem
 import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
+import com.ballade.hwaran.ui.dialogs.PremiumPillContainer
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -1053,7 +1054,7 @@ if (isLandscape) {
                     ),
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF0F0F13).copy(alpha = 0.9f)
+                    containerColor = Color(0xF2111318)
                 ),
                 border = BorderStroke(1.dp, snackIconColor.copy(alpha = 0.3f))
             ) {
@@ -1121,13 +1122,12 @@ fun QueueDialog(
     }
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
+        PremiumPillContainer(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp),
             shape = RoundedCornerShape(28.dp),
-            color = Color(0xFF0F0F13),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+            elevation = 20.dp
         ) {
             Column(
                 modifier = Modifier
@@ -1751,7 +1751,7 @@ fun LyricsManagementDialog(
         modifier = Modifier
             .fillMaxWidth(0.9f)
             .clip(RoundedCornerShape(24.dp))
-            .background(Color(0xFF1E1E1E))
+            .background(Color(0xFF111318))
             .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(24.dp))
             .padding(24.dp),
         text = {
@@ -1926,7 +1926,8 @@ fun LyricsManagementDialog(
             }
         },
         confirmButton = {},
-        containerColor = Color(0xFF1E1E1E)
+        containerColor = Color(0xFF111318),
+        shape = RoundedCornerShape(24.dp)
     )
 }
 
@@ -1974,6 +1975,7 @@ fun LyricsEditorDialog(
                 Text("Cancel", color = Color.White.copy(alpha = 0.7f))
             }
         },
-        containerColor = Color(0xFF1E1E1E)
+        containerColor = Color(0xFF111318),
+        shape = RoundedCornerShape(24.dp)
     )
 }

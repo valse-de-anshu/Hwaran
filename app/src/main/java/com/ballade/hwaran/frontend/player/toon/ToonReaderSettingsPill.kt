@@ -83,7 +83,7 @@ fun ToonReaderSettingsPill(
             } else if (activeTab != null && activeTab != ReaderSettingTab.MUSIC) {
                 Surface(
                     shape = RoundedCornerShape(24.dp),
-                    color = Color.Transparent,
+                    color = Color(0xFF111118),
                     border = PremiumPillDefaults.border(glowColor),
                     shadowElevation = 16.dp,
                     modifier = Modifier
@@ -455,14 +455,16 @@ fun ToonReaderSettingsPill(
                 }
             }
         }
+    }
 
-        // ── Vertical Settings Pill (Premium Titanium Glass) ──
+    // ── Vertical Settings Pill (Premium Titanium Glass) ──
         Surface(
             shape = RoundedCornerShape(32.dp),
-            color = Color.Transparent,
+            color = Color(0xFF111118),
             border = PremiumPillDefaults.border(glowColor),
             shadowElevation = 14.dp,
             modifier = Modifier
+                .align(Alignment.CenterEnd)
                 .padding(end = 16.dp)
                 .width(52.dp)
         ) {
@@ -538,7 +540,6 @@ fun ToonReaderSettingsPill(
             }
         }
     }
-}
 }
 
 @Composable
