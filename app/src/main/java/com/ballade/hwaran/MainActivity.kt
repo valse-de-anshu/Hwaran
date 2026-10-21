@@ -114,15 +114,19 @@ class MainActivity : ComponentActivity() {
                     ActivityResultContracts.RequestPermission()
                 ) { isGranted -> }
 
-                // Storage permission check for Android 11+ (API 30+)
-                var showStoragePermissionDialog by remember {
-                    mutableStateOf(
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                            !android.os.Environment.isExternalStorageManager()
-                        } else {
-                            false
+                // Storage permission — start hidden; shown only after the home screen is ready
+                // so the user sees the actual app first, then gets a clean onboarding prompt.
+                var showStoragePermissionDialog by remember { mutableStateOf(false) }
+
+                // Trigger once when home screen becomes ready (splash + intro done)
+                LaunchedEffect(isReady) {
+                    if (isReady && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        if (!android.os.Environment.isExternalStorageManager()) {
+                            // Short delay so the home screen composable fully settles
+                            kotlinx.coroutines.delay(800L)
+                            showStoragePermissionDialog = true
                         }
-                    )
+                    }
                 }
 
                 val activityLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -145,9 +149,9 @@ class MainActivity : ComponentActivity() {
                 if (showStoragePermissionDialog) {
                     AlertDialog(
                         onDismissRequest = { showStoragePermissionDialog = false },
-                        title = { Text("Storage Access Required") },
+                        title = { Text("Allow media access") },
                         text = {
-                            Text("Hwaran requires 'All files access' to scan and discover your local media from Zine folders across the phone. Without this permission, Android blocks scanning.")
+                            Text("Hwaran needs 'All files access' to auto-discover your Zine, manga, and video folders across storage. Without it, scanning is blocked by Android.")
                         },
                         confirmButton = {
                             Button(
@@ -165,12 +169,12 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             ) {
-                                Text("Grant Permission")
+                                Text("Grant Access")
                             }
                         },
                         dismissButton = {
                             TextButton(onClick = { showStoragePermissionDialog = false }) {
-                                Text("Later")
+                                Text("Not now")
                             }
                         }
                     )

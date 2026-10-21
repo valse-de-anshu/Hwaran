@@ -787,35 +787,52 @@ fun VideoPlayerScreen(
                     }
                 })
 
+                val videoExts = setOf("mp4", "mkv", "webm", "mov", "avi", "m4v", "3gp", "flv", "ts", "wmv", "asf")
+                fun isVideoFile(name: String?) = name != null && videoExts.contains(name.substringAfterLast('.').lowercase())
+
                 var resolvedUri: Uri? = null
-                if (it.folderUri.startsWith("content://")) {
-                    val uri = Uri.parse(it.folderUri)
-                    val doc = androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri)
-                    if (doc != null && doc.exists() && !doc.isDirectory) {
-                        resolvedUri = uri
-                    } else {
-                        val treeDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, uri)
-                        if (treeDoc != null && treeDoc.isDirectory) {
-                            val videoFile = treeDoc.listFiles().find { f ->
-                                f.name?.endsWith(".mp4", true) == true || 
-                                f.name?.endsWith(".mkv", true) == true || 
-                                f.name?.endsWith(".avi", true) == true
-                            }
-                            resolvedUri = videoFile?.uri
-                        } else {
+                val folderUriRaw = it.folderUri
+                when {
+                    folderUriRaw.startsWith("content://") -> {
+                        val uri = Uri.parse(folderUriRaw)
+                        val doc = androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri)
+                        if (doc != null && doc.exists() && !doc.isDirectory) {
+                            // Direct video file content URI — use it straight
                             resolvedUri = uri
+                        } else {
+                            // Maybe it's a tree/folder URI — find the first video inside
+                            val treeDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, uri)
+                            if (treeDoc != null && treeDoc.isDirectory) {
+                                resolvedUri = treeDoc.listFiles()
+                                    .filter { f -> !f.isDirectory && isVideoFile(f.name) }
+                                    .minByOrNull { f -> f.name ?: "" }?.uri
+                            }
+                            // If still null, try using the URI directly (may work for some providers)
+                            if (resolvedUri == null) resolvedUri = uri
                         }
                     }
-                } else {
-                    val file = File(it.folderUri)
-                    if (file.exists() && file.isFile) {
-                        resolvedUri = Uri.fromFile(file)
-                    } else if (file.exists() && file.isDirectory) {
-                        val videoFile = file.listFiles()?.find { f -> 
-                            f.name.endsWith(".mp4", true) || f.name.endsWith(".mkv", true) || f.name.endsWith(".avi", true)
+                    folderUriRaw.startsWith("file://") -> {
+                        // file:// URI — convert to File then back to a proper Uri.fromFile
+                        val file = File(Uri.parse(folderUriRaw).path ?: folderUriRaw.removePrefix("file://"))
+                        if (file.exists() && file.isFile) {
+                            resolvedUri = Uri.fromFile(file)
+                        } else if (file.exists() && file.isDirectory) {
+                            val videoFile = file.listFiles()
+                                ?.filter { f -> f.isFile && isVideoFile(f.name) }
+                                ?.minByOrNull { f -> f.name }
+                            if (videoFile != null) resolvedUri = Uri.fromFile(videoFile)
                         }
-                        if (videoFile != null) {
-                            resolvedUri = Uri.fromFile(videoFile)
+                    }
+                    else -> {
+                        // Bare path — e.g. /storage/emulated/0/Zine/MyVideo/ep1.mp4
+                        val file = File(folderUriRaw)
+                        if (file.exists() && file.isFile) {
+                            resolvedUri = Uri.fromFile(file)
+                        } else if (file.exists() && file.isDirectory) {
+                            val videoFile = file.listFiles()
+                                ?.filter { f -> f.isFile && isVideoFile(f.name) }
+                                ?.minByOrNull { f -> f.name }
+                            if (videoFile != null) resolvedUri = Uri.fromFile(videoFile)
                         }
                     }
                 }
