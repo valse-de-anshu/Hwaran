@@ -114,17 +114,21 @@ class MainActivity : ComponentActivity() {
                     ActivityResultContracts.RequestPermission()
                 ) { isGranted -> }
 
-                // Storage permission — start hidden; shown only after the home screen is ready
-                // so the user sees the actual app first, then gets a clean onboarding prompt.
+                // Storage permission — start hidden; shown only after the user reaches the Home screen
+                // so the user finishes onboarding / intro first without any popup interruption.
                 var showStoragePermissionDialog by remember { mutableStateOf(false) }
+                var hasPromptedStoragePermission by remember { mutableStateOf(false) }
 
-                // Trigger once when home screen becomes ready (splash + intro done)
-                LaunchedEffect(isReady) {
-                    if (isReady && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        if (!android.os.Environment.isExternalStorageManager()) {
-                            // Short delay so the home screen composable fully settles
-                            kotlinx.coroutines.delay(800L)
-                            showStoragePermissionDialog = true
+                // Trigger ONLY when the user reaches the Home screen (after intro/onboarding is finished)
+                LaunchedEffect(isReady, currentRoute) {
+                    if (isReady && currentRoute == Screen.Home.route && !hasPromptedStoragePermission) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            if (!android.os.Environment.isExternalStorageManager()) {
+                                hasPromptedStoragePermission = true
+                                // Short delay so the home screen composable fully settles
+                                kotlinx.coroutines.delay(800L)
+                                showStoragePermissionDialog = true
+                            }
                         }
                     }
                 }
@@ -146,7 +150,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                if (showStoragePermissionDialog) {
+                if (showStoragePermissionDialog && currentRoute == Screen.Home.route) {
                     AlertDialog(
                         onDismissRequest = { showStoragePermissionDialog = false },
                         title = { Text("Allow media access") },
