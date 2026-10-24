@@ -2,7 +2,6 @@ package com.ballade.hwaran.ui.dialogs
 
 import androidx.compose.animation.core.*
 import androidx.compose.animation.*
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,7 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -207,58 +205,21 @@ fun PremiumFilterPill(
 @Composable
 fun PremiumGlassPanel(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(32.dp),
-    accentColor: Color = MaterialTheme.colorScheme.primary,
-    elevation: Dp = 16.dp,
     content: @Composable () -> Unit
 ) {
-    Surface(
-        shape = shape,
-        color = Color(0xFF111118),
-        border = BorderStroke(
-            1.2.dp,
-            Brush.verticalGradient(
-                listOf(
-                    Color.White.copy(alpha = 0.25f),
-                    accentColor.copy(alpha = 0.25f),
-                    Color.White.copy(alpha = 0.08f)
-                )
-            )
-        ),
-        shadowElevation = elevation,
+    Box(
         modifier = modifier
+            .clip(RoundedCornerShape(32.dp))
+            .background(Color(0xFF0F0F13).copy(alpha = 0.55f)) // Deep charcoal glass
+            .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(32.dp))
     ) {
         Box(
-            modifier = Modifier.background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color(0xFF181724),
-                        Color(0xFF12111A),
-                        Color(0xFF0D0C14)
-                    )
-                )
-            )
-        ) {
-            // Subtle top highlight sheen line
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .align(Alignment.TopCenter)
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(
-                                Color.Transparent,
-                                Color.White.copy(alpha = 0.20f),
-                                accentColor.copy(alpha = 0.30f),
-                                Color.White.copy(alpha = 0.20f),
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
-            content()
-        }
+            modifier = Modifier
+                .matchParentSize()
+                .blur(48.dp)
+                .background(Color.Black.copy(alpha = 0.2f))
+        )
+        content()
     }
 }
 
@@ -399,79 +360,40 @@ fun SidebarIcon(
     symbol: String? = null,
     alwaysBright: Boolean = false,
     showHighlight: Boolean = true,
-    accentColor: Color = MaterialTheme.colorScheme.primary,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.88f else if (isSelected) 1.08f else 1f,
+        targetValue = if (isPressed) 0.85f else if (isSelected) 1.15f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
         label = "icon_scale"
     )
     
     val alpha by animateFloatAsState(
-        targetValue = if (isSelected || alwaysBright) 1f else 0.45f,
+        targetValue = if (isSelected || alwaysBright) 1f else 0.4f,
         animationSpec = tween(200),
         label = "icon_alpha"
     )
 
     Box(
         modifier = Modifier
-            .size(50.dp)
+            .size(48.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
                 this.alpha = alpha
             }
-            .clip(RoundedCornerShape(16.dp))
-            .background(
+            .clip(CircleShape)
+            .then(
                 if (showHighlight && isSelected) {
-                    Brush.verticalGradient(
-                        listOf(
-                            accentColor.copy(alpha = 0.28f),
-                            Color.White.copy(alpha = 0.04f)
-                        )
-                    )
-                } else {
-                    SolidColor(Color.White.copy(alpha = 0.03f))
-                }
-            )
-            .border(
-                if (showHighlight && isSelected) {
-                    BorderStroke(
-                        1.2.dp,
-                        Brush.verticalGradient(
-                            listOf(
-                                accentColor.copy(alpha = 0.75f),
-                                Color.White.copy(alpha = 0.12f)
-                            )
-                        )
-                    )
-                } else {
-                    BorderStroke(1.dp, Color.White.copy(alpha = 0.06f))
-                },
-                shape = RoundedCornerShape(16.dp)
+                    Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                } else Modifier
             )
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        if (showHighlight && isSelected) {
-            Box(
-                modifier = Modifier
-                    .size(26.dp)
-                    .background(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                accentColor.copy(alpha = 0.35f),
-                                Color.Transparent
-                            )
-                        ),
-                        shape = CircleShape
-                    )
-            )
-        }
         if (icon != null) {
             Icon(
                 imageVector = icon,
@@ -483,7 +405,7 @@ fun SidebarIcon(
             Text(
                 text = symbol,
                 color = if (isSelected && showHighlight) MaterialTheme.colorScheme.primary else Color.White,
-                fontSize = 26.sp,
+                fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )

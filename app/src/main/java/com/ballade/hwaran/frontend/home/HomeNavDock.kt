@@ -9,7 +9,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,7 +27,6 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -66,125 +64,70 @@ fun HomeNavDock(
             .padding(bottom = bottomClearance),
         contentAlignment = Alignment.BottomCenter
     ) {
-        // Floating Frosted Titanium Pill Dock
+        // Floating Frosted Pill Dock
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(68.dp)
                 .shadow(
-                    elevation = 22.dp,
+                    elevation = 20.dp,
                     shape = RoundedCornerShape(34.dp),
-                    spotColor = Color.Black,
-                    ambientColor = Color.Black.copy(alpha = 0.6f)
+                    spotColor = Color.Black.copy(alpha = 0.8f),
+                    ambientColor = Color.Black.copy(alpha = 0.5f)
                 ),
             shape = RoundedCornerShape(34.dp),
-            color = Color(0xFF111118),
-            border = BorderStroke(
-                1.2.dp,
-                Brush.verticalGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.25f),
-                        glowColor.copy(alpha = 0.20f),
-                        Color.White.copy(alpha = 0.08f)
-                    )
-                )
-            )
+            color = Color(0xEE111016),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
         ) {
-            Box(
+            Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color(0xFF191824),
-                                Color(0xFF12111A),
-                                Color(0xFF0D0C14)
-                            )
-                        )
-                    )
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                // Subtle top specular highlight line
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .align(Alignment.TopCenter)
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(
-                                    Color.Transparent,
-                                    Color.White.copy(alpha = 0.22f),
-                                    glowColor.copy(alpha = 0.35f),
-                                    Color.White.copy(alpha = 0.22f),
-                                    Color.Transparent
-                                )
-                            )
-                        )
+                // Left 1: Home
+                DockItem(
+                    icon = Icons.Rounded.Home,
+                    label = "Home",
+                    isSelected = selectedTab == 0,
+                    glowColor = glowColor,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onTabSelected(0)
+                    }
                 )
 
-                Row(
+                // Left 2: Library
+                DockItem(
+                    icon = Icons.AutoMirrored.Rounded.MenuBook,
+                    label = "Library",
+                    isSelected = selectedTab == 1,
+                    glowColor = glowColor,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onTabSelected(1)
+                    }
+                )
+
+                // Center: JellyBall Mascot in middle with icons (full, prominent size)
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                        .size(76.dp)
+                        .pointerInput(isImporting) {
+                            detectTapGestures(
+                                onLongPress = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onCenterActionLongClick()
+                                },
+                                onTap = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onCenterActionClick()
+                                }
+                            )
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    // Left 1: Home
-                    DockItem(
-                        icon = Icons.Rounded.Home,
-                        label = "Home",
-                        isSelected = selectedTab == 0,
-                        glowColor = glowColor,
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onTabSelected(0)
-                        }
-                    )
-
-                    // Left 2: Library
-                    DockItem(
-                        icon = Icons.AutoMirrored.Rounded.MenuBook,
-                        label = "Library",
-                        isSelected = selectedTab == 1,
-                        glowColor = glowColor,
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onTabSelected(1)
-                        }
-                    )
-
-                    // Center: JellyBall Mascot in middle with glowing pedestal
-                    Box(
-                        modifier = Modifier
-                            .size(76.dp)
-                            .pointerInput(isImporting) {
-                                detectTapGestures(
-                                    onLongPress = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        onCenterActionLongClick()
-                                    },
-                                    onTap = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        onCenterActionClick()
-                                    }
-                                )
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // Ambient radial glow pedestal
-                        Box(
-                            modifier = Modifier
-                                .size(54.dp)
-                                .background(
-                                    brush = Brush.radialGradient(
-                                        colors = listOf(
-                                            glowColor.copy(alpha = if (isImporting) 0.32f else 0.16f),
-                                            Color.Transparent
-                                        )
-                                    ),
-                                    shape = CircleShape
-                                )
-                        )
                     val jellyScale by animateFloatAsState(
                         targetValue = if (isImporting) 0.58f else 0.74f,
                         animationSpec = spring(
@@ -290,7 +233,6 @@ fun HomeNavDock(
         }
     }
 }
-}
 
 @Composable
 private fun DockItem(
@@ -300,109 +242,72 @@ private fun DockItem(
     glowColor: Color,
     onClick: () -> Unit
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-
     val iconColor by animateColorAsState(
-        targetValue = if (isSelected) Color(0xFFFFFFFF) else Color(0xFF8E8D9A),
-        animationSpec = tween(220),
+        targetValue = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.40f),
+        animationSpec = tween(250),
         label = "iconColor"
     )
 
     val textColor by animateColorAsState(
-        targetValue = if (isSelected) Color(0xFFFFFFFF) else Color(0xFF8E8D9A),
-        animationSpec = tween(220),
+        targetValue = if (isSelected) Color(0xFFE6E8EC) else Color.White.copy(alpha = 0.40f),
+        animationSpec = tween(250),
         label = "textColor"
     )
 
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.88f else if (isSelected) 1.05f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
+        targetValue = if (isSelected) 1.08f else 1f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f),
         label = "dockScale"
     )
 
-    Box(
+    Column(
         modifier = Modifier
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .clip(RoundedCornerShape(20.dp))
-            .background(
-                if (isSelected) {
-                    Brush.verticalGradient(
-                        listOf(
-                            glowColor.copy(alpha = 0.20f),
-                            Color.White.copy(alpha = 0.04f)
-                        )
-                    )
-                } else {
-                    SolidColor(Color.Transparent)
-                }
-            )
-            .border(
-                if (isSelected) {
-                    BorderStroke(
-                        1.dp,
-                        Brush.verticalGradient(
-                            listOf(
-                                glowColor.copy(alpha = 0.45f),
-                                Color.White.copy(alpha = 0.10f)
-                            )
-                        )
-                    )
-                } else BorderStroke(0.dp, Color.Transparent),
-                shape = RoundedCornerShape(20.dp)
-            )
+            .clip(RoundedCornerShape(16.dp))
             .clickable(
-                interactionSource = interactionSource,
+                interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                if (isSelected) {
-                    // Soft diffused glow behind active icon
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .background(
-                                brush = Brush.radialGradient(
-                                    colors = listOf(
-                                        glowColor.copy(alpha = 0.28f),
-                                        Color.Transparent
-                                    )
-                                ),
-                                shape = CircleShape
-                            )
-                    )
-                }
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = iconColor,
-                    modifier = Modifier.size(21.dp)
+        Box(contentAlignment = Alignment.Center) {
+            if (isSelected) {
+                // Subtle soft diffused glow behind active icon
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    glowColor.copy(alpha = 0.12f),
+                                    Color.Transparent
+                                )
+                            ),
+                            shape = CircleShape
+                        )
                 )
             }
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            Text(
-                text = label,
-                color = textColor,
-                fontSize = 11.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                letterSpacing = if (isSelected) 0.2.sp else 0.sp
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = iconColor,
+                modifier = Modifier.size(22.dp)
             )
         }
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        Text(
+            text = label,
+            color = textColor,
+            fontSize = 11.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+        )
     }
 }
