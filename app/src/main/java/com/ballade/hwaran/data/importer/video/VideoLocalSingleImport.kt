@@ -149,31 +149,45 @@ object VideoLocalSingleImport {
         val effectiveBoxPurpose = boxPurpose ?: existingManga?.boxPurpose ?: "series"
 
         val mangaToInsert = MangaEntity(
-            id = 0L,
+            id = existingManga?.id ?: 0L,
             title = finalTitle,
             description = finalDescription,
-            thoughts = "No thoughts added.",
+            thoughts = existingManga?.thoughts ?: "No thoughts added.",
             coverPath = coverPath,
-            isNsfw = isNsfw,
+            isNsfw = existingManga?.isNsfw ?: isNsfw,
             parentUri = destination.absolutePath,
             lastModified = destination.lastModified(),
             contentType = 2, // Video
             boxPurpose = effectiveBoxPurpose,
-            boxLabel = null,
-            genre = finalTags,
-            workspace = workspace
+            boxLabel = existingManga?.boxLabel,
+            genre = finalTags ?: existingManga?.genre,
+            workspace = existingManga?.workspace ?: workspace,
+            lastReadTitle = existingManga?.lastReadTitle,
+            lastReadPage = existingManga?.lastReadPage,
+            openCount = existingManga?.openCount ?: 0,
+            isFavorite = existingManga?.isFavorite ?: false,
+            position = existingManga?.position ?: 0,
+            isLocked = existingManga?.isLocked ?: false
         )
 
         val mangaId = repository.insertManga(mangaToInsert)
 
         // Chapter entities: one per copied video file
         val chapterEntities = copiedVideoFiles.mapIndexed { index, (videoFile, originalTitle) ->
-            ChapterEntity(
-                mangaId = mangaId,
-                title = originalTitle,
-                folderUri = videoFile.absolutePath,
-                position = index
-            )
+            val existingChapter = repository.getChapterByUri(videoFile.absolutePath)
+            if (existingChapter != null) {
+                existingChapter.copy(
+                    mangaId = mangaId,
+                    title = originalTitle
+                )
+            } else {
+                ChapterEntity(
+                    mangaId = mangaId,
+                    title = originalTitle,
+                    folderUri = videoFile.absolutePath,
+                    position = 0
+                )
+            }
         }
 
         repository.insertChapters(chapterEntities)

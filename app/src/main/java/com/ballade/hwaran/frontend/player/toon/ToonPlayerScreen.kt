@@ -248,18 +248,27 @@ fun ToonPlayerScreen(
         }
     }
 
-    // Save Reading Progress on Lifecycle
-    DisposableEffect(lifecycleOwner, activePageIndex) {
+    // Save Reading Progress when scrolling is idle or page changes
+    LaunchedEffect(activePageIndex, listState.isScrollInProgress, pagerState.isScrollInProgress) {
+        val isScrolling = if (readerMode == 0) listState.isScrollInProgress else pagerState.isScrollInProgress
+        if (!isScrolling && activePageIndex >= 0) {
+            readerViewModel.saveLastPage(activePageIndex + 1)
+        }
+    }
+
+    // Save Reading Progress on Lifecycle Pause or Screen Exit (Orientation reset ONLY when leaving the screen)
+    val currentActivePageIndex by rememberUpdatedState(activePageIndex)
+    DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                readerViewModel.saveLastPage(activePageIndex + 1)
+                readerViewModel.saveLastPage(currentActivePageIndex + 1)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            readerViewModel.saveLastPage(activePageIndex + 1)
+            readerViewModel.saveLastPage(currentActivePageIndex + 1)
         }
     }
 
@@ -416,6 +425,12 @@ fun ToonPlayerScreen(
                         ) {
                             items(images, key = { it }) { filePath ->
                                 val data = remember(filePath) { resolveToonImageData(filePath) }
+                                val itemRequest = remember(data) {
+                                    ImageRequest.Builder(context)
+                                        .data(data)
+                                        .crossfade(false)
+                                        .build()
+                                }
 
                                 // Margin crop container: clips white gutters when targetItemWidth > containerWidth
                                 Box(
@@ -425,10 +440,7 @@ fun ToonPlayerScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     AsyncImage(
-                                        model = ImageRequest.Builder(context)
-                                            .data(data)
-                                            .crossfade(false)
-                                            .build(),
+                                        model = itemRequest,
                                         contentDescription = null,
                                         contentScale = ContentScale.FillWidth,
                                         modifier = Modifier

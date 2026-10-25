@@ -151,12 +151,13 @@ object LibrarySyncEngine {
         }
 
         val excludedDirNames = setOf(
-            "android", "lost.dir", ".trash", "cache", ".thumbnails"
+            "android", "lost.dir", ".trash", "cache", ".thumbnails",
+            "dcim", "pictures", "recordings", "ringtones", "notifications", "alarms", "podcasts"
         )
 
         // 2. Search deeply across the entire storage for ANY folder named zine or zine scrapper (even in subfolders)
         fun searchDir(dir: File, depth: Int) {
-            if (depth > 6 || !dir.exists() || !dir.isDirectory || !dir.canRead()) return
+            if (depth > 4 || !dir.exists() || !dir.isDirectory || !dir.canRead()) return
 
             val name = dir.name
             val nameLower = name.lowercase().trim()
@@ -227,6 +228,12 @@ object LibrarySyncEngine {
 
         val doc = StorageResolver.resolveDocument(context, uri) ?: return@withContext 0
         if (!doc.exists()) return@withContext 0
+
+        // If underlying file/folder on disk has not changed since last sync/read, skip re-scan
+        val diskLastModified = directFile?.lastModified() ?: doc.lastModified()
+        if (diskLastModified > 0L && manga.lastModified > 0L && diskLastModified <= manga.lastModified) {
+            return@withContext 0
+        }
 
         val initialChapterCount = database.trackDao().getChaptersForMangaList(manga.id).size
 

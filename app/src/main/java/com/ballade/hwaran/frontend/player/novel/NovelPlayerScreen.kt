@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -437,6 +438,43 @@ fun NovelPlayerScreen(
         if (bookmarkToastMessage != null) {
             kotlinx.coroutines.delay(2200)
             bookmarkToastMessage = null
+        }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val currentChIdxState = rememberUpdatedState(currentChapterIndex)
+    val currentReadModeState = rememberUpdatedState(readMode)
+    val currentListState = rememberUpdatedState(verticalListState)
+
+    // Save novel reading progress when scrolling is idle in vertical mode
+    LaunchedEffect(verticalListState.isScrollInProgress) {
+        if (!verticalListState.isScrollInProgress && readMode == NovelReadMode.VERTICAL_SCROLL) {
+            val offset = verticalListState.firstVisibleItemIndex
+            saveProgress(currentChapterIndex, offset)
+        }
+    }
+
+    // Save novel reading progress on Lifecycle Pause or Screen Exit
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
+                val scrollOffset = if (currentReadModeState.value == NovelReadMode.VERTICAL_SCROLL) {
+                    currentListState.value.firstVisibleItemIndex
+                } else {
+                    0
+                }
+                saveProgress(currentChIdxState.value, scrollOffset)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            val scrollOffset = if (currentReadModeState.value == NovelReadMode.VERTICAL_SCROLL) {
+                currentListState.value.firstVisibleItemIndex
+            } else {
+                0
+            }
+            saveProgress(currentChIdxState.value, scrollOffset)
         }
     }
 

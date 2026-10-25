@@ -88,8 +88,14 @@ object ToonExternalSingleImport {
             contentType = 0, // 0 = Manga / Toon
             boxPurpose = existingManga?.boxPurpose ?: boxPurpose ?: parsedZine?.type,
             boxLabel = existingManga?.boxLabel,
-            genre = finalTags,
-            workspace = existingManga?.workspace ?: workspace
+            genre = finalTags ?: existingManga?.genre,
+            workspace = existingManga?.workspace ?: workspace,
+            lastReadTitle = existingManga?.lastReadTitle,
+            lastReadPage = existingManga?.lastReadPage,
+            openCount = existingManga?.openCount ?: 0,
+            isFavorite = existingManga?.isFavorite ?: false,
+            position = existingManga?.position ?: 0,
+            isLocked = existingManga?.isLocked ?: false
         )
 
         val mangaId = repository.insertManga(mangaToInsert)

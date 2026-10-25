@@ -925,9 +925,17 @@ fun VideoPlayerScreen(
     }
 
     LaunchedEffect(exoPlayer) {
+        var tickCount = 0
         while (true) {
             currentPosition = exoPlayer.currentPosition
             duration = exoPlayer.duration.coerceAtLeast(0L)
+            tickCount++
+            if (tickCount % 10 == 0 && exoPlayer.isPlaying) { // every 5 seconds while playing
+                val chId = currentChapterIdState.value
+                if (chId != -1L && currentPosition > 0) {
+                    videoViewModel.saveLastPosition(chId, currentPosition, duration)
+                }
+            }
             delay(500)
         }
     }

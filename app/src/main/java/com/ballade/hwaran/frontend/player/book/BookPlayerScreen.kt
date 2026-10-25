@@ -493,36 +493,53 @@ fun BookPlayerScreen(
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, listState, manga, pageCount) {
+    val currentIsWebBook = rememberUpdatedState(isWebBook)
+    val currentWebProgress = rememberUpdatedState(webProgress)
+    val currentManga = rememberUpdatedState(manga)
+    val currentPageCount = rememberUpdatedState(pageCount)
+    val currentVisitedPages = rememberUpdatedState(visitedPages)
+    val currentStartPage = rememberUpdatedState(startPage)
+
+    // Save reading progress when scroll is idle (PDF / Book mode)
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (!listState.isScrollInProgress && !isWebBook && mangaId > 0L) {
+            val pageToSave = if (listState.firstVisibleItemIndex >= 0) listState.firstVisibleItemIndex + 1 else 1
+            pdfViewModel.saveLastPage(mangaId, pageToSave)
+        }
+    }
+
+    // Save reading progress on Lifecycle Pause or Screen Exit
+    DisposableEffect(lifecycleOwner) {
+        val saveBookProgress = {
+            val pageToSave = if (currentIsWebBook.value) {
+                (currentWebProgress.value * 10000).toInt().coerceAtLeast(1)
+            } else {
+                if (listState.firstVisibleItemIndex >= 0) listState.firstVisibleItemIndex + 1 else 1
+            }
+            if (mangaId > 0L) {
+                pdfViewModel.saveLastPage(mangaId, pageToSave)
+            }
+            val m = currentManga.value
+            val pCount = currentPageCount.value
+            if (m != null && pCount > 0) {
+                val pagesLogged = if (currentVisitedPages.value.isNotEmpty()) currentVisitedPages.value.joinToString(",") else "${currentStartPage.value}-${pageToSave}"
+                com.ballade.hwaran.core.util.HistoryTracker.logEvent(
+                    "READ_BOOK",
+                    m.title,
+                    "mangaId:${m.id}|pages:$pagesLogged|totalPages:$pCount|fallback:Book: ${m.title}"
+                )
+            }
+        }
+
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                val pageToSave = if (listState.firstVisibleItemIndex >= 0) listState.firstVisibleItemIndex + 1 else 1
-                pdfViewModel.saveLastPage(mangaId, pageToSave)
-                val currentManga = manga
-                if (currentManga != null && pageCount > 0) {
-                    val pagesLogged = if (visitedPages.isNotEmpty()) visitedPages.joinToString(",") else "${startPage}-${pageToSave}"
-                    com.ballade.hwaran.core.util.HistoryTracker.logEvent(
-                        "READ_BOOK",
-                        currentManga.title,
-                        "mangaId:${currentManga.id}|pages:$pagesLogged|totalPages:$pageCount|fallback:Book: ${currentManga.title}"
-                    )
-                }
+                saveBookProgress()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            val pageToSave = if (listState.firstVisibleItemIndex >= 0) listState.firstVisibleItemIndex + 1 else 1
-            pdfViewModel.saveLastPage(mangaId, pageToSave)
-            val currentManga = manga
-            if (currentManga != null && pageCount > 0) {
-                val pagesLogged = if (visitedPages.isNotEmpty()) visitedPages.joinToString(",") else "${startPage}-${pageToSave}"
-                com.ballade.hwaran.core.util.HistoryTracker.logEvent(
-                    "READ_BOOK",
-                    currentManga.title,
-                    "mangaId:${currentManga.id}|pages:$pagesLogged|totalPages:$pageCount|fallback:Book: ${currentManga.title}"
-                )
-            }
+            saveBookProgress()
         }
     }
 

@@ -134,8 +134,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     init {
-        // Self-heal covers in background on startup
+        // Self-heal covers in background with a delay so startup UI renders smoothly
         viewModelScope.launch(Dispatchers.IO) {
+            kotlinx.coroutines.delay(2500L)
             try {
                 val app = getApplication<Application>()
                 val mediaDao = database.libraryDao()
@@ -212,14 +213,18 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             }
         }
 
-        // Auto-sync library on startup to discover and update media
-        syncLibrary(showToast = false)
+        // Auto-sync library on startup after UI stabilizes
+        viewModelScope.launch(Dispatchers.IO) {
+            kotlinx.coroutines.delay(2000L)
+            syncLibrary(showToast = false)
+        }
 
         // Autonomous background poll: continually checks Zine folders every 30 seconds
         viewModelScope.launch(Dispatchers.IO) {
+            kotlinx.coroutines.delay(30_000L)
             while (isActive) {
-                kotlinx.coroutines.delay(30_000L)
                 syncLibrary(showToast = false)
+                kotlinx.coroutines.delay(30_000L)
             }
         }
     }

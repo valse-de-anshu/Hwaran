@@ -74,9 +74,15 @@ object VideoExternalSingleImport {
             lastModified = sourceDoc.lastModified(),
             contentType = 2, // Video
             boxPurpose = effectiveBoxPurpose,
-            boxLabel = null,
-            genre = finalTags,
-            workspace = existingManga?.workspace ?: workspace
+            boxLabel = existingManga?.boxLabel,
+            genre = finalTags ?: existingManga?.genre,
+            workspace = existingManga?.workspace ?: workspace,
+            lastReadTitle = existingManga?.lastReadTitle,
+            lastReadPage = existingManga?.lastReadPage,
+            openCount = existingManga?.openCount ?: 0,
+            isFavorite = existingManga?.isFavorite ?: false,
+            position = existingManga?.position ?: 0,
+            isLocked = existingManga?.isLocked ?: false
         )
 
         val mangaId = repository.insertManga(mangaToInsert)
@@ -97,10 +103,10 @@ object VideoExternalSingleImport {
                     mangaId = mangaId,
                     title = episodeTitle,
                     folderUri = videoFile.uri.toString(),
-                    position = index
+                    position = 0
                 )
             } else {
-                existingChapter.copy(mangaId = mangaId, title = episodeTitle, position = index)
+                existingChapter.copy(mangaId = mangaId, title = episodeTitle)
             }
         }
 
