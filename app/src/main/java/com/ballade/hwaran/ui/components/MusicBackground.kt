@@ -20,7 +20,7 @@ fun MusicBackground(
     currentChapter: ChapterEntity?,
     currentManga: MangaEntity?,
     modifier: Modifier = Modifier,
-    blurRadius: androidx.compose.ui.unit.Dp = 100.dp,
+    blurRadius: androidx.compose.ui.unit.Dp = 24.dp,
     overlayAlpha: Float = 0.5f
 ) {
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
@@ -31,6 +31,7 @@ fun MusicBackground(
                         ?: currentManga?.coverPath?.takeIf { it.isNotBlank() }
                         ?: currentChapter?.folderUri?.takeIf { it.endsWith(".jpg", true) || it.endsWith(".jpeg", true) || it.endsWith(".png", true) || it.endsWith(".webp", true) }
                 )
+                .size(96, 96)
                 .crossfade(true)
                 .build(),
             contentDescription = null,

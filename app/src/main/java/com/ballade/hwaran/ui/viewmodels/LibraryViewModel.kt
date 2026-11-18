@@ -134,72 +134,18 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     init {
-        // Self-heal covers in background with a delay so startup UI renders smoothly
+        // Lightweight cover path normalization in background with low priority
         viewModelScope.launch(Dispatchers.IO) {
-            kotlinx.coroutines.delay(8000L)
+            kotlinx.coroutines.delay(10000L)
             try {
                 android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
-                val app = getApplication<Application>()
                 val mediaDao = database.libraryDao()
                 val allItems = mediaDao.getAllMangaList()
                 allItems.forEach { manga ->
                     var updated = false
                     var newCover = manga.coverPath
 
-                    // 1. If coverPath is a content:// URI, attempt to cache it locally
-                    if (newCover.startsWith("content://")) {
-                        val cached = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(
-                            context = app,
-                            sourceUri = Uri.parse(newCover),
-                            prefix = if (manga.contentType == 3) "music" else "cover",
-                            title = manga.title
-                        )
-                        if (cached != null) {
-                            newCover = cached
-                            updated = true
-                        }
-                    }
-
-                    // 3. For toon / manga (contentType == 0) or video (contentType == 2):
-                    // If coverPath is empty, check if there is a legitimate dedicated cover in parent directory.
-                    if ((manga.contentType == 0 || manga.contentType == 2) && newCover.isEmpty()) {
-                        val folderDoc = if (manga.parentUri.startsWith("content://")) {
-                            try { DocumentFile.fromTreeUri(app, Uri.parse(manga.parentUri)) } catch (e: Exception) { null }
-                        } else if (manga.parentUri.isNotEmpty()) {
-                            val f = File(manga.parentUri)
-                            if (f.exists()) DocumentFile.fromFile(f) else null
-                        } else null
-
-                        if (folderDoc != null && folderDoc.exists() && folderDoc.isDirectory) {
-                            val childFiles = folderDoc.listFiles() ?: emptyArray()
-                            val dedicatedDoc = if (manga.contentType == 0) {
-                                com.ballade.hwaran.data.importer.toon.ToonImportUtils.findCoverInFiles(childFiles)
-                            } else {
-                                val imageFiles = childFiles.filter { file ->
-                                    !file.isDirectory && com.ballade.hwaran.data.importer.video.VideoImportUtils.coverExtensions.any { ext ->
-                                        file.name?.lowercase()?.endsWith(".$ext") == true
-                                    }
-                                }.toTypedArray()
-                                com.ballade.hwaran.data.importer.video.VideoImportUtils.findCoverInFiles(imageFiles)
-                            }
-
-                            if (dedicatedDoc != null) {
-                                val prefix = if (manga.contentType == 0) "toon" else "video"
-                                val cached = com.ballade.hwaran.core.util.CoverCacheManager.cacheCoverFromUri(
-                                    context = app,
-                                    sourceUri = dedicatedDoc.uri,
-                                    prefix = prefix,
-                                    title = manga.title
-                                )
-                                if (cached != null && cached != newCover) {
-                                    newCover = cached
-                                    updated = true
-                                }
-                            }
-                        }
-                    }
-
-                    // 4. If cached file path does not exist on disk, clear it
+                    // If cached file path does not exist on disk, clear it
                     if (newCover.isNotEmpty() && newCover.startsWith("/data/") && !File(newCover).exists()) {
                         newCover = ""
                         updated = true
@@ -214,20 +160,11 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             }
         }
 
-        // Auto-sync library on startup after UI stabilizes
+        // Single auto-sync on startup after UI fully stabilizes
         viewModelScope.launch(Dispatchers.IO) {
-            kotlinx.coroutines.delay(5000L)
+            kotlinx.coroutines.delay(12000L)
             android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
             syncLibrary(showToast = false)
-        }
-
-        // Autonomous background poll: continually checks Zine folders every 30 seconds
-        viewModelScope.launch(Dispatchers.IO) {
-            kotlinx.coroutines.delay(30_000L)
-            while (isActive) {
-                syncLibrary(showToast = false)
-                kotlinx.coroutines.delay(30_000L)
-            }
         }
     }
 

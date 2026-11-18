@@ -75,17 +75,6 @@ object CoverArtResolver {
                         }
                     }
 
-                    val isCoverFile: (File) -> Boolean = { file ->
-                        val n = file.name.lowercase()
-                        (n.startsWith("cover.") || n.startsWith("cover_") || n.startsWith("folder.") || n.startsWith("poster.") || n.startsWith("thumb.") || n.startsWith("illus-fpc.") || n.startsWith("artwork.")) &&
-                                (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp"))
-                    }
-                    var candidate = dir.listFiles()?.firstOrNull(isCoverFile)
-                    if (candidate != null && candidate.exists()) {
-                        parentCoverCache[parentUri] = candidate
-                        return candidate
-                    }
-
                     // Check common media image subdirectories (e.g., images/cover.jpg, img/poster.png)
                     val subDirs = listOf("images", "img", "covers", "artwork")
                     for (sub in subDirs) {
@@ -98,15 +87,10 @@ object CoverArtResolver {
                                     return directSub
                                 }
                             }
-                            val subCandidate = subFolder.listFiles()?.firstOrNull(isCoverFile)
-                            if (subCandidate != null && subCandidate.exists()) {
-                                parentCoverCache[parentUri] = subCandidate
-                                return subCandidate
-                            }
                         }
                     }
 
-                    // Check parent directory (e.g. Channel/cover.jpg or manhua/Cover.jpg)
+                    // Check parent directory directly
                     val parentDir = dir.parentFile
                     if (parentDir != null && parentDir.exists() && parentDir.isDirectory && !com.ballade.hwaran.core.metadata.ZineMetadataExtractor.isRootStorageDir(parentDir)) {
                         for (fn in fastNames) {
@@ -114,36 +98,6 @@ object CoverArtResolver {
                             if (directParent.exists()) {
                                 parentCoverCache[parentUri] = directParent
                                 return directParent
-                            }
-                        }
-                        val parentCandidate = parentDir.listFiles()?.firstOrNull(isCoverFile)
-                        if (parentCandidate != null && parentCandidate.exists()) {
-                            parentCoverCache[parentUri] = parentCandidate
-                            return parentCandidate
-                        }
-                    }
-
-                    // Fallback to first image in first chapter
-                    if (!chapters.isNullOrEmpty()) {
-                        val firstChap = chapters.firstOrNull()
-                        if (firstChap != null) {
-                            val chapPath = when {
-                                firstChap.folderUri.startsWith("file://") -> Uri.parse(firstChap.folderUri).path
-                                firstChap.folderUri.startsWith("/") -> firstChap.folderUri
-                                else -> null
-                            }
-                            if (chapPath != null) {
-                                val chapDir = File(chapPath)
-                                if (chapDir.exists() && chapDir.isDirectory) {
-                                    val firstImg = chapDir.listFiles()?.firstOrNull { f ->
-                                        val ext = f.extension.lowercase()
-                                        f.isFile && (ext == "jpg" || ext == "jpeg" || ext == "png" || ext == "webp")
-                                    }
-                                    if (firstImg != null) {
-                                        parentCoverCache[parentUri] = firstImg
-                                        return firstImg
-                                    }
-                                }
                             }
                         }
                     }

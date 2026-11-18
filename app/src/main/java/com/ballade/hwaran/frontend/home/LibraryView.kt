@@ -386,6 +386,7 @@ private fun LibraryMaterialCard(
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(coverModel)
+                            .size(360, 530)
                             .crossfade(true)
                             .build(),
                         contentDescription = manga.title,

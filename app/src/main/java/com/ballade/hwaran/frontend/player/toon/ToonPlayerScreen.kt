@@ -91,7 +91,7 @@ private fun resolveToonImageData(filePath: String): Any {
     } else if (filePath.startsWith("file://")) {
         val parsed = Uri.parse(filePath)
         val path = parsed.path
-        if (path != null && java.io.File(path).exists()) java.io.File(path) else parsed
+        if (path != null) java.io.File(path) else parsed
     } else {
         java.io.File(filePath)
     }

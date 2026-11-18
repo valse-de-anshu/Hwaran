@@ -129,12 +129,6 @@ fun ChannelVideosView(
         }
     }
 
-    val videoImageLoader = remember {
-        ImageLoader.Builder(context)
-            .components { add(VideoFrameDecoder.Factory()) }
-            .build()
-    }
-
     val hasViewsData = remember(entryMetadata.videoItems) {
         entryMetadata.videoItems.any { it.viewCount > 0L }
     }
@@ -622,11 +616,11 @@ fun ChannelVideosView(
                                     AsyncImage(
                                         model = ImageRequest.Builder(context)
                                             .data(modelData)
+                                            .size(480, 270)
                                             .crossfade(false)
                                             .memoryCacheKey(cacheKey)
                                             .diskCacheKey(cacheKey)
                                             .build(),
-                                        imageLoader = videoImageLoader,
                                         contentDescription = video.title,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier.fillMaxSize()

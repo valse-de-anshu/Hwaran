@@ -47,6 +47,8 @@ enum class ChapterSortOption(val displayName: String, val subtitle: String) {
     SHUFFLE("Shuffle", "Random order")
 }
 
+private val CHAPTER_NUMBER_REGEX = Regex("(\\d+(\\.\\d+)?)")
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ToonChaptersView(
@@ -94,10 +96,10 @@ fun ToonChaptersView(
 
         when (selectedSort) {
             ChapterSortOption.FIRST_TO_LAST -> filtered.sortedWith(compareBy {
-                Regex("(\\d+(\\.\\d+)?)").find(it.title)?.value?.toFloatOrNull() ?: Float.MAX_VALUE
+                CHAPTER_NUMBER_REGEX.find(it.title)?.value?.toFloatOrNull() ?: Float.MAX_VALUE
             })
             ChapterSortOption.LAST_TO_FIRST -> filtered.sortedWith(compareByDescending {
-                Regex("(\\d+(\\.\\d+)?)").find(it.title)?.value?.toFloatOrNull() ?: Float.MIN_VALUE
+                CHAPTER_NUMBER_REGEX.find(it.title)?.value?.toFloatOrNull() ?: Float.MIN_VALUE
             })
             ChapterSortOption.TITLE_AZ -> filtered.sortedBy { it.title.lowercase() }
             ChapterSortOption.TITLE_ZA -> filtered.sortedByDescending { it.title.lowercase() }
@@ -456,6 +458,7 @@ fun ToonChaptersView(
                                         AsyncImage(
                                             model = ImageRequest.Builder(context)
                                                 .data(thumbModel)
+                                                .size(144, 192)
                                                 .crossfade(false)
                                                 .memoryCacheKey("ch_thumb_${chapter.id}")
                                                 .build(),

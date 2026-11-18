@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.ballade.hwaran.ui.theme.LocalBatterySaving
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -18,15 +21,30 @@ fun DevilJellyBall(
     isHappy: Boolean = false
 ) {
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
+    val batterySaving = LocalBatterySaving.current
+    val shouldBeActive = !batterySaving && lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
 
-    LaunchedEffect(isHappy) {
-        webViewRef?.evaluateJavascript("if(window.setHappy) window.setHappy(${isHappy});", null)
+    LaunchedEffect(shouldBeActive) {
+        if (shouldBeActive) {
+            webViewRef?.onResume()
+        } else {
+            webViewRef?.onPause()
+        }
     }
 
-    DisposableEffect(Unit) {
+    LaunchedEffect(isHappy, shouldBeActive) {
+        if (shouldBeActive) {
+            webViewRef?.evaluateJavascript("if(window.setHappy) window.setHappy(${isHappy});", null)
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
         onDispose {
             webViewRef?.onPause()
             webViewRef?.destroy()
+            webViewRef = null
         }
     }
 
@@ -39,7 +57,7 @@ fun DevilJellyBall(
                     override fun isOpaque(): Boolean = false
                     override fun onWindowVisibilityChanged(visibility: Int) {
                         super.onWindowVisibilityChanged(visibility)
-                        if (visibility == android.view.View.VISIBLE) {
+                        if (visibility == android.view.View.VISIBLE && shouldBeActive) {
                             onResume()
                         } else {
                             onPause()
@@ -64,7 +82,9 @@ fun DevilJellyBall(
                     webChromeClient = WebChromeClient()
                     webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView?, url: String?) {
-                            view?.evaluateJavascript("if(window.setHappy) window.setHappy(${isHappy});", null)
+                            if (shouldBeActive) {
+                                view?.evaluateJavascript("if(window.setHappy) window.setHappy(${isHappy});", null)
+                            }
                         }
                     }
                     loadUrl("file:///android_asset/devil_jelly.html")
@@ -72,7 +92,11 @@ fun DevilJellyBall(
                 }
             },
             update = { view ->
-                view.onResume()
+                if (shouldBeActive) {
+                    view.onResume()
+                } else {
+                    view.onPause()
+                }
             },
             modifier = Modifier.fillMaxSize()
         )

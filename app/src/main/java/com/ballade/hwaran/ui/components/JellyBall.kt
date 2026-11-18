@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.*
 import androidx.compose.ui.unit.dp
 import com.ballade.hwaran.ui.theme.LocalBatterySaving
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
 import kotlin.math.*
 
@@ -55,22 +57,33 @@ fun JellyBall(
     var blushActive by remember { mutableStateOf(false) }
     var shiverOffset by remember { mutableFloatStateOf(0f) }
 
-    val batterySaving = LocalBatterySaving.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
+    val isScreenActive = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
+    val batterySaving = LocalBatterySaving.current || !isScreenActive
 
-    // Breathing scale: hardware-accelerated infinite transition
+    // Breathing scale: hardware-accelerated infinite transition (dormant when backgrounded or battery saving)
     val breathingTransition = rememberInfiniteTransition(label = "jelly_breathing")
-    val breathScaleX by breathingTransition.animateFloat(
-        initialValue = 0.985f,
-        targetValue = 1.015f,
-        animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
-        label = "breathX"
-    )
-    val breathScaleY by breathingTransition.animateFloat(
-        initialValue = 1.015f,
-        targetValue = 0.985f,
-        animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
-        label = "breathY"
-    )
+    val breathScaleX by if (batterySaving) {
+        remember { mutableFloatStateOf(1f) }
+    } else {
+        breathingTransition.animateFloat(
+            initialValue = 0.985f,
+            targetValue = 1.015f,
+            animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+            label = "breathX"
+        )
+    }
+    val breathScaleY by if (batterySaving) {
+        remember { mutableFloatStateOf(1f) }
+    } else {
+        breathingTransition.animateFloat(
+            initialValue = 1.015f,
+            targetValue = 0.985f,
+            animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+            label = "breathY"
+        )
+    }
 
     // Swirl — suspended in battery save mode (zero GPU cost)
     val swirlTransition = rememberInfiniteTransition(label = "swirl")
@@ -82,7 +95,7 @@ fun JellyBall(
             targetValue = 360f,
             animationSpec = infiniteRepeatable(tween(25000, easing = LinearEasing)),
             label = "swirl"
-        ).let { state -> remember { state } }
+        )
     }
 
     var isLaughing by remember { mutableStateOf(false) }
@@ -285,6 +298,7 @@ fun JellyBall(
                     transformOrigin = TransformOrigin(0.5f, 1.0f)
                 }
         ) {
+            val ovalClipPath = remember { Path() }
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val r = size.width / 2
 
@@ -326,7 +340,9 @@ fun JellyBall(
                 )
 
                 // c. Internal Smoke
-                clipPath(Path().apply { addOval(Rect(Offset.Zero, size)) }) {
+                ovalClipPath.reset()
+                ovalClipPath.addOval(Rect(Offset.Zero, size))
+                clipPath(ovalClipPath) {
                     rotate(swirlRotation) {
                         drawCircle(
                             brush = Brush.radialGradient(

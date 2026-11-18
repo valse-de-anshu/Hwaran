@@ -204,22 +204,12 @@ class MainActivity : ComponentActivity() {
                         if (isReady || shouldNavigateToMusic) {
                             Box(modifier = Modifier.fillMaxSize()) {
                                 // Layer 1: Theme Gradient / Solid Color Background
-                                androidx.compose.animation.AnimatedContent(
-                                    targetState = baseAppGradient,
-                                    transitionSpec = {
-                                        androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(300)).togetherWith(
-                                            androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(300))
-                                        )
-                                    },
-                                    label = "bg_gradient_animation"
-                                ) { gradient ->
-                                    val bgSolid = MaterialTheme.colorScheme.background
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .then(if (gradient != null) Modifier.background(gradient) else Modifier.background(bgSolid))
-                                    )
-                                }
+                                val bgSolid = MaterialTheme.colorScheme.background
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .then(if (baseAppGradient != null) Modifier.background(baseAppGradient) else Modifier.background(bgSolid))
+                                )
 
                                 val startDestination = remember { 
                                     if (hasSeenIntro || shouldNavigateToMusic) Screen.Home.route else Screen.Intro.route 

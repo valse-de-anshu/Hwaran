@@ -629,6 +629,7 @@ private fun BannerCarouselSection(
                 AsyncImage(
                     model = ImageRequest.Builder(context)
                         .data(banners[page])
+                        .size(740, 235)
                         .memoryCacheKey(banners[page])
                         .crossfade(false)
                         .build(),
@@ -894,6 +895,7 @@ private fun ContinueWatchingSection(
                         AsyncImage(
                             model = ImageRequest.Builder(context)
                                 .data(item.coverModel)
+                                .size(420, 600)
                                 .crossfade(true)
                                 .build(),
                             contentDescription = item.displayTitle,
@@ -1064,6 +1066,7 @@ private fun RecentlyAddedSection(
                                 AsyncImage(
                                     model = ImageRequest.Builder(context)
                                         .data(coverModel)
+                                        .size(330, 480)
                                         .crossfade(true)
                                         .build(),
                                     contentDescription = manga.title,
@@ -1364,6 +1367,7 @@ private fun RecentlyAddedSheet(
                                         AsyncImage(
                                             model = ImageRequest.Builder(context)
                                                 .data(coverModel)
+                                                .size(330, 480)
                                                 .crossfade(true)
                                                 .build(),
                                             contentDescription = manga.title,

@@ -138,12 +138,6 @@ fun SeriesRelatedView(
         }
     }
 
-    val videoImageLoader = remember {
-        ImageLoader.Builder(context)
-            .components { add(VideoFrameDecoder.Factory()) }
-            .build()
-    }
-
     val hasViewsData = remember(entryMetadata.videoItems) {
         entryMetadata.videoItems.any { it.viewCount > 0L }
     }
@@ -910,11 +904,11 @@ fun SeriesRelatedView(
                                         AsyncImage(
                                             model = ImageRequest.Builder(context)
                                                 .data(modelData)
+                                                .size(480, 270)
                                                 .crossfade(false)
                                                 .memoryCacheKey(cacheKey)
                                                 .diskCacheKey(cacheKey)
                                                 .build(),
-                                            imageLoader = videoImageLoader,
                                             contentDescription = video.title,
                                             contentScale = ContentScale.Crop,
                                             modifier = Modifier.fillMaxSize()
@@ -1278,6 +1272,7 @@ fun SeriesRelatedView(
                                             AsyncImage(
                                                 model = ImageRequest.Builder(context)
                                                     .data(boxCoverModel)
+                                                    .size(204, 288)
                                                     .crossfade(true)
                                                     .build(),
                                                 contentDescription = boxItem.title,

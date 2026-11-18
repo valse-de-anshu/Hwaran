@@ -111,11 +111,6 @@ fun SeriesDescriptionView(
     onDeleteManga: () -> Unit
 ) {
     val context = LocalContext.current
-    val videoImageLoader = remember(context) {
-        ImageLoader.Builder(context)
-            .components { add(VideoFrameDecoder.Factory()) }
-            .build()
-    }
     val CardBg = MaterialTheme.colorScheme.surface
     val TextMuted = MaterialTheme.colorScheme.onSurfaceVariant
 
@@ -1067,11 +1062,11 @@ fun SeriesDescriptionView(
                                 AsyncImage(
                                     model = ImageRequest.Builder(context)
                                         .data(modelData)
+                                        .size(480, 270)
                                         .crossfade(false)
                                         .memoryCacheKey(cacheKey)
                                         .diskCacheKey(cacheKey)
                                         .build(),
-                                    imageLoader = videoImageLoader,
                                     contentDescription = video.title,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()

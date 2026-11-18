@@ -36,6 +36,9 @@ import java.util.UUID
 
 val AppImportScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+private val CHAPTER_NUMBER_REGEX = Regex("(\\d+(\\.\\d+)?)")
+private val DIGIT_REGEX = Regex("\\d+")
+
 class DescriptionViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
     private val libraryDao = database.libraryDao()
@@ -200,13 +203,15 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                     libraryDao.getMangaById(mangaId)?.contentType ?: 0
                 }
                 trackDao.getChaptersForManga(mangaId).collect { list ->
-                    val sortedList = list.sortedWith(compareBy<ChapterEntity> { 
-                        Regex("(\\d+(\\.\\d+)?)").find(it.title)?.value?.toFloat() ?: Float.MAX_VALUE 
-                    }.thenBy {
-                        it.title.replace(Regex("\\d+")) { matchResult ->
-                            matchResult.value.padStart(10, '0')
-                        }
-                    })
+                    val sortedList = withContext(Dispatchers.Default) {
+                        list.sortedWith(compareBy<ChapterEntity> { 
+                            CHAPTER_NUMBER_REGEX.find(it.title)?.value?.toFloatOrNull() ?: Float.MAX_VALUE 
+                        }.thenBy {
+                            it.title.replace(DIGIT_REGEX) { matchResult ->
+                                matchResult.value.padStart(10, '0')
+                            }
+                        })
+                    }
                     _chapters.value = sortedList
                     // Background scan for missing thumbnails/durations in video/music mode
                     val type = _manga.value?.contentType ?: 0
@@ -231,91 +236,25 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
         missing.forEach { scanningChapters.add(it.id) }
 
         AppImportScope.launch {
-            missing.forEach { chapter ->
-                try {
-                    var duration = chapter.duration
-                    var thumbUri = chapter.thumbnailUri
-                    var artist = chapter.artist
+            val batch = mutableListOf<ChapterEntity>()
+            try {
+                missing.forEach { chapter ->
+                    try {
+                        var duration = chapter.duration
+                        var thumbUri = chapter.thumbnailUri
+                        var artist = chapter.artist
 
-                    // Step 1: Always try the OS-level thumbnail first (API 29+).
-                    // This is the EXACT same source the system file manager uses,
-                    // so thumbnails will match what users see outside the app.
-                    if (thumbUri == null && chapter.folderUri.startsWith("content://") && contentType == 2) {
-                        try {
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                                val bitmap = getApplication<Application>().contentResolver.loadThumbnail(
-                                    Uri.parse(chapter.folderUri),
-                                    android.util.Size(640, 360),
-                                    null
-                                )
-                                val tmpFile = File(getApplication<Application>().cacheDir, "thumb_${chapter.id}.tmp")
-                                val thumbFile = File(getApplication<Application>().cacheDir, "thumb_${chapter.id}_v2.jpg")
-                                FileOutputStream(tmpFile).use { out ->
-                                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
-                                }
-                                tmpFile.renameTo(thumbFile)
-                                thumbUri = thumbFile.absolutePath
-                            }
-                        } catch (_: Exception) {}
-                    }
-
-                    // Step 2: MediaMetadataRetriever for duration + embedded art/frame
-                    if (duration == 0L || thumbUri == null) {
-                        val retriever = MediaMetadataRetriever()
-                        try {
-                            if (chapter.folderUri.startsWith("content://")) {
-                                val uri = Uri.parse(chapter.folderUri)
-                                val fd = getApplication<Application>().contentResolver.openFileDescriptor(uri, "r")
-                                if (fd != null) {
-                                    retriever.setDataSource(fd.fileDescriptor)
-                                    fd.close() // Safe to close after setDataSource
-                                } else {
-                                    retriever.setDataSource(getApplication(), uri)
-                                }
-                            } else {
-                                val file = File(chapter.folderUri)
-                                val targetPath = if (file.exists() && file.isDirectory) {
-                                    val childFiles = file.listFiles()
-                                    val target = childFiles?.firstOrNull { f ->
-                                        val name = f.name.lowercase()
-                                        if (contentType == 2) {
-                                            name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".avi") || name.endsWith(".webm") || name.endsWith(".m4v") || name.endsWith(".3gp") || name.endsWith(".mov") || name.endsWith(".flv")
-                                        } else {
-                                            name.endsWith(".mp3") || name.endsWith(".flac") || name.endsWith(".m4a") || name.endsWith(".wav") || name.endsWith(".ogg") || name.endsWith(".aac")
-                                        }
-                                    }
-                                    target?.absolutePath ?: chapter.folderUri
-                                } else {
-                                    chapter.folderUri
-                                }
-                                retriever.setDataSource(targetPath)
-                            }
-
-                            val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                            duration = durationStr?.toLongOrNull() ?: 0L
-
-                            if (contentType == 1 && artist.isNullOrBlank()) {
-                                artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
-                                    ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
-                            }
-
-                            if (thumbUri == null) {
-                                // Step 3: Embedded poster art (MKV/MP4/MP3 cover image)
-                                val bitmap = retriever.embeddedPicture?.let {
-                                    BitmapFactory.decodeByteArray(it, 0, it.size)
-                                } ?: run {
-                                    // Step 4: Mid-video frame as final fallback (for video only)
-                                    // IMPORTANT: getFrameAtTime takes MICROSECONDS, but duration is in MILLISECONDS.
-                                    // For very long videos (>1hr), seek to 5s mark to avoid OOM.
-                                    if (contentType == 2 && duration > 0) {
-                                        val seekMs = if (duration > 3_600_000L) 5_000L else duration / 2L
-                                        val seekUs = seekMs * 1_000L
-                                        retriever.getFrameAtTime(seekUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                                            ?: retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                                    } else null
-                                }
-
-                                if (bitmap != null) {
+                        // Step 1: Always try the OS-level thumbnail first (API 29+).
+                        // This is the EXACT same source the system file manager uses,
+                        // so thumbnails will match what users see outside the app.
+                        if (thumbUri == null && chapter.folderUri.startsWith("content://") && contentType == 2) {
+                            try {
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                    val bitmap = getApplication<Application>().contentResolver.loadThumbnail(
+                                        Uri.parse(chapter.folderUri),
+                                        android.util.Size(640, 360),
+                                        null
+                                    )
                                     val tmpFile = File(getApplication<Application>().cacheDir, "thumb_${chapter.id}.tmp")
                                     val thumbFile = File(getApplication<Application>().cacheDir, "thumb_${chapter.id}_v2.jpg")
                                     FileOutputStream(tmpFile).use { out ->
@@ -324,18 +263,99 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                                     tmpFile.renameTo(thumbFile)
                                     thumbUri = thumbFile.absolutePath
                                 }
-                            }
-                        } finally {
-                            retriever.release()
+                            } catch (_: Exception) {}
                         }
-                    }
 
-                    trackDao.insertChapter(chapter.copy(duration = duration, thumbnailUri = thumbUri, artist = artist))
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                } finally {
-                    scanningChapters.remove(chapter.id)
+                        // Step 2: MediaMetadataRetriever for duration + embedded art/frame
+                        if (duration == 0L || thumbUri == null) {
+                            val retriever = MediaMetadataRetriever()
+                            try {
+                                if (chapter.folderUri.startsWith("content://")) {
+                                    val uri = Uri.parse(chapter.folderUri)
+                                    val fd = getApplication<Application>().contentResolver.openFileDescriptor(uri, "r")
+                                    if (fd != null) {
+                                        retriever.setDataSource(fd.fileDescriptor)
+                                        fd.close() // Safe to close after setDataSource
+                                    } else {
+                                        retriever.setDataSource(getApplication(), uri)
+                                    }
+                                } else {
+                                    val file = File(chapter.folderUri)
+                                    val targetPath = if (file.exists() && file.isDirectory) {
+                                        val childFiles = file.listFiles()
+                                        val target = childFiles?.firstOrNull { f ->
+                                            val name = f.name.lowercase()
+                                            if (contentType == 2) {
+                                                name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".avi") || name.endsWith(".webm") || name.endsWith(".m4v") || name.endsWith(".3gp") || name.endsWith(".mov") || name.endsWith(".flv")
+                                            } else {
+                                                name.endsWith(".mp3") || name.endsWith(".flac") || name.endsWith(".m4a") || name.endsWith(".wav") || name.endsWith(".ogg") || name.endsWith(".aac")
+                                            }
+                                        }
+                                        target?.absolutePath ?: chapter.folderUri
+                                    } else {
+                                        chapter.folderUri
+                                    }
+                                    retriever.setDataSource(targetPath)
+                                }
+
+                                val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                duration = durationStr?.toLongOrNull() ?: 0L
+
+                                if (contentType == 1 && artist.isNullOrBlank()) {
+                                    artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                                        ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
+                                }
+
+                                if (thumbUri == null) {
+                                    // Step 3: Embedded poster art (MKV/MP4/MP3 cover image)
+                                    val bitmap = retriever.embeddedPicture?.let {
+                                        BitmapFactory.decodeByteArray(it, 0, it.size)
+                                    } ?: run {
+                                        // Step 4: Mid-video frame as final fallback (for video only)
+                                        // IMPORTANT: getFrameAtTime takes MICROSECONDS, but duration is in MILLISECONDS.
+                                        // For very long videos (>1hr), seek to 5s mark to avoid OOM.
+                                        if (contentType == 2 && duration > 0) {
+                                            val seekMs = if (duration > 3_600_000L) 5_000L else duration / 2L
+                                            val seekUs = seekMs * 1_000L
+                                            retriever.getFrameAtTime(seekUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                                                ?: retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                                        } else null
+                                    }
+
+                                    if (bitmap != null) {
+                                        val tmpFile = File(getApplication<Application>().cacheDir, "thumb_${chapter.id}.tmp")
+                                        val thumbFile = File(getApplication<Application>().cacheDir, "thumb_${chapter.id}_v2.jpg")
+                                        FileOutputStream(tmpFile).use { out ->
+                                            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                                        }
+                                        tmpFile.renameTo(thumbFile)
+                                        thumbUri = thumbFile.absolutePath
+                                    }
+                                }
+                            } finally {
+                                retriever.release()
+                            }
+                        }
+
+                        if (duration != chapter.duration || thumbUri != chapter.thumbnailUri || artist != chapter.artist) {
+                            batch.add(chapter.copy(duration = duration, thumbnailUri = thumbUri, artist = artist))
+                            if (batch.size >= 8) {
+                                val toSave = batch.toList()
+                                batch.clear()
+                                trackDao.insertChapters(toSave)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    } finally {
+                        scanningChapters.remove(chapter.id)
+                    }
                 }
+                if (batch.isNotEmpty()) {
+                    trackDao.insertChapters(batch)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
