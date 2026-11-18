@@ -1,5 +1,6 @@
 package com.ballade.hwaran.frontend.home
 
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.activity.compose.BackHandler
 import android.Manifest
 import android.content.pm.PackageManager
@@ -47,13 +48,7 @@ import com.ballade.hwaran.ui.components.WobblySnakeRing
 import com.ballade.hwaran.ui.components.LiquidNavigation
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.SyncAlt
-import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material.icons.automirrored.rounded.HelpOutline
 import androidx.compose.material3.*
@@ -737,31 +732,70 @@ fun HomeScreen(
                 pendingLockManga = null
                 newLockPasswordInput = ""
             },
-            title = { Text("Set Passcode to Lock Media", color = Color.White, fontWeight = FontWeight.Bold) },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .clip(RoundedCornerShape(28.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(28.dp)),
+            containerColor = Color(0xFF0F0E17),
+            shape = RoundedCornerShape(28.dp),
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF9333EA).copy(alpha = 0.20f))
+                            .border(1.dp, Color(0xFFA855F7).copy(alpha = 0.35f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Lock,
+                            contentDescription = null,
+                            tint = Color(0xFFC084FC),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Column {
+                        Text("Set Vault Password", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "To lock \"${pendingLockManga?.title ?: "media"}\", create a passcode first:",
+                            color = Color.White.copy(alpha = 0.55f),
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            },
             text = {
-                Column {
-                    Text(
-                        text = "To lock \"${pendingLockManga?.title ?: "media"}\", please create a library passcode first:",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                Column(modifier = Modifier.padding(top = 4.dp)) {
                     OutlinedTextField(
                         value = newLockPasswordInput,
                         onValueChange = { newLockPasswordInput = it },
-                        label = { Text("New Passcode", color = Color.White.copy(alpha = 0.5f)) },
+                        placeholder = { Text("New Passcode", color = Color.White.copy(alpha = 0.35f), fontSize = 14.sp) },
                         singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color(glowColor),
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
-                        )
+                            focusedBorderColor = Color(0xFFA855F7),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+                            focusedContainerColor = Color.White.copy(alpha = 0.04f),
+                            unfocusedContainerColor = Color.White.copy(alpha = 0.04f),
+                            cursorColor = Color(0xFFC084FC)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             },
             confirmButton = {
-                TextButton(
+                Surface(
                     onClick = {
                         if (newLockPasswordInput.isNotBlank()) {
                             val pass = newLockPasswordInput
@@ -775,23 +809,42 @@ fun HomeScreen(
                             newLockPasswordInput = ""
                             pendingLockManga = null
                         }
-                    }
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF9333EA).copy(alpha = 0.25f),
+                    border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.5f)),
+                    modifier = Modifier.height(42.dp)
                 ) {
-                    Text("Set & Lock", color = Color(glowColor), fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text("Set & Lock", color = Color(0xFFC084FC), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
                 }
             },
             dismissButton = {
-                TextButton(
+                Surface(
                     onClick = {
                         showSetPasswordForLockDialog = false
                         pendingLockManga = null
                         newLockPasswordInput = ""
-                    }
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.White.copy(alpha = 0.06f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                    modifier = Modifier.height(42.dp)
                 ) {
-                    Text("Cancel", color = Color.White.copy(alpha = 0.6f))
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text("Cancel", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    }
                 }
-            },
-            containerColor = Color(0xFF1E222B)
+            }
         )
     }
 
@@ -803,58 +856,138 @@ fun HomeScreen(
                 unlockPasswordInputInHome = ""
                 showIncorrectPasswordInHome = false
             },
-            title = { Text("Unlock Item", color = Color.White, fontWeight = FontWeight.Bold) },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .clip(RoundedCornerShape(28.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(28.dp)),
+            containerColor = Color(0xFF0F0E17),
+            shape = RoundedCornerShape(28.dp),
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF9333EA).copy(alpha = 0.20f))
+                            .border(1.dp, Color(0xFFA855F7).copy(alpha = 0.35f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Lock,
+                            contentDescription = null,
+                            tint = Color(0xFFC084FC),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Column {
+                        Text("Unlock Item", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = mangaToUnlockInHome?.title ?: "Protected Item",
+                            color = Color.White.copy(alpha = 0.55f),
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            },
             text = {
-                Column {
-                    Text(
-                        text = mangaToUnlockInHome?.title ?: "",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 13.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                Column(modifier = Modifier.padding(top = 4.dp)) {
                     OutlinedTextField(
                         value = unlockPasswordInputInHome,
-                        onValueChange = { unlockPasswordInputInHome = it },
-                        label = { Text("Password", color = Color.White.copy(alpha = 0.5f)) },
+                        onValueChange = {
+                            unlockPasswordInputInHome = it
+                            if (showIncorrectPasswordInHome) showIncorrectPasswordInHome = false
+                        },
+                        placeholder = { Text("Enter Passcode", color = Color.White.copy(alpha = 0.35f), fontSize = 14.sp) },
                         singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color(glowColor),
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
-                        )
+                            focusedBorderColor = Color(0xFFA855F7),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+                            focusedContainerColor = Color.White.copy(alpha = 0.04f),
+                            unfocusedContainerColor = Color.White.copy(alpha = 0.04f),
+                            cursorColor = Color(0xFFC084FC)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
                     )
                     if (showIncorrectPasswordInHome) {
-                        Text("Incorrect password", color = Color(0xFFE57373), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.ErrorOutline,
+                                contentDescription = null,
+                                tint = Color(0xFFF87171),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = "Incorrect passcode. Please try again.",
+                                color = Color(0xFFF87171),
+                                fontSize = 12.sp
+                            )
+                        }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    if (unlockPasswordInputInHome == libraryPassword) {
-                        val action = pendingActionInHome
+                Surface(
+                    onClick = {
+                        if (unlockPasswordInputInHome == libraryPassword) {
+                            val action = pendingActionInHome
+                            mangaToUnlockInHome = null
+                            pendingActionInHome = null
+                            unlockPasswordInputInHome = ""
+                            showIncorrectPasswordInHome = false
+                            action?.invoke()
+                        } else {
+                            showIncorrectPasswordInHome = true
+                        }
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF9333EA).copy(alpha = 0.25f),
+                    border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.5f)),
+                    modifier = Modifier.height(42.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text("Unlock", color = Color(0xFFC084FC), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+            },
+            dismissButton = {
+                Surface(
+                    onClick = {
                         mangaToUnlockInHome = null
                         pendingActionInHome = null
                         unlockPasswordInputInHome = ""
                         showIncorrectPasswordInHome = false
-                        action?.invoke()
-                    } else {
-                        showIncorrectPasswordInHome = true
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.White.copy(alpha = 0.06f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                    modifier = Modifier.height(42.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text("Cancel", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     }
-                }) {
-                    Text("Unlock", color = Color(glowColor), fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    mangaToUnlockInHome = null
-                    pendingActionInHome = null
-                    unlockPasswordInputInHome = ""
-                    showIncorrectPasswordInHome = false
-                }) {
-                    Text("Cancel", color = Color.White.copy(alpha = 0.5f))
                 }
             }
         )

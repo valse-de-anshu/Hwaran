@@ -13,6 +13,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.*
@@ -89,42 +91,106 @@ fun LockSelectionScreen(
                         showPasswordDialog = false 
                         passwordInput = ""
                     },
-                    title = { Text("Set Library Password", color = Color.White, fontWeight = FontWeight.Bold) },
+                    properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+                    modifier = Modifier
+                        .fillMaxWidth(0.92f)
+                        .clip(RoundedCornerShape(28.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(28.dp)),
+                    containerColor = Color(0xFF0F0E17),
+                    shape = RoundedCornerShape(28.dp),
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF9333EA).copy(alpha = 0.20f))
+                                    .border(1.dp, Color(0xFFA855F7).copy(alpha = 0.35f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Lock,
+                                    contentDescription = null,
+                                    tint = Color(0xFFC084FC),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Column {
+                                Text("Set Vault Password", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text("Create a password to protect your vault", color = Color.White.copy(alpha = 0.55f), fontSize = 12.sp)
+                            }
+                        }
+                    },
                     text = {
-                        OutlinedTextField(
-                            value = passwordInput,
-                            onValueChange = { passwordInput = it },
-                            label = { Text("New Password", color = Color.Gray) },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = PrimaryPurple,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                        Column(modifier = Modifier.padding(top = 4.dp)) {
+                            OutlinedTextField(
+                                value = passwordInput,
+                                onValueChange = { passwordInput = it },
+                                placeholder = { Text("New Password", color = Color.White.copy(alpha = 0.35f), fontSize = 14.sp) },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedBorderColor = Color(0xFFA855F7),
+                                    unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+                                    focusedContainerColor = Color.White.copy(alpha = 0.04f),
+                                    unfocusedContainerColor = Color.White.copy(alpha = 0.04f),
+                                    cursorColor = Color(0xFFC084FC)
+                                ),
+                                modifier = Modifier.fillMaxWidth()
                             )
-                        )
+                        }
                     },
                     confirmButton = {
-                        TextButton(onClick = {
-                            if (passwordInput.isNotBlank()) {
-                                settingsViewModel.setLibraryPassword(passwordInput)
-                                settingsViewModel.setIsLibraryLocked(true)
-                                showPasswordDialog = false
-                                onNavigateBack()
+                        Surface(
+                            onClick = {
+                                if (passwordInput.isNotBlank()) {
+                                    settingsViewModel.setLibraryPassword(passwordInput)
+                                    settingsViewModel.setIsLibraryLocked(true)
+                                    showPasswordDialog = false
+                                    onNavigateBack()
+                                }
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFF9333EA).copy(alpha = 0.25f),
+                            border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.5f)),
+                            modifier = Modifier.height(42.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text("Set Password", color = Color(0xFFC084FC), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
-                        }) {
-                            Text("Set Password", color = PrimaryPurple, fontWeight = FontWeight.Bold)
                         }
                     },
                     dismissButton = {
-                        TextButton(onClick = { 
-                            showPasswordDialog = false 
-                            passwordInput = ""
-                        }) {
-                            Text("Cancel", color = Color.Gray)
+                        Surface(
+                            onClick = { 
+                                showPasswordDialog = false 
+                                passwordInput = ""
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color.White.copy(alpha = 0.06f),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                            modifier = Modifier.height(42.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text("Cancel", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            }
                         }
-                    },
-                    containerColor = MaterialTheme.colorScheme.surface
+                    }
                 )
             }
 

@@ -2,7 +2,6 @@ package com.ballade.hwaran.frontend.player.music
 
 import androidx.compose.material.icons.rounded.MusicNote
 import com.ballade.hwaran.ui.components.DeleteConfirmationDialog
-import com.ballade.hwaran.ui.components.DescriptionTopBarButton
 
 import android.content.Intent
 import android.net.Uri
@@ -215,14 +214,12 @@ fun MusicPlayerScreen(
         )
 if (isLandscape) {
     Box(modifier = Modifier.fillMaxSize()) {
-        DescriptionTopBarButton(
-            icon = Icons.Rounded.KeyboardArrowDown,
-            contentDescription = "Close",
+        IconButton(
             onClick = onNavigateBack,
-            size = 44.dp,
-            iconSize = 28.dp,
             modifier = Modifier.align(Alignment.TopStart).padding(16.dp).statusBarsPadding()
-        )
+        ) {
+            Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(36.dp))
+        }
 
         Row(
             modifier = Modifier
@@ -552,22 +549,14 @@ if (isLandscape) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                DescriptionTopBarButton(
-                    icon = Icons.Rounded.KeyboardArrowDown,
-                    contentDescription = "Close",
-                    onClick = onNavigateBack,
-                    size = 44.dp,
-                    iconSize = 28.dp
-                )
+                IconButton(onClick = onNavigateBack) {
+                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(36.dp))
+                }
                 
                 Box {
-                    DescriptionTopBarButton(
-                        icon = Icons.Rounded.MoreVert,
-                        contentDescription = "Menu",
-                        onClick = { showMenu = true },
-                        size = 44.dp,
-                        iconSize = 22.dp
-                    )
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Rounded.MoreVert, contentDescription = "Menu", tint = Color.White)
+                    }
                     if (showMenu) {
                         HwaranDropdownMenu(
                             expanded = showMenu,

@@ -21,9 +21,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.*
 import com.ballade.hwaran.ui.components.DeleteConfirmationDialog
 import com.ballade.hwaran.ui.theme.AVAILABLE_APP_THEMES
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -957,6 +960,7 @@ fun SecurityContent(
     var passwordInput by remember { mutableStateOf("") }
     var isSettingNewPassword by remember { mutableStateOf(false) }
     var isResettingPassword by remember { mutableStateOf(false) }
+    var pendingVaultNav by remember { mutableStateOf(false) }
     var showIncorrectPassword by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
@@ -971,25 +975,45 @@ fun SecurityContent(
 
         AlertDialog(
             onDismissRequest = { showActivityLogsDialog = false },
-            shape = RoundedCornerShape(20.dp),
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .clip(RoundedCornerShape(28.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(28.dp)),
+            containerColor = Color(0xFF0F0E17),
+            shape = RoundedCornerShape(28.dp),
             title = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Recent Activity Log", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF9333EA).copy(alpha = 0.20f),
-                        border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.35f))
-                    ) {
+                    Column {
                         Text(
-                            "${recentEvents.size} events",
-                            color = Color(0xFFC084FC),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            text = "Activity Log",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (recentEvents.isEmpty()) "No recorded events" else "${recentEvents.size} events captured",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 12.sp
+                        )
+                    }
+                    IconButton(
+                        onClick = { showActivityLogsDialog = false },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.08f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Close",
+                            tint = Color.White.copy(alpha = 0.75f),
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -999,41 +1023,41 @@ fun SecurityContent(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 32.dp),
+                            .padding(vertical = 40.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("No activity events recorded yet.", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
+                        Text("No activity events recorded yet.", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
                     }
                 } else {
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 380.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                            .heightIn(max = 420.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(recentEvents, key = { it.id }) { event ->
                             Surface(
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(16.dp),
                                 color = Color.White.copy(alpha = 0.04f),
                                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Column(modifier = Modifier.padding(10.dp)) {
+                                Column(modifier = Modifier.padding(12.dp)) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         val (badgeBg, badgeText) = when (event.eventType) {
-                                            "READ_NOVEL", "READ_TOON", "READ_BOOK" -> Color(0xFF10B981).copy(alpha = 0.18f) to Color(0xFF34D399)
-                                            "WATCH", "PLAY_VIDEO" -> Color(0xFF3B82F6).copy(alpha = 0.18f) to Color(0xFF60A5FA)
-                                            "LISTEN" -> Color(0xFF8B5CF6).copy(alpha = 0.18f) to Color(0xFFA78BFA)
-                                            "IMPORT" -> Color(0xFFF59E0B).copy(alpha = 0.18f) to Color(0xFFFBBF24)
-                                            "DELETE" -> Color(0xFFEF4444).copy(alpha = 0.18f) to Color(0xFFF87171)
-                                            else -> Color.White.copy(alpha = 0.12f) to Color.White
+                                            "READ_NOVEL", "READ_TOON", "READ_BOOK" -> Color(0xFF10B981).copy(alpha = 0.16f) to Color(0xFF34D399)
+                                            "WATCH", "PLAY_VIDEO" -> Color(0xFF3B82F6).copy(alpha = 0.16f) to Color(0xFF60A5FA)
+                                            "LISTEN" -> Color(0xFF8B5CF6).copy(alpha = 0.16f) to Color(0xFFA78BFA)
+                                            "IMPORT" -> Color(0xFFF59E0B).copy(alpha = 0.16f) to Color(0xFFFBBF24)
+                                            "DELETE" -> Color(0xFFEF4444).copy(alpha = 0.16f) to Color(0xFFF87171)
+                                            else -> Color.White.copy(alpha = 0.10f) to Color.White
                                         }
                                         Surface(
-                                            shape = RoundedCornerShape(6.dp),
+                                            shape = RoundedCornerShape(8.dp),
                                             color = badgeBg
                                         ) {
                                             Text(
@@ -1041,7 +1065,7 @@ fun SecurityContent(
                                                 color = badgeText,
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                             )
                                         }
                                         Text(
@@ -1050,21 +1074,21 @@ fun SecurityContent(
                                             fontSize = 11.sp
                                         )
                                     }
-                                    Spacer(Modifier.height(4.dp))
+                                    Spacer(Modifier.height(6.dp))
                                     Text(
                                         text = event.itemName,
                                         color = Color.White,
-                                        fontSize = 13.sp,
+                                        fontSize = 13.5.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     if (event.details.isNotBlank()) {
-                                        Spacer(Modifier.height(2.dp))
+                                        Spacer(Modifier.height(3.dp))
                                         Text(
                                             text = event.details,
-                                            color = Color.White.copy(alpha = 0.6f),
-                                            fontSize = 11.sp,
+                                            color = Color.White.copy(alpha = 0.55f),
+                                            fontSize = 11.5.sp,
                                             maxLines = 2,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -1075,136 +1099,296 @@ fun SecurityContent(
                     }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showActivityLogsDialog = false }) {
-                    Text("Close", color = Color(0xFFC084FC), fontWeight = FontWeight.SemiBold)
-                }
-            },
-            containerColor = Color(0xFF161522)
+            confirmButton = {}
         )
     }
 
     if (showWipeConfirmation) {
         AlertDialog(
             onDismissRequest = { showWipeConfirmation = false },
-            shape = RoundedCornerShape(20.dp),
-            title = { Text("Wipe All History", color = Color.White, fontWeight = FontWeight.Bold) },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .clip(RoundedCornerShape(28.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(28.dp)),
+            containerColor = Color(0xFF0F0E17),
+            shape = RoundedCornerShape(28.dp),
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFEF4444).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.DeleteForever,
+                            contentDescription = null,
+                            tint = Color(0xFFF87171),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text("Wipe All History", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                }
+            },
             text = {
                 Text(
                     text = "Do you really want to wipe all history? This will reset recent activity, continue playing/reading progress, watch timestamps, and page positions across all media.",
-                    color = Color.White.copy(alpha = 0.8f),
-                    fontSize = 13.sp
+                    color = Color.White.copy(alpha = 0.75f),
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    scope.launch(Dispatchers.IO) {
-                        database.historyDao().clearAllHistoryEvents()
-                        database.mediaDao().clearAllMediaHistory()
-                        database.trackDao().clearAllChapterProgress()
-                        withContext(Dispatchers.Main) {
-                            android.widget.Toast.makeText(context, "All history and playback progress wiped", android.widget.Toast.LENGTH_SHORT).show()
+                Surface(
+                    onClick = {
+                        scope.launch(Dispatchers.IO) {
+                            database.historyDao().clearAllHistoryEvents()
+                            database.mediaDao().clearAllMediaHistory()
+                            database.trackDao().clearAllChapterProgress()
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "All history and playback progress wiped", android.widget.Toast.LENGTH_SHORT).show()
+                            }
                         }
+                        showWipeConfirmation = false
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFFEF4444).copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.35f)),
+                    modifier = Modifier.height(42.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text("Wipe All", color = Color(0xFFF87171), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
-                    showWipeConfirmation = false
-                }) {
-                    Text("Wipe All", color = Color(0xFFF87171), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showWipeConfirmation = false }) {
-                    Text("Cancel", color = Color.Gray)
+                Surface(
+                    onClick = { showWipeConfirmation = false },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.White.copy(alpha = 0.06f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                    modifier = Modifier.height(42.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text("Cancel", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    }
                 }
-            },
-            containerColor = MaterialTheme.colorScheme.surface
+            }
         )
     }
 
     if (showPasswordDialog) {
+        val dialogTitle = when {
+            isSettingNewPassword -> "Set Vault Password"
+            isResettingPassword -> "Verify Current Password"
+            pendingVaultNav -> "Unlock Vault Items"
+            else -> "Enter Vault Password"
+        }
+        val dialogSubtitle = when {
+            isSettingNewPassword && pendingVaultNav -> "Create a password first to manage vault items"
+            isSettingNewPassword -> "Create a password to protect your private items"
+            isResettingPassword -> "Enter your current password to set a new one"
+            pendingVaultNav -> "Enter password to access your private items"
+            else -> "Enter password to update vault lock"
+        }
+
         AlertDialog(
             onDismissRequest = {
                 showPasswordDialog = false
                 passwordInput = ""
                 isSettingNewPassword = false
                 isResettingPassword = false
+                pendingVaultNav = false
                 showIncorrectPassword = false
             },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .clip(RoundedCornerShape(28.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(28.dp)),
+            containerColor = Color(0xFF0F0E17),
+            shape = RoundedCornerShape(28.dp),
             title = {
-                Text(
-                    if (isSettingNewPassword) "Set New Password"
-                    else if (isResettingPassword) "Enter Current Password"
-                    else "Enter Password",
-                    color = Color.White
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF9333EA).copy(alpha = 0.20f))
+                            .border(1.dp, Color(0xFFA855F7).copy(alpha = 0.35f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Lock,
+                            contentDescription = null,
+                            tint = Color(0xFFC084FC),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = dialogTitle,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = dialogSubtitle,
+                            color = Color.White.copy(alpha = 0.55f),
+                            fontSize = 12.sp
+                        )
+                    }
+                }
             },
             text = {
-                Column {
+                Column(modifier = Modifier.padding(top = 4.dp)) {
                     OutlinedTextField(
                         value = passwordInput,
-                        onValueChange = { passwordInput = it },
-                        label = { Text("Password", color = Color.Gray) },
+                        onValueChange = {
+                            passwordInput = it
+                            if (showIncorrectPassword) showIncorrectPassword = false
+                        },
+                        placeholder = { Text("Enter password", color = Color.White.copy(alpha = 0.35f), fontSize = 14.sp) },
                         singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        )
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(0xFFA855F7),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+                            focusedContainerColor = Color.White.copy(alpha = 0.04f),
+                            unfocusedContainerColor = Color.White.copy(alpha = 0.04f),
+                            cursorColor = Color(0xFFC084FC)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
                     )
                     if (showIncorrectPassword) {
-                        Text(
-                            "Incorrect password",
-                            color = Color(0xFFE57373),
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.ErrorOutline,
+                                contentDescription = null,
+                                tint = Color(0xFFF87171),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = "Incorrect password. Please try again.",
+                                color = Color(0xFFF87171),
+                                fontSize = 12.sp
+                            )
+                        }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    if (isSettingNewPassword) {
-                        vm.setLibraryPassword(passwordInput)
-                        showPasswordDialog = false
-                        passwordInput = ""
-                        isSettingNewPassword = false
-                    } else if (isResettingPassword) {
-                        if (passwordInput == libraryPassword) {
-                            passwordInput = ""
-                            isResettingPassword = false
-                            isSettingNewPassword = true
-                            showIncorrectPassword = false
+                Surface(
+                    onClick = {
+                        if (isSettingNewPassword) {
+                            if (passwordInput.isNotBlank()) {
+                                vm.setLibraryPassword(passwordInput)
+                                showPasswordDialog = false
+                                val shouldNav = pendingVaultNav
+                                pendingVaultNav = false
+                                passwordInput = ""
+                                isSettingNewPassword = false
+                                if (shouldNav) {
+                                    onNavigateToLockSelection()
+                                }
+                            }
+                        } else if (isResettingPassword) {
+                            if (passwordInput == libraryPassword) {
+                                passwordInput = ""
+                                isResettingPassword = false
+                                isSettingNewPassword = true
+                                showIncorrectPassword = false
+                            } else {
+                                showIncorrectPassword = true
+                            }
+                        } else if (pendingVaultNav) {
+                            if (passwordInput == libraryPassword) {
+                                showPasswordDialog = false
+                                pendingVaultNav = false
+                                passwordInput = ""
+                                showIncorrectPassword = false
+                                onNavigateToLockSelection()
+                            } else {
+                                showIncorrectPassword = true
+                            }
                         } else {
-                            showIncorrectPassword = true
+                            if (passwordInput == libraryPassword) {
+                                vm.setIsLibraryLocked(!isLibraryLocked)
+                                showPasswordDialog = false
+                                passwordInput = ""
+                                showIncorrectPassword = false
+                            } else {
+                                showIncorrectPassword = true
+                            }
                         }
-                    } else {
-                        if (passwordInput == libraryPassword) {
-                            vm.setIsLibraryLocked(!isLibraryLocked)
-                            showPasswordDialog = false
-                            passwordInput = ""
-                            showIncorrectPassword = false
-                        } else {
-                            showIncorrectPassword = true
-                        }
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF9333EA).copy(alpha = 0.25f),
+                    border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.5f)),
+                    modifier = Modifier.height(42.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = if (isSettingNewPassword) "Set Password" else "Confirm",
+                            color = Color(0xFFC084FC),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-                }) {
-                    Text(
-                        if (isSettingNewPassword) "Set" else "Confirm",
-                        color = MaterialTheme.colorScheme.primary
-                    )
                 }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    showPasswordDialog = false
-                    passwordInput = ""
-                    isSettingNewPassword = false
-                    isResettingPassword = false
-                    showIncorrectPassword = false
-                }) {
-                    Text("Cancel", color = Color.White.copy(alpha = 0.6f))
+                Surface(
+                    onClick = {
+                        showPasswordDialog = false
+                        passwordInput = ""
+                        isSettingNewPassword = false
+                        isResettingPassword = false
+                        pendingVaultNav = false
+                        showIncorrectPassword = false
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.White.copy(alpha = 0.06f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                    modifier = Modifier.height(42.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text("Cancel", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    }
                 }
-            },
-            shape = RoundedCornerShape(20.dp),
-            containerColor = Color(0xFF161522)
+            }
         )
     }
 
@@ -1267,6 +1451,9 @@ fun SecurityContent(
             Switch(
                 checked = isLibraryLocked,
                 onCheckedChange = {
+                    pendingVaultNav = false
+                    passwordInput = ""
+                    showIncorrectPassword = false
                     if (libraryPassword.isEmpty()) {
                         isSettingNewPassword = true
                         showPasswordDialog = true
@@ -1291,7 +1478,18 @@ fun SecurityContent(
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onNavigateToLockSelection)
+            .clickable {
+                passwordInput = ""
+                showIncorrectPassword = false
+                if (libraryPassword.isEmpty()) {
+                    isSettingNewPassword = true
+                    pendingVaultNav = true
+                    showPasswordDialog = true
+                } else {
+                    pendingVaultNav = true
+                    showPasswordDialog = true
+                }
+            }
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -1320,7 +1518,7 @@ fun SecurityContent(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Select library items to hide behind vault lock",
+                    text = if (libraryPassword.isEmpty()) "Set password first to unlock vault" else "Password required to enter vault",
                     color = Color.White.copy(alpha = 0.55f),
                     fontSize = 11.sp,
                     lineHeight = 14.sp
@@ -1343,6 +1541,9 @@ fun SecurityContent(
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
+                pendingVaultNav = false
+                passwordInput = ""
+                showIncorrectPassword = false
                 if (libraryPassword.isNotEmpty()) {
                     isResettingPassword = true
                     showPasswordDialog = true
@@ -1489,7 +1690,7 @@ fun SecurityContent(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.ReceiptLong,
+                    imageVector = Icons.AutoMirrored.Rounded.ReceiptLong,
                     contentDescription = null,
                     tint = Color.White.copy(alpha = 0.8f),
                     modifier = Modifier.size(20.dp)
