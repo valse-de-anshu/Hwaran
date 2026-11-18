@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import com.ballade.hwaran.ui.components.DescriptionTopBarButton
 import com.ballade.hwaran.ui.components.simpleVerticalScrollbar
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -351,28 +352,20 @@ fun PlaylistDetailScreen(
                         .padding(top = 26.dp, bottom = 12.dp, start = 16.dp, end = 16.dp)
                 ) {
                     if (selectionMode == SelectionMode.NONE) {
-                        IconButton(
+                        DescriptionTopBarButton(
+                            icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "Back",
                             onClick = onNavigateBack,
                             modifier = Modifier.align(Alignment.CenterStart)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack, 
-                                contentDescription = "Back", 
-                                tint = Color.White,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
+                        )
 
                         // 3-dots overflow button (Delete / Share)
                         Box(modifier = Modifier.align(Alignment.CenterEnd)) {
-                            IconButton(onClick = { showOverflowMenu = true }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.MoreVert,
-                                    contentDescription = "Options",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
+                            DescriptionTopBarButton(
+                                icon = Icons.Rounded.MoreVert,
+                                contentDescription = "Options",
+                                onClick = { showOverflowMenu = true }
+                            )
                             HwaranDropdownMenu(
                                 expanded = showOverflowMenu,
                                 onDismissRequest = { showOverflowMenu = false }

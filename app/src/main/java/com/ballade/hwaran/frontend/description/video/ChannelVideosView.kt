@@ -58,6 +58,7 @@ import coil.compose.AsyncImage
 import coil.decode.VideoFrameDecoder
 import coil.request.ImageRequest
 import com.ballade.hwaran.core.database.entity.ChapterEntity
+import com.ballade.hwaran.ui.components.DescriptionTopBarButton
 import com.ballade.hwaran.ui.components.simpleVerticalScrollbar
 import com.ballade.hwaran.core.database.entity.MangaEntity
 import java.io.File
@@ -252,31 +253,18 @@ fun ChannelVideosView(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Surface(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .clickable {
-                                if (isDeleteMode) {
-                                    isDeleteMode = false
-                                    selectedVideoIds.clear()
-                                } else {
-                                    onNavigateBack()
-                                }
-                            },
-                        shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.08f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = "Back",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
+                    DescriptionTopBarButton(
+                        icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        onClick = {
+                            if (isDeleteMode) {
+                                isDeleteMode = false
+                                selectedVideoIds.clear()
+                            } else {
+                                onNavigateBack()
+                            }
                         }
-                    }
+                    )
 
                     Column(modifier = Modifier.weight(1f, fill = false)) {
                         Text(

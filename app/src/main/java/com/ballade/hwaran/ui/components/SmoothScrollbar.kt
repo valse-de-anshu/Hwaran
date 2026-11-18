@@ -12,18 +12,22 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Buttery-smooth, hardware-accelerated draw-phase vertical scrollbar for [LazyListState].
+ * Sleek, hardware-accelerated draw-phase vertical scrollbar for [LazyListState].
  * Reading scroll state within drawWithContent executes exclusively during Compose's RenderNode draw pass,
  * completely avoiding recompositions and relayouts during fast flings and smooth scrolling.
+ *
+ * Thumb height is consistently bounded between [minThumbHeight] and [maxThumbHeight] to prevent
+ * massive or microscopic scrollbar thumbs across short and long lists.
  */
 fun Modifier.simpleVerticalScrollbar(
     state: LazyListState,
-    thumbWidth: Dp = 4.dp,
-    thumbColor: Color = Color.White.copy(alpha = 0.35f),
-    minThumbHeight: Dp = 36.dp,
-    paddingEnd: Dp = 4.dp,
-    paddingTop: Dp = 0.dp,
-    paddingBottom: Dp = 0.dp
+    thumbWidth: Dp = 3.5.dp,
+    thumbColor: Color = Color.White.copy(alpha = 0.42f),
+    minThumbHeight: Dp = 44.dp,
+    maxThumbHeight: Dp = 68.dp,
+    paddingEnd: Dp = 3.dp,
+    paddingTop: Dp = 90.dp,
+    paddingBottom: Dp = 48.dp
 ): Modifier = this.drawWithContent {
     drawContent()
 
@@ -38,11 +42,16 @@ fun Modifier.simpleVerticalScrollbar(
         if (availableHeight <= 0f) return@drawWithContent
 
         val minHeightPx = minThumbHeight.toPx()
+        val maxHeightPx = maxThumbHeight.toPx().coerceAtMost(availableHeight * 0.4f)
         val thumbWidthPx = thumbWidth.toPx()
         val paddingEndPx = paddingEnd.toPx()
 
         val ratio = visibleItems.toFloat() / totalItems.toFloat()
-        val thumbHeight = (availableHeight * ratio).coerceIn(minHeightPx, availableHeight * 0.4f)
+        // Smooth interpolation that keeps thumb proportioned like a modern mobile OS scrollbar
+        val thumbHeight = (minHeightPx + (maxHeightPx - minHeightPx) * ratio.coerceIn(0f, 1f))
+            .coerceIn(minHeightPx, maxHeightPx)
+
+        if (availableHeight <= thumbHeight) return@drawWithContent
 
         val firstVisibleIndex = state.firstVisibleItemIndex
         val firstVisibleOffset = state.firstVisibleItemScrollOffset
@@ -55,6 +64,14 @@ fun Modifier.simpleVerticalScrollbar(
         val thumbY = topPx + (progress * (availableHeight - thumbHeight))
         val thumbX = size.width - thumbWidthPx - paddingEndPx
 
+        // Subtle dark backdrop stroke for contrast over light covers
+        drawRoundRect(
+            color = Color.Black.copy(alpha = 0.25f),
+            topLeft = Offset(thumbX - 0.5f, thumbY - 0.5f),
+            size = Size(thumbWidthPx + 1f, thumbHeight + 1f),
+            cornerRadius = CornerRadius((thumbWidthPx + 1f) / 2f, (thumbWidthPx + 1f) / 2f)
+        )
+
         drawRoundRect(
             color = thumbColor,
             topLeft = Offset(thumbX, thumbY),
@@ -65,16 +82,17 @@ fun Modifier.simpleVerticalScrollbar(
 }
 
 /**
- * Buttery-smooth, hardware-accelerated draw-phase vertical scrollbar for [LazyGridState].
+ * Sleek, hardware-accelerated draw-phase vertical scrollbar for [LazyGridState].
  */
 fun Modifier.simpleVerticalScrollbar(
     state: LazyGridState,
-    thumbWidth: Dp = 4.dp,
-    thumbColor: Color = Color.White.copy(alpha = 0.35f),
-    minThumbHeight: Dp = 36.dp,
-    paddingEnd: Dp = 4.dp,
-    paddingTop: Dp = 0.dp,
-    paddingBottom: Dp = 0.dp
+    thumbWidth: Dp = 3.5.dp,
+    thumbColor: Color = Color.White.copy(alpha = 0.42f),
+    minThumbHeight: Dp = 44.dp,
+    maxThumbHeight: Dp = 68.dp,
+    paddingEnd: Dp = 3.dp,
+    paddingTop: Dp = 90.dp,
+    paddingBottom: Dp = 48.dp
 ): Modifier = this.drawWithContent {
     drawContent()
 
@@ -89,11 +107,15 @@ fun Modifier.simpleVerticalScrollbar(
         if (availableHeight <= 0f) return@drawWithContent
 
         val minHeightPx = minThumbHeight.toPx()
+        val maxHeightPx = maxThumbHeight.toPx().coerceAtMost(availableHeight * 0.4f)
         val thumbWidthPx = thumbWidth.toPx()
         val paddingEndPx = paddingEnd.toPx()
 
         val ratio = visibleItems.toFloat() / totalItems.toFloat()
-        val thumbHeight = (availableHeight * ratio).coerceIn(minHeightPx, availableHeight * 0.4f)
+        val thumbHeight = (minHeightPx + (maxHeightPx - minHeightPx) * ratio.coerceIn(0f, 1f))
+            .coerceIn(minHeightPx, maxHeightPx)
+
+        if (availableHeight <= thumbHeight) return@drawWithContent
 
         val firstVisibleIndex = state.firstVisibleItemIndex
         val firstVisibleOffset = state.firstVisibleItemScrollOffset
@@ -105,6 +127,14 @@ fun Modifier.simpleVerticalScrollbar(
 
         val thumbY = topPx + (progress * (availableHeight - thumbHeight))
         val thumbX = size.width - thumbWidthPx - paddingEndPx
+
+        // Subtle dark backdrop stroke for contrast over light covers
+        drawRoundRect(
+            color = Color.Black.copy(alpha = 0.25f),
+            topLeft = Offset(thumbX - 0.5f, thumbY - 0.5f),
+            size = Size(thumbWidthPx + 1f, thumbHeight + 1f),
+            cornerRadius = CornerRadius((thumbWidthPx + 1f) / 2f, (thumbWidthPx + 1f) / 2f)
+        )
 
         drawRoundRect(
             color = thumbColor,

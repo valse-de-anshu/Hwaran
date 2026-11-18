@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.ballade.hwaran.ui.components.DescriptionTopBarButton
 import com.ballade.hwaran.ui.components.simpleVerticalScrollbar
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
@@ -939,47 +940,21 @@ fun BookDescriptionView(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .clickable { onNavigateBack() },
-                shape = CircleShape,
-                color = Color(0xFF14131E).copy(alpha = 0.88f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
+            DescriptionTopBarButton(
+                icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = "Back",
+                onClick = onNavigateBack
+            )
 
             var showMoreMenu by remember { mutableStateOf(false) }
 
             if (!isEditMode) {
                 Box {
-                    Surface(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .clickable { showMoreMenu = true },
-                        shape = CircleShape,
-                        color = Color(0xFF14131E).copy(alpha = 0.88f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Rounded.MoreVert,
-                                contentDescription = "More Options",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
+                    DescriptionTopBarButton(
+                        icon = Icons.Rounded.MoreVert,
+                        contentDescription = "More Options",
+                        onClick = { showMoreMenu = true }
+                    )
 
                     HwaranDropdownMenu(
                         expanded = showMoreMenu,

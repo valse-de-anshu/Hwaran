@@ -51,6 +51,7 @@ import java.io.File
 import android.net.Uri
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.ballade.hwaran.ui.components.DescriptionTopBarButton
 import com.ballade.hwaran.ui.components.simpleVerticalScrollbar
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
@@ -130,8 +131,8 @@ fun SeriesDescriptionView(
             state = scrollState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp)
-                .simpleVerticalScrollbar(scrollState),
+                .simpleVerticalScrollbar(scrollState)
+                .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             // Top Spacer ensuring clean clearance below camera punch hole/notch
@@ -1344,46 +1345,20 @@ fun SeriesDescriptionView(
                     .padding(horizontal = 20.dp, vertical = 10.dp)
             ) {
                 // Back Button
-                Surface(
-                    shape = CircleShape,
-                    color = Color.Black.copy(alpha = 0.65f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .clickable { onNavigateBack() }
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
+                DescriptionTopBarButton(
+                    icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = "Back",
+                    onClick = onNavigateBack,
+                    modifier = Modifier.align(Alignment.CenterStart)
+                )
 
                 // More Menu Button (3 Dots)
                 Box(modifier = Modifier.align(Alignment.CenterEnd)) {
-                    Surface(
-                        shape = CircleShape,
-                        color = Color.Black.copy(alpha = 0.65f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .clickable { showMoreMenu = true }
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Rounded.MoreVert,
-                                contentDescription = "More Options",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
+                    DescriptionTopBarButton(
+                        icon = Icons.Rounded.MoreVert,
+                        contentDescription = "More Options",
+                        onClick = { showMoreMenu = true }
+                    )
 
                     HwaranDropdownMenu(
                         expanded = showMoreMenu,

@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.ballade.hwaran.ui.components.DescriptionTopBarButton
 import com.ballade.hwaran.ui.components.simpleVerticalScrollbar
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
@@ -128,8 +129,8 @@ fun ToonDescriptionView(
             state = scrollState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp)
-                .simpleVerticalScrollbar(scrollState),
+                .simpleVerticalScrollbar(scrollState)
+                .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             // Generous Top Spacer ensuring full clearance below camera punch hole/notch
@@ -1166,46 +1167,20 @@ fun ToonDescriptionView(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Minimal Frosted Back Button
-                Surface(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .clickable { onNavigateBack() },
-                    shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.08f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
+                // Frosted Titanium Back Button
+                DescriptionTopBarButton(
+                    icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = "Back",
+                    onClick = onNavigateBack
+                )
 
-                // 3-Dot More Menu Button (Re-activated, Pencil removed)
+                // 3-Dot More Menu Button
                 Box {
-                    Surface(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .clickable { showMoreMenu = true },
-                        shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.08f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Rounded.MoreVert,
-                                contentDescription = "More Options",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
+                    DescriptionTopBarButton(
+                        icon = Icons.Rounded.MoreVert,
+                        contentDescription = "More Options",
+                        onClick = { showMoreMenu = true }
+                    )
 
                     HwaranDropdownMenu(
                         expanded = showMoreMenu,
