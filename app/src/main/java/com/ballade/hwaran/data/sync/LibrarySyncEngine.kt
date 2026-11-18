@@ -340,39 +340,43 @@ object LibrarySyncEngine {
             val existingUris = HashSet<String>()
             val seenCanonicalPaths = HashSet<String>()
 
-            // 1. Clean up erroneous container entries, non-Zine auto-discoveries, and duplicates
+            // 1. Clean up erroneous broad root storage paths.
+            // NOTE: Never delete user-imported media that lives outside Zine folders —
+            // users may manually import content from arbitrary paths via the file picker,
+            // and auto-sync must never delete user data.
             for (manga in existingMedia) {
                 val directFile = manga.parentUri?.let { StorageResolver.resolveToFile(context, Uri.parse(it)) }
-                val isContainer = directFile != null && isOrganizationalFolder(directFile)
+                val isBroadRoot = directFile != null && ZineMetadataExtractor.isRootStorageDir(directFile)
 
-                // Only prune items auto-imported from external storage (file:// or /storage/ paths outside internal app vault)
-                // that do NOT reside inside a folder named Zine or Zine Scrapper.
-                val isExternalAutoImport = manga.parentUri?.let {
-                    (it.startsWith("file://") || it.startsWith("/storage/")) &&
-                    !it.contains(context.filesDir.absolutePath)
-                } == true
-
-                val isNonZineAutoImport = isExternalAutoImport && (
-                    if (directFile != null) !isInsideZineDirectory(directFile)
-                    else manga.parentUri?.let { !isPathInsideZineDirectory(it) } ?: false
-                )
-
-                val canonicalKey = try { directFile?.canonicalPath?.lowercase() } catch (_: Exception) { null }
-                val isDuplicate = canonicalKey != null && canonicalKey in seenCanonicalPaths && manga.parentMangaId == null
-
-                if (isContainer || isNonZineAutoImport || isDuplicate) {
+                if (isBroadRoot) {
                     try {
                         database.mediaDao().deleteManga(manga)
                         database.trackDao().deleteChaptersByMangaId(manga.id)
-                        Log.d(TAG, "Removed invalid entry: ${manga.title} (${manga.parentUri}, container=$isContainer, nonZine=$isNonZineAutoImport, dup=$isDuplicate)")
+                        Log.d(TAG, "Removed broad root entry: ${manga.title} (${manga.parentUri})")
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
                     continue
                 }
 
-                if (canonicalKey != null) {
-                    seenCanonicalPaths.add(canonicalKey)
+                // Protect against identical duplicate database rows (exact same parentUri & contentType)
+                val uriKey = manga.parentUri?.lowercase()?.trimEnd('/')
+                val dupKey = if (uriKey != null) "${manga.contentType}_$uriKey" else null
+                if (dupKey != null && dupKey in seenCanonicalPaths && manga.parentMangaId == null) {
+                    val chapterCount = database.trackDao().getChaptersForMangaList(manga.id).size
+                    if (chapterCount == 0) {
+                        try {
+                            database.mediaDao().deleteManga(manga)
+                            Log.d(TAG, "Removed empty duplicate row: ${manga.title} (${manga.parentUri})")
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                        continue
+                    }
+                }
+
+                if (dupKey != null) {
+                    seenCanonicalPaths.add(dupKey)
                 }
                 manga.parentUri?.let { existingUris.add(it.lowercase()) }
                 directFile?.canonicalPath?.lowercase()?.let { existingUris.add(it) }

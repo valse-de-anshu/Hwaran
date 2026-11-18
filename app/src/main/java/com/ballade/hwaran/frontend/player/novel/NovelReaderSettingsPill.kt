@@ -53,7 +53,7 @@ enum class NovelSettingTab {
     THEME,
     LAYOUT,
     DISPLAY,
-    CHECKPOINTS,
+    PAINT,
     MUSIC
 }
 
@@ -188,7 +188,11 @@ fun NovelReaderSettingsPill(
     onKeepScreenOnChange: (Boolean) -> Unit,
     brightnessOverride: Float?,
     onBrightnessOverrideChange: (Float?) -> Unit,
-    // Checkpoints
+    // Paint / Highlights
+    isPaintMode: Boolean = false,
+    onTogglePaintMode: (Boolean) -> Unit = {},
+    activePaintColor: Int = 0xFFFFD54F.toInt(),
+    onSelectPaintColor: (Int) -> Unit = {},
     markers: List<com.ballade.hwaran.core.database.entity.PdfMarkerEntity> = emptyList(),
     chapters: List<com.ballade.hwaran.backend.novel.NovelChapter> = emptyList(),
     onAddCheckpoint: () -> Unit = {},
@@ -219,14 +223,14 @@ fun NovelReaderSettingsPill(
                     musicViewModel = musicViewModel,
                     onClose = { onTabSelected(null) }
                 )
-            } else if (activeTab == NovelSettingTab.CHECKPOINTS) {
+            } else if (activeTab == NovelSettingTab.PAINT) {
                 Surface(
                     shape = RoundedCornerShape(22.dp),
                     color = Color(0xFF111118),
-                    border = PremiumPillDefaults.border(glowColor),
+                    border = PremiumPillDefaults.border(Color(activePaintColor)),
                     shadowElevation = 16.dp,
                     modifier = Modifier
-                        .widthIn(min = 280.dp, max = 320.dp)
+                        .widthIn(min = 290.dp, max = 340.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
@@ -234,25 +238,38 @@ fun NovelReaderSettingsPill(
                 ) {
                     Column(
                         modifier = Modifier
-                            .background(PremiumPillDefaults.background(glowColor))
+                            .background(PremiumPillDefaults.background(Color(activePaintColor)))
                             .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        // Title row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "Checkpoints",
-                                color = Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Brush,
+                                    contentDescription = null,
+                                    tint = Color(activePaintColor),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "Reading Paint",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            // Quick 1-tap Paint Button
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFFFFD54F).copy(alpha = 0.20f),
-                                border = BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.40f)),
+                                color = Color(activePaintColor).copy(alpha = 0.20f),
+                                border = BorderStroke(1.dp, Color(activePaintColor).copy(alpha = 0.50f)),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable {
@@ -261,32 +278,124 @@ fun NovelReaderSettingsPill(
                                     }
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Icon(Icons.Rounded.Add, contentDescription = null, tint = Color(0xFFFFD54F), modifier = Modifier.size(14.dp))
-                                    Text("Mark Here", color = Color(0xFFFFD54F), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    Icon(Icons.Rounded.Brush, contentDescription = null, tint = Color(activePaintColor), modifier = Modifier.size(13.dp))
+                                    Text("Paint Here", color = Color(activePaintColor), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                 }
                             }
                         }
+
+                        // Highlighter Mode Toggle
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isPaintMode) Color(activePaintColor).copy(alpha = 0.12f) else Color.White.copy(alpha = 0.04f),
+                            border = BorderStroke(1.dp, if (isPaintMode) Color(activePaintColor).copy(alpha = 0.35f) else Color.White.copy(alpha = 0.08f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(
+                                        text = "Highlighter Mode",
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = if (isPaintMode) "Tap any paragraph to paint mark" else "Tap text normally to scroll",
+                                        color = Color.White.copy(alpha = 0.6f),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                Switch(
+                                    checked = isPaintMode,
+                                    onCheckedChange = { onTogglePaintMode(it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(activePaintColor),
+                                        checkedTrackColor = Color(activePaintColor).copy(alpha = 0.4f)
+                                    )
+                                )
+                            }
+                        }
+
+                        // Color Palette Row
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = "Highlighter Color",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            val paintColors = listOf(
+                                0xFFFFD54F.toInt(), // Yellow
+                                0xFF81C784.toInt(), // Mint Green
+                                0xFF64B5F6.toInt(), // Sky Blue
+                                0xFFF06292.toInt(), // Rose Pink
+                                0xFFFFB74D.toInt()  // Amber Orange
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                paintColors.forEach { colorInt ->
+                                    val isSelected = activePaintColor == colorInt
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(colorInt))
+                                            .clickable {
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                onSelectPaintColor(colorInt)
+                                            }
+                                            .border(
+                                                width = if (isSelected) 2.5.dp else 1.dp,
+                                                color = if (isSelected) Color.White else Color.Transparent,
+                                                shape = CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Check,
+                                                contentDescription = null,
+                                                tint = Color.Black.copy(alpha = 0.8f),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Painted Passages List
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
                         if (markers.isEmpty()) {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 14.dp),
+                                    .padding(vertical = 12.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Text(
-                                    text = "No checkpoints saved",
+                                    text = "No painted marks saved",
                                     color = Color.White.copy(alpha = 0.7f),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Medium
                                 )
                                 Spacer(Modifier.height(4.dp))
                                 Text(
-                                    text = "Tap 'Mark Here' to bookmark your current scroll position.",
+                                    text = "Tap 'Paint Here' or turn on Highlighter Mode to mark where you left off reading.",
                                     color = Color.White.copy(alpha = 0.45f),
                                     fontSize = 11.sp,
                                     textAlign = TextAlign.Center
@@ -296,17 +405,19 @@ fun NovelReaderSettingsPill(
                             LazyColumn(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .heightIn(max = 220.dp),
+                                    .heightIn(max = 200.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                itemsIndexed(markers.sortedBy { it.page }) { _, marker ->
+                                itemsIndexed(markers.sortedByDescending { it.createdAt }) { _, marker ->
                                     val chapterTitle = chapters.getOrNull(marker.page)?.title ?: "Chapter ${marker.page + 1}"
                                     val totalCh = chapters.size.coerceAtLeast(1)
                                     val pct = (((marker.page.toFloat() + 0.5f) / totalCh) * 100).toInt().coerceIn(0, 100)
+                                    val markerColor = if (marker.color != 0) Color(marker.color) else Color(0xFFFFD54F)
+
                                     Surface(
                                         shape = RoundedCornerShape(10.dp),
                                         color = Color.White.copy(alpha = 0.05f),
-                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+                                        border = BorderStroke(1.dp, markerColor.copy(alpha = 0.35f)),
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(10.dp))
@@ -318,7 +429,7 @@ fun NovelReaderSettingsPill(
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                                .padding(horizontal = 10.dp, vertical = 8.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
@@ -327,18 +438,22 @@ fun NovelReaderSettingsPill(
                                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                                 modifier = Modifier.weight(1f, fill = false)
                                             ) {
-                                                Icon(Icons.Rounded.Bookmark, contentDescription = null, tint = Color(0xFFFFD54F), modifier = Modifier.size(16.dp))
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(10.dp)
+                                                        .background(markerColor, CircleShape)
+                                                )
                                                 Column {
                                                     Text(
                                                         text = "$pct% • $chapterTitle",
                                                         color = Color.White,
-                                                        fontSize = 13.sp,
+                                                        fontSize = 12.sp,
                                                         fontWeight = FontWeight.SemiBold,
                                                         maxLines = 1,
                                                         overflow = TextOverflow.Ellipsis
                                                     )
                                                     Text(
-                                                        text = "Paragraph #${marker.x1.toInt() + 1} • Tap to jump",
+                                                        text = "Paragraph #${marker.x1.toInt() + 1} • Tap to resume",
                                                         color = Color.White.copy(alpha = 0.55f),
                                                         fontSize = 11.sp
                                                     )
@@ -346,9 +461,9 @@ fun NovelReaderSettingsPill(
                                             }
                                             IconButton(
                                                 onClick = { onDeleteCheckpoint(marker) },
-                                                modifier = Modifier.size(28.dp)
+                                                modifier = Modifier.size(26.dp)
                                             ) {
-                                                Icon(Icons.Rounded.Close, contentDescription = "Delete", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
+                                                Icon(Icons.Rounded.Close, contentDescription = "Erase Paint", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
                                             }
                                         }
                                     }
@@ -888,7 +1003,7 @@ fun NovelReaderSettingsPill(
                                     }
                                 }
                             }
-                            NovelSettingTab.MUSIC, NovelSettingTab.CHECKPOINTS -> {}
+                            NovelSettingTab.MUSIC, NovelSettingTab.PAINT -> {}
                         }
                     }
                 }
@@ -983,15 +1098,15 @@ fun NovelReaderSettingsPill(
                         .background(Color.White.copy(alpha = 0.10f))
                 )
 
-                // 5. Checkpoints
+                // 5. Paint & Highlights
                 VerticalPillIcon(
-                    icon = if (markers.isNotEmpty()) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
-                    contentDescription = "Checkpoints",
-                    isSelected = activeTab == NovelSettingTab.CHECKPOINTS,
-                    glowColor = glowColor,
+                    icon = Icons.Rounded.Brush,
+                    contentDescription = "Reading Paint",
+                    isSelected = activeTab == NovelSettingTab.PAINT || isPaintMode,
+                    glowColor = Color(activePaintColor),
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onTabSelected(if (activeTab == NovelSettingTab.CHECKPOINTS) null else NovelSettingTab.CHECKPOINTS)
+                        onTabSelected(if (activeTab == NovelSettingTab.PAINT) null else NovelSettingTab.PAINT)
                     }
                 )
 

@@ -14,6 +14,8 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -961,6 +963,130 @@ fun SecurityContent(
     val database = remember { AppDatabase.getDatabase(context) }
     val scope = rememberCoroutineScope()
     var showWipeConfirmation by remember { mutableStateOf(false) }
+    var showActivityLogsDialog by remember { mutableStateOf(false) }
+
+    if (showActivityLogsDialog) {
+        val recentEvents by database.historyDao().getRecentHistoryEventsFlow(50).collectAsState(initial = emptyList())
+        val dateFormatter = remember { java.text.SimpleDateFormat("MMM dd, HH:mm:ss", java.util.Locale.getDefault()) }
+
+        AlertDialog(
+            onDismissRequest = { showActivityLogsDialog = false },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Recent Activity Log", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                    ) {
+                        Text(
+                            "${recentEvents.size} events",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            },
+            text = {
+                if (recentEvents.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No activity events recorded yet.", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 380.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(recentEvents, key = { it.id }) { event ->
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color.White.copy(alpha = 0.05f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = when (event.eventType) {
+                                                "READ_NOVEL", "READ_TOON", "READ_BOOK" -> Color(0xFF81C784).copy(alpha = 0.2f)
+                                                "WATCH", "PLAY_VIDEO" -> Color(0xFF64B5F6).copy(alpha = 0.2f)
+                                                "LISTEN" -> Color(0xFFBA68C8).copy(alpha = 0.2f)
+                                                "IMPORT" -> Color(0xFFFFD54F).copy(alpha = 0.2f)
+                                                "DELETE" -> Color(0xFFE57373).copy(alpha = 0.2f)
+                                                else -> Color.White.copy(alpha = 0.15f)
+                                            }
+                                        ) {
+                                            Text(
+                                                text = event.eventType,
+                                                color = when (event.eventType) {
+                                                    "READ_NOVEL", "READ_TOON", "READ_BOOK" -> Color(0xFF81C784)
+                                                    "WATCH", "PLAY_VIDEO" -> Color(0xFF64B5F6)
+                                                    "LISTEN" -> Color(0xFFBA68C8)
+                                                    "IMPORT" -> Color(0xFFFFD54F)
+                                                    "DELETE" -> Color(0xFFE57373)
+                                                    else -> Color.White
+                                                },
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                        Text(
+                                            text = dateFormatter.format(java.util.Date(event.timestamp)),
+                                            color = Color.White.copy(alpha = 0.45f),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        text = event.itemName,
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (event.details.isNotBlank()) {
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            text = event.details,
+                                            color = Color.White.copy(alpha = 0.6f),
+                                            fontSize = 11.sp,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showActivityLogsDialog = false }) {
+                    Text("Close", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            containerColor = Color(0xFF1E1E28)
+        )
+    }
 
     if (showWipeConfirmation) {
         AlertDialog(
@@ -1166,69 +1292,95 @@ fun SecurityContent(
     SectionHeader("History Tracking", "Activity & playback stats")
 
     Text(
-        text = "Track app launches, folder imports, item deletions, theme switches, password updates, and playback statistics. Toggle tracking, view insights, or wipe logs below.",
+        text = "Track app launches, folder imports, reading progress, and playback statistics. Toggle tracking, view recent events, or wipe logs below.",
         style = MaterialTheme.typography.bodySmall,
         color = Color.White.copy(alpha = 0.7f),
-        modifier = Modifier.padding(bottom = 8.dp)
+        modifier = Modifier.padding(bottom = 10.dp)
     )
 
     val stopTracking by vm.stopTracking.collectAsState()
+    val isTrackingEnabled = !stopTracking
 
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-        horizontalArrangement = Arrangement.Start,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            if (stopTracking) "Stopped" else "Tracking",
-            color = Color.White,
-            modifier = Modifier.padding(end = 8.dp),
-            fontSize = 14.sp
-        )
-        Switch(
-            checked = stopTracking,
-            onCheckedChange = { vm.setStopTracking(it) },
-            colors = SwitchDefaults.colors(
-                checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-            )
-        )
-    }
-
-    Spacer(modifier = Modifier.height(8.dp))
-
-    // Wipe History Button
-    Button(
-        onClick = { showWipeConfirmation = true },
-        colors = ButtonDefaults.buttonColors(
-            containerColor = Color.White.copy(alpha = 0.04f),
-            contentColor = Color(0xFFE57373)
-        ),
-        border = BorderStroke(1.dp, Color(0xFFE57373).copy(alpha = 0.25f)),
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp),
-        contentPadding = PaddingValues(horizontal = 8.dp)
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White.copy(alpha = 0.04f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                Icons.Rounded.Delete,
-                contentDescription = "Wipe Data",
-                tint = Color(0xFFE57373),
-                modifier = Modifier.size(20.dp)
+            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                Text(
+                    text = "History & Activity Tracking",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .background(
+                                color = if (isTrackingEnabled) Color(0xFF81C784) else Color(0xFFFFB74D),
+                                shape = CircleShape
+                            )
+                    )
+                    Text(
+                        text = if (isTrackingEnabled) "Active • Logging media & app activity" else "Paused • Tracking is stopped",
+                        color = if (isTrackingEnabled) Color(0xFF81C784) else Color(0xFFFFB74D),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+            Switch(
+                checked = isTrackingEnabled,
+                onCheckedChange = { isChecked -> vm.setStopTracking(!isChecked) },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                    uncheckedThumbColor = Color.LightGray,
+                    uncheckedTrackColor = Color.DarkGray
+                )
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Wipe History Data",
-                color = Color(0xFFE57373),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(10.dp))
+
+    // Action buttons: View Log & Wipe
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        OutlinedButton(
+            onClick = { showActivityLogsDialog = true },
+            modifier = Modifier.weight(1f).height(46.dp),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+        ) {
+            Text("View Activity Log", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        }
+
+        Button(
+            onClick = { showWipeConfirmation = true },
+            modifier = Modifier.weight(1f).height(46.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFFE57373).copy(alpha = 0.15f),
+                contentColor = Color(0xFFE57373)
+            ),
+            border = BorderStroke(1.dp, Color(0xFFE57373).copy(alpha = 0.35f))
+        ) {
+            Icon(Icons.Rounded.Delete, contentDescription = null, tint = Color(0xFFE57373), modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Wipe History", fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

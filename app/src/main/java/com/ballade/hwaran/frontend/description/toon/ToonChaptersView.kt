@@ -385,6 +385,10 @@ fun ToonChaptersView(
                     }
                 }
             } else {
+                val defaultCoverModel = remember(manga.coverPath, manga.parentUri) {
+                    CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri)
+                }
+
                 LazyColumn(
                     state = scrollState,
                     modifier = Modifier.fillMaxSize(),
@@ -445,15 +449,15 @@ fun ToonChaptersView(
                                         .background(Color.White.copy(alpha = 0.05f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    val thumbModel = remember(chapter.thumbnailUri, manga.coverPath) {
-                                        chapter.thumbnailUri?.let { CoverArtResolver.resolveCoverModel(it) }
-                                            ?: CoverArtResolver.resolveCoverModel(manga.coverPath, manga.parentUri)
+                                    val thumbModel = remember(chapter.thumbnailUri, defaultCoverModel) {
+                                        chapter.thumbnailUri?.let { CoverArtResolver.resolveCoverModel(it) } ?: defaultCoverModel
                                     }
                                     if (thumbModel != null) {
                                         AsyncImage(
                                             model = ImageRequest.Builder(context)
                                                 .data(thumbModel)
-                                                .crossfade(true)
+                                                .crossfade(false)
+                                                .memoryCacheKey("ch_thumb_${chapter.id}")
                                                 .build(),
                                             contentDescription = null,
                                             contentScale = ContentScale.Crop,

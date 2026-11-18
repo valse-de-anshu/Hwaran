@@ -12,6 +12,8 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
@@ -35,6 +37,24 @@ import androidx.compose.ui.unit.dp
 @SuppressLint("CustomSplashScreen")
 class SplashActivity : ComponentActivity() {
     private val isVideoReady = mutableStateOf(false)
+    private var webView: android.webkit.WebView? = null
+    private var hasNavigated = false
+
+    private fun navigateToMain() {
+        if (hasNavigated) return
+        hasNavigated = true
+        val intent = Intent(this@SplashActivity, MainActivity::class.java)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        startActivity(intent)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+        }
+        finish()
+    }
 
     @OptIn(UnstableApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,7 +66,7 @@ class SplashActivity : ComponentActivity() {
                 1f,
                 0f
             )
-            fadeOut.duration = 400L
+            fadeOut.duration = 300L
             fadeOut.interpolator = android.view.animation.AccelerateInterpolator()
             fadeOut.doOnEnd { splashScreenView.remove() }
             fadeOut.start()
@@ -71,29 +91,21 @@ class SplashActivity : ComponentActivity() {
 
             LaunchedEffect(ready) {
                 if (ready) {
-                    delay(7500L)
-
-                    val intent = Intent(this@SplashActivity, MainActivity::class.java)
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-                    startActivity(intent)
-
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                        overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        overridePendingTransition(0, 0)
-                    }
-
-                    videoAlpha.animateTo(0f, tween(800))
-                    delay(1500)
-                    finish()
+                    delay(1200L)
+                    navigateToMain()
                 }
             }
 
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black),
+                    .background(Color.Black)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        navigateToMain()
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 Image(
@@ -105,6 +117,7 @@ class SplashActivity : ComponentActivity() {
                 AndroidView(
                     factory = { ctx ->
                         android.webkit.WebView(ctx).apply {
+                            webView = this
                             layoutParams = android.view.ViewGroup.LayoutParams(
                                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                                 android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -137,6 +150,18 @@ class SplashActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        try {
+            webView?.apply {
+                stopLoading()
+                loadUrl("about:blank")
+                clearHistory()
+                removeAllViews()
+                destroy()
+            }
+            webView = null
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         super.onDestroy()
     }
 }

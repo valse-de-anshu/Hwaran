@@ -1222,7 +1222,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val bitmap = loadBitmap(path)
+                val bitmap = loadThumbnailBitmap(path, sampleSize = 8)
                 if (bitmap != null) {
                     val p = Palette.from(bitmap).generate()
                     val dominantFinal = p.getDominantColor(0xFF000000.toInt())
@@ -1243,20 +1243,30 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun loadThumbnailBitmap(path: String, sampleSize: Int = 4): Bitmap? {
+    private fun loadThumbnailBitmap(path: String, sampleSize: Int = 8): Bitmap? {
         return try {
             val options = BitmapFactory.Options().apply {
                 inSampleSize = sampleSize
                 inPreferredConfig = Bitmap.Config.RGB_565
             }
-            if (path.startsWith("content://") || path.startsWith("android.resource://")) {
+            val decoded = if (path.startsWith("content://") || path.startsWith("android.resource://")) {
                 val input: InputStream? = getApplication<Application>().contentResolver.openInputStream(Uri.parse(path))
-                BitmapFactory.decodeStream(input, null, options)
+                input?.use { BitmapFactory.decodeStream(it, null, options) }
             } else if (path.startsWith("file://")) {
                 val filePath = Uri.parse(path).path
                 if (!filePath.isNullOrEmpty()) BitmapFactory.decodeFile(filePath, options) else null
             } else {
                 BitmapFactory.decodeFile(path, options)
+            }
+            if (decoded != null && (decoded.width > 96 || decoded.height > 96)) {
+                val scale = 96f / maxOf(decoded.width, decoded.height)
+                val targetW = (decoded.width * scale).toInt().coerceAtLeast(1)
+                val targetH = (decoded.height * scale).toInt().coerceAtLeast(1)
+                val scaled = Bitmap.createScaledBitmap(decoded, targetW, targetH, false)
+                if (scaled != decoded) decoded.recycle()
+                scaled
+            } else {
+                decoded
             }
         } catch (e: Exception) {
             null

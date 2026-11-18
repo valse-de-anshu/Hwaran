@@ -524,6 +524,8 @@ fun VideoPlayerScreen(
 
     // Floating Dialog States (All minimal floating popups, NO bottom sheets)
     var showMainSettingsDialog by remember { mutableStateOf(false) }
+    var showCcDialog by remember { mutableStateOf(false) }
+    var showAudioDialog by remember { mutableStateOf(false) }
     var showSpeedDialog by remember { mutableStateOf(false) }
     var showTrackDialog by remember { mutableStateOf(false) }
     var showEpisodeDialog by remember { mutableStateOf(false) }
@@ -1204,23 +1206,52 @@ fun VideoPlayerScreen(
                             )
                         }
 
-                        // Circular Touch Area Settings Icon on Top-Right Corner (60dp touch target, sleek 20dp icon)
-                        Box(
-                            modifier = Modifier
-                                .size(60.dp)
-                                .clip(CircleShape)
-                                .clickable {
-                                    lastInteractionTime = System.currentTimeMillis()
-                                    showMainSettingsDialog = true
-                                },
-                            contentAlignment = Alignment.Center
+                        // Top-Right Corner Controls: CC and Settings side by side (YouTube style)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Icon(
-                                Icons.Filled.Settings, 
-                                contentDescription = "Settings", 
-                                tint = Color.White, 
-                                modifier = Modifier.size(20.dp)
-                            )
+                            val isSubDisabled = exoPlayer.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
+                            val hasTextTracks = currentTracks?.groups?.any { it.type == C.TRACK_TYPE_TEXT } == true
+                            val isCcActive = !isSubDisabled && hasTextTracks
+
+                            // CC Icon
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        lastInteractionTime = System.currentTimeMillis()
+                                        showCcDialog = true
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    if (isCcActive) Icons.Filled.ClosedCaption else Icons.Filled.ClosedCaptionDisabled,
+                                    contentDescription = "Subtitles (CC)",
+                                    tint = if (isCcActive) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.85f),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+
+                            // Settings Icon
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        lastInteractionTime = System.currentTimeMillis()
+                                        showMainSettingsDialog = true
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Filled.Settings,
+                                    contentDescription = "Settings",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         }
                     }
 
@@ -1685,11 +1716,11 @@ fun VideoPlayerScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         item {
-                            // Option 1: Subtitles & Audio Tracks
+                            // Option 1: Subtitles (CC)
                             Surface(
                                 onClick = {
                                     showMainSettingsDialog = false
-                                    showTrackDialog = true
+                                    showCcDialog = true
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 color = Color.White.copy(alpha = 0.06f),
@@ -1700,10 +1731,10 @@ fun VideoPlayerScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Icon(Icons.Filled.Subtitles, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Filled.ClosedCaption, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("Subtitles & Audio", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                                        Text("Tracks, external .srt", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                                        Text("Subtitles (CC)", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                        Text("Tracks, appearance, external .srt", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
                                     }
                                     Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color.White.copy(alpha = 0.4f), modifier = Modifier.size(18.dp))
                                 }
@@ -1711,11 +1742,11 @@ fun VideoPlayerScreen(
                         }
 
                         item {
-                            // Option: Subtitle Style & Appearance
+                            // Option 2: Audio Tracks
                             Surface(
                                 onClick = {
                                     showMainSettingsDialog = false
-                                    showSubStyleDialog = true
+                                    showAudioDialog = true
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 color = Color.White.copy(alpha = 0.06f),
@@ -1726,10 +1757,10 @@ fun VideoPlayerScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Icon(Icons.Filled.Tune, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Filled.Audiotrack, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("Subtitle Style", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                                        Text("Font size, colors, background", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                                        Text("Audio Tracks", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                        Text("Language streams & channels", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
                                     }
                                     Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color.White.copy(alpha = 0.4f), modifier = Modifier.size(18.dp))
                                 }
@@ -1923,20 +1954,16 @@ fun VideoPlayerScreen(
                 }
             }
 
-            // ── 3. Dedicated Subtitle & Audio Track Selection Dialog Popup ──
-            if (showTrackDialog) {
+            // ── 3. Unified Subtitles & CC Dialog Popup (YouTube Style All-in-One) ──
+            if (showCcDialog || showTrackDialog) {
                 SleekFadeDialog(
-                    onDismissRequest = { showTrackDialog = false },
-                    title = "Subtitles & Audio Tracks"
+                    onDismissRequest = {
+                        showCcDialog = false
+                        showTrackDialog = false
+                    },
+                    title = "Subtitles (CC)"
                 ) {
                     val tracks = currentTracks
-                    val audioGroups = remember(tracks) {
-                        mutableListOf<Pair<Int, Tracks.Group>>().apply {
-                            tracks?.groups?.forEachIndexed { idx, group ->
-                                if (group.type == C.TRACK_TYPE_AUDIO) add(idx to group)
-                            }
-                        }
-                    }
                     val textGroups = remember(tracks) {
                         mutableListOf<Pair<Int, Tracks.Group>>().apply {
                             tracks?.groups?.forEachIndexed { idx, group ->
@@ -1947,13 +1974,16 @@ fun VideoPlayerScreen(
                     val isSubDisabled = exoPlayer.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
 
                     LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.heightIn(max = 280.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier
+                            .heightIn(max = 380.dp)
+                            .fillMaxWidth()
                     ) {
-                        // Add External Subtitle Button at top
+                        // 1. Add External Subtitle Button
                         item {
                             Surface(
                                 onClick = {
+                                    showCcDialog = false
                                     showTrackDialog = false
                                     openSubLauncher.launch(arrayOf("*/*"))
                                 },
@@ -1973,32 +2003,9 @@ fun VideoPlayerScreen(
                             }
                         }
 
-                        // Subtitle Style & Appearance Button
+                        // 2. Subtitles Track Header
                         item {
-                            Surface(
-                                onClick = {
-                                    showTrackDialog = false
-                                    showSubStyleDialog = true
-                                },
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color.White.copy(alpha = 0.08f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Icon(Icons.Filled.Tune, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                    Text("Subtitle Appearance & Style", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
-                                }
-                            }
-                        }
-
-                        // Subtitles Section Header
-                        item {
-                            Text("SUBTITLES", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+                            Text("TRACK SELECTION", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
                         }
 
                         // Subtitle Off Option
@@ -2008,10 +2015,10 @@ fun VideoPlayerScreen(
                                     exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon()
                                         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
                                         .build()
-                                    showTrackDialog = false
                                 },
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (isSubDisabled) Color.White.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f),
+                                color = if (isSubDisabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.05f),
+                                border = if (isSubDisabled) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -2021,7 +2028,7 @@ fun VideoPlayerScreen(
                                 ) {
                                     Text("Off / None", color = Color.White, fontSize = 13.sp, fontWeight = if (isSubDisabled) FontWeight.Bold else FontWeight.Normal)
                                     if (isSubDisabled) {
-                                        Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                                     }
                                 }
                             }
@@ -2047,10 +2054,10 @@ fun VideoPlayerScreen(
                                             .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, 0))
                                             .build()
                                     } catch (e: Exception) { e.printStackTrace() }
-                                    showTrackDialog = false
                                 },
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (isSelected) Color.White.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f),
+                                color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.05f),
+                                border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -2068,18 +2075,212 @@ fun VideoPlayerScreen(
                                         modifier = Modifier.weight(1f)
                                     )
                                     if (isSelected) {
-                                        Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                                     }
                                 }
                             }
                         }
 
-                        // Audio Section Header
-                        if (audioGroups.isNotEmpty()) {
-                            item {
-                                Text("AUDIO TRACKS", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
-                            }
+                        // 3. Subtitle Appearance & Style (Unified In-Place Section)
+                        item {
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.12f), modifier = Modifier.padding(vertical = 4.dp))
+                            Text("SUBTITLE APPEARANCE", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
 
+                        // Live Preview Card
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color.Black.copy(alpha = 0.4f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 12.dp, horizontal = 14.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = subtitleBgColor
+                                    ) {
+                                        Text(
+                                            text = "Sample Subtitle Text 123",
+                                            color = subtitleTextColor,
+                                            fontSize = (subtitleTextSizeSp * 0.85f).sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            style = if (subtitleHasOutline) {
+                                                androidx.compose.ui.text.TextStyle(
+                                                    shadow = androidx.compose.ui.graphics.Shadow(
+                                                        color = Color.Black,
+                                                        offset = androidx.compose.ui.geometry.Offset(1f, 1f),
+                                                        blurRadius = 3f
+                                                    )
+                                                )
+                                            } else androidx.compose.ui.text.TextStyle.Default
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Text Size Section
+                        item {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("TEXT SIZE", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    val sizes = listOf(14f to "Small", 18f to "Normal", 22f to "Large", 26f to "Huge")
+                                    sizes.forEach { (sz, label) ->
+                                        val isSel = subtitleTextSizeSp == sz
+                                        Surface(
+                                            onClick = { subtitleTextSizeSp = sz },
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = if (isSel) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
+                                            border = if (isSel) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Box(modifier = Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                                Text(label, color = Color.White, fontSize = 11.5.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Text Color Section
+                        item {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("TEXT COLOR", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    val colors = listOf(
+                                        Color.White to "White",
+                                        Color(0xFFFFEB3B) to "Yellow",
+                                        Color(0xFF00E5FF) to "Cyan",
+                                        Color(0xFF69F0AE) to "Green"
+                                    )
+                                    colors.forEach { (col, label) ->
+                                        val isSel = subtitleTextColor == col
+                                        Surface(
+                                            onClick = { subtitleTextColor = col },
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = if (isSel) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
+                                            border = if (isSel) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Box(modifier = Modifier.size(10.dp).background(col, CircleShape))
+                                                Text(label, color = Color.White, fontSize = 10.5.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Background Section
+                        item {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("BACKGROUND OPACITY", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    val bgStyles = listOf(
+                                        Color.Transparent to "None",
+                                        Color(0x99000000) to "Translucent",
+                                        Color(0xFF000000) to "Solid Black"
+                                    )
+                                    bgStyles.forEach { (col, label) ->
+                                        val isSel = subtitleBgColor == col
+                                        Surface(
+                                            onClick = { subtitleBgColor = col },
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = if (isSel) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
+                                            border = if (isSel) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Box(modifier = Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                                Text(label, color = Color.White, fontSize = 11.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Outline Toggle
+                        item {
+                            Surface(
+                                onClick = { subtitleHasOutline = !subtitleHasOutline },
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color.White.copy(alpha = 0.06f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Text Outline / Shadow", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    Switch(
+                                        checked = subtitleHasOutline,
+                                        onCheckedChange = { subtitleHasOutline = it },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color.White,
+                                            checkedTrackColor = MaterialTheme.colorScheme.primary
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── 3b. Dedicated Audio Track Selection Dialog Popup ──
+            if (showAudioDialog) {
+                SleekFadeDialog(
+                    onDismissRequest = { showAudioDialog = false },
+                    title = "Audio Tracks"
+                ) {
+                    val tracks = currentTracks
+                    val audioGroups = remember(tracks) {
+                        mutableListOf<Pair<Int, Tracks.Group>>().apply {
+                            tracks?.groups?.forEachIndexed { idx, group ->
+                                if (group.type == C.TRACK_TYPE_AUDIO) add(idx to group)
+                            }
+                        }
+                    }
+
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.heightIn(max = 280.dp)
+                    ) {
+                        if (audioGroups.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("No alternate audio tracks available", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
+                                }
+                            }
+                        } else {
                             itemsIndexed(audioGroups) { index, pair ->
                                 val group = pair.second
                                 val format = group.mediaTrackGroup.getFormat(0)
@@ -2097,10 +2298,11 @@ fun VideoPlayerScreen(
                                                 .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, 0))
                                                 .build()
                                         } catch (e: Exception) { e.printStackTrace() }
-                                        showTrackDialog = false
+                                        showAudioDialog = false
                                     },
                                     shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) Color.White.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f),
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.05f),
+                                    border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Row(
@@ -2118,7 +2320,7 @@ fun VideoPlayerScreen(
                                             modifier = Modifier.weight(1f)
                                         )
                                         if (isSelected) {
-                                            Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                            Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                                         }
                                     }
                                 }

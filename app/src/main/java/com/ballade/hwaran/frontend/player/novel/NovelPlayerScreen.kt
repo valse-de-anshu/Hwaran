@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectTapGestures
 import coil.compose.AsyncImage
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -33,7 +34,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.input.pointer.pointerInput
 import com.ballade.hwaran.ui.dialogs.PremiumPillDefaults
+import com.ballade.hwaran.core.database.entity.PdfMarkerEntity
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -254,11 +257,14 @@ fun NovelPlayerScreen(
     // Shared LazyListState for continuous vertical scrolling
     val verticalListState = rememberLazyListState()
 
-    // ── Checkpoints ───────────────────────────────────────────────────────────
+    // ── Reading Paint & Checkpoints ───────────────────────────────────────────
     val markers by remember(mangaId) {
         if (mangaId > 0L) database.annotationDao().getMarkersForPdf(mangaId)
         else flowOf(emptyList())
     }.collectAsState(initial = emptyList())
+
+    var isPaintMode by rememberSaveable { mutableStateOf(false) }
+    var activePaintColor by rememberSaveable { mutableIntStateOf(0xFFFFD54F.toInt()) }
 
     // ── Reading Preferences ────────────────────────────────────────────────────
     var currentTheme by rememberSaveable { mutableStateOf(NovelTheme.DARK) }
@@ -357,13 +363,10 @@ fun NovelPlayerScreen(
                             currentChapterIndex = savedChapterIndex.coerceIn(0, book.chapters.size - 1)
                         }
 
-                        database.historyDao().insertHistoryEvent(
-                            HistoryEventEntity(
-                                timestamp = System.currentTimeMillis(),
-                                eventType = "READ_NOVEL",
-                                itemName = manga.title,
-                                details = "Opened Chapter ${currentChapterIndex + 1}"
-                            )
+                        HistoryTracker.logEvent(
+                            "READ_NOVEL",
+                            manga.title,
+                            "Opened Chapter ${currentChapterIndex + 1}"
                         )
                     }
                 }
@@ -415,6 +418,42 @@ fun NovelPlayerScreen(
         }
     }
 
+    // ── Paint Paragraph & Reading Mark ─────────────────────────────────────────
+    fun paintParagraph(chapterIdx: Int, paragraphIdx: Int, color: Int = activePaintColor) {
+        if (mangaId <= 0L) return
+        val existingMarker = markers.find { it.page == chapterIdx && it.x1.toInt() == paragraphIdx }
+        coroutineScope.launch(Dispatchers.IO) {
+            if (existingMarker != null) {
+                if (existingMarker.color == color) {
+                    database.annotationDao().deleteMarker(existingMarker)
+                    withContext(Dispatchers.Main) {
+                        bookmarkToastMessage = "Paint Erased"
+                    }
+                    return@launch
+                } else {
+                    database.annotationDao().deleteMarker(existingMarker)
+                }
+            }
+            database.annotationDao().insertMarker(
+                PdfMarkerEntity(
+                    mangaId = mangaId,
+                    page = chapterIdx,
+                    x1 = paragraphIdx.toFloat(),
+                    y1 = 0f,
+                    x2 = 0f,
+                    y2 = 0f,
+                    color = color,
+                    createdAt = System.currentTimeMillis()
+                )
+            )
+            val scrollItem = (paragraphIdx + 1).coerceAtLeast(0)
+            saveProgress(chapterIdx, scrollItem)
+            withContext(Dispatchers.Main) {
+                bookmarkToastMessage = "Painted • Ch. ${chapterIdx + 1}, Para. ${paragraphIdx + 1}"
+            }
+        }
+    }
+
     // ── Bookmarks / Reading Progress Checkpoint ────────────────────────────────
     val isCurrentBookmarked = remember(mangaEntity?.lastReadPage, currentChapterIndex) {
         mangaEntity?.lastReadPage == currentChapterIndex
@@ -447,8 +486,8 @@ fun NovelPlayerScreen(
     val currentListState = rememberUpdatedState(verticalListState)
 
     // Save novel reading progress when scrolling is idle in vertical mode
-    LaunchedEffect(verticalListState.isScrollInProgress) {
-        if (!verticalListState.isScrollInProgress && readMode == NovelReadMode.VERTICAL_SCROLL) {
+    LaunchedEffect(verticalListState.isScrollInProgress, initialPositionRestored) {
+        if (initialPositionRestored && !isLoading && !verticalListState.isScrollInProgress && readMode == NovelReadMode.VERTICAL_SCROLL) {
             val offset = verticalListState.firstVisibleItemIndex
             saveProgress(currentChapterIndex, offset)
         }
@@ -458,6 +497,20 @@ fun NovelPlayerScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
+                if (initialPositionRestored) {
+                    val scrollOffset = if (currentReadModeState.value == NovelReadMode.VERTICAL_SCROLL) {
+                        currentListState.value.firstVisibleItemIndex
+                    } else {
+                        0
+                    }
+                    saveProgress(currentChIdxState.value, scrollOffset)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            if (initialPositionRestored) {
                 val scrollOffset = if (currentReadModeState.value == NovelReadMode.VERTICAL_SCROLL) {
                     currentListState.value.firstVisibleItemIndex
                 } else {
@@ -465,16 +518,6 @@ fun NovelPlayerScreen(
                 }
                 saveProgress(currentChIdxState.value, scrollOffset)
             }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            val scrollOffset = if (currentReadModeState.value == NovelReadMode.VERTICAL_SCROLL) {
-                currentListState.value.firstVisibleItemIndex
-            } else {
-                0
-            }
-            saveProgress(currentChIdxState.value, scrollOffset)
         }
     }
 
@@ -609,14 +652,24 @@ fun NovelPlayerScreen(
             ) {
                 // ── Vertical Scroll Mode ────────────────────────────────────────────────
                 if (readMode == NovelReadMode.VERTICAL_SCROLL) {
-                LaunchedEffect(novelBook, mangaEntity) {
-                    if (!initialPositionRestored && novelBook != null && mangaEntity != null) {
+                LaunchedEffect(paragraphs.size, mangaEntity, initialPositionRestored) {
+                    if (!initialPositionRestored && mangaEntity != null && paragraphs.isNotEmpty()) {
                         val targetChapter = (mangaEntity?.lastReadPage ?: 0).coerceIn(0, (chapters.size - 1).coerceAtLeast(0))
-                        val targetPos = (mangaEntity?.position ?: 0).coerceAtLeast(0)
+                        var targetPos = (mangaEntity?.position ?: 0).coerceAtLeast(0)
+
+                        // If position is 0, check if there is a paint marker for this chapter
+                        if (targetPos <= 0 && markers.isNotEmpty()) {
+                            val chapterMarker = markers.filter { it.page == targetChapter }.maxByOrNull { it.createdAt }
+                            if (chapterMarker != null) {
+                                targetPos = (chapterMarker.x1.toInt() + 1).coerceAtLeast(0)
+                            }
+                        }
+
                         currentChapterIndex = targetChapter
                         lastScrolledChapter = targetChapter
-                        if (targetPos > 0) {
-                            verticalListState.scrollToItem(targetPos)
+                        val safePos = targetPos.coerceIn(0, (paragraphs.size - 1).coerceAtLeast(0))
+                        if (safePos > 0) {
+                            verticalListState.scrollToItem(safePos)
                         }
                         initialPositionRestored = true
                     }
@@ -630,19 +683,30 @@ fun NovelPlayerScreen(
                     }
                 }
 
-                LaunchedEffect(currentChapterIndex, verticalListState, initialPositionRestored) {
+                LaunchedEffect(currentChapterIndex, initialPositionRestored) {
                     if (!initialPositionRestored) return@LaunchedEffect
                     snapshotFlow { verticalListState.firstVisibleItemIndex }
                         .distinctUntilChanged()
                         .collect { firstIdx ->
-                            if (firstIdx >= 0 && lastScrolledChapter == currentChapterIndex) {
+                            if (initialPositionRestored && firstIdx >= 0 && lastScrolledChapter == currentChapterIndex) {
                                 saveProgress(currentChapterIndex, firstIdx)
                             }
                         }
                 }
 
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(isPaintMode) {
+                            detectTapGestures(
+                                onDoubleTap = {
+                                    if (!isPaintMode) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        isControlsVisible = !isControlsVisible
+                                    }
+                                }
+                            )
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     LazyColumn(
@@ -699,22 +763,102 @@ fun NovelPlayerScreen(
                         itemsIndexed(
                             items = paragraphs,
                             key = { pIdx, _ -> "p_${currentChapterIndex}_$pIdx" }
-                        ) { _, paragraph ->
+                        ) { pIdx, paragraph ->
+                            val marker = markers.find { it.page == currentChapterIndex && it.x1.toInt() == pIdx }
+                            val isPainted = marker != null
+                            val paintColor = if (isPainted) Color(marker!!.color) else Color(activePaintColor)
+
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = paragraphSpacingDp.dp)
-                            ) {
-                                SelectionContainer {
-                                    NovelParagraphBlock(
-                                        paragraph = paragraph,
-                                        theme = currentTheme,
-                                        fontFamily = resolvedFont,
-                                        fontSizeSp = fontSizeSp,
-                                        lineHeightMultiplier = lineHeightMultiplier,
-                                        textAlign = textAlign,
-                                        basePath = basePath
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .then(
+                                        if (isPainted) {
+                                            Modifier
+                                                .background(
+                                                    brush = Brush.horizontalGradient(
+                                                        colors = listOf(
+                                                            paintColor.copy(alpha = 0.38f),
+                                                            paintColor.copy(alpha = 0.22f),
+                                                            paintColor.copy(alpha = 0.10f)
+                                                        )
+                                                    ),
+                                                    shape = RoundedCornerShape(8.dp)
+                                                )
+                                                .border(
+                                                    width = 1.dp,
+                                                    color = paintColor.copy(alpha = 0.35f),
+                                                    shape = RoundedCornerShape(8.dp)
+                                                )
+                                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        } else {
+                                            Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                        }
                                     )
+                                    .pointerInput(isPaintMode, currentChapterIndex, pIdx, activePaintColor, isPainted) {
+                                        detectTapGestures(
+                                            onTap = {
+                                                if (isPaintMode) {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    paintParagraph(currentChapterIndex, pIdx, activePaintColor)
+                                                }
+                                            },
+                                            onDoubleTap = {
+                                                if (!isPaintMode) {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    isControlsVisible = !isControlsVisible
+                                                }
+                                            },
+                                            onLongPress = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                paintParagraph(currentChapterIndex, pIdx, activePaintColor)
+                                            }
+                                        )
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    if (isPainted) {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(3.5.dp)
+                                                .height(24.dp)
+                                                .background(paintColor, RoundedCornerShape(2.dp))
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                    }
+
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        SelectionContainer {
+                                            NovelParagraphBlock(
+                                                paragraph = paragraph,
+                                                theme = currentTheme,
+                                                fontFamily = resolvedFont,
+                                                fontSizeSp = fontSizeSp,
+                                                lineHeightMultiplier = lineHeightMultiplier,
+                                                textAlign = textAlign,
+                                                basePath = basePath
+                                            )
+                                        }
+                                    }
+
+                                    if (isPainted) {
+                                        Spacer(Modifier.width(6.dp))
+                                        Icon(
+                                            imageVector = Icons.Rounded.Brush,
+                                            contentDescription = "Painted Mark",
+                                            tint = paintColor,
+                                            modifier = Modifier
+                                                .size(14.dp)
+                                                .clickable {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                    paintParagraph(currentChapterIndex, pIdx, activePaintColor)
+                                                }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -809,7 +953,18 @@ fun NovelPlayerScreen(
                     val scrollState = rememberScrollState()
 
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(isPaintMode) {
+                                detectTapGestures(
+                                    onDoubleTap = {
+                                        if (!isPaintMode) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            isControlsVisible = !isControlsVisible
+                                        }
+                                    }
+                                )
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
@@ -854,17 +1009,102 @@ fun NovelPlayerScreen(
 
                         SelectionContainer {
                             Column(verticalArrangement = Arrangement.spacedBy(paragraphSpacingDp.dp)) {
-                                paragraphs.forEach { p ->
+                                paragraphs.forEachIndexed { pIdx, p ->
                                     if (p.isNotBlank()) {
-                                        NovelParagraphBlock(
-                                            paragraph = p,
-                                            theme = currentTheme,
-                                            fontFamily = resolvedFont,
-                                            fontSizeSp = fontSizeSp,
-                                            lineHeightMultiplier = lineHeightMultiplier,
-                                            textAlign = textAlign,
-                                            basePath = basePath
-                                        )
+                                        val marker = markers.find { it.page == page && it.x1.toInt() == pIdx }
+                                        val isPainted = marker != null
+                                        val paintColor = if (isPainted) Color(marker!!.color) else Color(activePaintColor)
+
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .then(
+                                                    if (isPainted) {
+                                                        Modifier
+                                                            .background(
+                                                                brush = Brush.horizontalGradient(
+                                                                    colors = listOf(
+                                                                        paintColor.copy(alpha = 0.38f),
+                                                                        paintColor.copy(alpha = 0.22f),
+                                                                        paintColor.copy(alpha = 0.10f)
+                                                                    )
+                                                                ),
+                                                                shape = RoundedCornerShape(8.dp)
+                                                            )
+                                                            .border(
+                                                                width = 1.dp,
+                                                                color = paintColor.copy(alpha = 0.35f),
+                                                                shape = RoundedCornerShape(8.dp)
+                                                            )
+                                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                                    } else {
+                                                        Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                    }
+                                                )
+                                                .pointerInput(isPaintMode, page, pIdx, activePaintColor, isPainted) {
+                                                    detectTapGestures(
+                                                        onTap = {
+                                                            if (isPaintMode) {
+                                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                                paintParagraph(page, pIdx, activePaintColor)
+                                                            }
+                                                        },
+                                                        onDoubleTap = {
+                                                            if (!isPaintMode) {
+                                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                                isControlsVisible = !isControlsVisible
+                                                            }
+                                                        },
+                                                        onLongPress = {
+                                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                            paintParagraph(page, pIdx, activePaintColor)
+                                                        }
+                                                    )
+                                                }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.Top
+                                            ) {
+                                                if (isPainted) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .width(3.5.dp)
+                                                            .height(24.dp)
+                                                            .background(paintColor, RoundedCornerShape(2.dp))
+                                                    )
+                                                    Spacer(Modifier.width(8.dp))
+                                                }
+
+                                                Box(modifier = Modifier.weight(1f)) {
+                                                    NovelParagraphBlock(
+                                                        paragraph = p,
+                                                        theme = currentTheme,
+                                                        fontFamily = resolvedFont,
+                                                        fontSizeSp = fontSizeSp,
+                                                        lineHeightMultiplier = lineHeightMultiplier,
+                                                        textAlign = textAlign,
+                                                        basePath = basePath
+                                                    )
+                                                }
+
+                                                if (isPainted) {
+                                                    Spacer(Modifier.width(6.dp))
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.Brush,
+                                                        contentDescription = "Painted Mark",
+                                                        tint = paintColor,
+                                                        modifier = Modifier
+                                                            .size(14.dp)
+                                                            .clickable {
+                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                                paintParagraph(page, pIdx, activePaintColor)
+                                                            }
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -877,13 +1117,13 @@ fun NovelPlayerScreen(
             } // Close reader content Box
 
             // ═════════════════════════════════════════════════════════════════════
-            // SLEEK TOP-RIGHT PROGRESS & CHECKPOINT STICKY TAB
+            // SLEEK TOP-RIGHT PROGRESS & READING PAINT STICKY TAB
             // ═════════════════════════════════════════════════════════════════════
             if (!showTocSheet) {
                 Surface(
                     shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp),
                     color = Color(0xFF111118),
-                    border = PremiumPillDefaults.border(currentTheme.accent),
+                    border = PremiumPillDefaults.border(Color(activePaintColor)),
                     shadowElevation = 10.dp,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -893,20 +1133,20 @@ fun NovelPlayerScreen(
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             isControlsVisible = true
-                            activeSettingTab = NovelSettingTab.CHECKPOINTS
+                            activeSettingTab = NovelSettingTab.PAINT
                         }
                 ) {
                     Row(
                         modifier = Modifier
-                            .background(PremiumPillDefaults.background(currentTheme.accent))
+                            .background(PremiumPillDefaults.background(Color(activePaintColor)))
                             .padding(horizontal = 11.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Bookmark,
-                            contentDescription = "Checkpoints",
-                            tint = if (markers.isNotEmpty()) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.7f),
+                            imageVector = Icons.Rounded.Brush,
+                            contentDescription = "Reading Paint",
+                            tint = if (markers.isNotEmpty()) Color(activePaintColor) else Color.White.copy(alpha = 0.7f),
                             modifier = Modifier.size(13.dp)
                         )
                         Text(
@@ -919,25 +1159,6 @@ fun NovelPlayerScreen(
                 }
             }
 
-            // ═════════════════════════════════════════════════════════════════════
-            // RIGHT-SIDE FOCUS TRIGGER (Full-height right margin tap zone)
-            // ═════════════════════════════════════════════════════════════════════
-            if (!isControlsVisible && !showTocSheet) {
-                // Entire right margin tap zone (as drawn by user in screenshot 14.32.09)
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .fillMaxHeight()
-                        .width(72.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            isControlsVisible = true
-                        }
-                )
-            }
 
             // ═════════════════════════════════════════════════════════════════════
             // OVERLAY CONTROLS (Top Bar, Dismiss Background, and Settings Pill)
@@ -1066,24 +1287,24 @@ fun NovelPlayerScreen(
                                     },
                                 shape = RoundedCornerShape(20.dp),
                                 color = Color(0xFF111118),
-                                border = PremiumPillDefaults.border(Color(0xFFFFD54F)),
+                                border = PremiumPillDefaults.border(Color(activePaintColor)),
                                 shadowElevation = 10.dp
                             ) {
                                 Row(
                                     modifier = Modifier
-                                        .background(PremiumPillDefaults.background(Color(0xFFFFD54F)))
+                                        .background(PremiumPillDefaults.background(Color(activePaintColor)))
                                         .padding(horizontal = 12.dp, vertical = 7.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Rounded.Bookmark,
+                                        imageVector = Icons.Rounded.Brush,
                                         contentDescription = null,
-                                        tint = Color(0xFFFFD54F),
+                                        tint = Color(activePaintColor),
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Text(
-                                        text = "Last: $savedPct% (Ch. ${lastReadChapter + 1})",
+                                        text = "Resume: Ch. ${lastReadChapter + 1} ($savedPct%)",
                                         color = Color.White,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold
@@ -1128,6 +1349,10 @@ fun NovelPlayerScreen(
                         onKeepScreenOnChange = { keepScreenOn = it },
                         brightnessOverride = brightnessOverride,
                         onBrightnessOverrideChange = { brightnessOverride = it },
+                        isPaintMode = isPaintMode,
+                        onTogglePaintMode = { isPaintMode = it },
+                        activePaintColor = activePaintColor,
+                        onSelectPaintColor = { activePaintColor = it },
                         markers = markers,
                         chapters = chapters,
                         onAddCheckpoint = {
@@ -1138,29 +1363,14 @@ fun NovelPlayerScreen(
                                 } else {
                                     0
                                 }
-                                coroutineScope.launch(Dispatchers.IO) {
-                                    database.annotationDao().insertMarker(
-                                        com.ballade.hwaran.core.database.entity.PdfMarkerEntity(
-                                            mangaId = mangaId,
-                                            page = chapterIdx,
-                                            x1 = scrollOffset.toFloat(),
-                                            y1 = 0f,
-                                            x2 = 0f,
-                                            y2 = 0f,
-                                            color = 0,
-                                            createdAt = System.currentTimeMillis()
-                                        )
-                                    )
-                                }
-                                saveProgress(chapterIdx, scrollOffset)
-                                val title = novelBook!!.chapters.getOrNull(chapterIdx)?.title ?: "Chapter ${chapterIdx + 1}"
-                                bookmarkToastMessage = "Checkpoint Added • $title"
+                                val pIdx = (scrollOffset - 1).coerceAtLeast(0)
+                                paintParagraph(chapterIdx, pIdx, activePaintColor)
                             }
                         },
                         onJumpToCheckpoint = { marker ->
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             val targetChapter = marker.page.coerceIn(0, (chapters.size - 1).coerceAtLeast(0))
-                            val targetScroll = marker.x1.toInt().coerceAtLeast(0)
+                            val targetScroll = (marker.x1.toInt() + 1).coerceAtLeast(0)
                             lastScrolledChapter = targetChapter
                             currentChapterIndex = targetChapter
                             coroutineScope.launch {
@@ -1174,10 +1384,86 @@ fun NovelPlayerScreen(
                             }
                         },
                         onShowToc = { showTocSheet = true; activeSettingTab = null },
-                        glowColor = currentTheme.accent,
+                        glowColor = Color(activePaintColor),
                         musicViewModel = musicViewModel,
                         modifier = Modifier.fillMaxSize()
                     )
+                }
+            }
+
+            // ── Floating Bottom Highlighter Bar (when isPaintMode is active) ──
+            AnimatedVisibility(
+                visible = isPaintMode,
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 16.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(32.dp),
+                    color = Color(0xFF14141E),
+                    border = BorderStroke(1.dp, Color(activePaintColor).copy(alpha = 0.6f)),
+                    shadowElevation = 14.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Brush,
+                            contentDescription = null,
+                            tint = Color(activePaintColor),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "Tap text to paint mark",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        val paintColors = listOf(
+                            0xFFFFD54F.toInt(), // Yellow
+                            0xFF81C784.toInt(), // Mint Green
+                            0xFF64B5F6.toInt(), // Sky Blue
+                            0xFFF06292.toInt(), // Rose Pink
+                            0xFFFFB74D.toInt()  // Amber Orange
+                        )
+                        paintColors.forEach { colorInt ->
+                            val isSelected = activePaintColor == colorInt
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(colorInt))
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        activePaintColor = colorInt
+                                    }
+                                    .border(
+                                        width = if (isSelected) 2.dp else 0.dp,
+                                        color = if (isSelected) Color.White else Color.Transparent,
+                                        shape = CircleShape
+                                    )
+                            )
+                        }
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.15f),
+                            modifier = Modifier
+                                .size(26.dp)
+                                .clip(CircleShape)
+                                .clickable {
+                                    isPaintMode = false
+                                }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Rounded.Close, contentDescription = "Done", tint = Color.White, modifier = Modifier.size(14.dp))
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1194,20 +1480,20 @@ fun NovelPlayerScreen(
             Surface(
                 shape = RoundedCornerShape(22.dp),
                 color = Color(0xFF111118),
-                border = PremiumPillDefaults.border(currentTheme.accent),
+                border = PremiumPillDefaults.border(Color(activePaintColor)),
                 shadowElevation = 14.dp
             ) {
                 Row(
                     modifier = Modifier
-                        .background(PremiumPillDefaults.background(currentTheme.accent))
+                        .background(PremiumPillDefaults.background(Color(activePaintColor)))
                         .padding(horizontal = 18.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Bookmark,
+                        imageVector = Icons.Rounded.Brush,
                         contentDescription = null,
-                        tint = currentTheme.accent,
+                        tint = Color(activePaintColor),
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
@@ -1285,13 +1571,13 @@ fun NovelPlayerScreen(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Rounded.Bookmark,
+                                    imageVector = Icons.Rounded.Brush,
                                     contentDescription = null,
-                                    tint = currentTheme.accent,
+                                    tint = Color(activePaintColor),
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
-                                    text = "Saved: Ch. ${(mangaEntity?.lastReadPage ?: 0) + 1}",
+                                    text = "Resume: Ch. ${(mangaEntity?.lastReadPage ?: 0) + 1}",
                                     color = currentTheme.text,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -1379,23 +1665,25 @@ fun NovelPlayerScreen(
                                     )
                                 }
 
-                                if (isSavedBookmark) {
+                                val chapterHasMarkers = markers.any { it.page == chapter.index }
+                                if (chapterHasMarkers || isSavedBookmark) {
+                                    val tagColor = if (chapterHasMarkers) Color(activePaintColor) else currentTheme.accent
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                                         modifier = Modifier
-                                            .background(currentTheme.accent.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                            .background(tagColor.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Rounded.Bookmark,
-                                            contentDescription = "Saved Bookmark",
-                                            tint = currentTheme.accent,
+                                            imageVector = Icons.Rounded.Brush,
+                                            contentDescription = "Painted Mark",
+                                            tint = tagColor,
                                             modifier = Modifier.size(14.dp)
                                         )
                                         Text(
-                                            text = "Saved",
-                                            color = currentTheme.accent,
+                                            text = if (chapterHasMarkers) "Painted" else "Saved",
+                                            color = tagColor,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.SemiBold
                                         )

@@ -873,56 +873,22 @@ fun SeriesRelatedView(
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(16.dp))
                                     .pointerInput(video.id, isDeleteMode) {
-                                        if (isDeleteMode) {
-                                            detectTapGestures(
-                                                onTap = {
+                                        detectTapGestures(
+                                            onTap = {
+                                                if (isDeleteMode) {
                                                     if (isSelected) selectedVideoIds.remove(video.id)
                                                     else selectedVideoIds.add(video.id)
+                                                } else {
+                                                    onNavigateToVideo(video.id)
                                                 }
-                                            )
-                                         } else {
-                                            awaitEachGesture {
-                                                val down = awaitFirstDown(requireUnconsumed = true)
-                                                val downPos = down.position
-                                                val tapSlopPx = 18.dp.toPx()
-                                                var isHeld = false
-                                                var isDragScroll = false
-
-                                                val previewJob = coroutineScope.launch {
-                                                    delay(350L)
-                                                    if (!isDragScroll) {
-                                                        isHeld = true
-                                                        showPreview = true
-                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    }
-                                                }
-
-                                                try {
-                                                    while (true) {
-                                                        val event = awaitPointerEvent()
-                                                        val pointer = event.changes.find { it.id == down.id }
-                                                        if (pointer == null || !pointer.pressed) {
-                                                            break
-                                                        }
-                                                        if (!isHeld) {
-                                                            val distance = (pointer.position - downPos).getDistance()
-                                                            if (distance > tapSlopPx) {
-                                                                isDragScroll = true
-                                                                previewJob.cancel()
-                                                            }
-                                                        }
-                                                    }
-                                                } catch (_: Exception) {
-                                                } finally {
-                                                    previewJob.cancel()
-                                                    if (isHeld) {
-                                                        showPreview = false
-                                                    } else if (!isDragScroll) {
-                                                        onNavigateToVideo(video.id)
-                                                    }
+                                            },
+                                            onLongPress = {
+                                                if (!isDeleteMode) {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    showPreview = true
                                                 }
                                             }
-                                        }
+                                        )
                                     },
                                 shape = RoundedCornerShape(16.dp),
                                 color = CardBg,

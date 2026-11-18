@@ -136,8 +136,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     init {
         // Self-heal covers in background with a delay so startup UI renders smoothly
         viewModelScope.launch(Dispatchers.IO) {
-            kotlinx.coroutines.delay(2500L)
+            kotlinx.coroutines.delay(8000L)
             try {
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
                 val app = getApplication<Application>()
                 val mediaDao = database.libraryDao()
                 val allItems = mediaDao.getAllMangaList()
@@ -215,7 +216,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
         // Auto-sync library on startup after UI stabilizes
         viewModelScope.launch(Dispatchers.IO) {
-            kotlinx.coroutines.delay(2000L)
+            kotlinx.coroutines.delay(5000L)
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
             syncLibrary(showToast = false)
         }
 

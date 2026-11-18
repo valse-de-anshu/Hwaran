@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -161,30 +162,39 @@ fun PlaylistDetailScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        // Blurred Album Art Background
-        // allowHardware(false) is required — the blur modifier cannot operate on
-        // hardware-accelerated bitmaps. Radius reduced to 60dp (still fully blurred
-        // but cheaper for the GPU). crossfade disabled so the image snaps in without
-        // an extra animation layer on every track change.
+        // High-performance hardware-accelerated Album Art Background
         val bgImageData = remember(currentChapter?.id, currentManga?.id) {
             currentChapter?.thumbnailUri ?: currentChapter?.folderUri ?: currentManga?.coverPath
         }
         Box(modifier = Modifier.fillMaxSize()) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(bgImageData)
-                    .crossfade(false)
-                    .allowHardware(false)
-                    .memoryCacheKey("playlist_bg_${currentManga?.id}_${currentChapter?.id}")
-                    .diskCacheKey("playlist_bg_${currentManga?.id}_${currentChapter?.id}")
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+            if (bgImageData != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(bgImageData)
+                        .crossfade(false)
+                        .memoryCacheKey("playlist_bg_${currentManga?.id}_${currentChapter?.id}")
+                        .diskCacheKey("playlist_bg_${currentManga?.id}_${currentChapter?.id}")
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = 0.20f }
+                )
+            }
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(radius = 60.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Black.copy(alpha = 0.50f),
+                                Color.Black.copy(alpha = 0.85f),
+                                Color.Black
+                            )
+                        )
+                    )
             )
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.15f)))
         }
 
         Box(modifier = Modifier.fillMaxSize()) {

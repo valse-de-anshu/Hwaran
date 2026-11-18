@@ -396,12 +396,15 @@ fun ToonPlayerScreen(
                                 scale = mode0Scale,
                                 panX = mode0PanX,
                                 panY = mode0PanY,
-                                onSingleTap = { offset, width ->
+                                onDoubleTap = { _, _ ->
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    showControls = !showControls
+                                },
+                                onSingleTap = { _, _ ->
                                     if (activeSettingTab != null) {
                                         activeSettingTab = null
-                                    } else {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        showControls = !showControls
+                                    } else if (showControls) {
+                                        showControls = false
                                     }
                                 }
                             )
@@ -481,12 +484,16 @@ fun ToonPlayerScreen(
                                 scale = mode1Scale,
                                 panX = mode1PanX,
                                 panY = mode1PanY,
+                                onDoubleTap = { _, _ ->
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    showControls = !showControls
+                                },
                                 onSingleTap = { offset, width ->
                                     if (activeSettingTab != null) {
                                         activeSettingTab = null
-                                    } else if (mode1Scale.value > 1.05f) {
-                                        showControls = !showControls
-                                    } else {
+                                    } else if (showControls) {
+                                        showControls = false
+                                    } else if (mode1Scale.value <= 1.05f) {
                                         val leftThreshold = width * 0.28f
                                         val rightThreshold = width * 0.72f
 
@@ -500,8 +507,7 @@ fun ToonPlayerScreen(
                                                 if (isRtl) goToPrev() else goToNext()
                                             }
                                             else -> {
-                                                // Center Tap toggles controls
-                                                showControls = !showControls
+                                                // Center single tap: do nothing so accidental tap doesn't open UI
                                             }
                                         }
                                     }
@@ -551,22 +557,6 @@ fun ToonPlayerScreen(
                 }
             }
 
-            // ── Right-Side Margin Focus Trigger (Always tap-accessible for vertical settings pill) ──
-            if (!showControls && !showChapterList) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .fillMaxHeight()
-                        .width(64.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            showControls = true
-                        }
-                )
-            }
 
             // ═════════════════════════════════════════════════════════════════════════
             // OVERLAY CONTROLS (Hidden during chapter picker to eliminate interference)
@@ -942,6 +932,7 @@ private fun Modifier.readerZoomGestures(
     scale: Animatable<Float, AnimationVector1D>,
     panX: Animatable<Float, AnimationVector1D>,
     panY: Animatable<Float, AnimationVector1D>,
+    onDoubleTap: ((Offset, Float) -> Unit)? = null,
     onSingleTap: (Offset, Float) -> Unit
 ): Modifier = this
     .clipToBounds()
@@ -1045,40 +1036,28 @@ private fun Modifier.readerZoomGestures(
             }
         }
     }
-    .pointerInput(onSingleTap) {
+    .pointerInput(onDoubleTap, onSingleTap) {
         detectTapGestures(
             onDoubleTap = { tapOffset ->
-                coroutineScope.launch {
-                    if (scale.value > 1.05f) {
-                        // Smoothly animate back to 1.0x
-                        launch {
-                            scale.animateTo(1f, tween(300, easing = FastOutSlowInEasing))
-                        }
-                        launch {
-                            panX.animateTo(0f, tween(300, easing = FastOutSlowInEasing))
-                        }
-                        launch {
-                            panY.animateTo(0f, tween(300, easing = FastOutSlowInEasing))
-                        }
-                    } else {
-                        // Smoothly animate in to 2.5x centered on tap
-                        val targetScale = 2.5f
-                        val centerX = size.width / 2f
-                        val centerY = size.height / 2f
-                        val maxPanX = (size.width * (targetScale - 1f)) / 2f
-                        val maxPanY = (size.height * (targetScale - 1f)) / 2f
-
-                        val targetPanX = ((centerX - tapOffset.x) * (targetScale - 1f)).coerceIn(-maxPanX, maxPanX)
-                        val targetPanY = ((centerY - tapOffset.y) * (targetScale - 1f)).coerceIn(-maxPanY, maxPanY)
-
-                        launch {
-                            scale.animateTo(targetScale, tween(300, easing = FastOutSlowInEasing))
-                        }
-                        launch {
-                            panX.animateTo(targetPanX, tween(300, easing = FastOutSlowInEasing))
-                        }
-                        launch {
-                            panY.animateTo(targetPanY, tween(300, easing = FastOutSlowInEasing))
+                if (onDoubleTap != null) {
+                    onDoubleTap(tapOffset, size.width.toFloat())
+                } else {
+                    coroutineScope.launch {
+                        if (scale.value > 1.05f) {
+                            launch { scale.animateTo(1f, tween(300, easing = FastOutSlowInEasing)) }
+                            launch { panX.animateTo(0f, tween(300, easing = FastOutSlowInEasing)) }
+                            launch { panY.animateTo(0f, tween(300, easing = FastOutSlowInEasing)) }
+                        } else {
+                            val targetScale = 2.5f
+                            val centerX = size.width / 2f
+                            val centerY = size.height / 2f
+                            val maxPanX = (size.width * (targetScale - 1f)) / 2f
+                            val maxPanY = (size.height * (targetScale - 1f)) / 2f
+                            val targetPanX = ((centerX - tapOffset.x) * (targetScale - 1f)).coerceIn(-maxPanX, maxPanX)
+                            val targetPanY = ((centerY - tapOffset.y) * (targetScale - 1f)).coerceIn(-maxPanY, maxPanY)
+                            launch { scale.animateTo(targetScale, tween(300, easing = FastOutSlowInEasing)) }
+                            launch { panX.animateTo(targetPanX, tween(300, easing = FastOutSlowInEasing)) }
+                            launch { panY.animateTo(targetPanY, tween(300, easing = FastOutSlowInEasing)) }
                         }
                     }
                 }

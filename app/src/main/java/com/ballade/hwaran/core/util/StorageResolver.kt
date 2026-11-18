@@ -25,10 +25,15 @@ object StorageResolver {
 
         if (uri.scheme == "content" && uri.authority == "com.android.externalstorage.documents") {
             try {
-                val docId = if (DocumentsContract.isTreeUri(uri)) {
-                    DocumentsContract.getTreeDocumentId(uri)
-                } else {
+                // If the URI points to a document within a tree (has /document/ segment),
+                // DocumentsContract.getDocumentId yields the specific subfolder/file document ID (e.g. primary:Music/AlbumA).
+                // If it is a pure tree root URI, getDocumentId fails, so we fall back to getTreeDocumentId (primary:Music).
+                val docId = try {
                     DocumentsContract.getDocumentId(uri)
+                } catch (_: Exception) {
+                    if (DocumentsContract.isTreeUri(uri)) {
+                        try { DocumentsContract.getTreeDocumentId(uri) } catch (_: Exception) { null }
+                    } else null
                 }
                 if (!docId.isNullOrBlank()) {
                     if (docId.startsWith("primary:")) {
