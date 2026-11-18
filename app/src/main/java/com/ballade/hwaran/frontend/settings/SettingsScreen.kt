@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.*
 import com.ballade.hwaran.ui.components.DeleteConfirmationDialog
 import com.ballade.hwaran.ui.theme.AVAILABLE_APP_THEMES
+import com.ballade.hwaran.ui.theme.AccentTitanium
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.*
@@ -1230,14 +1231,14 @@ fun SecurityContent(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF9333EA).copy(alpha = 0.20f))
-                            .border(1.dp, Color(0xFFA855F7).copy(alpha = 0.35f), CircleShape),
+                            .background(AccentTitanium.copy(alpha = 0.12f))
+                            .border(1.dp, AccentTitanium.copy(alpha = 0.25f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Lock,
                             contentDescription = null,
-                            tint = Color(0xFFC084FC),
+                            tint = AccentTitanium,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -1272,11 +1273,11 @@ fun SecurityContent(
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color(0xFFA855F7),
+                            focusedBorderColor = AccentTitanium,
                             unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
                             focusedContainerColor = Color.White.copy(alpha = 0.04f),
                             unfocusedContainerColor = Color.White.copy(alpha = 0.04f),
-                            cursorColor = Color(0xFFC084FC)
+                            cursorColor = AccentTitanium
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1347,8 +1348,8 @@ fun SecurityContent(
                         }
                     },
                     shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFF9333EA).copy(alpha = 0.25f),
-                    border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.5f)),
+                    color = AccentTitanium.copy(alpha = 0.16f),
+                    border = BorderStroke(1.dp, AccentTitanium.copy(alpha = 0.35f)),
                     modifier = Modifier.height(42.dp)
                 ) {
                     Row(
@@ -1358,7 +1359,7 @@ fun SecurityContent(
                     ) {
                         Text(
                             text = if (isSettingNewPassword) "Set Password" else "Confirm",
-                            color = Color(0xFFC084FC),
+                            color = AccentTitanium,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -1405,10 +1406,10 @@ fun SecurityContent(
     // ── 1. Vault Lock Switch Tile ──
     Surface(
         shape = RoundedCornerShape(16.dp),
-        color = if (isLibraryLocked) Color(0xFF241530) else Color.White.copy(alpha = 0.04f),
+        color = if (isLibraryLocked) AccentTitanium.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.04f),
         border = BorderStroke(
             1.dp,
-            if (isLibraryLocked) Color(0xFFA855F7).copy(alpha = 0.5f) else Color.White.copy(alpha = 0.08f)
+            if (isLibraryLocked) AccentTitanium.copy(alpha = 0.40f) else Color.White.copy(alpha = 0.08f)
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -1422,7 +1423,7 @@ fun SecurityContent(
                     .size(36.dp)
                     .clip(CircleShape)
                     .background(
-                        if (isLibraryLocked) Color(0xFF9333EA).copy(alpha = 0.25f)
+                        if (isLibraryLocked) AccentTitanium.copy(alpha = 0.16f)
                         else Color.White.copy(alpha = 0.06f)
                     ),
                 contentAlignment = Alignment.Center
@@ -1430,14 +1431,14 @@ fun SecurityContent(
                 Icon(
                     imageVector = if (isLibraryLocked) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
                     contentDescription = null,
-                    tint = if (isLibraryLocked) Color(0xFFC084FC) else Color.White.copy(alpha = 0.6f),
+                    tint = if (isLibraryLocked) AccentTitanium else Color.White.copy(alpha = 0.6f),
                     modifier = Modifier.size(20.dp)
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Private Vault Lock",
-                    color = if (isLibraryLocked) Color(0xFFC084FC) else Color.White,
+                    color = if (isLibraryLocked) AccentTitanium else Color.White,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -1462,8 +1463,8 @@ fun SecurityContent(
                     }
                 },
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
-                    checkedTrackColor = Color(0xFF9333EA),
+                    checkedThumbColor = Color(0xFF0F0E17),
+                    checkedTrackColor = AccentTitanium,
                     uncheckedThumbColor = Color.White.copy(alpha = 0.6f),
                     uncheckedTrackColor = Color.White.copy(alpha = 0.12f)
                 )

@@ -87,6 +87,7 @@ import com.ballade.hwaran.ui.viewmodels.LibraryViewModel
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
 import com.ballade.hwaran.ui.viewmodels.MusicViewModel
 import com.ballade.hwaran.ui.theme.LocalBatterySaving
+import com.ballade.hwaran.ui.theme.AccentTitanium
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.BlendMode
@@ -748,14 +749,14 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF9333EA).copy(alpha = 0.20f))
-                            .border(1.dp, Color(0xFFA855F7).copy(alpha = 0.35f), CircleShape),
+                            .background(AccentTitanium.copy(alpha = 0.12f))
+                            .border(1.dp, AccentTitanium.copy(alpha = 0.25f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Lock,
                             contentDescription = null,
-                            tint = Color(0xFFC084FC),
+                            tint = AccentTitanium,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -784,11 +785,11 @@ fun HomeScreen(
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color(0xFFA855F7),
+                            focusedBorderColor = AccentTitanium,
                             unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
                             focusedContainerColor = Color.White.copy(alpha = 0.04f),
                             unfocusedContainerColor = Color.White.copy(alpha = 0.04f),
-                            cursorColor = Color(0xFFC084FC)
+                            cursorColor = AccentTitanium
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -811,8 +812,8 @@ fun HomeScreen(
                         }
                     },
                     shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFF9333EA).copy(alpha = 0.25f),
-                    border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.5f)),
+                    color = AccentTitanium.copy(alpha = 0.16f),
+                    border = BorderStroke(1.dp, AccentTitanium.copy(alpha = 0.35f)),
                     modifier = Modifier.height(42.dp)
                 ) {
                     Row(
@@ -820,7 +821,7 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        Text("Set & Lock", color = Color(0xFFC084FC), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Set & Lock", color = AccentTitanium, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             },
@@ -872,14 +873,14 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF9333EA).copy(alpha = 0.20f))
-                            .border(1.dp, Color(0xFFA855F7).copy(alpha = 0.35f), CircleShape),
+                            .background(AccentTitanium.copy(alpha = 0.12f))
+                            .border(1.dp, AccentTitanium.copy(alpha = 0.25f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Lock,
                             contentDescription = null,
-                            tint = Color(0xFFC084FC),
+                            tint = AccentTitanium,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -911,11 +912,11 @@ fun HomeScreen(
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color(0xFFA855F7),
+                            focusedBorderColor = AccentTitanium,
                             unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
                             focusedContainerColor = Color.White.copy(alpha = 0.04f),
                             unfocusedContainerColor = Color.White.copy(alpha = 0.04f),
-                            cursorColor = Color(0xFFC084FC)
+                            cursorColor = AccentTitanium
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -955,8 +956,8 @@ fun HomeScreen(
                         }
                     },
                     shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFF9333EA).copy(alpha = 0.25f),
-                    border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.5f)),
+                    color = AccentTitanium.copy(alpha = 0.16f),
+                    border = BorderStroke(1.dp, AccentTitanium.copy(alpha = 0.35f)),
                     modifier = Modifier.height(42.dp)
                 ) {
                     Row(
@@ -964,7 +965,7 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        Text("Unlock", color = Color(0xFFC084FC), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Unlock", color = AccentTitanium, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             },

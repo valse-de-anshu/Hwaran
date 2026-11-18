@@ -17,6 +17,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.rounded.Lock
+import com.ballade.hwaran.ui.theme.AccentTitanium
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -78,7 +79,7 @@ fun LockSelectionScreen(
         }
     }
 
-    val PrimaryPurple = MaterialTheme.colorScheme.primary
+    val accentColor = AccentTitanium
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -107,14 +108,14 @@ fun LockSelectionScreen(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF9333EA).copy(alpha = 0.20f))
-                                    .border(1.dp, Color(0xFFA855F7).copy(alpha = 0.35f), CircleShape),
+                                    .background(AccentTitanium.copy(alpha = 0.12f))
+                                    .border(1.dp, AccentTitanium.copy(alpha = 0.25f), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Lock,
                                     contentDescription = null,
-                                    tint = Color(0xFFC084FC),
+                                    tint = AccentTitanium,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -137,11 +138,11 @@ fun LockSelectionScreen(
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedTextColor = Color.White,
                                     unfocusedTextColor = Color.White,
-                                    focusedBorderColor = Color(0xFFA855F7),
+                                    focusedBorderColor = AccentTitanium,
                                     unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
                                     focusedContainerColor = Color.White.copy(alpha = 0.04f),
                                     unfocusedContainerColor = Color.White.copy(alpha = 0.04f),
-                                    cursorColor = Color(0xFFC084FC)
+                                    cursorColor = AccentTitanium
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -158,8 +159,8 @@ fun LockSelectionScreen(
                                 }
                             },
                             shape = RoundedCornerShape(14.dp),
-                            color = Color(0xFF9333EA).copy(alpha = 0.25f),
-                            border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.5f)),
+                            color = AccentTitanium.copy(alpha = 0.16f),
+                            border = BorderStroke(1.dp, AccentTitanium.copy(alpha = 0.35f)),
                             modifier = Modifier.height(42.dp)
                         ) {
                             Row(
@@ -167,7 +168,7 @@ fun LockSelectionScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center
                             ) {
-                                Text("Set Password", color = Color(0xFFC084FC), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("Set Password", color = AccentTitanium, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
                         }
                     },
@@ -229,10 +230,10 @@ fun LockSelectionScreen(
                             val isSelected = cat == selectedCategory
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
-                                color = if (isSelected) PrimaryPurple.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
+                                color = if (isSelected) accentColor.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
                                 border = BorderStroke(
                                     1.dp, 
-                                    if (isSelected) PrimaryPurple.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.1f)
+                                    if (isSelected) accentColor.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.1f)
                                 ),
                                 modifier = Modifier.clickable { selectedCategory = cat }
                             ) {
@@ -274,7 +275,7 @@ fun LockSelectionScreen(
                         ) {
                             Text(
                                 text = title,
-                                color = PrimaryPurple,
+                                color = accentColor,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -292,7 +293,7 @@ fun LockSelectionScreen(
                         LockSelectionCard(
                             manga = manga,
                             coverTransparency = coverTransparency,
-                            primaryColor = PrimaryPurple,
+                            primaryColor = accentColor,
                             onToggle = { 
                                 libraryViewModel.updateMangaLockState(manga, !manga.isLocked)
                             }
@@ -336,7 +337,7 @@ fun LockSelectionScreen(
                                 onNavigateBack()
                             }
                         }) {
-                            Icon(Icons.Default.Check, contentDescription = "Done", tint = PrimaryPurple)
+                            Icon(Icons.Default.Check, contentDescription = "Done", tint = accentColor)
                         }
                     },
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
