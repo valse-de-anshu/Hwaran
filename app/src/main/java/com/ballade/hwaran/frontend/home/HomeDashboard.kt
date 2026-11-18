@@ -64,6 +64,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 private val embeddedCoverCache = java.util.concurrent.ConcurrentHashMap<String, Any>()
+private val HISTORY_MEDIA_ID_REGEX = Regex("""(?:mangaId|seriesId|channelId|id):(\d+)""")
+private val TOTAL_PAGES_REGEX = Regex("""totalPages:(\d+)""")
+private val PROGRESS_EVENT_TYPES = setOf("WATCH", "PLAY_VIDEO", "READ_TOON", "READ_MANGA", "READ_BOOK", "LISTEN", "READ_NOVEL", "READ", "OPEN")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -151,8 +154,8 @@ fun HomeDashboard(
     // Pre-index history events for O(1) membership check
     val openedMangaIdsFromHistory = remember(historyEvents) {
         historyEvents.mapNotNull { event ->
-            if (event.eventType in listOf("WATCH", "PLAY_VIDEO", "READ_TOON", "READ_MANGA", "READ_BOOK", "LISTEN", "READ_NOVEL", "READ", "OPEN")) {
-                Regex("(?:mangaId|seriesId|channelId|id):(\\d+)").find(event.details)?.groupValues?.getOrNull(1)?.toLongOrNull()
+            if (event.eventType in PROGRESS_EVENT_TYPES) {
+                HISTORY_MEDIA_ID_REGEX.find(event.details)?.groupValues?.getOrNull(1)?.toLongOrNull()
             } else null
         }.toSet()
     }
@@ -312,7 +315,7 @@ fun HomeDashboard(
                                 it.eventType == "READ_TOON" && it.details.contains("mangaId:${manga.id}")
                             }
                             val historyTotalPages = lastToonEvent?.let { ev ->
-                                Regex("totalPages:(\\d+)").find(ev.details)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                                TOTAL_PAGES_REGEX.find(ev.details)?.groupValues?.getOrNull(1)?.toIntOrNull()
                             }
                             if (historyTotalPages != null && historyTotalPages > 0) {
                                 (curPage.toFloat() / historyTotalPages.toFloat()).coerceIn(0.02f, 1f)
@@ -353,7 +356,7 @@ fun HomeDashboard(
                             it.eventType == "READ_NOVEL" && it.details.contains("mangaId:${manga.id}")
                         }
                         val historyTotalChapters = lastNovelEvent?.let { ev ->
-                            Regex("totalPages:(\\d+)").find(ev.details)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                            TOTAL_PAGES_REGEX.find(ev.details)?.groupValues?.getOrNull(1)?.toIntOrNull()
                         }
                         val totalChapters = (chapters.size.takeIf { it > 0 } ?: historyTotalChapters ?: 1).coerceAtLeast(1)
                         val currentChIdx = (manga.lastReadPage ?: 0).coerceIn(0, totalChapters - 1)
@@ -401,7 +404,7 @@ fun HomeDashboard(
                             (it.eventType == "READ_BOOK" || it.eventType == "READ_PDF") && it.details.contains("mangaId:${manga.id}")
                         }
                         val totalPages = lastBookEvent?.let { ev ->
-                            Regex("totalPages:(\\d+)").find(ev.details)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                            TOTAL_PAGES_REGEX.find(ev.details)?.groupValues?.getOrNull(1)?.toIntOrNull()
                         }
                         val lastPageRaw = manga.lastReadPage ?: 0
 

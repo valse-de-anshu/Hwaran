@@ -51,6 +51,7 @@ import java.io.File
 import android.net.Uri
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.ballade.hwaran.ui.components.simpleVerticalScrollbar
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.core.metadata.EntryMetadata
@@ -129,7 +130,8 @@ fun SeriesDescriptionView(
             state = scrollState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 20.dp)
+                .simpleVerticalScrollbar(scrollState),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             // Top Spacer ensuring clean clearance below camera punch hole/notch
@@ -160,6 +162,7 @@ fun SeriesDescriptionView(
                             AsyncImage(
                                 model = ImageRequest.Builder(context)
                                     .data(resolvedCoverModel)
+                                    .size(360, 520)
                                     .crossfade(true)
                                     .build(),
                                 contentDescription = "Series Cover",

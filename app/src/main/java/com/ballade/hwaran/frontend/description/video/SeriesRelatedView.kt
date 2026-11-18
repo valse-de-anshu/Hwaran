@@ -55,6 +55,7 @@ import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.decode.VideoFrameDecoder
 import coil.request.ImageRequest
+import com.ballade.hwaran.ui.components.simpleVerticalScrollbar
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
@@ -82,6 +83,8 @@ import com.ballade.hwaran.ui.components.DeleteConfirmationDialog
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+
+private val CHAPTER_NUMBER_REGEX = Regex("(\\d+(\\.\\d+)?)")
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -183,7 +186,7 @@ fun SeriesRelatedView(
                 } else videos
             }
             null -> videos.sortedWith(compareBy {
-                Regex("(\\d+(\\.\\d+)?)").find(it.title)?.value?.toFloatOrNull() ?: Float.MAX_VALUE
+                CHAPTER_NUMBER_REGEX.find(it.title)?.value?.toFloatOrNull() ?: Float.MAX_VALUE
             })
         }
     }
@@ -830,7 +833,7 @@ fun SeriesRelatedView(
                         LazyVerticalGrid(
                             state = videoGridState,
                             columns = GridCells.Adaptive(minSize = 300.dp),
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().simpleVerticalScrollbar(videoGridState),
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             verticalArrangement = Arrangement.spacedBy(14.dp),
                             contentPadding = PaddingValues(top = 8.dp, bottom = 12.dp)
@@ -1228,8 +1231,10 @@ fun SeriesRelatedView(
                         }
                     }
                 } else {
+                    val relatedScrollState = rememberLazyListState()
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        state = relatedScrollState,
+                        modifier = Modifier.fillMaxSize().simpleVerticalScrollbar(relatedScrollState),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(bottom = 100.dp)
                     ) {

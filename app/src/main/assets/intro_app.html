@@ -801,20 +801,15 @@
                 currentSlide++;
                 updateUI();
             } else {
-                // Premium Final Transition
-                nextBtn.style.transform = 'scale(0.95)';
+                // Fluid, GPU-friendly Final Transition
+                nextBtn.style.transform = 'scale(0.96)';
+                document.body.style.transition = 'opacity 0.2s ease-out';
+                document.body.style.opacity = '0';
                 setTimeout(() => {
-                    nextBtn.style.transform = 'scale(60)';
-                    nextBtn.style.opacity = '0';
-                    document.body.style.background = '#000';
-                    setTimeout(() => {
-                        if (window.Android && window.Android.completeIntro) {
-                            window.Android.completeIntro();
-                        } else {
-                            alert("Transitioning to Main App Dashboard...");
-                        }
-                    }, 100);
-                }, 80);
+                    if (window.Android && window.Android.completeIntro) {
+                        window.Android.completeIntro();
+                    }
+                }, 180);
             }
         }
 

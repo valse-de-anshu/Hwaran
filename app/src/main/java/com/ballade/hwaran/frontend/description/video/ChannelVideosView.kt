@@ -58,9 +58,12 @@ import coil.compose.AsyncImage
 import coil.decode.VideoFrameDecoder
 import coil.request.ImageRequest
 import com.ballade.hwaran.core.database.entity.ChapterEntity
+import com.ballade.hwaran.ui.components.simpleVerticalScrollbar
 import com.ballade.hwaran.core.database.entity.MangaEntity
 import java.io.File
 import com.ballade.hwaran.ui.components.DeleteConfirmationDialog
+
+private val CHAPTER_NUMBER_REGEX = Regex("(\\d+(\\.\\d+)?)")
 
 // Internal sort options — still kept for the filter pills that do work locally
 enum class ChannelVideoSortOption(val displayName: String, val subtitle: String) {
@@ -175,7 +178,7 @@ fun ChannelVideosView(
                 } else videos
             }
             null -> videos.sortedWith(compareBy {
-                Regex("(\\d+(\\.\\d+)?)").find(it.title)?.value?.toFloatOrNull() ?: Float.MAX_VALUE
+                CHAPTER_NUMBER_REGEX.find(it.title)?.value?.toFloatOrNull() ?: Float.MAX_VALUE
             })
         }
     }
@@ -542,7 +545,8 @@ fun ChannelVideosView(
                         columns = GridCells.Adaptive(minSize = 300.dp),
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 20.dp),
+                            .padding(horizontal = 20.dp)
+                            .simpleVerticalScrollbar(gridState),
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(top = 8.dp, bottom = 12.dp)

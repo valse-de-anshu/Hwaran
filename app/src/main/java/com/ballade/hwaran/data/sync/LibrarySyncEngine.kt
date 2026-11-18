@@ -141,7 +141,12 @@ object LibrarySyncEngine {
             "Download/Zine Scraper",
             "Download/zine_scraper",
             "Download/zine scrapper",
-            "Download/zine_scrapper"
+            "Download/zine_scrapper",
+            "Documents/Zine",
+            "Documents/Zine Scraper",
+            "Documents/zine_scraper",
+            "Documents/zine scrapper",
+            "Documents/zine_scrapper"
         )
         for (rel in wellKnownPaths) {
             val dir = File(extStorage, rel)
@@ -150,12 +155,13 @@ object LibrarySyncEngine {
             }
         }
 
+        // 2. Targeted search across directory trees (depth <= 4) for ANY folder matching Zine criteria
         val excludedDirNames = setOf(
             "android", "lost.dir", ".trash", "cache", ".thumbnails",
-            "dcim", "pictures", "recordings", "ringtones", "notifications", "alarms", "podcasts"
+            "dcim", "pictures", "recordings", "ringtones", "notifications", "alarms", "podcasts",
+            "whatsapp", "telegram", "backups"
         )
 
-        // 2. Search deeply across the entire storage for ANY folder named zine or zine scrapper (even in subfolders)
         fun searchDir(dir: File, depth: Int) {
             if (depth > 4 || !dir.exists() || !dir.isDirectory || !dir.canRead()) return
 
@@ -168,12 +174,12 @@ object LibrarySyncEngine {
             // If THIS folder is a Zine folder
             if (dir != extStorage && isZineDirectory(dir)) {
                 addRoot(dir)
-                // Once a Zine root is identified, scanDeepMedia will deeply inspect all its internal folders.
                 return
             }
 
-            // Recurse into subdirectories
-            val subdirs = dir.listFiles { f -> f.isDirectory && !f.name.startsWith(".") && f.name.lowercase().trim() !in excludedDirNames } ?: return
+            val subdirs = dir.listFiles { f ->
+                f.isDirectory && !f.name.startsWith(".") && f.name.lowercase().trim() !in excludedDirNames
+            } ?: return
             for (sub in subdirs) {
                 searchDir(sub, depth + 1)
             }

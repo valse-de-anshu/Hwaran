@@ -198,7 +198,7 @@ fun AppNavGraph(
         composable(
             route = Screen.Intro.route,
             exitTransition = {
-                fadeOut(animationSpec = tween(600))
+                fadeOut(animationSpec = tween(220))
             }
         ) {
             BlockTouchesWhenExiting {
@@ -207,6 +207,7 @@ fun AppNavGraph(
                     onNavigateToHome = {
                         navController.navigate(Screen.Home.route) {
                             popUpTo(Screen.Intro.route) { inclusive = true }
+                            launchSingleTop = true
                         }
                     }
                 )
@@ -216,7 +217,7 @@ fun AppNavGraph(
             route = Screen.Home.route,
             enterTransition = {
                 if (initialState.destination.route == Screen.Intro.route) {
-                    fadeIn(animationSpec = tween(300))
+                    fadeIn(animationSpec = tween(240))
                 } else {
                     slideInHorizontally(
                         initialOffsetX = { (-it * 0.08f).toInt() },

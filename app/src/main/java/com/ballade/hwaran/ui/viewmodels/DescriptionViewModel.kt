@@ -213,29 +213,33 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                         })
                     }
                     _chapters.value = sortedList
-                    // Background scan for missing thumbnails/durations in video/music mode
-                    val type = _manga.value?.contentType ?: 0
-                    if (type == 1 || type == 2) {
+                    // Background scan for missing thumbnails/durations ONLY for video (2) and music (3)
+                    val type = _manga.value?.contentType ?: contentType
+                    if (type == 2 || type == 3) {
                         scanForMissingMetadata(list, type)
                     }
                 }
             }        }
     }
 
-    // Track chapters currently being scanned to prevent O(N^2) explosion
+    // Track chapters currently being scanned or failed to prevent O(N^2) explosion
     // when the DB updates and re-triggers the Flow emission.
     private val scanningChapters = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
+    private val failedScanChapterIds = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
 
     private fun scanForMissingMetadata(chapters: List<ChapterEntity>, contentType: Int) {
+        if (contentType != 2 && contentType != 3) return
         val missing = chapters.filter { 
-            (it.duration == 0L || it.thumbnailUri == null) && !scanningChapters.contains(it.id) 
+            (it.duration == 0L || (it.thumbnailUri == null && contentType == 2)) && 
+            !scanningChapters.contains(it.id) &&
+            !failedScanChapterIds.contains(it.id)
         }
         if (missing.isEmpty()) return
 
         // Mark as scanning immediately so subsequent Flow emissions ignore them
         missing.forEach { scanningChapters.add(it.id) }
 
-        AppImportScope.launch {
+        AppImportScope.launch(Dispatchers.IO) {
             val batch = mutableListOf<ChapterEntity>()
             try {
                 missing.forEach { chapter ->
@@ -301,7 +305,7 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                                 val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                                 duration = durationStr?.toLongOrNull() ?: 0L
 
-                                if (contentType == 1 && artist.isNullOrBlank()) {
+                                if (contentType == 3 && artist.isNullOrBlank()) {
                                     artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
                                         ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
                                 }
@@ -312,8 +316,6 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
                                         BitmapFactory.decodeByteArray(it, 0, it.size)
                                     } ?: run {
                                         // Step 4: Mid-video frame as final fallback (for video only)
-                                        // IMPORTANT: getFrameAtTime takes MICROSECONDS, but duration is in MILLISECONDS.
-                                        // For very long videos (>1hr), seek to 5s mark to avoid OOM.
                                         if (contentType == 2 && duration > 0) {
                                             val seekMs = if (duration > 3_600_000L) 5_000L else duration / 2L
                                             val seekUs = seekMs * 1_000L
@@ -339,14 +341,12 @@ class DescriptionViewModel(application: Application) : AndroidViewModel(applicat
 
                         if (duration != chapter.duration || thumbUri != chapter.thumbnailUri || artist != chapter.artist) {
                             batch.add(chapter.copy(duration = duration, thumbnailUri = thumbUri, artist = artist))
-                            if (batch.size >= 8) {
-                                val toSave = batch.toList()
-                                batch.clear()
-                                trackDao.insertChapters(toSave)
-                            }
+                        } else {
+                            // If neither duration nor thumbnail could be extracted, record it so we don't repeat
+                            failedScanChapterIds.add(chapter.id)
                         }
                     } catch (e: Exception) {
-                        e.printStackTrace()
+                        failedScanChapterIds.add(chapter.id)
                     } finally {
                         scanningChapters.remove(chapter.id)
                     }

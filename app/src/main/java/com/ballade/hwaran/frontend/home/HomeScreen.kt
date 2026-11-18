@@ -565,6 +565,7 @@ fun HomeScreen(
                             }
                         },
                         isImporting = isImportingGlobal,
+                        isSyncing = isSyncing,
                         importProgress = if (isMegaImporting) megaImportProgress else (importProgress / 100f),
                         glowColor = Color(glowColor),
                         fabStyle = fabStyle

@@ -8,13 +8,11 @@ import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.AndroidView
 import com.ballade.hwaran.ui.viewmodels.SettingsViewModel
-import kotlinx.coroutines.launch
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -22,7 +20,24 @@ fun IntroScreen(
     settingsViewModel: SettingsViewModel,
     onNavigateToHome: () -> Unit
 ) {
-    val coroutineScope = rememberCoroutineScope()
+    var webViewRef by remember { mutableStateOf<WebView?>(null) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                webViewRef?.apply {
+                    stopLoading()
+                    loadUrl("about:blank")
+                    clearHistory()
+                    removeAllViews()
+                    destroy()
+                }
+                webViewRef = null
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -45,10 +60,8 @@ fun IntroScreen(
                     addJavascriptInterface(object : Any() {
                         @JavascriptInterface
                         fun completeIntro() {
-                            // Run in coroutine context if needed, but it's okay to call viewModel method
-                            settingsViewModel.setHasSeenIntro(true)
-                            // Jump to main thread for navigation
                             post {
+                                settingsViewModel.setHasSeenIntro(true)
                                 onNavigateToHome()
                             }
                         }
@@ -58,6 +71,7 @@ fun IntroScreen(
                     webViewClient = WebViewClient()
 
                     loadUrl("file:///android_asset/intro_app.html")
+                    webViewRef = this
                 }
             },
             modifier = Modifier.fillMaxSize()

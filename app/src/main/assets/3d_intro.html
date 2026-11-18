@@ -271,9 +271,12 @@
         let tarX = 0, tarY = 0, curX = 0, curY = 0;
         let isReady = false;
 
-        // Start interactions after the 6s cinematic sequence
+        // Start interactions after the cinematic sequence and notify Android to transition
         setTimeout(() => { 
             isReady = true;
+            if (window.Android && window.Android.onSplashFinished) {
+                window.Android.onSplashFinished();
+            }
             // First look at the "LIBRARY" word below
             tarX = 0; tarY = 25;
             setTimeout(() => {
@@ -283,7 +286,7 @@
                     triggerThinking();
                 }, 1500);
             }, 1200);
-        }, 6000);
+        }, 5200);
 
         function triggerThinking() {
             if(!isReady) return;

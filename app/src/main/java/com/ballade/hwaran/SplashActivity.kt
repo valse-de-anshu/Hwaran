@@ -91,7 +91,8 @@ class SplashActivity : ComponentActivity() {
 
             LaunchedEffect(ready) {
                 if (ready) {
-                    delay(1200L)
+                    // Safety fallback: allow 3D cinematic intro to play its full 5.2s sweep before navigating
+                    delay(5400L)
                     navigateToMain()
                 }
             }
@@ -128,6 +129,12 @@ class SplashActivity : ComponentActivity() {
                             settings.mediaPlaybackRequiresUserGesture = false
                             settings.allowFileAccess = true
                             settings.allowContentAccess = true
+                            addJavascriptInterface(object : Any() {
+                                @android.webkit.JavascriptInterface
+                                fun onSplashFinished() {
+                                    post { navigateToMain() }
+                                }
+                            }, "Android")
                             webChromeClient = android.webkit.WebChromeClient()
                             webViewClient = object : android.webkit.WebViewClient() {
                                 override fun onPageFinished(
@@ -138,7 +145,6 @@ class SplashActivity : ComponentActivity() {
                                 }
                             }
                             loadUrl("file:///android_asset/3d_intro.html")
-                            isVideoReady.value = true
                         }
                     },
                     modifier = Modifier

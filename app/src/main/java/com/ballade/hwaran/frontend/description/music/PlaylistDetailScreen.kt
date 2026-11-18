@@ -14,6 +14,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.ballade.hwaran.ui.components.simpleVerticalScrollbar
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -171,6 +173,7 @@ fun PlaylistDetailScreen(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(bgImageData)
+                        .size(540, 960)
                         .crossfade(false)
                         .memoryCacheKey("playlist_bg_${currentManga?.id}_${currentChapter?.id}")
                         .diskCacheKey("playlist_bg_${currentManga?.id}_${currentChapter?.id}")
@@ -197,9 +200,11 @@ fun PlaylistDetailScreen(
             )
         }
 
+        val scrollState = rememberLazyListState()
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                state = scrollState,
+                modifier = Modifier.fillMaxSize().simpleVerticalScrollbar(scrollState),
                 contentPadding = PaddingValues(top = 148.dp, bottom = listBottomPadding)
             ) {
                 item(key = "header") {
@@ -226,6 +231,7 @@ fun PlaylistDetailScreen(
                                         AsyncImage(
                                             model = ImageRequest.Builder(context)
                                                 .data(it.coverPath)
+                                                .size(520, 520)
                                                 .crossfade(true)
                                                 .build(),
                                             contentDescription = null,
@@ -649,6 +655,7 @@ fun SongItem(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(thumb)
+                        .size(156, 156)
                         .crossfade(false)
                         .memoryCacheKey("song_thumb_${chapter.id}")
                         .diskCacheKey("song_thumb_${chapter.id}")

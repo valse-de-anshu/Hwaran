@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.ballade.hwaran.ui.components.simpleVerticalScrollbar
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.core.metadata.EntryMetadata
@@ -127,7 +128,8 @@ fun ToonDescriptionView(
             state = scrollState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 20.dp)
+                .simpleVerticalScrollbar(scrollState),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             // Generous Top Spacer ensuring full clearance below camera punch hole/notch
@@ -158,6 +160,7 @@ fun ToonDescriptionView(
                             AsyncImage(
                                 model = ImageRequest.Builder(context)
                                     .data(resolvedCoverModel)
+                                    .size(360, 520)
                                     .crossfade(true)
                                     .build(),
                                 contentDescription = "Cover Art",

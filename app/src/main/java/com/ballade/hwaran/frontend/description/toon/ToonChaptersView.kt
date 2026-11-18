@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.ballade.hwaran.ui.components.simpleVerticalScrollbar
 import com.ballade.hwaran.core.database.entity.ChapterEntity
 import com.ballade.hwaran.core.database.entity.MangaEntity
 import com.ballade.hwaran.core.util.CoverArtResolver
@@ -393,7 +394,7 @@ fun ToonChaptersView(
 
                 LazyColumn(
                     state = scrollState,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().simpleVerticalScrollbar(scrollState),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(bottom = 90.dp)
                 ) {

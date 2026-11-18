@@ -46,6 +46,7 @@ fun HomeNavDock(
     onCenterActionClick: () -> Unit,
     onCenterActionLongClick: () -> Unit = {},
     isImporting: Boolean = false,
+    isSyncing: Boolean = false,
     importProgress: Float = 0f,
     modifier: Modifier = Modifier,
     glowColor: Color = Color(0xFFE2E8F0),
@@ -64,6 +65,44 @@ fun HomeNavDock(
             .padding(bottom = bottomClearance),
         contentAlignment = Alignment.BottomCenter
     ) {
+        // Speech Bubble Dialogue for JellyBall mascot when syncing
+        androidx.compose.animation.AnimatedVisibility(
+            visible = isSyncing,
+            enter = androidx.compose.animation.fadeIn(tween(260)) + androidx.compose.animation.slideInVertically(
+                spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)
+            ) { it / 2 },
+            exit = androidx.compose.animation.fadeOut(tween(200)) + androidx.compose.animation.slideOutVertically(tween(180)) { it / 2 },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = (-48).dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xF2161424),
+                border = BorderStroke(1.dp, glowColor.copy(alpha = 0.35f)),
+                shadowElevation = 14.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(12.dp),
+                        strokeWidth = 1.8.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Fetching all media from your Zine folder…",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.2.sp
+                    )
+                }
+            }
+        }
+
         // Floating Frosted Pill Dock
         Surface(
             modifier = Modifier
