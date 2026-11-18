@@ -27,6 +27,10 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -504,6 +508,8 @@ fun VideoPlayerScreen(
 
     // Double Tap Seek Ripple State
     var doubleTapRippleType by remember { mutableStateOf<String?>(null) } // "BACKWARD" or "FORWARD"
+    var doubleTapSeekToken by remember { mutableIntStateOf(0) }
+    var doubleTapSeekAmount by remember { mutableIntStateOf(0) }
 
     // Aspect Ratio Modes (0: FIT, 1: CROP/ZOOM, 2: FILL/STRETCH)
     val resizeModes = remember {
@@ -624,10 +630,11 @@ fun VideoPlayerScreen(
             aspectRatioOverlayText = null
         }
     }
-    LaunchedEffect(doubleTapRippleType) {
-        if (doubleTapRippleType != null) {
-            delay(800)
+    LaunchedEffect(doubleTapSeekToken) {
+        if (doubleTapSeekToken > 0) {
+            delay(700L)
             doubleTapRippleType = null
+            doubleTapSeekAmount = 0
         }
     }
 
@@ -647,28 +654,35 @@ fun VideoPlayerScreen(
     val hasPrev = currentIndex > 0
     val hasNext = currentIndex >= 0 && currentIndex < allChapters.size - 1
 
+    var isSwitchingEpisode by remember { mutableStateOf(false) }
+
     val switchToChapter: (Long) -> Unit = { newChapterId ->
-        val finalPos = exoPlayer.currentPosition
-        val finalDur = exoPlayer.duration.coerceAtLeast(0L)
-        val chId = currentChapterIdState.value
-        if (chId != -1L) {
-            videoViewModel.saveLastPosition(chId, finalPos, finalDur)
+        if (newChapterId != currentChapterId) {
+            val finalPos = exoPlayer.currentPosition
+            val finalDur = exoPlayer.duration.coerceAtLeast(0L)
+            val chId = currentChapterIdState.value
+            if (chId != -1L) {
+                val savePos = if (finalDur > 0 && finalPos >= finalDur * 0.95f) 0L else finalPos
+                videoViewModel.saveLastPosition(chId, savePos, finalDur)
+            }
+            exoPlayer.stop()
+            exoPlayer.clearMediaItems()
+            currentPosition = 0L
+            duration = 0L
+            dragPosition = null
+            seekDeltaMs = 0L
+            dragStartPos = 0L
+            lastInteractionTime = System.currentTimeMillis()
+            currentChapterId = newChapterId
+            onNavigateToChapter(newChapterId)
         }
-        exoPlayer.pause()
-        currentPosition = 0L
-        duration = 0L
-        dragPosition = null
-        seekDeltaMs = 0L
-        dragStartPos = 0L
-        lastInteractionTime = System.currentTimeMillis()
-        currentChapterId = newChapterId
-        onNavigateToChapter(newChapterId)
     }
 
     val onNextEpisode = rememberUpdatedState {
-        if (hasNext) {
+        if (!isSwitchingEpisode && hasNext) {
             val nextChapter = allChapters.getOrNull(currentIndex + 1)
             if (nextChapter != null) {
+                isSwitchingEpisode = true
                 switchToChapter(nextChapter.id)
             }
         }
@@ -683,7 +697,11 @@ fun VideoPlayerScreen(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 isBuffering = (playbackState == Player.STATE_BUFFERING)
                 if (playbackState == Player.STATE_ENDED) {
-                    onNextEpisode.value()
+                    if (!isSwitchingEpisode && hasNext) {
+                        onNextEpisode.value()
+                    }
+                } else if (playbackState == Player.STATE_READY) {
+                    isSwitchingEpisode = false
                 }
             }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -852,6 +870,8 @@ fun VideoPlayerScreen(
         }
     }
 
+    var lastLoadedChapterId by remember { mutableLongStateOf(-1L) }
+
     LaunchedEffect(videoUri, currentChapterId, customSubtitles) {
         val uri = videoUri ?: return@LaunchedEffect
         
@@ -878,8 +898,11 @@ fun VideoPlayerScreen(
             }
             .build()
 
-        val currentPos = exoPlayer.currentPosition
-        val wasPlaying = exoPlayer.isPlaying
+        val isSameChapter = (lastLoadedChapterId == currentChapterId && currentChapterId != -1L)
+        lastLoadedChapterId = currentChapterId
+
+        val currentPos = if (isSameChapter) exoPlayer.currentPosition else 0L
+        val wasPlaying = exoPlayer.isPlaying || isSwitchingEpisode
         exoPlayer.setMediaItem(mediaItem)
         exoPlayer.prepare()
 
@@ -891,13 +914,14 @@ fun VideoPlayerScreen(
             .setPreferredTextLanguage("en")
             .build()
 
-        if (currentPos > 0) {
+        if (isSameChapter && currentPos > 0) {
             exoPlayer.seekTo(currentPos)
         } else if (currentChapterId != -1L) {
             val chapter = withContext(Dispatchers.IO) { database.trackDao().getChapterById(currentChapterId) }
             if (chapter != null) {
                 val seekPos = chapter.position * 1L
-                if (seekPos > 0) {
+                val isCompleted = chapter.duration > 0 && (seekPos >= chapter.duration * 0.95f || chapter.duration - seekPos <= 5000L)
+                if (seekPos > 0 && !isCompleted) {
                     exoPlayer.seekTo(seekPos)
                 } else {
                     exoPlayer.seekTo(0L)
@@ -997,12 +1021,24 @@ fun VideoPlayerScreen(
                                         // Double-tap left side: Seek -10s without revealing UI
                                         val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
                                         exoPlayer.seekTo(newPos)
+                                        if (doubleTapRippleType == "BACKWARD") {
+                                            doubleTapSeekAmount += 10
+                                        } else {
+                                            doubleTapSeekAmount = 10
+                                        }
                                         doubleTapRippleType = "BACKWARD"
+                                        doubleTapSeekToken++
                                     } else if (touchX > viewWidth * 0.65f) {
                                         // Double-tap right side: Seek +10s without revealing UI
                                         val newPos = (exoPlayer.currentPosition + 10000L).coerceIn(0L, duration)
                                         exoPlayer.seekTo(newPos)
+                                        if (doubleTapRippleType == "FORWARD") {
+                                            doubleTapSeekAmount += 10
+                                        } else {
+                                            doubleTapSeekAmount = 10
+                                        }
                                         doubleTapRippleType = "FORWARD"
+                                        doubleTapSeekToken++
                                     } else {
                                         // Double-tap center: Play/Pause
                                         if (isPlaying) exoPlayer.pause() else exoPlayer.play()
@@ -1588,11 +1624,11 @@ fun VideoPlayerScreen(
                 }
             }
 
-            // ── Double Tap Ripple Feedback Overlay ──
+            // ── Double Tap Ripple Feedback Overlay (Dynamic YouTube-style gliding animation) ──
             AnimatedVisibility(
                 visible = doubleTapRippleType == "BACKWARD",
-                enter = fadeIn(),
-                exit = fadeOut(),
+                enter = fadeIn(tween(140)) + scaleIn(initialScale = 0.8f, animationSpec = tween(140)) + slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(140)),
+                exit = fadeOut(tween(220)) + scaleOut(targetScale = 1.08f, animationSpec = tween(220)) + slideOutHorizontally(targetOffsetX = { -it / 2 }, animationSpec = tween(220)),
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .padding(horizontal = 48.dp)
@@ -1605,11 +1641,11 @@ fun VideoPlayerScreen(
                     Box(
                         modifier = Modifier
                             .background(PremiumPillDefaults.background())
-                            .padding(20.dp),
+                            .padding(horizontal = 22.dp, vertical = 18.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "« 10s",
+                            text = "« ${doubleTapSeekAmount.coerceAtLeast(10)}s",
                             color = Color.White,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold
@@ -1620,8 +1656,8 @@ fun VideoPlayerScreen(
 
             AnimatedVisibility(
                 visible = doubleTapRippleType == "FORWARD",
-                enter = fadeIn(),
-                exit = fadeOut(),
+                enter = fadeIn(tween(140)) + scaleIn(initialScale = 0.8f, animationSpec = tween(140)) + slideInHorizontally(initialOffsetX = { it / 3 }, animationSpec = tween(140)),
+                exit = fadeOut(tween(220)) + scaleOut(targetScale = 1.08f, animationSpec = tween(220)) + slideOutHorizontally(targetOffsetX = { it / 2 }, animationSpec = tween(220)),
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(horizontal = 48.dp)
@@ -1634,11 +1670,11 @@ fun VideoPlayerScreen(
                     Box(
                         modifier = Modifier
                             .background(PremiumPillDefaults.background())
-                            .padding(20.dp),
+                            .padding(horizontal = 22.dp, vertical = 18.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "10s »",
+                            text = "${doubleTapSeekAmount.coerceAtLeast(10)}s »",
                             color = Color.White,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold

@@ -49,6 +49,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.em
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -129,6 +130,7 @@ enum class NovelReadMode {
 }
 
 enum class NovelFontFamily(val label: String, val family: FontFamily) {
+    SYSTEM("System", FontFamily.Default),
     LITERATA("Literata", FontFamily.Serif),
     LORA("Lora", FontFamily.Serif),
     MERRIWEATHER("Merit", FontFamily.Serif),
@@ -269,7 +271,7 @@ fun NovelPlayerScreen(
     // ── Reading Preferences ────────────────────────────────────────────────────
     var currentTheme by rememberSaveable { mutableStateOf(NovelTheme.DARK) }
     var readMode by rememberSaveable { mutableStateOf(NovelReadMode.VERTICAL_SCROLL) }
-    var currentFont by rememberSaveable { mutableStateOf(NovelFontFamily.LITERATA) }
+    var currentFont by rememberSaveable { mutableStateOf(NovelFontFamily.SYSTEM) }
     var fontSizeSp by rememberSaveable { mutableFloatStateOf(18f) }
     var lineHeightMultiplier by rememberSaveable { mutableFloatStateOf(1.65f) }
     var paragraphSpacingDp by rememberSaveable { mutableIntStateOf(14) }
@@ -1815,7 +1817,7 @@ private fun NovelParagraphBlock(
                     color = theme.text.copy(alpha = 0.9f),
                     fontSize = fontSizeSp.sp,
                     fontFamily = fontFamily,
-                    lineHeight = (fontSizeSp * lineHeightMultiplier).sp,
+                    lineHeight = lineHeightMultiplier.em,
                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
                 )
             }
@@ -1905,7 +1907,7 @@ private fun NovelParagraphBlock(
                     color = theme.text,
                     fontSize = fontSizeSp.sp,
                     fontFamily = fontFamily,
-                    lineHeight = (fontSizeSp * lineHeightMultiplier).sp,
+                    lineHeight = lineHeightMultiplier.em,
                     textAlign = textAlign,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1947,7 +1949,7 @@ private fun NovelParagraphBlock(
         color = theme.text,
         fontSize = fontSizeSp.sp,
         fontFamily = fontFamily,
-        lineHeight = (fontSizeSp * lineHeightMultiplier).sp,
+        lineHeight = lineHeightMultiplier.em,
         textAlign = textAlign,
         modifier = modifier.fillMaxWidth()
     )

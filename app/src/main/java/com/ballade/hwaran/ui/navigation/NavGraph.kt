@@ -98,7 +98,7 @@ private val EmphasizedAccelerate = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
  */
 fun NavHostController.navigateSafely(route: String, builder: androidx.navigation.NavOptionsBuilder.() -> Unit = {}) {
     val currentEntry = currentBackStackEntry
-    if (currentEntry == null || currentEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+    if (currentEntry == null || currentEntry.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
         navigate(route) {
             launchSingleTop = true
             builder()
@@ -112,7 +112,7 @@ fun NavHostController.navigateSafely(route: String, builder: androidx.navigation
  */
 fun NavHostController.popBackStackSafely(): Boolean {
     val currentEntry = currentBackStackEntry
-    if (currentEntry != null && currentEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+    if (currentEntry != null && currentEntry.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
         if (currentEntry.destination.route != Screen.Home.route) {
             return popBackStack()
         }
@@ -122,7 +122,7 @@ fun NavHostController.popBackStackSafely(): Boolean {
 
 fun NavHostController.popBackStackSafely(route: String, inclusive: Boolean = false): Boolean {
     val currentEntry = currentBackStackEntry
-    if (currentEntry != null && currentEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+    if (currentEntry != null && currentEntry.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
         val popped = popBackStack(route, inclusive)
         if (!popped && currentBackStackEntry?.destination?.route == null) {
             navigate(Screen.Home.route) {
@@ -139,11 +139,11 @@ fun NavHostController.popBackStackSafely(route: String, inclusive: Boolean = fal
 fun BlockTouchesWhenExiting(content: @Composable () -> Unit) {
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
-    val isResumed = lifecycleState == androidx.lifecycle.Lifecycle.State.RESUMED
+    val isReady = lifecycleState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
 
     Box(modifier = Modifier.fillMaxSize()) {
         content()
-        if (!isResumed) {
+        if (!isReady) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

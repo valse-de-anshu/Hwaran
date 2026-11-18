@@ -43,6 +43,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.em
+import androidx.compose.foundation.lazy.items
+import coil.ImageLoader
+import coil.decode.VideoFrameDecoder
+import java.io.File
+import android.net.Uri
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.ballade.hwaran.core.database.entity.ChapterEntity
@@ -105,6 +111,11 @@ fun SeriesDescriptionView(
     onDeleteManga: () -> Unit
 ) {
     val context = LocalContext.current
+    val videoImageLoader = remember(context) {
+        ImageLoader.Builder(context)
+            .components { add(VideoFrameDecoder.Factory()) }
+            .build()
+    }
     val CardBg = MaterialTheme.colorScheme.surface
     val TextMuted = MaterialTheme.colorScheme.onSurfaceVariant
 
@@ -809,27 +820,13 @@ fun SeriesDescriptionView(
                                 }
                             }
 
-                            ClickableText(
+                            Text(
                                 text = annotated,
-                                style = androidx.compose.ui.text.TextStyle(
-                                    color = Color.White.copy(alpha = 0.85f),
-                                    fontSize = 13.sp,
-                                    lineHeight = 19.sp
-                                ),
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 13.sp,
+                                lineHeight = 1.45.em,
                                 maxLines = if (!isSynopsisExpanded && isLong) 4 else Int.MAX_VALUE,
-                                overflow = TextOverflow.Ellipsis,
-                                onClick = { offset ->
-                                    annotated.getStringAnnotations(tag = "URL", start = offset, end = offset)
-                                        .firstOrNull()?.let { annotation ->
-                                            try {
-                                                val intent = android.content.Intent(
-                                                    android.content.Intent.ACTION_VIEW,
-                                                    android.net.Uri.parse(annotation.item)
-                                                )
-                                                context.startActivity(intent)
-                                            } catch (_: Exception) {}
-                                        }
-                                }
+                                overflow = TextOverflow.Ellipsis
                             )
 
                             if (isLong) {
@@ -881,7 +878,7 @@ fun SeriesDescriptionView(
                             shadowElevation = 8.dp,
                             modifier = Modifier
                                 .weight(1.2f)
-                                .height(48.dp)
+                                .defaultMinSize(minHeight = 48.dp)
                                 .clip(RoundedCornerShape(14.dp))
                                 .clickable {
                                     if (targetEpisode != null) {
@@ -893,8 +890,10 @@ fun SeriesDescriptionView(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(PremiumPillDefaults.background()),
+                                    .fillMaxWidth()
+                                    .defaultMinSize(minHeight = 48.dp)
+                                    .background(PremiumPillDefaults.background())
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Row(
@@ -924,7 +923,7 @@ fun SeriesDescriptionView(
                             onClick = { onOpenRelated("Videos") },
                             modifier = Modifier
                                 .weight(1.1f)
-                                .height(48.dp),
+                                .defaultMinSize(minHeight = 48.dp),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.filledTonalButtonColors(
                                 containerColor = Color.White.copy(alpha = 0.05f),
@@ -970,6 +969,189 @@ fun SeriesDescriptionView(
                                 tint = if (isFavorite) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.6f),
                                 modifier = Modifier.size(22.dp)
                             )
+                        }
+                    }
+                }
+            }
+
+            // ── Episodes / Video Catalog (Directly visible in Description) ──
+            if (chapters.isNotEmpty() && !isEditMode) {
+                item(key = "series_episodes_header") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 10.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Episodes (${chapters.size})",
+                            color = Color.White,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (chapters.size > 8) {
+                            TextButton(
+                                onClick = { onOpenRelated("Videos") },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "Manage / View All",
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                items(chapters, key = { "series_ep_${it.id}" }) { video ->
+                    val isCurrent = (video.title == manga.lastReadTitle)
+                    val (modelData, cacheKey) = remember(video.thumbnailUri, video.folderUri) {
+                        if (video.thumbnailUri != null) {
+                            File(video.thumbnailUri) to video.thumbnailUri!!
+                        } else {
+                            Uri.parse(video.folderUri) to "vthumb_raw_${video.id}"
+                        }
+                    }
+
+                    val durationStr = remember(video.duration) {
+                        if (video.duration > 0) {
+                            val totalSeconds = video.duration / 1000
+                            val hours = totalSeconds / 3600
+                            val minutes = (totalSeconds % 3600) / 60
+                            val seconds = totalSeconds % 60
+                            if (hours > 0) {
+                                String.format("%d:%02d:%02d", hours, minutes, seconds)
+                            } else {
+                                String.format("%02d:%02d", minutes, seconds)
+                            }
+                        } else null
+                    }
+
+                    val progressFraction = remember(video.position, video.duration) {
+                        if (video.duration > 0 && video.position > 0) {
+                            (video.position.toFloat() / video.duration.toFloat()).coerceIn(0f, 1f)
+                        } else 0f
+                    }
+
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { onNavigateToMedia(video.id, 2) },
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (isCurrent) Color.White.copy(alpha = 0.08f) else CardBg,
+                        border = BorderStroke(
+                            1.dp,
+                            if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.07f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // 16:9 Thumbnail
+                            Box(
+                                modifier = Modifier
+                                    .width(120.dp)
+                                    .aspectRatio(16f / 9f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.Black),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data(modelData)
+                                        .crossfade(false)
+                                        .memoryCacheKey(cacheKey)
+                                        .diskCacheKey(cacheKey)
+                                        .build(),
+                                    imageLoader = videoImageLoader,
+                                    contentDescription = video.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+
+                                if (durationStr != null) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = Color.Black.copy(alpha = 0.75f),
+                                        modifier = Modifier
+                                            .align(Alignment.BottomEnd)
+                                            .padding(4.dp)
+                                    ) {
+                                        Text(
+                                            text = durationStr,
+                                            color = Color.White,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+
+                                if (progressFraction > 0f) {
+                                    LinearProgressIndicator(
+                                        progress = { progressFraction },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(3.dp)
+                                            .align(Alignment.BottomCenter),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        trackColor = Color.White.copy(alpha = 0.2f)
+                                    )
+                                }
+                            }
+
+                            // Title & Progress
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = video.title,
+                                    color = if (isCurrent) MaterialTheme.colorScheme.primary else Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    if (isCurrent) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                        ) {
+                                            Text(
+                                                text = "Playing",
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                    if (progressFraction >= 0.95f) {
+                                        Text(
+                                            text = "Completed",
+                                            color = Color.White.copy(alpha = 0.5f),
+                                            fontSize = 11.sp
+                                        )
+                                    } else if (progressFraction > 0f) {
+                                        Text(
+                                            text = "${(progressFraction * 100).toInt()}% watched",
+                                            color = Color.White.copy(alpha = 0.5f),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
