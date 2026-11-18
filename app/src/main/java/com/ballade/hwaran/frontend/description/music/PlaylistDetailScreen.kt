@@ -366,29 +366,31 @@ fun PlaylistDetailScreen(
                                 contentDescription = "Options",
                                 onClick = { showOverflowMenu = true }
                             )
-                            HwaranDropdownMenu(
-                                expanded = showOverflowMenu,
-                                onDismissRequest = { showOverflowMenu = false }
-                            ) {
-                                HwaranDropdownMenuItem(
-                                    text = "Edit Description",
-                                    leadingIcon = Icons.Rounded.Edit,
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        onNavigateToEditPlaylist(mangaId)
-                                    }
-                                )
-                                HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
-                                HwaranDropdownMenuItem(
-                                    text = "Delete Playlist",
-                                    leadingIcon = Icons.Rounded.Delete,
-                                    isDanger = true,
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        selectionMode = SelectionMode.DELETE
-                                        selectedChapterIds.clear()
-                                    }
-                                )
+                            if (showOverflowMenu) {
+                                HwaranDropdownMenu(
+                                    expanded = showOverflowMenu,
+                                    onDismissRequest = { showOverflowMenu = false }
+                                ) {
+                                    HwaranDropdownMenuItem(
+                                        text = "Edit Description",
+                                        leadingIcon = Icons.Rounded.Edit,
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            onNavigateToEditPlaylist(mangaId)
+                                        }
+                                    )
+                                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
+                                    HwaranDropdownMenuItem(
+                                        text = "Delete Playlist",
+                                        leadingIcon = Icons.Rounded.Delete,
+                                        isDanger = true,
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            selectionMode = SelectionMode.DELETE
+                                            selectedChapterIds.clear()
+                                        }
+                                    )
+                                }
                             }
                         }
                     } else {
@@ -645,14 +647,18 @@ fun SongItem(
         ) {
             val thumb = chapter.thumbnailUri?.takeIf { it.isNotBlank() }
             if (thumb != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
+                val context = LocalContext.current
+                val imageRequest = remember(thumb, chapter.id) {
+                    ImageRequest.Builder(context)
                         .data(thumb)
                         .size(156, 156)
                         .crossfade(false)
                         .memoryCacheKey("song_thumb_${chapter.id}")
                         .diskCacheKey("song_thumb_${chapter.id}")
-                        .build(),
+                        .build()
+                }
+                AsyncImage(
+                    model = imageRequest,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -702,36 +708,38 @@ fun SongItem(
                 IconButton(onClick = { showMenu = true }) {
                     Icon(Icons.Rounded.MoreHoriz, contentDescription = "Menu", tint = Color.White.copy(alpha = 0.4f))
                 }
-                HwaranDropdownMenu(
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false }
-                ) {
-                    HwaranDropdownMenuItem(
-                        text = "Add in Playlist",
-                        leadingIcon = Icons.AutoMirrored.Rounded.PlaylistAdd,
-                        onClick = { 
-                            showMenu = false
-                            onAddToPlaylist()
-                        }
-                    )
-                    HwaranDropdownMenuItem(
-                        text = "Refine Tag",
-                        leadingIcon = Icons.Rounded.AutoFixHigh,
-                        onClick = { 
-                            showMenu = false
-                            onEditTag()
-                        }
-                    )
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
-                    HwaranDropdownMenuItem(
-                        text = "Delete",
-                        leadingIcon = Icons.Rounded.DeleteSweep,
-                        isDanger = true,
-                        onClick = { 
-                            showMenu = false
-                            onDelete()
-                        }
-                    )
+                if (showMenu) {
+                    HwaranDropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        HwaranDropdownMenuItem(
+                            text = "Add in Playlist",
+                            leadingIcon = Icons.AutoMirrored.Rounded.PlaylistAdd,
+                            onClick = { 
+                                showMenu = false
+                                onAddToPlaylist()
+                            }
+                        )
+                        HwaranDropdownMenuItem(
+                            text = "Refine Tag",
+                            leadingIcon = Icons.Rounded.AutoFixHigh,
+                            onClick = { 
+                                showMenu = false
+                                onEditTag()
+                            }
+                        )
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 4.dp))
+                        HwaranDropdownMenuItem(
+                            text = "Delete",
+                            leadingIcon = Icons.Rounded.DeleteSweep,
+                            isDanger = true,
+                            onClick = { 
+                                showMenu = false
+                                onDelete()
+                            }
+                        )
+                    }
                 }
             }
         }

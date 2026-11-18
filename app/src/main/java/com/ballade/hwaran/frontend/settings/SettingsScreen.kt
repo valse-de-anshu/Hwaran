@@ -971,6 +971,7 @@ fun SecurityContent(
 
         AlertDialog(
             onDismissRequest = { showActivityLogsDialog = false },
+            shape = RoundedCornerShape(20.dp),
             title = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -980,11 +981,12 @@ fun SecurityContent(
                     Text("Recent Activity Log", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                        color = Color(0xFF9333EA).copy(alpha = 0.20f),
+                        border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.35f))
                     ) {
                         Text(
                             "${recentEvents.size} events",
-                            color = MaterialTheme.colorScheme.primary,
+                            color = Color(0xFFC084FC),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -1011,8 +1013,8 @@ fun SecurityContent(
                     ) {
                         items(recentEvents, key = { it.id }) { event ->
                             Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color.White.copy(alpha = 0.05f),
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color.White.copy(alpha = 0.04f),
                                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -1022,27 +1024,21 @@ fun SecurityContent(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        val (badgeBg, badgeText) = when (event.eventType) {
+                                            "READ_NOVEL", "READ_TOON", "READ_BOOK" -> Color(0xFF10B981).copy(alpha = 0.18f) to Color(0xFF34D399)
+                                            "WATCH", "PLAY_VIDEO" -> Color(0xFF3B82F6).copy(alpha = 0.18f) to Color(0xFF60A5FA)
+                                            "LISTEN" -> Color(0xFF8B5CF6).copy(alpha = 0.18f) to Color(0xFFA78BFA)
+                                            "IMPORT" -> Color(0xFFF59E0B).copy(alpha = 0.18f) to Color(0xFFFBBF24)
+                                            "DELETE" -> Color(0xFFEF4444).copy(alpha = 0.18f) to Color(0xFFF87171)
+                                            else -> Color.White.copy(alpha = 0.12f) to Color.White
+                                        }
                                         Surface(
                                             shape = RoundedCornerShape(6.dp),
-                                            color = when (event.eventType) {
-                                                "READ_NOVEL", "READ_TOON", "READ_BOOK" -> Color(0xFF81C784).copy(alpha = 0.2f)
-                                                "WATCH", "PLAY_VIDEO" -> Color(0xFF64B5F6).copy(alpha = 0.2f)
-                                                "LISTEN" -> Color(0xFFBA68C8).copy(alpha = 0.2f)
-                                                "IMPORT" -> Color(0xFFFFD54F).copy(alpha = 0.2f)
-                                                "DELETE" -> Color(0xFFE57373).copy(alpha = 0.2f)
-                                                else -> Color.White.copy(alpha = 0.15f)
-                                            }
+                                            color = badgeBg
                                         ) {
                                             Text(
                                                 text = event.eventType,
-                                                color = when (event.eventType) {
-                                                    "READ_NOVEL", "READ_TOON", "READ_BOOK" -> Color(0xFF81C784)
-                                                    "WATCH", "PLAY_VIDEO" -> Color(0xFF64B5F6)
-                                                    "LISTEN" -> Color(0xFFBA68C8)
-                                                    "IMPORT" -> Color(0xFFFFD54F)
-                                                    "DELETE" -> Color(0xFFE57373)
-                                                    else -> Color.White
-                                                },
+                                                color = badgeText,
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -1081,16 +1077,17 @@ fun SecurityContent(
             },
             confirmButton = {
                 TextButton(onClick = { showActivityLogsDialog = false }) {
-                    Text("Close", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                    Text("Close", color = Color(0xFFC084FC), fontWeight = FontWeight.SemiBold)
                 }
             },
-            containerColor = Color(0xFF1E1E28)
+            containerColor = Color(0xFF161522)
         )
     }
 
     if (showWipeConfirmation) {
         AlertDialog(
             onDismissRequest = { showWipeConfirmation = false },
+            shape = RoundedCornerShape(20.dp),
             title = { Text("Wipe All History", color = Color.White, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
@@ -1111,7 +1108,7 @@ fun SecurityContent(
                     }
                     showWipeConfirmation = false
                 }) {
-                    Text("Wipe All", color = Color(0xFFE57373), fontWeight = FontWeight.Bold)
+                    Text("Wipe All", color = Color(0xFFF87171), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -1203,10 +1200,11 @@ fun SecurityContent(
                     isResettingPassword = false
                     showIncorrectPassword = false
                 }) {
-                    Text("Cancel", color = Color.Gray)
+                    Text("Cancel", color = Color.White.copy(alpha = 0.6f))
                 }
             },
-            containerColor = MaterialTheme.colorScheme.surface
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Color(0xFF161522)
         )
     }
 
@@ -1215,172 +1213,336 @@ fun SecurityContent(
     Text(
         text = "Secure your private library items with a password. Locked items will display a placeholder cover and require a password to access.",
         style = MaterialTheme.typography.bodySmall,
-        color = Color.White.copy(alpha = 0.7f),
-        modifier = Modifier.padding(bottom = 8.dp)
+        color = Color.White.copy(alpha = 0.65f),
+        modifier = Modifier.padding(bottom = 12.dp)
     )
 
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
+    // ── Vault Card ──
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFF161522).copy(alpha = 0.85f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
     ) {
-        // Toggle Lock/Unlock
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                if (isLibraryLocked) "Locked" else "Unlocked",
-                color = Color.White,
-                modifier = Modifier.padding(end = 8.dp)
-            )
-            Switch(
-                checked = isLibraryLocked,
-                onCheckedChange = {
-                    if (libraryPassword.isEmpty()) {
-                        isSettingNewPassword = true
-                        showPasswordDialog = true
-                    } else {
-                        showPasswordDialog = true
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // Main Toggle Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f).padding(end = 12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isLibraryLocked) Color(0xFF9333EA).copy(alpha = 0.20f)
+                                else Color.White.copy(alpha = 0.08f)
+                            )
+                            .border(
+                                1.dp,
+                                if (isLibraryLocked) Color(0xFFA855F7).copy(alpha = 0.40f)
+                                else Color.White.copy(alpha = 0.12f),
+                                CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isLibraryLocked) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
+                            contentDescription = null,
+                            tint = if (isLibraryLocked) Color(0xFFC084FC) else Color.White.copy(alpha = 0.70f),
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
-                },
-                colors = SwitchDefaults.colors(
-                    checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                )
-            )
-        }
-
-        // Select Items Button
-        IconButton(
-            onClick = onNavigateToLockSelection,
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-        ) {
-            Text(
-                text = "ꗃꄗ",
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        // Reset Password Button
-        IconButton(
-            onClick = {
-                if (libraryPassword.isNotEmpty()) {
-                    isResettingPassword = true
-                    showPasswordDialog = true
-                } else {
-                    isSettingNewPassword = true
-                    showPasswordDialog = true
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Private Vault Lock",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isLibraryLocked) "Locked • Password required for access" else "Unlocked • Vault is visible",
+                            color = if (isLibraryLocked) Color(0xFFC084FC) else Color.White.copy(alpha = 0.50f),
+                            fontSize = 12.sp
+                        )
+                    }
                 }
-            },
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.1f))
-        ) {
-            Icon(
-                Icons.Rounded.Refresh,
-                contentDescription = "Reset Password",
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
-            )
+
+                Switch(
+                    checked = isLibraryLocked,
+                    onCheckedChange = {
+                        if (libraryPassword.isEmpty()) {
+                            isSettingNewPassword = true
+                            showPasswordDialog = true
+                        } else {
+                            showPasswordDialog = true
+                        }
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = Color(0xFF9333EA),
+                        uncheckedThumbColor = Color.White.copy(alpha = 0.6f),
+                        uncheckedTrackColor = Color.White.copy(alpha = 0.12f)
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Vault Actions Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Manage Items Button
+                Surface(
+                    onClick = onNavigateToLockSelection,
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.White.copy(alpha = 0.06f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                    modifier = Modifier.weight(1f).height(44.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.FolderSpecial,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Vault Items",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                // Password Setup / Change Button
+                Surface(
+                    onClick = {
+                        if (libraryPassword.isNotEmpty()) {
+                            isResettingPassword = true
+                            showPasswordDialog = true
+                        } else {
+                            isSettingNewPassword = true
+                            showPasswordDialog = true
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.White.copy(alpha = 0.06f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                    modifier = Modifier.weight(1f).height(44.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Key,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (libraryPassword.isEmpty()) "Set Password" else "Change Key",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
         }
     }
 
-    Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(24.dp))
     SectionHeader("History Tracking", "Activity & playback stats")
 
     Text(
         text = "Track app launches, folder imports, reading progress, and playback statistics. Toggle tracking, view recent events, or wipe logs below.",
         style = MaterialTheme.typography.bodySmall,
-        color = Color.White.copy(alpha = 0.7f),
-        modifier = Modifier.padding(bottom = 10.dp)
+        color = Color.White.copy(alpha = 0.65f),
+        modifier = Modifier.padding(bottom = 12.dp)
     )
 
     val stopTracking by vm.stopTracking.collectAsState()
     val isTrackingEnabled = !stopTracking
 
     Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = Color.White.copy(alpha = 0.04f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-        modifier = Modifier.fillMaxWidth()
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFF161522).copy(alpha = 0.85f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(16.dp)
         ) {
-            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                Text(
-                    text = "History & Activity Tracking",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f).padding(end = 12.dp)
+                ) {
                     Box(
                         modifier = Modifier
-                            .size(7.dp)
+                            .size(42.dp)
+                            .clip(CircleShape)
                             .background(
-                                color = if (isTrackingEnabled) Color(0xFF81C784) else Color(0xFFFFB74D),
-                                shape = CircleShape
+                                if (isTrackingEnabled) Color(0xFF10B981).copy(alpha = 0.18f)
+                                else Color(0xFFF59E0B).copy(alpha = 0.18f)
                             )
+                            .border(
+                                1.dp,
+                                if (isTrackingEnabled) Color(0xFF34D399).copy(alpha = 0.35f)
+                                else Color(0xFFFBBF24).copy(alpha = 0.35f),
+                                CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.History,
+                            contentDescription = null,
+                            tint = if (isTrackingEnabled) Color(0xFF34D399) else Color(0xFFFBBF24),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "History & Activity Tracking",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .background(
+                                        color = if (isTrackingEnabled) Color(0xFF34D399) else Color(0xFFFBBF24),
+                                        shape = CircleShape
+                                    )
+                            )
+                            Text(
+                                text = if (isTrackingEnabled) "Active • Logging media & app activity" else "Paused • Tracking is stopped",
+                                color = if (isTrackingEnabled) Color(0xFF34D399) else Color(0xFFFBBF24),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+
+                Switch(
+                    checked = isTrackingEnabled,
+                    onCheckedChange = { isChecked -> vm.setStopTracking(!isChecked) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = Color(0xFF10B981),
+                        uncheckedThumbColor = Color.White.copy(alpha = 0.6f),
+                        uncheckedTrackColor = Color.White.copy(alpha = 0.12f)
                     )
-                    Text(
-                        text = if (isTrackingEnabled) "Active • Logging media & app activity" else "Paused • Tracking is stopped",
-                        color = if (isTrackingEnabled) Color(0xFF81C784) else Color(0xFFFFB74D),
-                        fontSize = 12.sp
-                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Action buttons: View Log & Wipe
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    onClick = { showActivityLogsDialog = true },
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.White.copy(alpha = 0.06f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                    modifier = Modifier.weight(1f).height(44.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ReceiptLong,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(17.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "View Activity Log",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                Surface(
+                    onClick = { showWipeConfirmation = true },
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFEF4444).copy(alpha = 0.10f),
+                    border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.28f)),
+                    modifier = Modifier.weight(1f).height(44.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.DeleteForever,
+                            contentDescription = null,
+                            tint = Color(0xFFF87171),
+                            modifier = Modifier.size(17.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Wipe History",
+                            color = Color(0xFFF87171),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
-            Switch(
-                checked = isTrackingEnabled,
-                onCheckedChange = { isChecked -> vm.setStopTracking(!isChecked) },
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
-                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                    uncheckedThumbColor = Color.LightGray,
-                    uncheckedTrackColor = Color.DarkGray
-                )
-            )
-        }
-    }
-
-    Spacer(modifier = Modifier.height(10.dp))
-
-    // Action buttons: View Log & Wipe
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        OutlinedButton(
-            onClick = { showActivityLogsDialog = true },
-            modifier = Modifier.weight(1f).height(46.dp),
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-        ) {
-            Text("View Activity Log", fontSize = 13.sp, fontWeight = FontWeight.Medium)
-        }
-
-        Button(
-            onClick = { showWipeConfirmation = true },
-            modifier = Modifier.weight(1f).height(46.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFFE57373).copy(alpha = 0.15f),
-                contentColor = Color(0xFFE57373)
-            ),
-            border = BorderStroke(1.dp, Color(0xFFE57373).copy(alpha = 0.35f))
-        ) {
-            Icon(Icons.Rounded.Delete, contentDescription = null, tint = Color(0xFFE57373), modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("Wipe History", fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

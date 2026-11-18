@@ -67,19 +67,15 @@ fun MiniPlayer(
     
     val context = LocalContext.current
 
-    // Boundary Logic for Dimming Controls
+    // Boundary Logic for Controls
     val currentIndex = remember(currentPlaylist, currentChapter) { 
         currentPlaylist.indexOfFirst { it.id == currentChapter?.id } 
     }
-    val hasPrevious = remember(currentIndex, currentPlaylist.size, shuffleMode, repeatMode) {
-        if (currentPlaylist.size <= 1) false
-        else if (shuffleMode || repeatMode != 0) true
-        else currentIndex > 0
+    val hasPrevious = remember(currentPlaylist.size) {
+        currentPlaylist.isNotEmpty()
     }
-    val hasNext = remember(currentIndex, currentPlaylist.size, shuffleMode, repeatMode) {
-        if (currentPlaylist.size <= 1) false
-        else if (shuffleMode || repeatMode != 0) true
-        else currentIndex >= 0 && currentIndex < currentPlaylist.size - 1
+    val hasNext = remember(currentPlaylist.size) {
+        currentPlaylist.size > 1
     }
     
     val colorPalette by musicViewModel.colorPalette.collectAsState()

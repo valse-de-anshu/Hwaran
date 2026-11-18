@@ -2,6 +2,7 @@ package com.ballade.hwaran.frontend.player.music
 
 import androidx.compose.material.icons.rounded.MusicNote
 import com.ballade.hwaran.ui.components.DeleteConfirmationDialog
+import com.ballade.hwaran.ui.components.DescriptionTopBarButton
 
 import android.content.Intent
 import android.net.Uri
@@ -131,19 +132,15 @@ fun MusicPlayerScreen(
     val currentShuffleMode by musicViewModel.currentShuffleMode.collectAsState()
     val repeatMode by musicViewModel.repeatMode.collectAsState()
 
-    // Boundary Logic for Dimming Controls
+    // Boundary Logic for Controls
     val currentIndex = remember(currentPlaylist, currentChapter) { 
         currentPlaylist.indexOfFirst { it.id == currentChapter?.id } 
     }
-    val hasNext = remember(currentIndex, currentPlaylist.size, shuffleMode, repeatMode) {
-        if (currentPlaylist.size <= 1) false
-        else if (shuffleMode || repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) true
-        else currentIndex < currentPlaylist.size - 1
+    val hasNext = remember(currentPlaylist.size) {
+        currentPlaylist.size > 1
     }
-    val hasPrevious = remember(currentIndex, currentPlaylist.size, shuffleMode, repeatMode) {
-        if (currentPlaylist.size <= 1) false
-        else if (shuffleMode || repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) true
-        else currentIndex > 0
+    val hasPrevious = remember(currentPlaylist.size) {
+        currentPlaylist.isNotEmpty()
     }
 
     val context = LocalContext.current
@@ -218,12 +215,14 @@ fun MusicPlayerScreen(
         )
 if (isLandscape) {
     Box(modifier = Modifier.fillMaxSize()) {
-        IconButton(
+        DescriptionTopBarButton(
+            icon = Icons.Rounded.KeyboardArrowDown,
+            contentDescription = "Close",
             onClick = onNavigateBack,
+            size = 44.dp,
+            iconSize = 28.dp,
             modifier = Modifier.align(Alignment.TopStart).padding(16.dp).statusBarsPadding()
-        ) {
-            Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(36.dp))
-        }
+        )
 
         Row(
             modifier = Modifier
@@ -415,34 +414,36 @@ if (isLandscape) {
                                     tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) Color.White else Color.White.copy(alpha = 0.5f)
                                 )
                             }
-                            HwaranDropdownMenu(
-                                expanded = showRepeatMenu,
-                                onDismissRequest = { showRepeatMenu = false }
-                            ) {
-                                HwaranDropdownMenuItem(
-                                    text = "Play next song",
-                                    leadingIcon = Icons.AutoMirrored.Rounded.ArrowRightAlt,
-                                    onClick = { 
-                                        showRepeatMenu = false
-                                        musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_OFF)
-                                    }
-                                )
-                                HwaranDropdownMenuItem(
-                                    text = "Repeat the same queue",
-                                    leadingIcon = Icons.Rounded.Repeat,
-                                    onClick = { 
-                                        showRepeatMenu = false
-                                        musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ALL)
-                                    }
-                                )
-                                HwaranDropdownMenuItem(
-                                    text = "Repeat the same song",
-                                    leadingIcon = Icons.Rounded.RepeatOne,
-                                    onClick = { 
-                                        showRepeatMenu = false
-                                        musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ONE)
-                                    }
-                                )
+                            if (showRepeatMenu) {
+                                HwaranDropdownMenu(
+                                    expanded = showRepeatMenu,
+                                    onDismissRequest = { showRepeatMenu = false }
+                                ) {
+                                    HwaranDropdownMenuItem(
+                                        text = "Play next song",
+                                        leadingIcon = Icons.AutoMirrored.Rounded.ArrowRightAlt,
+                                        onClick = { 
+                                            showRepeatMenu = false
+                                            musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_OFF)
+                                        }
+                                    )
+                                    HwaranDropdownMenuItem(
+                                        text = "Repeat the same queue",
+                                        leadingIcon = Icons.Rounded.Repeat,
+                                        onClick = { 
+                                            showRepeatMenu = false
+                                            musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ALL)
+                                        }
+                                    )
+                                    HwaranDropdownMenuItem(
+                                        text = "Repeat the same song",
+                                        leadingIcon = Icons.Rounded.RepeatOne,
+                                        onClick = { 
+                                            showRepeatMenu = false
+                                            musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ONE)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -551,18 +552,27 @@ if (isLandscape) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onNavigateBack) {
-                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(36.dp))
-                }
+                DescriptionTopBarButton(
+                    icon = Icons.Rounded.KeyboardArrowDown,
+                    contentDescription = "Close",
+                    onClick = onNavigateBack,
+                    size = 44.dp,
+                    iconSize = 28.dp
+                )
                 
                 Box {
-                    IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Rounded.MoreVert, contentDescription = "Menu", tint = Color.White)
-                    }
-                    HwaranDropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
-                    ) {
+                    DescriptionTopBarButton(
+                        icon = Icons.Rounded.MoreVert,
+                        contentDescription = "Menu",
+                        onClick = { showMenu = true },
+                        size = 44.dp,
+                        iconSize = 22.dp
+                    )
+                    if (showMenu) {
+                        HwaranDropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
                         HwaranDropdownMenuItem(
                             text = "Refine Tag",
                             leadingIcon = Icons.Rounded.AutoFixHigh,
@@ -598,6 +608,7 @@ if (isLandscape) {
                             }
                         )
                     }
+                }
                 }
             }
 
@@ -833,34 +844,36 @@ if (isLandscape) {
                             tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) Color.White else Color.White.copy(alpha = 0.5f)
                         )
                     }
-                    HwaranDropdownMenu(
-                        expanded = showRepeatMenu,
-                        onDismissRequest = { showRepeatMenu = false }
-                    ) {
-                        HwaranDropdownMenuItem(
-                            text = "Play next song",
-                            leadingIcon = Icons.AutoMirrored.Rounded.ArrowRightAlt,
-                            onClick = { 
-                                showRepeatMenu = false
-                                musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_OFF)
-                            }
-                        )
-                        HwaranDropdownMenuItem(
-                            text = "Repeat the same queue",
-                            leadingIcon = Icons.Rounded.Repeat,
-                            onClick = { 
-                                showRepeatMenu = false
-                                musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ALL)
-                            }
-                        )
-                        HwaranDropdownMenuItem(
-                            text = "Repeat the same song",
-                            leadingIcon = Icons.Rounded.RepeatOne,
-                            onClick = { 
-                                showRepeatMenu = false
-                                musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ONE)
-                            }
-                        )
+                    if (showRepeatMenu) {
+                        HwaranDropdownMenu(
+                            expanded = showRepeatMenu,
+                            onDismissRequest = { showRepeatMenu = false }
+                        ) {
+                            HwaranDropdownMenuItem(
+                                text = "Play next song",
+                                leadingIcon = Icons.AutoMirrored.Rounded.ArrowRightAlt,
+                                onClick = { 
+                                    showRepeatMenu = false
+                                    musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_OFF)
+                                }
+                            )
+                            HwaranDropdownMenuItem(
+                                text = "Repeat the same queue",
+                                leadingIcon = Icons.Rounded.Repeat,
+                                onClick = { 
+                                    showRepeatMenu = false
+                                    musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ALL)
+                                }
+                            )
+                            HwaranDropdownMenuItem(
+                                text = "Repeat the same song",
+                                leadingIcon = Icons.Rounded.RepeatOne,
+                                onClick = { 
+                                    showRepeatMenu = false
+                                    musicViewModel.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ONE)
+                                }
+                            )
+                        }
                     }
                 }
             }

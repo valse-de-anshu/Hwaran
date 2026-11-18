@@ -225,7 +225,9 @@ class MainActivity : ComponentActivity() {
                                 LaunchedEffect(currentIntent) {
                                     currentIntent?.let { intent ->
                                         if (intent.getBooleanExtra("navigate_to_music", false)) {
-                                            musicViewModel.syncExternalAudio(intent.data, this@MainActivity)
+                                            if (intent.data != null) {
+                                                musicViewModel.syncExternalAudio(intent.data, this@MainActivity)
+                                            }
                                             settingsViewModel.setActiveTab(1)
                                             navController.navigate(Screen.NowPlaying.route) {
                                                 popUpTo(Screen.Home.route) { inclusive = false }

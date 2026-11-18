@@ -99,7 +99,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             val index = p.currentMediaItemIndex
             val playlist = _currentPlaylist.value
             if (index >= 0 && index < playlist.size) {
-                if (!isNavigatingHistory && lastKnownMediaItemIndex >= 0 && lastKnownMediaItemIndex != index) {
+                if (_shuffleMode.value && !isNavigatingHistory && lastKnownMediaItemIndex >= 0 && lastKnownMediaItemIndex != index) {
                     if (playbackHistory.isEmpty() || playbackHistory.last() != lastKnownMediaItemIndex) {
                         playbackHistory.addLast(lastKnownMediaItemIndex)
                         if (playbackHistory.size > 50) {
@@ -459,7 +459,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             
             val artPath = chapter.thumbnailUri?.takeIf { it.isNotBlank() } ?: ""
             val artUri = if (artPath.isNotEmpty()) {
-                getOrCreateSquareCover(context, artPath)
+                if (artPath.startsWith("content://") || artPath.startsWith("android.resource://") || artPath.startsWith("file://")) {
+                    Uri.parse(artPath)
+                } else if (artPath.startsWith("/")) {
+                    val file = File(artPath)
+                    if (file.exists()) Uri.fromFile(file) else Uri.parse(artPath)
+                } else {
+                    Uri.parse(artPath)
+                }
             } else null
             
             val metadata = MediaMetadata.Builder()
@@ -763,6 +770,21 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        // If uri is null and library playlist is already active in memory, preserve it!
+        if (_currentPlaylist.value.isNotEmpty() && extChapter == null) {
+            val index = exoPlayer.currentMediaItemIndex
+            if (index in _currentPlaylist.value.indices) {
+                _currentChapter.value = _currentPlaylist.value[index]
+            }
+            if (exoPlayer.duration > 0) {
+                _totalDuration.value = exoPlayer.duration
+                _currentPosition.value = exoPlayer.currentPosition
+                _playbackProgress.value = exoPlayer.currentPosition.toFloat() / exoPlayer.duration.toFloat()
+            }
+            _isPlaying.value = exoPlayer.isPlaying
+            return
+        }
+
         val mediaItem = exoPlayer.currentMediaItem
         if (mediaItem != null && exoPlayer.playbackState != Player.STATE_IDLE) {
             val meta = mediaItem.mediaMetadata
@@ -1046,8 +1068,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        // If we have playback history, jump back to previously played track
-        if (playbackHistory.isNotEmpty()) {
+        // Jump back to previously played track ONLY when in shuffle mode
+        if (_shuffleMode.value && playbackHistory.isNotEmpty()) {
             val prevIndex = playbackHistory.removeLast()
             isNavigatingHistory = true
             p.seekTo(prevIndex, 0L)
